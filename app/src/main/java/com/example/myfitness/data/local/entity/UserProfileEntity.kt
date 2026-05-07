@@ -2,9 +2,17 @@ package com.example.myfitness.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.example.myfitness.domain.model.Gender
-import com.example.myfitness.domain.model.TrainingLevel
 
+/**
+ * 用户资料的数据库实体。
+ *
+ * @property id 主键，自动递增
+ * @property name 用户姓名
+ * @property age 年龄（可选）
+ * @property gender 性别，存储为 "MALE"、"FEMALE" 或 "OTHER"
+ * @property height 身高（cm，可选）
+ * @property weight 体重（kg，可选）
+ */
 @Entity(tableName = "user_profiles")
 data class UserProfileEntity(
     @PrimaryKey(autoGenerate = true)
@@ -15,7 +23,3 @@ data class UserProfileEntity(
     val height: Float?,
     val weight: Float?,
 )
-
-// TODO
-//@Entity(tableName = training_levels)
-

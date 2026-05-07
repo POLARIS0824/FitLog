@@ -29,3 +29,7 @@ Single `app` module for now, organized by package:
 - `worker/`: background jobs like weekly summaries
 
 Keep package boundaries clean so the project can be modularized later if needed.
+
+## Code Style Guidelines
+
+- Always use Javadoc-style comments for all public classes, interfaces, methods, and significant fields.
