@@ -4,16 +4,18 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * 训练记录的数据库实体，以 Markdown 文本存储每日训练内容。
+ * 训练日的数据库实体。
  *
  * @property id 主键，自动递增
  * @property date 训练日期，ISO-8601 格式（如 "2026-05-07"）
- * @property content Markdown 格式的训练日志
+ * @property sourceFileName 来源 file 文件名，如 "2026-05-07.md"
+ * @property rawContent 原始 file 全文，便于 AI 解析出错时对照排查
  */
-@Entity(tableName = "daily_check_ins")
-data class DailyCheckInEntity(
+@Entity(tableName = "workouts")
+data class WorkoutEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0L,
     val date: String,
-    val content: String,
+    val sourceFileName: String?,
+    val rawContent: String,
 )

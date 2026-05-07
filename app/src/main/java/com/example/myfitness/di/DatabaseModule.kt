@@ -3,8 +3,10 @@ package com.example.myfitness.di
 import android.content.Context
 import androidx.room.Room
 import com.example.myfitness.data.local.AppDatabase
-import com.example.myfitness.data.local.dao.DailyCheckInDao
+import com.example.myfitness.data.local.dao.ExerciseLogDao
+import com.example.myfitness.data.local.dao.SetLogDao
 import com.example.myfitness.data.local.dao.UserProfileDao
+import com.example.myfitness.data.local.dao.WorkoutDao
 import com.example.myfitness.data.repository.UserProfileRepositoryImpl
 import com.example.myfitness.data.repository.WorkoutRepositoryImpl
 import com.example.myfitness.domain.repository.UserProfileRepository
@@ -31,7 +33,8 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "myfitness.db",
-        ).build()
+        ).addMigrations(AppDatabase.MIGRATION_1_2)
+            .build()
     }
 
     @Provides
@@ -40,8 +43,18 @@ object DatabaseModule {
     }
 
     @Provides
-    fun provideDailyCheckInDao(database: AppDatabase): DailyCheckInDao {
-        return database.dailyCheckInDao()
+    fun provideWorkoutDao(database: AppDatabase): WorkoutDao {
+        return database.workoutDao()
+    }
+
+    @Provides
+    fun provideExerciseLogDao(database: AppDatabase): ExerciseLogDao {
+        return database.exerciseLogDao()
+    }
+
+    @Provides
+    fun provideSetLogDao(database: AppDatabase): SetLogDao {
+        return database.setLogDao()
     }
 }
 

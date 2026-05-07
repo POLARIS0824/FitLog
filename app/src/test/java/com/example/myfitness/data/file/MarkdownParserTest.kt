@@ -1,4 +1,4 @@
-package com.example.myfitness.data.markdown
+package com.example.myfitness.data.file
 
 import com.example.myfitness.domain.model.ExerciseEntry
 import com.example.myfitness.domain.model.WorkoutSet

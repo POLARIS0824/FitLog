@@ -2,7 +2,6 @@ package com.example.myfitness.data.repository
 
 import com.example.myfitness.data.local.dao.DailyCheckInDao
 import com.example.myfitness.data.local.entity.DailyCheckInEntity
-import com.example.myfitness.data.markdown.MarkdownParser
 import com.example.myfitness.domain.model.DailyCheckIn
 import com.example.myfitness.domain.model.ExerciseEntry
 import com.example.myfitness.domain.model.WorkoutSet
