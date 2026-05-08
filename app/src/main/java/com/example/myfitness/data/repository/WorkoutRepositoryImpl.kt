@@ -45,7 +45,7 @@ class WorkoutRepositoryImpl @Inject constructor(
         val workoutEntity = WorkoutEntity(
             id = checkIn.id,
             date = checkIn.date.toString(),
-            sourceFileName = null,
+            sourceFileName = checkIn.sourceFileName,
             rawContent = "",
         )
         val workoutId = if (checkIn.id == 0L) {
@@ -105,12 +105,12 @@ class WorkoutRepositoryImpl @Inject constructor(
      * @param content Markdown 格式的训练日志
      * @param date 训练日期
      */
-    override suspend fun importFromMarkdown(content: String, date: LocalDate) {
+    override suspend fun importFromMarkdown(content: String, date: LocalDate, sourceFileName: String?) {
         val preprocessed = MarkdownParser.preprocess(content)
         val entity = WorkoutEntity(
             id = 0L,
             date = date.toString(),
-            sourceFileName = null,
+            sourceFileName = sourceFileName,
             rawContent = preprocessed,
         )
         workoutDao.insert(entity)
@@ -131,6 +131,7 @@ class WorkoutRepositoryImpl @Inject constructor(
             id = id,
             date = LocalDate.parse(date),
             exercises = exercises,
+            sourceFileName = sourceFileName,
         )
     }
 }

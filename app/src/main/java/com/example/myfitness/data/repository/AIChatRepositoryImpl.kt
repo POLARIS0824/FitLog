@@ -11,7 +11,8 @@ import javax.inject.Inject
 /**
  * [AIChatRepository] 的 Retrofit 实现。
  *
- * 内部自行读取当前激活的 AI 提供商配置，负责 URL 拼接、Header 构建与 DTO 转换。
+ * 内部自行读取当前激活的 AI 提供商配置，
+ * 通过 [ProviderType] 构造请求 URL 与 Headers，负责 DTO 转换。
  */
 class AIChatRepositoryImpl @Inject constructor(
     private val api: AIApi,
@@ -26,7 +27,8 @@ class AIChatRepositoryImpl @Inject constructor(
         val config = configRepository.getById(activeId)
             ?: throw IllegalStateException("Active AI provider not found")
 
-        val url = config.baseUrl.removeSuffix("/") + "/v1/chat/completions"
+        val url = config.type.buildUrl(config)
+        val headers = config.type.buildHeaders(config.apiKey)
         val dtos = messages.map { MessageDto(role = it.role, content = it.content) }
         val request = ChatCompletionRequestDto(
             model = config.model,
@@ -35,7 +37,7 @@ class AIChatRepositoryImpl @Inject constructor(
 
         val response = api.chatCompletions(
             url = url,
-            authorization = "Bearer ${config.apiKey}",
+            headers = headers,
             request = request,
         )
         return response.choices.firstOrNull()?.message?.content

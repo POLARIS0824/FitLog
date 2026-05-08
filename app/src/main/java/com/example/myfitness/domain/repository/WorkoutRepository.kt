@@ -10,5 +10,5 @@ interface WorkoutRepository {
 
     suspend fun getSessionByDate(date: LocalDate): DailyCheckIn?
 
-    suspend fun importFromMarkdown(content: String, date: LocalDate)
+    suspend fun importFromMarkdown(content: String, date: LocalDate, sourceFileName: String? = null)
 }

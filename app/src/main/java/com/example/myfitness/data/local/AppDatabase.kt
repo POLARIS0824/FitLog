@@ -16,7 +16,8 @@ import com.example.myfitness.data.local.entity.UserProfileEntity
 import com.example.myfitness.data.local.entity.WorkoutEntity
 
 /**
- * Room 数据库入口，管理 [UserProfileEntity]、[WorkoutEntity]、[ExerciseLogEntity] 与 [SetLogEntity] 四张表。
+ * Room 数据库入口，管理 [UserProfileEntity]、[WorkoutEntity]、[ExerciseLogEntity]、[SetLogEntity]
+ * 与 [AIProviderConfigEntity] 五张表。
  */
 @Database(
     entities = [
@@ -26,7 +27,7 @@ import com.example.myfitness.data.local.entity.WorkoutEntity
         SetLogEntity::class,
         AIProviderConfigEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -124,6 +125,18 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                     """.trimIndent(),
                 )
+            }
+        }
+
+        /**
+         * 从版本 3 迁移到版本 4：
+         * 为 ai_provider_configs 表添加 type、custom_endpoint 和 api_version 列。
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE ai_provider_configs ADD COLUMN type TEXT NOT NULL DEFAULT 'CUSTOM'")
+                db.execSQL("ALTER TABLE ai_provider_configs ADD COLUMN custom_endpoint TEXT")
+                db.execSQL("ALTER TABLE ai_provider_configs ADD COLUMN api_version TEXT")
             }
         }
     }

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myfitness.domain.model.AIProviderConfig
 import com.example.myfitness.domain.model.ChatMessage
+import com.example.myfitness.domain.model.ProviderType
 import com.example.myfitness.domain.repository.AIProviderConfigRepository
 import com.example.myfitness.domain.usecase.SendChatMessageUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,22 +47,95 @@ class AITestViewModel @Inject constructor(
      * 保存一条新配置并刷新列表。
      *
      * @param name 配置名称（用于区分不同 provider）
+     * @param type AI 提供商类型
      * @param baseUrl AI 提供商的 base URL
      * @param apiKey API Key
      * @param model 模型标识
+     * @param customEndpoint 自定义 endpoint 路径（仅 [ProviderType.CUSTOM] 使用）
+     * @param apiVersion API 版本（仅 [ProviderType.AZURE] 使用）
      */
-    fun addConfig(name: String, baseUrl: String, apiKey: String, model: String) {
+    fun addConfig(
+        name: String,
+        type: ProviderType,
+        baseUrl: String,
+        apiKey: String,
+        model: String,
+        customEndpoint: String? = null,
+        apiVersion: String? = null,
+    ) {
         viewModelScope.launch {
             val id = "config_${System.currentTimeMillis()}"
             val config = AIProviderConfig(
                 id = id,
                 name = name.trim(),
+                type = type,
                 baseUrl = baseUrl.trim(),
                 apiKey = apiKey.trim(),
                 model = model.trim(),
+                customEndpoint = customEndpoint?.trim()?.takeIf { it.isNotBlank() },
+                apiVersion = apiVersion?.trim()?.takeIf { it.isNotBlank() },
                 isPreset = false,
             )
             configRepository.save(config)
+            loadConfigs()
+        }
+    }
+
+    /**
+     * 一键添加常用预设配置，方便快速测试不同平台。
+     * 预设的 baseUrl 和 model 使用占位符，用户填入 API Key 即可使用。
+     */
+    fun addPresetConfigs() {
+        viewModelScope.launch {
+            val presets = listOf(
+                AIProviderConfig(
+                    id = "preset_openai",
+                    name = "OpenAI",
+                    type = ProviderType.OPENAI,
+                    baseUrl = "https://api.openai.com",
+                    apiKey = "",
+                    model = "gpt-4o",
+                    isPreset = true,
+                ),
+                AIProviderConfig(
+                    id = "preset_moonshot",
+                    name = "Moonshot",
+                    type = ProviderType.MOONSHOT,
+                    baseUrl = "https://api.moonshot.cn",
+                    apiKey = "",
+                    model = "moonshot-v1-8k",
+                    isPreset = true,
+                ),
+                AIProviderConfig(
+                    id = "preset_deepseek",
+                    name = "DeepSeek",
+                    type = ProviderType.DEEPSEEK,
+                    baseUrl = "https://api.deepseek.com",
+                    apiKey = "",
+                    model = "deepseek-chat",
+                    isPreset = true,
+                ),
+                AIProviderConfig(
+                    id = "preset_siliconflow",
+                    name = "SiliconFlow",
+                    type = ProviderType.SILICONFLOW,
+                    baseUrl = "https://api.siliconflow.cn",
+                    apiKey = "",
+                    model = "deepseek-ai/DeepSeek-V3",
+                    isPreset = true,
+                ),
+                AIProviderConfig(
+                    id = "preset_azure",
+                    name = "Azure OpenAI",
+                    type = ProviderType.AZURE,
+                    baseUrl = "https://your-resource.openai.azure.com",
+                    apiKey = "",
+                    model = "gpt-4",
+                    apiVersion = "2024-02-01",
+                    isPreset = true,
+                ),
+            )
+            presets.forEach { configRepository.save(it) }
             loadConfigs()
         }
     }
