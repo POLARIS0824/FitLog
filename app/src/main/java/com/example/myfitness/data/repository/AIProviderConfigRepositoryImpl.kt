@@ -8,6 +8,7 @@ import com.example.myfitness.core.security.KeystoreManager
 import com.example.myfitness.data.local.dao.AIProviderConfigDao
 import com.example.myfitness.data.local.entity.AIProviderConfigEntity
 import com.example.myfitness.domain.model.AIProviderConfig
+import com.example.myfitness.domain.model.ProviderType
 import com.example.myfitness.domain.repository.AIProviderConfigRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -59,9 +60,12 @@ class AIProviderConfigRepositoryImpl @Inject constructor(
         return AIProviderConfig(
             id = id,
             name = name,
+            type = ProviderType.valueOf(type),
             baseUrl = baseUrl,
             apiKey = KeystoreManager.decrypt(encryptedApiKey),
             model = model,
+            customEndpoint = customEndpoint,
+            apiVersion = apiVersion,
             isPreset = isPreset,
         )
     }
@@ -73,9 +77,12 @@ class AIProviderConfigRepositoryImpl @Inject constructor(
         return AIProviderConfigEntity(
             id = id,
             name = name,
+            type = type.name,
             baseUrl = baseUrl,
             encryptedApiKey = KeystoreManager.encrypt(apiKey),
             model = model,
+            customEndpoint = customEndpoint,
+            apiVersion = apiVersion,
             isPreset = isPreset,
         )
     }

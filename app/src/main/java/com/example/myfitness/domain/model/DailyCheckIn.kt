@@ -6,6 +6,7 @@ data class DailyCheckIn(
     val id: Long,
     val date: LocalDate,
     val exercises: List<ExerciseEntry>,
+    val sourceFileName: String? = null,
 )
 
 /**
