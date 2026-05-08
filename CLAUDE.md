@@ -24,7 +24,6 @@ Single `app` module for now, organized by package:
 - `data/`: Room entities, DAO, repository implementations, remote API
 - `domain/`: models, repository interfaces, use cases
 - `feature/`: screens, ViewModels, UI state
-- `ai/`: analyzers, prompt builders, AI formatting
 - `di/`: Hilt modules
 - `worker/`: background jobs like weekly summaries
 
