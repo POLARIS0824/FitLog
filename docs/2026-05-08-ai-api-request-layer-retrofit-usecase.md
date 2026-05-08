@@ -2,7 +2,7 @@
 
 ## Context
 
-项目已搭建好 AI 配置管理的基础层（`AIProviderConfig` 领域模型、Room 实体/DAO、加密存储 Repository、Hilt 绑定），但**网络请求层完全空白**：
+项目已搭建好 AI 配置管理的基础层（`AIProviderConfig`  domain 模型、Room 实体/DAO、加密存储 Repository、Hilt 绑定），但**网络请求层完全空白**：
 
 - `data/remote/AIApi.kt` 是空接口
 - `di/AIModule.kt` 是空文件
@@ -72,7 +72,7 @@ interface AIApi {
   1. 读取 `AIProviderConfigRepository.getActiveId()` 和 `getById()` 获取当前配置
   2. 构造 `ChatCompletionRequest`
   3. 调用 `AIChatRepository.sendMessage()`
-  4. 返回 AI 回复文本，或抛出领域异常
+  4. 返回 AI 回复文本，或抛出 domain 异常
 
 ### 5. 改造 `di/AIModule.kt`
 

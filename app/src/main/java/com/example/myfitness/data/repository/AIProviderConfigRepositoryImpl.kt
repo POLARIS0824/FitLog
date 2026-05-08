@@ -53,7 +53,7 @@ class AIProviderConfigRepositoryImpl @Inject constructor(
     }
 
     /**
-     * 将数据库实体转换为领域模型，解密 [encryptedApiKey]。
+     * 将数据库实体转换为 domain 模型，解密 [encryptedApiKey]。
      */
     private fun AIProviderConfigEntity.toDomain(): AIProviderConfig {
         return AIProviderConfig(
@@ -67,7 +67,7 @@ class AIProviderConfigRepositoryImpl @Inject constructor(
     }
 
     /**
-     * 将领域模型转换为数据库实体，加密 [apiKey]。
+     * 将 domain 模型转换为数据库实体，加密 [apiKey]。
      */
     private fun AIProviderConfig.toEntity(): AIProviderConfigEntity {
         return AIProviderConfigEntity(
