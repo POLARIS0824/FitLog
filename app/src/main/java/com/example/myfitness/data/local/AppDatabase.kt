@@ -4,10 +4,12 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.myfitness.data.local.dao.AIProviderConfigDao
 import com.example.myfitness.data.local.dao.ExerciseLogDao
 import com.example.myfitness.data.local.dao.SetLogDao
 import com.example.myfitness.data.local.dao.UserProfileDao
 import com.example.myfitness.data.local.dao.WorkoutDao
+import com.example.myfitness.data.local.entity.AIProviderConfigEntity
 import com.example.myfitness.data.local.entity.ExerciseLogEntity
 import com.example.myfitness.data.local.entity.SetLogEntity
 import com.example.myfitness.data.local.entity.UserProfileEntity
@@ -22,8 +24,9 @@ import com.example.myfitness.data.local.entity.WorkoutEntity
         WorkoutEntity::class,
         ExerciseLogEntity::class,
         SetLogEntity::class,
+        AIProviderConfigEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -47,6 +50,11 @@ abstract class AppDatabase : RoomDatabase() {
      * 提供 [SetLogDao] 实例。
      */
     abstract fun setLogDao(): SetLogDao
+
+    /**
+     * 提供 [AIProviderConfigDao] 实例。
+     */
+    abstract fun aiProviderConfigDao(): AIProviderConfigDao
 
     companion object {
         /**
@@ -95,6 +103,27 @@ abstract class AppDatabase : RoomDatabase() {
 
                 db.execSQL("CREATE INDEX index_exercise_logs_workoutId ON exercise_logs(workoutId)")
                 db.execSQL("CREATE INDEX index_set_logs_exerciseLogId ON set_logs(exerciseLogId)")
+            }
+        }
+
+        /**
+         * 从版本 2 迁移到版本 3：
+         * 创建 ai_provider_configs 表，用于存储加密的 AI 提供商配置。
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE ai_provider_configs (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        baseUrl TEXT NOT NULL,
+                        encryptedApiKey TEXT NOT NULL,
+                        model TEXT NOT NULL,
+                        isPreset INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
             }
         }
     }

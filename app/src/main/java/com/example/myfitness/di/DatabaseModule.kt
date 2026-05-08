@@ -1,14 +1,21 @@
 package com.example.myfitness.di
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import com.example.myfitness.data.local.AppDatabase
+import com.example.myfitness.data.local.dao.AIProviderConfigDao
 import com.example.myfitness.data.local.dao.ExerciseLogDao
 import com.example.myfitness.data.local.dao.SetLogDao
 import com.example.myfitness.data.local.dao.UserProfileDao
 import com.example.myfitness.data.local.dao.WorkoutDao
+import com.example.myfitness.data.repository.AIProviderConfigRepositoryImpl
 import com.example.myfitness.data.repository.UserProfileRepositoryImpl
 import com.example.myfitness.data.repository.WorkoutRepositoryImpl
+import com.example.myfitness.domain.repository.AIProviderConfigRepository
 import com.example.myfitness.domain.repository.UserProfileRepository
 import com.example.myfitness.domain.repository.WorkoutRepository
 import dagger.Binds
@@ -33,7 +40,7 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "myfitness.db",
-        ).addMigrations(AppDatabase.MIGRATION_1_2)
+        ).addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
     }
 
@@ -56,6 +63,19 @@ object DatabaseModule {
     fun provideSetLogDao(database: AppDatabase): SetLogDao {
         return database.setLogDao()
     }
+
+    @Provides
+    fun provideAIProviderConfigDao(database: AppDatabase): AIProviderConfigDao {
+        return database.aiProviderConfigDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
+        return PreferenceDataStoreFactory.create {
+            context.preferencesDataStoreFile("myfitness_prefs")
+        }
+    }
 }
 
 @Module
@@ -71,4 +91,9 @@ abstract class RepositoryModule {
     abstract fun bindWorkoutRepository(
         impl: WorkoutRepositoryImpl,
     ): WorkoutRepository
+
+    @Binds
+    abstract fun bindAIProviderConfigRepository(
+        impl: AIProviderConfigRepositoryImpl,
+    ): AIProviderConfigRepository
 }
