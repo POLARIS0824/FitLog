@@ -1,6 +1,5 @@
 package com.example.myfitness.data.remote.dto
 
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -10,7 +9,7 @@ import kotlinx.serialization.Serializable
  * @param messages 对话上下文消息列表
  */
 @Serializable
-data class ChatCompletionRequest(
+data class ChatCompletionRequestDto(
     val model: String,
     val messages: List<MessageDto>,
 )

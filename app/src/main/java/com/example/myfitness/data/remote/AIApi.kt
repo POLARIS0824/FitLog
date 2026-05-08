@@ -1,6 +1,6 @@
 package com.example.myfitness.data.remote
 
-import com.example.myfitness.data.remote.dto.ChatCompletionRequest
+import com.example.myfitness.data.remote.dto.ChatCompletionRequestDto
 import com.example.myfitness.data.remote.dto.ChatCompletionResponse
 import retrofit2.http.Body
 import retrofit2.http.Header
@@ -27,6 +27,6 @@ interface AIApi {
     suspend fun chatCompletions(
         @Url url: String,
         @Header("Authorization") authorization: String,
-        @Body request: ChatCompletionRequest,
+        @Body request: ChatCompletionRequestDto,
     ): ChatCompletionResponse
 }

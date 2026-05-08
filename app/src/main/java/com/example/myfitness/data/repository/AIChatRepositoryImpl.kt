@@ -1,7 +1,7 @@
 package com.example.myfitness.data.repository
 
 import com.example.myfitness.data.remote.AIApi
-import com.example.myfitness.data.remote.dto.ChatCompletionRequest
+import com.example.myfitness.data.remote.dto.ChatCompletionRequestDto
 import com.example.myfitness.data.remote.dto.MessageDto
 import com.example.myfitness.domain.repository.AIChatRepository
 import javax.inject.Inject
@@ -19,7 +19,7 @@ class AIChatRepositoryImpl @Inject constructor(
         model: String,
         messages: List<MessageDto>,
     ): String {
-        val request = ChatCompletionRequest(
+        val request = ChatCompletionRequestDto(
             model = model,
             messages = messages,
         )
