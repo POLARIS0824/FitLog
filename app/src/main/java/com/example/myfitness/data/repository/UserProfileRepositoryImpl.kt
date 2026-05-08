@@ -45,7 +45,7 @@ class UserProfileRepositoryImpl @Inject constructor(
     }
 
     /**
-     * 将 [UserProfileEntity] 转换为领域模型 [UserProfile]。
+     * 将 [UserProfileEntity] 转换为 domain 模型 [UserProfile]。
      */
     private fun UserProfileEntity.toDomain(): UserProfile {
         return UserProfile(
@@ -60,7 +60,7 @@ class UserProfileRepositoryImpl @Inject constructor(
     }
 
     /**
-     * 将领域模型 [UserProfile] 转换为数据库实体 [UserProfileEntity]。
+     * 将 domain 模型 [UserProfile] 转换为数据库实体 [UserProfileEntity]。
      */
     private fun UserProfile.toEntity(): UserProfileEntity {
         return UserProfileEntity(

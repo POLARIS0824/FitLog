@@ -3,7 +3,7 @@ package com.example.myfitness.domain.repository
 import com.example.myfitness.domain.model.AIProviderConfig
 
 /**
- * AI 提供商配置的领域层仓库接口。
+ * AI 提供商配置的 domain 层仓库接口。
  */
 interface AIProviderConfigRepository {
 

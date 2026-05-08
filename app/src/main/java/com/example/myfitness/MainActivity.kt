@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.example.myfitness.feature.workout.WorkoutScreen
+import com.example.myfitness.feature.ai.AITestScreen
 import com.example.myfitness.ui.theme.MyFitnessTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyFitnessTheme {
-                WorkoutScreen()
+                AITestScreen()
             }
         }
     }
