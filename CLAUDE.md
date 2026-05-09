@@ -12,22 +12,30 @@ AI-powered native Android fitness app for personal use and portfolio/demo purpos
 - Room
 - Hilt
 - Coroutines + Flow
-- Navigation Compose
+- Navigation3
 - Retrofit / OkHttp
-- WorkManager
+- WorkManager (TODO)
 
 ## Architecture
 
 Single `app` module for now, organized by package:
 
-- `core/`: theme, navigation, shared utilities
+- `core/`: TODO
 - `data/`: Room entities, DAO, repository implementations, remote API
 - `domain/`: models, repository interfaces, use cases
 - `feature/`: screens, ViewModels, UI state
 - `di/`: Hilt modules
-- `worker/`: background jobs like weekly summaries
+- `worker/`: TODO
 
 Keep package boundaries clean so the project can be modularized later if needed.
+
+## Database
+
+- `user_profiles`: basic user info
+- `workouts` -> `exercise_logs` -> `sets_logs`: 3-level hierarchy (1:N:N)
+- `ai_provider_configs`: AI settings
+- `encryptedApiKey` uses Keystore AES-GCM (standalone).
+- DataStore: `active_ai_provider_id` for dynamic engine switching.
 
 ## Code Style Guidelines
 
