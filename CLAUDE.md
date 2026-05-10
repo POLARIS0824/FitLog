@@ -36,6 +36,7 @@ Keep package boundaries clean so the project can be modularized later if needed.
 - `ai_provider_configs`: AI settings
 - `encryptedApiKey` uses Keystore AES-GCM (standalone).
 - DataStore: `active_ai_provider_id` for dynamic engine switching.
+- Database version upgrade does not require migration.
 
 ## Code Style Guidelines
 
