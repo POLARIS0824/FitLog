@@ -10,8 +10,8 @@ import com.example.myfitness.data.local.entity.ExerciseLogEntity
 import com.example.myfitness.data.local.entity.SetLogEntity
 import com.example.myfitness.data.local.entity.WorkoutEntity
 import com.example.myfitness.domain.model.DailyCheckIn
-import com.example.myfitness.domain.model.ExerciseEntry
-import com.example.myfitness.domain.model.WorkoutSet
+import com.example.myfitness.domain.model.ExerciseLog
+import com.example.myfitness.domain.model.SetLog
 import com.example.myfitness.domain.repository.WorkoutRepository
 import java.time.LocalDate
 import javax.inject.Inject
@@ -123,9 +123,9 @@ class WorkoutRepositoryImpl @Inject constructor(
     private suspend fun WorkoutEntity.toDomain(): DailyCheckIn {
         val exercises = exerciseLogDao.getByWorkoutId(id).map { exercise ->
             val sets = setLogDao.getByExerciseLogId(exercise.id).map { set ->
-                WorkoutSet(weightKg = set.weightKg, reps = set.reps)
+                SetLog(weightKg = set.weightKg, reps = set.reps)
             }
-            ExerciseEntry(name = exercise.name, sets = sets)
+            ExerciseLog(name = exercise.name, sets = sets)
         }
         return DailyCheckIn(
             id = id,

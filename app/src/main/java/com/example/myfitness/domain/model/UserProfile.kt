@@ -17,6 +17,7 @@ data class UserProfile(
     val height: Float?,
     val weight: Float?,
     val trainingLevel: TrainingLevel,
+    val trainingGoal: TrainingGoal,
 )
 
 /**
@@ -34,3 +35,13 @@ data class ExerciseTrainingLevel(
 data class TrainingLevel(
     val exercises: Map<String, ExerciseTrainingLevel>
 )
+
+/**
+ * 训练目标
+ */
+enum class TrainingGoal {
+    HYPERTROPHY, // 增肌
+    FATLOSS,     // 减脂
+    STRENGTH,    // 力量
+    // TODO: FUNCTIONALITY
+}

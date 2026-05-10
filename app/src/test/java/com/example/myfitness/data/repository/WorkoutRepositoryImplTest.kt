@@ -3,8 +3,8 @@ package com.example.myfitness.data.repository
 import com.example.myfitness.data.local.dao.DailyCheckInDao
 import com.example.myfitness.data.local.entity.DailyCheckInEntity
 import com.example.myfitness.domain.model.DailyCheckIn
-import com.example.myfitness.domain.model.ExerciseEntry
-import com.example.myfitness.domain.model.WorkoutSet
+import com.example.myfitness.domain.model.ExerciseLog
+import com.example.myfitness.domain.model.SetLog
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -84,9 +84,9 @@ class WorkoutRepositoryImplTest {
             id = 0L,
             date = LocalDate.of(2026, 5, 7),
             exercises = listOf(
-                ExerciseEntry(
+                ExerciseLog(
                     name = "硬拉",
-                    sets = listOf(WorkoutSet(120.0f, 3)),
+                    sets = listOf(SetLog(120.0f, 3)),
                 ),
             ),
         )
@@ -149,13 +149,13 @@ class WorkoutRepositoryImplTest {
             id = 0L,
             date = LocalDate.of(2026, 5, 10),
             exercises = listOf(
-                ExerciseEntry(
+                ExerciseLog(
                     name = "卧推",
-                    sets = listOf(WorkoutSet(80.0f, 8), WorkoutSet(82.5f, 6)),
+                    sets = listOf(SetLog(80.0f, 8), SetLog(82.5f, 6)),
                 ),
-                ExerciseEntry(
+                ExerciseLog(
                     name = "深蹲",
-                    sets = listOf(WorkoutSet(100.0f, 5)),
+                    sets = listOf(SetLog(100.0f, 5)),
                 ),
             ),
         )
@@ -179,7 +179,7 @@ class WorkoutRepositoryImplTest {
         val result = repository.getSessions()
 
         assertEquals(1, result.size)
-        assertEquals(emptyList<ExerciseEntry>(), result[0].exercises)
+        assertEquals(emptyList<ExerciseLog>(), result[0].exercises)
     }
 
     private class FakeDailyCheckInDao : DailyCheckInDao {
