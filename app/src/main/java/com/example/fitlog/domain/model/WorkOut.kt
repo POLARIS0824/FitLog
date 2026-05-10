@@ -20,6 +20,7 @@ data class WorkOut(
  */
 data class ExerciseLog(
     val name: String,
+    val exerciseKey: String? = null,
     val sets: List<SetLog>,
 )
 

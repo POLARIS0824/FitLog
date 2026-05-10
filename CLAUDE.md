@@ -31,9 +31,11 @@ Keep package boundaries clean so the project can be modularized later if needed.
 
 ## Database
 
-- `user_profiles`: basic user info
-- `workouts` -> `exercise_logs` -> `sets_logs`: 3-level hierarchy (1:N:N)
-- `ai_provider_configs`: AI settings
+- `user_profiles`: basic user info.
+- `workouts` -> `exercise_logs` -> `set_logs`: 3-level workout log hierarchy (1:N:N).
+- `exercises`: exercise library, business IDs in kebab-case (e.g. `barbell-bench-press`).
+- `workout_plans` -> `planned_sessions` -> `planned_exercises`: 3-level plan hierarchy (1:N:N). `planned_sessions` optionally links to a completed `workouts` record.
+- `ai_provider_configs`: AI provider settings.
 - `encryptedApiKey` uses Keystore AES-GCM (standalone).
 - DataStore: `active_ai_provider_id` for dynamic engine switching.
 - Database version upgrade does not require migration.
