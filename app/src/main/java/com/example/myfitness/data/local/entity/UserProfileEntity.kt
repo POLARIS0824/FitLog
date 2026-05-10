@@ -12,6 +12,7 @@ import androidx.room.PrimaryKey
  * @property gender 性别，存储为 "MALE"、"FEMALE" 或 "OTHER"
  * @property height 身高（cm，可选）
  * @property weight 体重（kg，可选）
+ * @property trainingGoal 训练目标（可选）
  */
 @Entity(tableName = "user_profiles")
 data class UserProfileEntity(
@@ -22,4 +23,5 @@ data class UserProfileEntity(
     val gender: String?,
     val height: Float?,
     val weight: Float?,
+    val trainingGoal: String?,
 )

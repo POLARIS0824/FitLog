@@ -17,5 +17,5 @@ data class WorkoutEntity(
     val id: Long = 0L,
     val date: String,
     val sourceFileName: String?,
-    val rawContent: String,
+    val rawContent: String?,
 )
