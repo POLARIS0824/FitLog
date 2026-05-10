@@ -84,6 +84,15 @@ interface ExerciseDao {
     suspend fun getCustomExercises(): List<ExerciseEntity>
 
     /**
+     * 根据名称精确查询动作。
+     *
+     * @param name 动作名称
+     * @return 匹配的动作实体，若不存在则返回 null
+     */
+    @Query("SELECT * FROM exercises WHERE name = :name LIMIT 1")
+    suspend fun getByName(name: String): ExerciseEntity?
+
+    /**
      * 搜索动作名称（模糊匹配）。
      *
      * @param query 搜索关键词

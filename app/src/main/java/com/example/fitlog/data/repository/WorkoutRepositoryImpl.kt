@@ -3,12 +3,15 @@ package com.example.fitlog.data.repository
 import android.os.Build
 import androidx.annotation.RequiresApi
 import com.example.fitlog.data.file.MarkdownParser
+import com.example.fitlog.data.local.dao.ExerciseDao
 import com.example.fitlog.data.local.dao.ExerciseLogDao
 import com.example.fitlog.data.local.dao.SetLogDao
 import com.example.fitlog.data.local.dao.WorkoutDao
+import com.example.fitlog.data.local.entity.ExerciseEntity
 import com.example.fitlog.data.local.entity.workout.ExerciseLogEntity
 import com.example.fitlog.data.local.entity.workout.SetLogEntity
 import com.example.fitlog.data.local.entity.workout.WorkoutEntity
+import com.example.fitlog.domain.model.ExerciseCategory
 import com.example.fitlog.domain.model.WorkOut
 import com.example.fitlog.domain.model.ExerciseLog
 import com.example.fitlog.domain.model.SetLog
@@ -24,6 +27,7 @@ class WorkoutRepositoryImpl @Inject constructor(
     private val workoutDao: WorkoutDao,
     private val exerciseLogDao: ExerciseLogDao,
     private val setLogDao: SetLogDao,
+    private val exerciseDao: ExerciseDao,
 ) : WorkoutRepository {
 
     /**
@@ -68,8 +72,11 @@ class WorkoutRepositoryImpl @Inject constructor(
 
         val newExerciseIds = mutableListOf<Long>()
         checkIn.exercises.forEachIndexed { exerciseIndex, entry ->
+            val exerciseKey = entry.exerciseKey ?: resolveExerciseKey(entry.name)
+
             val exerciseEntity = ExerciseLogEntity(
                 workoutId = workoutId,
+                exerciseKey = exerciseKey,
                 name = entry.name,
                 sortOrder = exerciseIndex,
             )
@@ -144,7 +151,10 @@ class WorkoutRepositoryImpl @Inject constructor(
             val sets = setLogDao.getByExerciseLogId(exercise.id).map { set ->
                 SetLog(weightKg = set.weightKg, reps = set.reps)
             }
-            ExerciseLog(name = exercise.name, sets = sets)
+            val resolvedName = exercise.exerciseKey?.let { key ->
+                exerciseDao.getById(key)?.name
+            } ?: exercise.name
+            ExerciseLog(name = resolvedName, exerciseKey = exercise.exerciseKey, sets = sets)
         }
         return WorkOut(
             id = id,
@@ -154,5 +164,40 @@ class WorkoutRepositoryImpl @Inject constructor(
             exercises = exercises,
             sourceFileName = sourceFileName,
         )
+    }
+
+    /**
+     * 根据动作名称解析或创建对应的 [ExerciseEntity] 业务 ID。
+     *
+     * 1. 先按名称精确查询现有记录（包括系统内置和用户自定义）。
+     * 2. 若存在，直接返回其 [ExerciseEntity.id]。
+     * 3. 若不存在，创建一条 [isCustom] 为 true 的自定义动作并入库，
+     *    生成 kebab-case 风格的唯一标识（`custom-<slug>-<timestamp>`）。
+     *
+     * @param name 动作名称
+     * @return 关联的 [ExerciseEntity.id]
+     */
+    private suspend fun resolveExerciseKey(name: String): String {
+        val existing = exerciseDao.getByName(name)
+        if (existing != null) {
+            return existing.id
+        }
+        return createCustomExercise(name)
+    }
+
+    /**
+     * 创建一条用户自定义的 [ExerciseEntity]，标记为 [isCustom]。
+     */
+    private suspend fun createCustomExercise(name: String): String {
+        val slug = name.trim().lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
+        val id = if (slug.isNotEmpty()) "custom-$slug-${System.currentTimeMillis()}" else "custom-${System.currentTimeMillis()}"
+        val entity = ExerciseEntity(
+            id = id,
+            name = name,
+            isCustom = true,
+            category = ExerciseCategory.STRENGTH,
+        )
+        exerciseDao.insert(entity)
+        return id
     }
 }
