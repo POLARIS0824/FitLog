@@ -1,5 +1,6 @@
 package com.example.fitlog.domain.model
 
+import com.example.fitlog.domain.model.user.TrainingGoal
 import java.time.LocalDate
 
 /**
@@ -11,7 +12,7 @@ import java.time.LocalDate
  * @property id 业务标识，如 "plan-hypertrophy-4wk-001"
  * @property name 计划展示名称
  * @property description 计划说明，可选
- * @property goal 训练目标，复用 [TrainingGoal]
+ * @property goal 训练目标，复用 [com.example.fitlog.domain.model.user.TrainingGoal]
  * @property difficulty 建议难度等级，复用 [Difficulty]
  * @property durationWeeks 计划持续周数
  * @property sessionsPerWeek 每周训练次数

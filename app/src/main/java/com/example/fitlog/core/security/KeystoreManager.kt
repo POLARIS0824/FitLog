@@ -18,7 +18,7 @@ import javax.crypto.spec.GCMParameterSpec
 object KeystoreManager {
 
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-    private const val KEY_ALIAS = "myfitness_api_key"
+    private const val KEY_ALIAS = "fitLog_api_key"
     private const val AES_GCM_NOPADDING = "AES/GCM/NoPadding"
     private const val GCM_TAG_LENGTH = 128
     private const val GCM_IV_LENGTH = 12

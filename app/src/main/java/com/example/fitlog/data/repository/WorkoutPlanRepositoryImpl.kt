@@ -11,7 +11,7 @@ import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
 import com.example.fitlog.domain.model.Difficulty
 import com.example.fitlog.domain.model.PlannedExercise
 import com.example.fitlog.domain.model.PlannedSession
-import com.example.fitlog.domain.model.TrainingGoal
+import com.example.fitlog.domain.model.user.TrainingGoal
 import com.example.fitlog.domain.model.WorkoutPlan
 import com.example.fitlog.domain.repository.WorkoutPlanRepository
 import kotlinx.coroutines.flow.first

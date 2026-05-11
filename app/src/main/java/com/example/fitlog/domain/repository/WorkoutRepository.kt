@@ -6,7 +6,7 @@ import java.time.LocalDate
 interface WorkoutRepository {
     suspend fun getSessions(): List<WorkOut>
 
-    suspend fun saveSession(checkIn: WorkOut)
+    suspend fun saveSession(workOut: WorkOut)
 
     suspend fun getSessionByDate(date: LocalDate): WorkOut?
 

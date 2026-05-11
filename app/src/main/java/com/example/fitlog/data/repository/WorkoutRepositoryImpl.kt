@@ -43,35 +43,35 @@ class WorkoutRepositoryImpl @Inject constructor(
     /**
      * 保存一条完整的训练记录（含动作和组）。
      *
-     * @param checkIn 待保存的训练记录
+     * @param workOut 待保存的训练记录
      */
-    override suspend fun saveSession(checkIn: WorkOut) {
+    override suspend fun saveSession(workOut: WorkOut) {
         val workoutEntity = WorkoutEntity(
-            id = checkIn.id,
-            userId = checkIn.userId,
-            date = checkIn.date.toString(),
-            feelings = checkIn.feelings,
-            sourceFileName = checkIn.sourceFileName,
+            id = workOut.id,
+            userId = workOut.userId,
+            date = workOut.date.toString(),
+            feelings = workOut.feelings,
+            sourceFileName = workOut.sourceFileName,
             rawContent = "",
         )
-        val workoutId = if (checkIn.id == 0L) {
+        val workoutId = if (workOut.id == 0L) {
             val id = workoutDao.insert(workoutEntity)
             if (id == -1L) throw IllegalStateException("Failed to insert workout")
             id
         } else {
             workoutDao.update(workoutEntity)
-            checkIn.id
+            workOut.id
         }
 
         // 记录旧子记录 ID（更新模式下需要后续清理）
-        val oldExerciseIds = if (checkIn.id != 0L) {
+        val oldExerciseIds = if (workOut.id != 0L) {
             exerciseLogDao.getByWorkoutId(workoutId).map { it.id }
         } else {
             emptyList()
         }
 
         val newExerciseIds = mutableListOf<Long>()
-        checkIn.exercises.forEachIndexed { exerciseIndex, entry ->
+        workOut.exercises.forEachIndexed { exerciseIndex, entry ->
             val exerciseKey = entry.exerciseKey ?: resolveExerciseKey(entry.name)
 
             val exerciseEntity = ExerciseLogEntity(
@@ -99,7 +99,7 @@ class WorkoutRepositoryImpl @Inject constructor(
         }
 
         // 全部插入成功后，删除旧子记录
-        val exercisesToDelete = if (checkIn.id != 0L) {
+        val exercisesToDelete = if (workOut.id != 0L) {
             exerciseLogDao.getByWorkoutId(workoutId).filter { it.id in oldExerciseIds && it.id !in newExerciseIds }
         } else {
             emptyList()

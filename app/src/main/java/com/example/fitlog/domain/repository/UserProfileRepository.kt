@@ -1,6 +1,6 @@
 package com.example.fitlog.domain.repository
 
-import com.example.fitlog.domain.model.UserProfile
+import com.example.fitlog.domain.model.user.UserProfile
 
 interface UserProfileRepository {
     suspend fun getProfile(id: Long): UserProfile?
