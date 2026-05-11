@@ -4,7 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.example.fitlog.ui.theme.MyFitnessTheme
+import com.example.fitlog.feature.workout.WorkoutLogScreen
+import com.example.fitlog.ui.theme.FitLogTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
@@ -16,8 +17,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyFitnessTheme {
-                // TODO
+            FitLogTheme {
+                WorkoutLogScreen()
             }
         }
     }

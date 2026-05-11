@@ -2,10 +2,10 @@ package com.example.fitlog.data.repository
 
 import com.example.fitlog.data.local.dao.UserProfileDao
 import com.example.fitlog.data.local.entity.UserProfileEntity
-import com.example.fitlog.domain.model.Gender
-import com.example.fitlog.domain.model.TrainingGoal
-import com.example.fitlog.domain.model.TrainingLevel
-import com.example.fitlog.domain.model.UserProfile
+import com.example.fitlog.domain.model.user.Gender
+import com.example.fitlog.domain.model.user.TrainingGoal
+import com.example.fitlog.domain.model.user.TrainingLevel
+import com.example.fitlog.domain.model.user.UserProfile
 import com.example.fitlog.domain.repository.UserProfileRepository
 import javax.inject.Inject
 

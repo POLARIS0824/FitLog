@@ -1,4 +1,4 @@
-package com.example.fitlog.domain.model
+package com.example.fitlog.domain.model.user
 
 enum class Gender {
     MALE,
