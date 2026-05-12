@@ -18,10 +18,10 @@ import com.example.fitlog.data.repository.ExerciseRepositoryImpl
 import com.example.fitlog.data.repository.UserProfileRepositoryImpl
 import com.example.fitlog.data.repository.WorkoutPlanRepositoryImpl
 import com.example.fitlog.data.repository.WorkoutRepositoryImpl
-import com.example.fitlog.domain.repository.ExerciseRepository
-import com.example.fitlog.domain.repository.UserProfileRepository
-import com.example.fitlog.domain.repository.WorkoutPlanRepository
-import com.example.fitlog.domain.repository.WorkoutRepository
+import com.example.fitlog.model.repository.ExerciseRepository
+import com.example.fitlog.model.repository.UserProfileRepository
+import com.example.fitlog.model.repository.WorkoutPlanRepository
+import com.example.fitlog.model.repository.WorkoutRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides

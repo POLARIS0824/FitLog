@@ -1,4 +1,4 @@
-package com.example.fitlog.core.security
+package com.example.fitlog.util.security
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties

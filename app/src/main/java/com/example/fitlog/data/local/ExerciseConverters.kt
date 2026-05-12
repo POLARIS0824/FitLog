@@ -1,15 +1,14 @@
 package com.example.fitlog.data.local
 
 import androidx.room.TypeConverter
-import com.example.fitlog.domain.model.Difficulty
-import com.example.fitlog.domain.model.Equipment
-import com.example.fitlog.domain.model.ExerciseCategory
-import com.example.fitlog.domain.model.Force
-import com.example.fitlog.domain.model.MovementPattern
-import com.example.fitlog.domain.model.MuscleGroup
-import com.example.fitlog.domain.model.PrimaryMuscle
+import com.example.fitlog.model.Difficulty
+import com.example.fitlog.model.Equipment
+import com.example.fitlog.model.ExerciseCategory
+import com.example.fitlog.model.Force
+import com.example.fitlog.model.MovementPattern
+import com.example.fitlog.model.MuscleGroup
+import com.example.fitlog.model.PrimaryMuscle
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.builtins.ListSerializer
 
 /**
  * [ExerciseEntity] 的 Room TypeConverter。

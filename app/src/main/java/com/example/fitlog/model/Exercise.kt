@@ -1,4 +1,4 @@
-package com.example.fitlog.domain.model
+package com.example.fitlog.model
 
 /**
  * 动作（Exercise）目录条目，描述一个可供训练使用的标准或自定义动作。

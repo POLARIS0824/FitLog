@@ -1,4 +1,4 @@
-package com.example.fitlog.domain.model.ai
+package com.example.fitlog.model.ai
 
 /**
  * AI 对话中的单条消息。
