@@ -1,4 +1,4 @@
-package com.example.fitlog.domain.model.ai
+package com.example.fitlog.model.ai
 
 /**
  * 用户的 AI 提供商配置。

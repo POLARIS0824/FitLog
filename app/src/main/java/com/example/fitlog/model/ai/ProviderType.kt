@@ -1,4 +1,4 @@
-package com.example.fitlog.domain.model.ai
+package com.example.fitlog.model.ai
 
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 

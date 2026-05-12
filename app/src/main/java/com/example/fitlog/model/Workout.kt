@@ -1,12 +1,12 @@
-package com.example.fitlog.domain.model
+package com.example.fitlog.model
 
 import java.time.LocalDate
 
 /**
- * WorkOut -> ExerciseLog -> SetLog
+ * Workout -> ExerciseLog -> SetLog
  */
 
-data class WorkOut(
+data class Workout(
     val id: Long,
     val userId: Long,
     val date: LocalDate,

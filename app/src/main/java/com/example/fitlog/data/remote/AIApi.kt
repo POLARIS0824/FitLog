@@ -19,7 +19,7 @@ interface AIApi {
      * 发送对话补全请求。
      *
      * @param url 完整的请求地址（覆盖 Retrofit 的 baseUrl）
-     * @param headers 请求头键值对，由 [com.example.fitlog.domain.model.ai.ProviderType.buildHeaders] 构造
+     * @param headers 请求头键值对，由 [com.example.fitlog.model.ai.ProviderType.buildHeaders] 构造
      * @param request 请求体
      * @return 响应体
      */

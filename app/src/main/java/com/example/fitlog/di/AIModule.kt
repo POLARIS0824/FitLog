@@ -3,8 +3,8 @@ package com.example.fitlog.di
 import com.example.fitlog.data.remote.AIApi
 import com.example.fitlog.data.repository.AIChatRepositoryImpl
 import com.example.fitlog.data.repository.AIProviderConfigRepositoryImpl
-import com.example.fitlog.domain.repository.AIChatRepository
-import com.example.fitlog.domain.repository.AIProviderConfigRepository
+import com.example.fitlog.model.repository.AIChatRepository
+import com.example.fitlog.model.repository.AIProviderConfigRepository
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Binds
 import dagger.Module

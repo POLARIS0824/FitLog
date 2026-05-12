@@ -1,6 +1,6 @@
-package com.example.fitlog.domain.model
+package com.example.fitlog.model
 
-import com.example.fitlog.domain.model.user.TrainingGoal
+import com.example.fitlog.model.user.TrainingGoal
 import java.time.LocalDate
 
 /**
@@ -12,7 +12,7 @@ import java.time.LocalDate
  * @property id 业务标识，如 "plan-hypertrophy-4wk-001"
  * @property name 计划展示名称
  * @property description 计划说明，可选
- * @property goal 训练目标，复用 [com.example.fitlog.domain.model.user.TrainingGoal]
+ * @property goal 训练目标，复用 [TrainingGoal]
  * @property difficulty 建议难度等级，复用 [Difficulty]
  * @property durationWeeks 计划持续周数
  * @property sessionsPerWeek 每周训练次数
@@ -43,7 +43,7 @@ data class WorkoutPlan(
  * @property weekNumber 第几周（1-based）
  * @property targetDurationMinutes 目标训练时长（分钟），可选
  * @property exercises 该训练日包含的动作列表
- * @property completedWorkoutId 关联实际完成的 [WorkOut] 记录 ID，未完成为 null
+ * @property completedWorkoutId 关联实际完成的 [Workout] 记录 ID，未完成为 null
  */
 data class PlannedSession(
     val id: String,
