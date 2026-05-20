@@ -5,6 +5,10 @@ import androidx.room.PrimaryKey
 import java.time.LocalDate
 
 /**
+ * Workout -> ExerciseLog -> SetLog
+ */
+
+/**
  * 训练日的数据库实体。
  *
  * @property id 主键，自动递增

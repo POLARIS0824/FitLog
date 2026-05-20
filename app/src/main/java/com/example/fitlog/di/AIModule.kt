@@ -1,12 +1,7 @@
 package com.example.fitlog.di
 
 import com.example.fitlog.data.remote.AIApi
-import com.example.fitlog.data.repository.AIChatRepositoryImpl
-import com.example.fitlog.data.repository.AIProviderConfigRepositoryImpl
-import com.example.fitlog.model.repository.AIChatRepository
-import com.example.fitlog.model.repository.AIProviderConfigRepository
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
-import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -58,22 +53,4 @@ object AIModule {
     fun provideAIApi(@Named("ai") retrofit: Retrofit): AIApi {
         return retrofit.create(AIApi::class.java)
     }
-}
-
-/**
- * 绑定 AI 聊天仓库实现。
- */
-@Module
-@InstallIn(SingletonComponent::class)
-abstract class AIRepositoryModule {
-
-    @Binds
-    abstract fun bindAIChatRepository(
-        impl: AIChatRepositoryImpl,
-    ): AIChatRepository
-
-    @Binds
-    abstract fun bindAIProviderConfigRepository(
-        impl: AIProviderConfigRepositoryImpl,
-    ): AIProviderConfigRepository
 }

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -95,16 +96,29 @@ class WorkoutViewModel @Inject constructor(
             /**
              * 关键参数 WhileSubscribed(5000) 的含义
              *
-             *   started = SharingStarted.WhileSubscribed(5000)
+             * started = SharingStarted.WhileSubscribed(5000)
              *
-             *   - 有人订阅（Screen 在前台收集）：Room 的 Flow 启动，数据库有变化就刷新。
-             *   - 没人订阅（用户按 Home、跳转到别的页面、旋转屏幕重建中）：等 5000ms 后，Room Flow 被取消，不再监听数据库。
-             *   - 重新订阅（用户回到页面）：自动重新启动 Room Flow。
+             * - 有人订阅（Screen 在前台收集）：Room 的 Flow 启动，数据库有变化就刷新。
+             * - 没人订阅（用户按 Home、跳转到别的页面、旋转屏幕重建中）：等 5000ms 后，Room Flow 被取消，不再监听数据库。
+             * - 重新订阅（用户回到页面）：自动重新启动 Room Flow。
              *
-             *   这能省内存和电量。如果你用 SharingStarted.Eagerly，会一直监听；如果用 Lazily，第一个订阅者来之后永远不停。WhileSubscribed(5000)
-             *   是配置变更场景的最佳实践。
+             * 这能省内存和电量。如果你用 SharingStarted.Eagerly，会一直监听；如果用 Lazily，第一个订阅者来之后永远不停。
+             * WhileSubscribed(5000) 是配置变更场景的最佳实践。
              */
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = WorkoutUiState.Loading,
         )
+
+    // UI 事件处理函数
+    fun insertWorkout(workout: Workout) {
+        viewModelScope.launch {
+            workoutRepository.insert(workout)
+        }
+    }
+
+    fun deleteWorkout(workout: Workout) {
+        viewModelScope.launch {
+            workoutRepository.delete(workout)
+        }
+    }
 }

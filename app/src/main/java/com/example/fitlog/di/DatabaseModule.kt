@@ -14,15 +14,6 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import com.example.fitlog.data.local.AppDatabase
-import com.example.fitlog.data.repository.ExerciseRepositoryImpl
-import com.example.fitlog.data.repository.UserProfileRepositoryImpl
-import com.example.fitlog.data.repository.WorkoutPlanRepositoryImpl
-import com.example.fitlog.data.repository.WorkoutRepositoryImpl
-import com.example.fitlog.model.repository.ExerciseRepository
-import com.example.fitlog.model.repository.UserProfileRepository
-import com.example.fitlog.model.repository.WorkoutPlanRepository
-import com.example.fitlog.model.repository.WorkoutRepository
-import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -90,29 +81,4 @@ object DatabaseModule {
             context.preferencesDataStoreFile("fitLog_prefs")
         }
     }
-}
-
-@Module
-@InstallIn(SingletonComponent::class)
-abstract class RepositoryModule {
-
-    @Binds
-    abstract fun bindUserProfileRepository(
-        impl: UserProfileRepositoryImpl,
-    ): UserProfileRepository
-
-    @Binds
-    abstract fun bindWorkoutRepository(
-        impl: WorkoutRepositoryImpl,
-    ): WorkoutRepository
-
-    @Binds
-    abstract fun bindWorkoutPlanRepository(
-        impl: WorkoutPlanRepositoryImpl,
-    ): WorkoutPlanRepository
-
-    @Binds
-    abstract fun bindExerciseRepository(
-        impl: ExerciseRepositoryImpl,
-    ): ExerciseRepository
 }
