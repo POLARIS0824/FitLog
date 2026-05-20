@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import com.example.fitlog.data.local.entity.plan.PlannedExerciseEntity
 import com.example.fitlog.data.local.entity.plan.PlannedSessionEntity
 import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
+import com.example.fitlog.data.local.relation.WorkoutPlanWithSessions
 
 /**
  * 训练计划 DAO，支持级联查询与操作。
@@ -80,6 +81,14 @@ interface WorkoutPlanDao {
      */
     @Query("DELETE FROM planned_sessions WHERE planId = :planId")
     suspend fun deleteSessionsByPlanId(planId: String)
+
+    @Transaction
+    @Query("SELECT * FROM workout_plans ORDER BY createdAt DESC")
+    suspend fun getAllPlansWithDetails(): List<WorkoutPlanWithSessions>
+
+    @Transaction
+    @Query("SELECT * FROM workout_plans WHERE id = :id")
+    suspend fun getPlanByIdWithDetails(id: String): WorkoutPlanWithSessions?
 
     /**
      * 事务级保存完整计划。
