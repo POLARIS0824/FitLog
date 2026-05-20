@@ -14,14 +14,22 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.time.LocalDate
 
+/**
+ * 训练日志仓库 [WorkoutRepository] 的单元测试。
+ * 使用 Robolectric 在 JVM 环境下进行 Room 数据库及其关联实体的级联查询测试。
+ */
 @RunWith(RobolectricTestRunner::class) // 关键：使用 Robolectric，无需真机即可在 JVM 运行 Android 上下文
 class WorkoutRepositoryTest {
 
     private lateinit var db: AppDatabase
     private lateinit var repository: WorkoutRepository
 
+    /**
+     * 初始化内存 Room 数据库和 WorkoutRepository 实例。
+     */
     @Before
     fun createDb() {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -30,14 +38,25 @@ class WorkoutRepositoryTest {
             .allowMainThreadQueries() // 单元测试允许在主线程进行简单 DB 操作
             .build()
 
-        repository = WorkoutRepository(db.workoutDao())
+        repository = WorkoutRepository(
+            workoutDao = db.workoutDao(),
+            exerciseLogDao = db.exerciseLogDao(),
+            setLogDao = db.setLogDao()
+        )
     }
 
+    /**
+     * 测试后关闭数据库。
+     */
     @After
     fun closeDb() {
         db.close()
     }
 
+    /**
+     * 测试 [WorkoutRepository.getWorkouts]。
+     * 验证插入的 3 层级联结构（训练日 -> 动作记录 -> 组记录）被正确查询、组装并返回。
+     */
     @Test
     fun testGetWorkouts_whenDataInserted_shouldReturnCompleteNestedHierarchy() = runTest {
         // 1. 准备测试数据 (插入一条 Workout，关联一个 ExerciseLog，关联两组 SetLog)

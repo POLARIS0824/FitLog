@@ -14,6 +14,7 @@ data class WorkoutPlanWithSessions(
     @Embedded val plan: WorkoutPlanEntity,
 
     @Relation(
+        entity = PlannedSessionEntity::class,
         parentColumn = "id",
         entityColumn = "planId"
     )
