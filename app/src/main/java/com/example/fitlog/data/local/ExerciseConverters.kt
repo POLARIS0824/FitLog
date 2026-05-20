@@ -9,6 +9,9 @@ import com.example.fitlog.model.MovementPattern
 import com.example.fitlog.model.MuscleGroup
 import com.example.fitlog.model.PrimaryMuscle
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+
 
 /**
  * [ExerciseEntity] 的 Room TypeConverter。
@@ -64,9 +67,17 @@ class ExerciseConverters {
 
     @TypeConverter
     fun fromStringList(value: List<String>): String =
-        value.joinToString("") { it }
+        json.encodeToString(value)
 
     @TypeConverter
     fun toStringList(value: String): List<String> =
-        if (value.isEmpty()) emptyList() else value.split("")
+        if (value.isEmpty()) {
+            emptyList()
+        } else {
+            try {
+                json.decodeFromString<List<String>>(value)
+            } catch (e: Exception) {
+                value.split(" ")
+            }
+        }
 }
