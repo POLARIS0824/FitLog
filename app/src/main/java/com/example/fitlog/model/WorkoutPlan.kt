@@ -4,6 +4,10 @@ import com.example.fitlog.model.user.TrainingGoal
 import java.time.LocalDate
 
 /**
+ * WorkoutPlan -> PlanedSession -> PlannedExercise
+ */
+
+/**
  * 训练计划，描述一个完整的计划周期（如"4周增肌计划"）。
  *
  * 采用扁平化 session 设计：周期性计划直接展开为多个 [PlannedSession]，

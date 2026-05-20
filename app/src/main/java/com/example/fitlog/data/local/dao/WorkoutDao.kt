@@ -5,8 +5,10 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.example.fitlog.data.local.entity.workout.WorkoutEntity
+import com.example.fitlog.data.local.relation.WorkoutWithExerciseLogs
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -52,4 +54,12 @@ interface WorkoutDao {
      */
     @Query("SELECT * FROM workouts WHERE sourceFileName = :fileName")
     suspend fun getBySourceFileName(fileName: String): WorkoutEntity?
+
+    @Transaction
+    @Query("SELECT * FROM workouts ORDER BY date DESC")
+    fun getAllWithDetails(): Flow<List<WorkoutWithExerciseLogs>>
+
+    @Transaction
+    @Query("SELECT * FROM workouts WHERE date = :date")
+    fun getByDateWithDetails(date: LocalDate): Flow<List<WorkoutWithExerciseLogs>>
 }

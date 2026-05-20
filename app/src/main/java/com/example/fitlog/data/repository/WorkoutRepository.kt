@@ -26,12 +26,12 @@ class WorkoutRepository @Inject constructor(
 
     suspend fun delete(workout: Workout) = workoutDao.delete(workout.toEntity())
 
-    fun getByDate(date: LocalDate) = workoutDao.getByDate(date).map { list ->
+    fun getByDate(date: LocalDate) = workoutDao.getByDateWithDetails(date).map { list ->
         list.map { it.toModel() }
     }
 
     fun getWorkouts(): Flow<List<Workout>> {
-        return workoutDao.getAll().map { list ->
+        return workoutDao.getAllWithDetails().map { list ->
             list.map { it.toModel() }
         }
     }
