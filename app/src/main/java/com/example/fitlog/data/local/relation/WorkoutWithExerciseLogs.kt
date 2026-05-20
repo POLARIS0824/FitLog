@@ -14,6 +14,7 @@ data class WorkoutWithExerciseLogs(
     @Embedded val workout: WorkoutEntity,
 
     @Relation(
+        entity = ExerciseLogEntity::class,
         parentColumn = "id",
         entityColumn = "workoutId"
     )

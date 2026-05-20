@@ -11,6 +11,8 @@ class WorkoutPlanRepository @Inject constructor(
 ) {
     suspend fun insert(workoutPlan: WorkoutPlan) = workoutPlanDao.insertPlan(workoutPlan.toEntity())
 
+    // TODO: Other CRUD operations (update, delete) can be added here as needed
+
     suspend fun getAllPlans(): List<WorkoutPlan> {
         return workoutPlanDao.getAllPlansWithDetails().map { it.toModel() }
     }

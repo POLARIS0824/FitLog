@@ -55,10 +55,18 @@ interface WorkoutDao {
     @Query("SELECT * FROM workouts WHERE sourceFileName = :fileName")
     suspend fun getBySourceFileName(fileName: String): WorkoutEntity?
 
+    /**
+     * 查询所有训练日记录及其关联的练习日志，按日期降序排列。
+     * 使用 @Transaction 注解确保查询和关联数据的原子性
+     */
     @Transaction
     @Query("SELECT * FROM workouts ORDER BY date DESC")
     fun getAllWithDetails(): Flow<List<WorkoutWithExerciseLogs>>
 
+    /**
+     * 根据日期查询训练日记录及其关联的练习日志。
+     * 使用 @Transaction 注解确保查询和关联数据的原子性
+     */
     @Transaction
     @Query("SELECT * FROM workouts WHERE date = :date")
     fun getByDateWithDetails(date: LocalDate): Flow<List<WorkoutWithExerciseLogs>>
