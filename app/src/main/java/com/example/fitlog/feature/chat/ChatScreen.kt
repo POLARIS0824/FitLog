@@ -27,8 +27,9 @@ fun ChatRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     ChatScreen(
         uiState = uiState,
-        onInputChange = { viewModel.onInputChange(it) },
-        onSend = { viewModel.send() },
+        onInputChange = viewModel::onInputChange,
+        onSend = viewModel::send,
+        modifier = modifier,
     )
 }
 
@@ -37,6 +38,7 @@ fun ChatScreen(
     uiState: ChatUiState,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(Modifier.fillMaxSize()) {
 
