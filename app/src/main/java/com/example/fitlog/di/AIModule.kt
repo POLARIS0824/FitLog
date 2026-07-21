@@ -18,7 +18,7 @@ import javax.inject.Singleton
  * 提供 AI 网络层依赖的 Hilt Module。
  */
 @Module
-@InstallIn(SingletonComponent::class)
+@InstallIn(SingletonComponent::class) // 这些依赖在整个 App 生命周期只创建一次（单例）
 object AIModule {
 
     /**
@@ -31,9 +31,13 @@ object AIModule {
     @Named("ai")
     fun provideAIRetrofit(): Retrofit {
         val json = Json { ignoreUnknownKeys = true }
+
+        // OkHttp 拦截器——在开发和调试阶段，把请求和响应的完整内容打印到 Logcat
+        // TODO: 发布时关闭，防止 API KEY 泄露
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
+
         val client = OkHttpClient.Builder()
             .addInterceptor(logging)
             .build()

@@ -10,7 +10,7 @@ import kotlinx.serialization.Serializable
  * @param usage Token 使用量统计
  */
 @Serializable
-data class ChatCompletionResponse(
+data class ChatCompletionResponseDto(
     val choices: List<ChoiceDto>,
     val usage: UsageDto? = null,
 )

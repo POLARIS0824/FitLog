@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -14,6 +13,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.model.Workout
+import androidx.compose.material3.CircularProgressIndicator
 import java.time.LocalDate
 
 /**
@@ -37,7 +37,7 @@ fun WorkoutRoute(
 
 /**
  * 2. 纯 UI 展示层 (Stateless)
- * 不直接依赖任何 ViewModel 或 Hilt。极易进行单元测试与 Compose 预览。
+ * 不直接依赖任何 ViewModel 或 Hilt。
  */
 @Composable
 fun WorkoutScreen(
