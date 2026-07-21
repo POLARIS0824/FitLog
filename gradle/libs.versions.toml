@@ -27,6 +27,7 @@ foundation = "1.11.1"
 robolectric = "4.12.2"
 androidxTestCore = "1.6.1"
 material = "1.14.0"
+material3 = "1.4.0"
 
 
 [libraries]
@@ -76,6 +77,7 @@ androidx-compose-foundation = { group = "androidx.compose.foundation", name = "f
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 
 
 [plugins]

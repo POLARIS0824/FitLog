@@ -29,7 +29,7 @@ fun WorkoutRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     WorkoutScreen(
         uiState = uiState,
-        onDeleteWorkout = { viewModel.deleteWorkout(it) },
+        onDeleteWorkout = viewModel::deleteWorkout,
         modifier = modifier
     )
 }
