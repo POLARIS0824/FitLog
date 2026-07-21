@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.example.fitlog.feature.aisettings.AISettingsRoute
+import com.example.fitlog.ui.SettingsRoute
 import com.example.fitlog.ui.theme.FitLogTheme
 import dagger.hilt.android.AndroidEntryPoint
 
