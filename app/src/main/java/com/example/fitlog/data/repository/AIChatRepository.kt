@@ -53,13 +53,26 @@ class AIChatRepository @Inject constructor(
      * @return [Result.success] 包含 AI 的回复消息；[Result.failure] 描述错误原因
      */
     suspend fun chat(messages: List<ChatMessage>): Result<ChatMessage> {
-        return try {
-            // ── 步骤 1: 获取当前激活的 AI 配置 ──
-            val config = providerConfigRepo.activeProvider.first()
-                ?: return Result.failure(
-                    IllegalStateException("未设置 AI 服务商，请先在设置中配置 API Key")
-                )
+        // ── 步骤 1: 获取当前激活的 AI 配置 ──
+        val config = providerConfigRepo.activeProvider.first()
+            ?: return Result.failure(
+                IllegalStateException("未设置 AI 服务商，请先在设置中配置 API Key")
+            )
+        return chat(config, messages)
+    }
 
+    /**
+     * 使用指定配置发送对话消息并获取 AI 回复。
+     *
+     * 与 [chat] 不同，配置由调用方直接传入——设置页"测试连接"等场景
+     * 可以用表单中尚未保存的凭据发请求，不需要先落库或激活。
+     *
+     * @param config 用于鉴权和寻址的配置
+     * @param messages 完整的对话上下文
+     * @return [Result.success] 包含 AI 的回复消息；[Result.failure] 描述错误原因
+     */
+    suspend fun chat(config: AIProviderConfig, messages: List<ChatMessage>): Result<ChatMessage> {
+        return try {
             // ── 步骤 2: 构建请求参数 ──
             val url = config.type.buildUrl(config)
             val headers = config.type.buildHeaders(config.apiKey)
@@ -88,6 +101,16 @@ class AIChatRepository @Inject constructor(
             // 网络异常、超时、JSON 解析失败等，统一包装
             Result.failure(e)
         }
+    }
+
+    /**
+     * 连通性测试：用指定配置发一条最小消息，验证 URL + 凭据 + 模型全链路可用。
+     *
+     * @param config 待验证的配置（不需要已保存）
+     * @return [Result.success] 表示全链路可用；[Result.failure] 描述失败原因
+     */
+    suspend fun testConnection(config: AIProviderConfig): Result<ChatMessage> {
+        return chat(config, listOf(ChatMessage(role = "user", content = "Hi")))
     }
 
     /**

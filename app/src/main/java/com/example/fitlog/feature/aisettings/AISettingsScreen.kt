@@ -38,6 +38,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
@@ -103,6 +104,8 @@ fun AISettingsRoute(
         onCustomEndpointChange = viewModel::onCustomEndpointChange,
         onApiVersionChange = viewModel::onApiVersionChange,
         onFetchModels = viewModel::onFetchModels,
+        onTestConnection = viewModel::onTestConnection,
+        onTestResultShown = viewModel::onTestResultShown,
         onSave = viewModel::onSave,
         onErrorShown = viewModel::onErrorShown,
         onSuccessShown = viewModel::onSuccessShown,
@@ -128,6 +131,8 @@ fun AISettingsScreen(
     onCustomEndpointChange: (String) -> Unit,
     onApiVersionChange: (String) -> Unit,
     onFetchModels: (baseUrl: String, customEndpoint: String?) -> Unit,
+    onTestConnection: () -> Unit,
+    onTestResultShown: () -> Unit,
     onSave: (AIProviderConfig) -> Unit,
     onErrorShown: () -> Unit,
     onSuccessShown: () -> Unit,
@@ -225,6 +230,15 @@ fun AISettingsScreen(
                 },
             )
 
+            SectionLabel("Test")
+            TestCard(
+                test = uiState.test,
+                formReady = uiState.apiKey.apiKey.isNotBlank() &&
+                    uiState.model.selectedModel.isNotBlank() &&
+                    uiState.endpoint.baseUrl.isNotBlank(),
+                onTest = onTestConnection,
+            )
+
             // 保存按钮在页面底部：provider + 凭据 + 模型是同一条记录，一次保存原子完成
             Button(
                 onClick = {
@@ -266,6 +280,14 @@ fun AISettingsScreen(
             },
             onDismiss = { showProviderSheet = false },
         )
+    }
+
+    // 连接测试结果：lastResult 出现时弹出 Snackbar，展示完毕后清除
+    LaunchedEffect(uiState.test.lastResult) {
+        uiState.test.lastResult.takeIf { it.isNotEmpty() }?.let {
+            snackbarHostState.showSnackbar(it)
+            onTestResultShown()
+        }
     }
 
     // 保存成功提示：successMessage 出现时弹出 Snackbar，展示完毕后清除
@@ -653,7 +675,7 @@ private fun ModelCard(
 
         if (spec.supportsModelFetch) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(
+                FilledTonalButton(
                     onClick = onFetchModels,
                     enabled = apiKeyReady && !model.isLoading,
                 ) {
@@ -671,6 +693,50 @@ private fun ModelCard(
                     "填写 API Key 后可拉取",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+
+
+// ──────────────────────────────────────
+// Test 区块
+// ──────────────────────────────────────
+
+/**
+ * 连接测试卡片：用当前表单配置发一条最小消息，验证全链路可用。
+ *
+ * [TestState.isTesting] 驱动按钮旁加载菊花；结果通过 Snackbar 一次性展示
+ * （见 Screen 中的 LaunchedEffect），卡片内不保留结果文本。
+ */
+@Composable
+private fun TestCard(
+    test: TestState,
+    formReady: Boolean,
+    onTest: () -> Unit,
+) {
+    SettingsCard {
+        Text("连接测试", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "用当前配置发一条测试消息",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            FilledTonalButton(
+                onClick = onTest,
+                enabled = formReady && !test.isTesting,
+            ) {
+                Text("测试连接")
+            }
+            if (test.isTesting) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .padding(start = 12.dp)
+                        .size(20.dp),
+                    strokeWidth = 2.dp,
                 )
             }
         }
@@ -715,6 +781,8 @@ private fun AISettingsScreenPreview() {
         onCustomEndpointChange = {},
         onApiVersionChange = {},
         onFetchModels = { _, _ -> },
+        onTestConnection = {},
+        onTestResultShown = {},
         onSave = {},
         onErrorShown = {},
         onSuccessShown = {},
