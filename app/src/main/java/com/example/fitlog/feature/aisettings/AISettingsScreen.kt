@@ -1,8 +1,8 @@
 package com.example.fitlog.feature.aisettings
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -22,10 +23,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -46,10 +47,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +63,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -95,6 +101,7 @@ fun AISettingsRoute(
         onFetchModels = viewModel::onFetchModels,
         onSave = viewModel::onSave,
         onErrorShown = viewModel::onErrorShown,
+        onSuccessShown = viewModel::onSuccessShown,
         modifier = modifier,
     )
 }
@@ -116,10 +123,13 @@ fun AISettingsScreen(
     onFetchModels: (baseUrl: String, customEndpoint: String?) -> Unit,
     onSave: (AIProviderConfig) -> Unit,
     onErrorShown: () -> Unit,
+    onSuccessShown: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var showProviderSheet by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val selectedType = uiState.provider.selectedType
     val spec = ProviderSpecs.of(selectedType)
@@ -142,9 +152,19 @@ fun AISettingsScreen(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             LargeTopAppBar(
                 title = { Text("AI Configuration") },
+                navigationIcon = {
+                    // TODO: 返回 SettingsScreen（待导航框架接入后实现）
+                    IconButton(onClick = { }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回",
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.largeTopAppBarColors(
                     // 展开时融入背景；滚动折叠时渐变为略深的托起色（插值自动完成）
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -158,6 +178,15 @@ fun AISettingsScreen(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
+                // 点击输入框以外的区域时清除焦点，收起软键盘
+                // （输入框自身会消费点击事件，不会误触发）
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { focusManager.clearFocus() })
+                }
+                // 键盘弹出时顶起内容（edge-to-edge 下 adjustResize 被忽略，需自行消费 IME inset）。
+                // 注意顺序：imePadding 必须在 verticalScroll 外层——滚动视口高度随键盘收缩，
+                // 聚焦的输入框才会自动滚到键盘上方；放在滚动之后只是给内容末尾加空白，无效。
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -241,6 +270,14 @@ fun AISettingsScreen(
         )
     }
 
+    // 保存成功提示：successMessage 出现时弹出 Snackbar，展示完毕后清除
+    LaunchedEffect(uiState.ui.successMessage) {
+        uiState.ui.successMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            onSuccessShown()
+        }
+    }
+
     // 错误提示
     uiState.ui.errorMessage?.let { message ->
         AlertDialog(
@@ -256,7 +293,7 @@ fun AISettingsScreen(
 // 通用小组件
 // ──────────────────────────────────────
 
-/** 区块标签（截图中的蓝色小字）。 */
+/** 区块标签 */
 @Composable
 private fun SectionLabel(text: String) {
     Text(
@@ -652,5 +689,6 @@ private fun AISettingsScreenPreview() {
         onFetchModels = { _, _ -> },
         onSave = {},
         onErrorShown = {},
+        onSuccessShown = {},
     )
 }
