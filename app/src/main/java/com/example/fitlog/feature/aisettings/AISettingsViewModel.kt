@@ -39,6 +39,7 @@ class AISettingsViewModel @Inject constructor(
     private val selectedTypeState = MutableStateFlow(ProviderType.DEEPSEEK)
     private val apiKeyState = MutableStateFlow(ApiKeyState())
     private val modelState = MutableStateFlow(ModelState(selectedModel = ""))
+    private val endpointState = MutableStateFlow(EndpointState())
     private val uiFlow = MutableStateFlow(UiState())
 
     init {
@@ -65,9 +66,12 @@ class AISettingsViewModel @Inject constructor(
             ),
             apiKey = apiKey,
             model = model,
+            endpoint = EndpointState(),
             test = TestState(), // TODO: 连通性测试
             ui = UiState(),
         )
+    }.combine(endpointState) { state, endpoint ->
+        state.copy(endpoint = endpoint)
     }.combine(uiFlow) { state, ui ->
         state.copy(ui = ui)
     }.stateIn(
@@ -77,6 +81,7 @@ class AISettingsViewModel @Inject constructor(
             provider = ProviderState(),
             apiKey = ApiKeyState(),
             model = ModelState(selectedModel = ""),
+            endpoint = EndpointState(),
             test = TestState(),
             ui = UiState(isLoading = true),
         ),
@@ -89,15 +94,29 @@ class AISettingsViewModel @Inject constructor(
     /**
      * 在底部弹层中选中某个服务商。
      *
-     * 用该类型的已保存配置回填表单（apiKey / model 走 VM 状态）；
-     * 没有保存过则清空 apiKey、回填默认模型，同时清空已拉取的模型列表。
+     * 用该类型的已保存配置回填表单；没有保存过则清空 apiKey、回填默认模型，
+     * 同时清空已拉取的模型列表。
+     *
+     * 注意：必须挂起查询仓库 [AIProviderConfigRepository.getById]，而不是读
+     * `uiState.value.provider.providers`——combine Flow 首次发射要等 Room 查询返回，
+     * init 阶段读到的还是 initialValue（空列表），会导致重启后回填失败（时序竞态）。
      */
     fun onProviderSelected(type: ProviderType) {
-        selectedTypeState.update { type }
-        val saved = uiState.value.provider.providers.firstOrNull { it.id == type.name }
-        apiKeyState.update { ApiKeyState(apiKey = saved?.apiKey.orEmpty()) }
-        modelState.update {
-            ModelState(selectedModel = saved?.model ?: ProviderSpecs.of(type).defaultModel)
+        viewModelScope.launch {
+            selectedTypeState.update { type }
+            val spec = ProviderSpecs.of(type)
+            val saved = aiProviderConfigRepository.getById(type.name)
+            apiKeyState.update { ApiKeyState(apiKey = saved?.apiKey.orEmpty()) }
+            modelState.update {
+                ModelState(selectedModel = saved?.model ?: spec.defaultModel)
+            }
+            endpointState.update {
+                EndpointState(
+                    baseUrl = saved?.baseUrl ?: spec.defaultBaseUrl,
+                    customEndpoint = saved?.customEndpoint.orEmpty(),
+                    apiVersion = saved?.apiVersion.orEmpty(),
+                )
+            }
         }
     }
 
@@ -113,6 +132,15 @@ class AISettingsViewModel @Inject constructor(
 
     /** 模型输入框内容变化 / 点击推荐 chip。 */
     fun onModelChange(value: String) = modelState.update { it.copy(selectedModel = value) }
+
+    /** Base URL 输入框内容变化。 */
+    fun onBaseUrlChange(value: String) = endpointState.update { it.copy(baseUrl = value) }
+
+    /** 自定义 Endpoint 输入框内容变化。 */
+    fun onCustomEndpointChange(value: String) = endpointState.update { it.copy(customEndpoint = value) }
+
+    /** API Version 输入框内容变化。 */
+    fun onApiVersionChange(value: String) = endpointState.update { it.copy(apiVersion = value) }
 
     // ──────────────────────────────────────
     // 拉取模型列表

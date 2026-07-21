@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,8 +33,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
@@ -98,6 +99,9 @@ fun AISettingsRoute(
         onApiKeyChange = viewModel::onApiKeyChange,
         onToggleApiKeyVisibility = viewModel::onToggleApiKeyVisibility,
         onModelChange = viewModel::onModelChange,
+        onBaseUrlChange = viewModel::onBaseUrlChange,
+        onCustomEndpointChange = viewModel::onCustomEndpointChange,
+        onApiVersionChange = viewModel::onApiVersionChange,
         onFetchModels = viewModel::onFetchModels,
         onSave = viewModel::onSave,
         onErrorShown = viewModel::onErrorShown,
@@ -120,6 +124,9 @@ fun AISettingsScreen(
     onApiKeyChange: (String) -> Unit,
     onToggleApiKeyVisibility: () -> Unit,
     onModelChange: (String) -> Unit,
+    onBaseUrlChange: (String) -> Unit,
+    onCustomEndpointChange: (String) -> Unit,
+    onApiVersionChange: (String) -> Unit,
     onFetchModels: (baseUrl: String, customEndpoint: String?) -> Unit,
     onSave: (AIProviderConfig) -> Unit,
     onErrorShown: () -> Unit,
@@ -134,20 +141,8 @@ fun AISettingsScreen(
     val selectedType = uiState.provider.selectedType
     val spec = ProviderSpecs.of(selectedType)
 
-    // 该类型已保存的配置（用于回填 Screen 本地表单字段）
+    // 该类型已保存的配置（用于 ProviderCard 展示配置状态）
     val savedConfig = uiState.provider.providers.firstOrNull { it.id == selectedType.name }
-
-    // baseUrl 等字段不进 UiState，用"按 selectedType 重建"的 remember 做本地表单状态。
-    // 切换 provider 时 key 变化 → 重新执行初始值计算 → 从已保存配置或默认值回填。
-    var baseUrl by remember(selectedType) {
-        mutableStateOf(savedConfig?.baseUrl ?: spec.defaultBaseUrl)
-    }
-    var customEndpoint by remember(selectedType) {
-        mutableStateOf(savedConfig?.customEndpoint.orEmpty())
-    }
-    var apiVersion by remember(selectedType) {
-        mutableStateOf(savedConfig?.apiVersion.orEmpty())
-    }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -206,12 +201,12 @@ fun AISettingsScreen(
             CredentialsCard(
                 spec = spec,
                 uiState = uiState,
-                baseUrl = baseUrl,
-                onBaseUrlChange = { baseUrl = it },
-                customEndpoint = customEndpoint,
-                onCustomEndpointChange = { customEndpoint = it },
-                apiVersion = apiVersion,
-                onApiVersionChange = { apiVersion = it },
+                baseUrl = uiState.endpoint.baseUrl,
+                onBaseUrlChange = onBaseUrlChange,
+                customEndpoint = uiState.endpoint.customEndpoint,
+                onCustomEndpointChange = onCustomEndpointChange,
+                apiVersion = uiState.endpoint.apiVersion,
+                onApiVersionChange = onApiVersionChange,
                 onApiKeyChange = onApiKeyChange,
                 onToggleApiKeyVisibility = onToggleApiKeyVisibility,
             )
@@ -223,7 +218,10 @@ fun AISettingsScreen(
                 apiKeyReady = uiState.apiKey.apiKey.isNotBlank(),
                 onModelChange = onModelChange,
                 onFetchModels = {
-                    onFetchModels(baseUrl, customEndpoint.ifBlank { null })
+                    onFetchModels(
+                        uiState.endpoint.baseUrl,
+                        uiState.endpoint.customEndpoint.ifBlank { null },
+                    )
                 },
             )
 
@@ -235,18 +233,18 @@ fun AISettingsScreen(
                             id = selectedType.name,
                             name = spec.displayName,
                             type = selectedType,
-                            baseUrl = baseUrl.trim(),
+                            baseUrl = uiState.endpoint.baseUrl.trim(),
                             apiKey = uiState.apiKey.apiKey.trim(),
                             model = uiState.model.selectedModel.trim(),
-                            customEndpoint = customEndpoint.trim().ifBlank { null },
-                            apiVersion = apiVersion.trim().ifBlank { null },
+                            customEndpoint = uiState.endpoint.customEndpoint.trim().ifBlank { null },
+                            apiVersion = uiState.endpoint.apiVersion.trim().ifBlank { null },
                             isPreset = true, // 每类型一条的内置槽位配置
                         )
                     )
                 },
                 enabled = uiState.apiKey.apiKey.isNotBlank() &&
                     uiState.model.selectedModel.isNotBlank() &&
-                    baseUrl.isNotBlank(),
+                    uiState.endpoint.baseUrl.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
@@ -465,7 +463,14 @@ private fun ProviderPickerSheet(
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 leadingContent = { ProviderIcon(spec = spec, size = 40.dp) },
                 headlineContent = { Text(spec.displayName) },
-                supportingContent = { Text(if (configured) "已配置" else "未配置") },
+                supportingContent = { Text(
+                    text = if (configured) "已配置" else "未配置",
+                    color = if (configured) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                ) },
                 trailingContent = {
                     if (type == selectedType) {
                         Icon(
@@ -585,11 +590,12 @@ private fun HelpLink(url: String) {
 // ──────────────────────────────────────
 
 /**
- * 模型选择卡片：推荐 chips + 手动输入兜底 + 拉取列表。
+ * 模型选择卡片：可编辑下拉输入框 + 拉取列表。
  *
- * chips 数据源：已拉取列表优先，否则用 spec 内置推荐值——离线/拉取失败都有得选。
+ * 下拉数据源：已拉取的 availableModels 优先，未拉取时回落到 spec 内置推荐值。
+ * 输入框始终可手动输入，下拉只是快捷填充，拉取失败也不会被卡死。
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModelCard(
     spec: ProviderSpec,
@@ -606,26 +612,44 @@ private fun ModelCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        val chipModels = model.availableModels.ifEmpty { spec.recommendedModels }
-        if (chipModels.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                chipModels.forEach { m ->
-                    FilterChip(
-                        selected = model.selectedModel == m,
-                        onClick = { onModelChange(m) },
-                        label = { Text(m) },
-                    )
+        // 可编辑下拉框：输入框手动输入，右侧箭头展开模型列表
+        var expanded by remember { mutableStateOf(false) }
+        val options = model.availableModels.ifEmpty { spec.recommendedModels }
+
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+        ) {
+            OutlinedTextField(
+                value = model.selectedModel,
+                onValueChange = onModelChange,
+                label = { Text("模型名称") },
+                singleLine = true,
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // SecondaryEditable：点输入区正常聚焦弹键盘；点右侧箭头只展开列表，不弹键盘
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+            )
+            if (options.isNotEmpty()) {
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    options.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                onModelChange(option)
+                                expanded = false
+                            },
+                        )
+                    }
                 }
             }
         }
-
-        OutlinedTextField(
-            value = model.selectedModel,
-            onValueChange = onModelChange,
-            label = { Text("模型名称") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
 
         if (spec.supportsModelFetch) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -679,6 +703,7 @@ private fun AISettingsScreenPreview() {
             ),
             apiKey = ApiKeyState(apiKey = "sk-xxx"),
             model = ModelState(selectedModel = "deepseek-chat"),
+            endpoint = EndpointState(),
             test = TestState(),
             ui = UiState(),
         ),
@@ -686,6 +711,9 @@ private fun AISettingsScreenPreview() {
         onApiKeyChange = {},
         onToggleApiKeyVisibility = {},
         onModelChange = {},
+        onBaseUrlChange = {},
+        onCustomEndpointChange = {},
+        onApiVersionChange = {},
         onFetchModels = { _, _ -> },
         onSave = {},
         onErrorShown = {},

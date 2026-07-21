@@ -7,6 +7,7 @@ data class AISettingsUiState(
     val provider: ProviderState,
     val apiKey: ApiKeyState,
     val model: ModelState,
+    val endpoint: EndpointState,
     val test: TestState,
     val ui: UiState,
 )
@@ -27,6 +28,13 @@ data class ModelState(
     val availableModels: List<String> = emptyList(),
     val selectedModel: String,
     val isLoading: Boolean = false,
+)
+
+/** 端点相关表单字段（baseUrl / customEndpoint / apiVersion），随选中 provider 回填。 */
+data class EndpointState(
+    val baseUrl: String = "",
+    val customEndpoint: String = "",
+    val apiVersion: String = "",
 )
 
 // TODO: TestState
