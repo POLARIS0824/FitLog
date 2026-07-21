@@ -1,33 +1,50 @@
 package com.example.fitlog.feature.aisettings
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,18 +54,27 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ProviderType
-import java.util.UUID
 
 /**
  * 1. 容器层 (Stateful)
@@ -62,14 +88,11 @@ fun AISettingsRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     AISettingsScreen(
         uiState = uiState,
-        onAddNew = viewModel::onAddNew,
-        onEdit = viewModel::onEdit,
-        onDelete = viewModel::onDelete,
-        onSetActive = viewModel::onSetActive,
-        onEditorDismiss = viewModel::onEditorDismiss,
+        onProviderSelected = viewModel::onProviderSelected,
         onApiKeyChange = viewModel::onApiKeyChange,
         onToggleApiKeyVisibility = viewModel::onToggleApiKeyVisibility,
         onModelChange = viewModel::onModelChange,
+        onFetchModels = viewModel::onFetchModels,
         onSave = viewModel::onSave,
         onErrorShown = viewModel::onErrorShown,
         modifier = modifier,
@@ -78,26 +101,43 @@ fun AISettingsRoute(
 
 /**
  * 2. 纯 UI 展示层 (Stateless)
- * 不直接依赖任何 ViewModel 或 Hilt。
+ *
+ * 单配置页：页面只服务"当前选中的那一个服务商"，
+ * 切换服务商通过底部弹层完成，不加号、无列表。
  */
-//@OptIn(ExperimentalMaterial3Api::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AISettingsScreen(
     uiState: AISettingsUiState,
-    onAddNew: () -> Unit,
-    onEdit: (AIProviderConfig) -> Unit,
-    onDelete: (AIProviderConfig) -> Unit,
-    onSetActive: (String) -> Unit,
-    onEditorDismiss: () -> Unit,
+    onProviderSelected: (ProviderType) -> Unit,
     onApiKeyChange: (String) -> Unit,
     onToggleApiKeyVisibility: () -> Unit,
     onModelChange: (String) -> Unit,
+    onFetchModels: (baseUrl: String, customEndpoint: String?) -> Unit,
     onSave: (AIProviderConfig) -> Unit,
     onErrorShown: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    var showProviderSheet by remember { mutableStateOf(false) }
+
+    val selectedType = uiState.provider.selectedType
+    val spec = ProviderSpecs.of(selectedType)
+
+    // 该类型已保存的配置（用于回填 Screen 本地表单字段）
+    val savedConfig = uiState.provider.providers.firstOrNull { it.id == selectedType.name }
+
+    // baseUrl 等字段不进 UiState，用"按 selectedType 重建"的 remember 做本地表单状态。
+    // 切换 provider 时 key 变化 → 重新执行初始值计算 → 从已保存配置或默认值回填。
+    var baseUrl by remember(selectedType) {
+        mutableStateOf(savedConfig?.baseUrl ?: spec.defaultBaseUrl)
+    }
+    var customEndpoint by remember(selectedType) {
+        mutableStateOf(savedConfig?.customEndpoint.orEmpty())
+    }
+    var apiVersion by remember(selectedType) {
+        mutableStateOf(savedConfig?.apiVersion.orEmpty())
+    }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -105,276 +145,475 @@ fun AISettingsScreen(
         topBar = {
             LargeTopAppBar(
                 title = { Text("AI Configuration") },
-                colors = TopAppBarDefaults.topAppBarColors(
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    // 展开时融入背景；滚动折叠时渐变为略深的托起色（插值自动完成）
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                 ),
                 scrollBehavior = scrollBehavior,
             )
         },
-        // Floating Action Button ?
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = innerPadding.calculateTopPadding(),
-                bottom = innerPadding.calculateBottomPadding() + 16.dp,
-            ),
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (uiState.ui.isLoading) {
-                // 在屏幕中间显示一个 Contained loading indicator
-
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
-        }
-    }
 
+            SectionLabel("AI Provider")
+            ProviderCard(
+                spec = spec,
+                savedConfig = savedConfig,
+                onClick = { showProviderSheet = true },
+            )
 
+            SectionLabel("Credentials")
+            CredentialsCard(
+                spec = spec,
+                uiState = uiState,
+                baseUrl = baseUrl,
+                onBaseUrlChange = { baseUrl = it },
+                customEndpoint = customEndpoint,
+                onCustomEndpointChange = { customEndpoint = it },
+                apiVersion = apiVersion,
+                onApiVersionChange = { apiVersion = it },
+                onApiKeyChange = onApiKeyChange,
+                onToggleApiKeyVisibility = onToggleApiKeyVisibility,
+            )
 
+            SectionLabel("Model")
+            ModelCard(
+                spec = spec,
+                model = uiState.model,
+                apiKeyReady = uiState.apiKey.apiKey.isNotBlank(),
+                onModelChange = onModelChange,
+                onFetchModels = {
+                    onFetchModels(baseUrl, customEndpoint.ifBlank { null })
+                },
+            )
 
-//    Scaffold(
-//        modifier = modifier,
-//        topBar = { TopAppBar(title = { Text("AI 服务商") }) },
-//        floatingActionButton = {
-//            FloatingActionButton(onClick = onAddNew) {
-//                Icon(Icons.Default.Add, contentDescription = "新增服务商")
-//            }
-//        },
-//    ) { innerPadding ->
-//        Column(
-//            modifier = Modifier
-//                .padding(innerPadding)
-//                .fillMaxSize()
-//        ) {
-//            if (uiState.ui.isLoading) {
-//                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-//            }
-//            if (uiState.provider.providers.isEmpty()) {
-//                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-//                    Text("还没有 AI 服务商配置，点击右下角添加")
-//                }
-//            } else {
-//                LazyColumn(modifier = Modifier.fillMaxSize()) {
-//                    items(uiState.provider.providers, key = { it.id }) { config ->
-//                        ProviderItem(
-//                            config = config,
-//                            isActive = config.id == uiState.provider.activeProviderId,
-//                            onSetActive = onSetActive,
-//                            onEdit = onEdit,
-//                            onDelete = onDelete,
-//                        )
-//                        HorizontalDivider()
-//                    }
-//                }
-//            }
-//        }
-//    }
-//
-//    // 新增 / 编辑对话框
-//    if (uiState.provider.showEditor) {
-//        ProviderEditorDialog(
-//            uiState = uiState,
-//            onDismiss = onEditorDismiss,
-//            onApiKeyChange = onApiKeyChange,
-//            onToggleApiKeyVisibility = onToggleApiKeyVisibility,
-//            onModelChange = onModelChange,
-//            onSave = onSave,
-//        )
-//    }
-//
-//    // 错误提示
-//    uiState.ui.errorMessage?.let { message ->
-//        AlertDialog(
-//            onDismissRequest = onErrorShown,
-//            confirmButton = { TextButton(onClick = onErrorShown) { Text("知道了") } },
-//            title = { Text("出错了") },
-//            text = { Text(message) },
-//        )
-//    }
-}
-
-/**
- * 单个服务商配置列表项。
- *
- * 左侧单选按钮表示"当前激活"，右侧提供编辑与删除入口。
- * 预设配置不显示删除按钮（与仓库层约定一致：是否可删由 UI 控制）。
- */
-@Composable
-private fun ProviderItem(
-    config: AIProviderConfig,
-    isActive: Boolean,
-    onSetActive: (String) -> Unit,
-    onEdit: (AIProviderConfig) -> Unit,
-    onDelete: (AIProviderConfig) -> Unit,
-) {
-    ListItem(
-        leadingContent = {
-            RadioButton(selected = isActive, onClick = { onSetActive(config.id) })
-        },
-        headlineContent = { Text(config.name) },
-        supportingContent = { Text("${config.type.name} · ${config.model}") },
-        trailingContent = {
-            Row {
-                IconButton(onClick = { onEdit(config) }) {
-                    Icon(Icons.Default.Edit, contentDescription = "编辑")
-                }
-                if (!config.isPreset) {
-                    IconButton(onClick = { onDelete(config) }) {
-                        Icon(Icons.Default.Delete, contentDescription = "删除")
-                    }
-                }
-            }
-        },
-    )
-}
-
-/**
- * 新增 / 编辑服务商的对话框。
- *
- * name / baseUrl / type 等纯表单字段由本对话框本地维护；
- * apiKey 与 model 走 [AISettingsUiState]（ViewModel），
- * 以便后续支持"拉取可用模型列表"等异步能力。
- */
-@Composable
-private fun ProviderEditorDialog(
-    uiState: AISettingsUiState,
-    onDismiss: () -> Unit,
-    onApiKeyChange: (String) -> Unit,
-    onToggleApiKeyVisibility: () -> Unit,
-    onModelChange: (String) -> Unit,
-    onSave: (AIProviderConfig) -> Unit,
-) {
-    val editing = uiState.provider.editing
-
-    var name by remember { mutableStateOf(editing?.name ?: "") }
-    var type by remember { mutableStateOf(editing?.type ?: ProviderType.CUSTOM) }
-    var baseUrl by remember { mutableStateOf(editing?.baseUrl ?: "") }
-    var customEndpoint by remember { mutableStateOf(editing?.customEndpoint ?: "") }
-    var apiVersion by remember { mutableStateOf(editing?.apiVersion ?: "") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (editing == null) "新增服务商" else "编辑服务商") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("名称") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                // 类型选择（最简下拉）
-                var typeExpanded by remember { mutableStateOf(false) }
-                Box {
-                    OutlinedButton(
-                        onClick = { typeExpanded = true },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("类型: ${type.name}")
-                    }
-                    DropdownMenu(
-                        expanded = typeExpanded,
-                        onDismissRequest = { typeExpanded = false },
-                    ) {
-                        ProviderType.entries.forEach { t ->
-                            DropdownMenuItem(
-                                text = { Text(t.name) },
-                                onClick = { type = t; typeExpanded = false },
-                            )
-                        }
-                    }
-                }
-                OutlinedTextField(
-                    value = baseUrl,
-                    onValueChange = { baseUrl = it },
-                    label = { Text("Base URL") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = uiState.apiKey.apiKey,
-                    onValueChange = onApiKeyChange,
-                    label = { Text("API Key") },
-                    singleLine = true,
-                    visualTransformation = if (uiState.apiKey.showApiKey) {
-                        VisualTransformation.None
-                    } else {
-                        PasswordVisualTransformation()
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    trailingIcon = {
-                        IconButton(onClick = onToggleApiKeyVisibility) {
-                            Icon(
-                                imageVector = if (uiState.apiKey.showApiKey) {
-                                    Icons.Default.VisibilityOff
-                                } else {
-                                    Icons.Default.Visibility
-                                },
-                                contentDescription = "显示/隐藏 API Key",
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = uiState.model.selectedModel,
-                    onValueChange = onModelChange,
-                    label = { Text("模型") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (type == ProviderType.CUSTOM) {
-                    OutlinedTextField(
-                        value = customEndpoint,
-                        onValueChange = { customEndpoint = it },
-                        label = { Text("自定义 Endpoint（完整 URL 或路径）") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (type == ProviderType.AZURE) {
-                    OutlinedTextField(
-                        value = apiVersion,
-                        onValueChange = { apiVersion = it },
-                        label = { Text("API Version") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = name.isNotBlank() && baseUrl.isNotBlank() &&
-                    uiState.apiKey.apiKey.isNotBlank() && uiState.model.selectedModel.isNotBlank(),
+            // 保存按钮在页面底部：provider + 凭据 + 模型是同一条记录，一次保存原子完成
+            Button(
                 onClick = {
-                    // 组装配置：编辑时保留原 id / isPreset，新建时生成随机 id
                     onSave(
                         AIProviderConfig(
-                            id = editing?.id ?: UUID.randomUUID().toString(),
-                            name = name.trim(),
-                            type = type,
+                            id = selectedType.name,
+                            name = spec.displayName,
+                            type = selectedType,
                             baseUrl = baseUrl.trim(),
                             apiKey = uiState.apiKey.apiKey.trim(),
                             model = uiState.model.selectedModel.trim(),
                             customEndpoint = customEndpoint.trim().ifBlank { null },
                             apiVersion = apiVersion.trim().ifBlank { null },
-                            isPreset = editing?.isPreset ?: false,
+                            isPreset = true, // 每类型一条的内置槽位配置
                         )
                     )
                 },
-            ) { Text("保存") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
+                enabled = uiState.apiKey.apiKey.isNotBlank() &&
+                    uiState.model.selectedModel.isNotBlank() &&
+                    baseUrl.isNotBlank(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+            ) {
+                Text("保存")
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+
+    // Provider 选择弹层
+    if (showProviderSheet) {
+        ProviderPickerSheet(
+            providers = uiState.provider.providers,
+            selectedType = selectedType,
+            onSelect = {
+                onProviderSelected(it)
+                showProviderSheet = false
+            },
+            onDismiss = { showProviderSheet = false },
+        )
+    }
+
+    // 错误提示
+    uiState.ui.errorMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = onErrorShown,
+            confirmButton = { TextButton(onClick = onErrorShown) { Text("知道了") } },
+            title = { Text("出错了") },
+            text = { Text(message) },
+        )
+    }
+}
+
+// ──────────────────────────────────────
+// 通用小组件
+// ──────────────────────────────────────
+
+/** 区块标签（截图中的蓝色小字）。 */
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 4.dp, top = 8.dp),
     )
+}
+
+/** 统一的卡片容器：圆角 28dp、无阴影、白卡（比背景亮一档）。 */
+@Composable
+private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        ),
+        elevation = CardDefaults.cardElevation(0.dp),
+        shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content,
+        )
+    }
+}
+
+/**
+ * 服务商图标。
+ *
+ * 优先展示 [ProviderSpec.logoRes] 品牌 logo（导入资源到 `res/drawable` 后
+ * 在 [ProviderSpecs] 中填入资源 ID 即全局生效，本函数无需再改）；
+ * 未配置 logo 时回退到内置 tonal 图标。
+ *
+ * 注意：品牌 logo 用 [Image] 原色渲染，**不做 tint**（保持品牌色）。
+ */
+@Composable
+private fun ProviderIcon(spec: ProviderSpec, size: Dp) {
+    val logoRes = spec.logoRes
+    if (logoRes != null) {
+        // 品牌 logo 分支：原图渲染。
+        // 品牌 logo 通常撑满整个画布（不像 Material 图标自带内边距），
+        // 因此按 0.7 系数缩小渲染，视觉大小与内置图标对齐；想再调就改这个系数。
+        // 如需圆形裁切自行追加 .clip(CircleShape)；如需圆形底色自行追加 .background(...)。
+        Box(modifier = Modifier.size(size), contentAlignment = Alignment.Center) {
+            Image(
+                painter = painterResource(logoRes),
+                contentDescription = spec.displayName,
+                modifier = Modifier.size(size * 0.7f),
+            )
+        }
+        return
+    }
+
+    // 回退分支：内置图标（tint 色由动态取色的三对 tonal 色轮换）
+    val chips = listOf(
+        MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer,
+        MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer,
+        MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer,
+    )
+    val fg = chips[spec.type.ordinal % chips.size].second
+    val icon = when (spec.type) {
+        ProviderType.AZURE -> Icons.Default.Cloud
+        ProviderType.CUSTOM -> Icons.Default.Tune
+        else -> Icons.Default.AutoAwesome
+    }
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = fg)
+    }
+}
+
+// ──────────────────────────────────────
+// Provider 区块
+// ──────────────────────────────────────
+
+/**
+ * Provider 卡片：横向 Row 布局。
+ *
+ * 左侧为服务商 tonal 圆形图标，右侧为文字列（字段名 / 当前服务商 / 配置状态），
+ * 末尾的 ▾ 图标暗示点击可从底部展开选择弹层。整卡可点。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProviderCard(
+    spec: ProviderSpec,
+    savedConfig: AIProviderConfig?,
+    onClick: () -> Unit,
+) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        ),
+        elevation = CardDefaults.cardElevation(0.dp),
+        shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 左：服务商图标（导入品牌 logo 后在 ProviderSpecs 填 logoRes 即自动生效）
+            ProviderIcon(spec = spec, size = 48.dp)
+
+            // 右：文字列
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    spec.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = if (savedConfig != null) {
+                        "已配置 · ${savedConfig.model}"
+                    } else {
+                        "尚未配置 API Key"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (savedConfig != null) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+
+            // 末尾：展开示能
+//            Icon(
+//                Icons.Default.ExpandMore,
+//                contentDescription = "展开选择",
+//                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+//            )
+        }
+    }
+}
+
+/** Provider 选择弹层：列出全部协议类型，标注已配置状态。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProviderPickerSheet(
+    providers: List<AIProviderConfig>,
+    selectedType: ProviderType,
+    onSelect: (ProviderType) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(
+            "Provider",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+        )
+        ProviderType.entries.forEach { type ->
+            val spec = ProviderSpecs.of(type)
+            val configured = providers.any { it.id == type.name && it.apiKey.isNotBlank() }
+            ListItem(
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                leadingContent = { ProviderIcon(spec = spec, size = 40.dp) },
+                headlineContent = { Text(spec.displayName) },
+                supportingContent = { Text(if (configured) "已配置" else "未配置") },
+                trailingContent = {
+                    if (type == selectedType) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "当前选中",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
+                modifier = Modifier.clickable { onSelect(type) },
+            )
+        }
+        Spacer(modifier = Modifier.height(32.dp)) // 避开底部手势区
+    }
+}
+
+// ──────────────────────────────────────
+// Credentials 区块（随 ProviderSpec 变化）
+// ──────────────────────────────────────
+
+@Composable
+private fun CredentialsCard(
+    spec: ProviderSpec,
+    uiState: AISettingsUiState,
+    baseUrl: String,
+    onBaseUrlChange: (String) -> Unit,
+    customEndpoint: String,
+    onCustomEndpointChange: (String) -> Unit,
+    apiVersion: String,
+    onApiVersionChange: (String) -> Unit,
+    onApiKeyChange: (String) -> Unit,
+    onToggleApiKeyVisibility: () -> Unit,
+) {
+    SettingsCard {
+        Text(spec.keyLabel, style = MaterialTheme.typography.titleMedium)
+        if (spec.helpUrl.isNotEmpty()) {
+            HelpLink(url = spec.helpUrl)
+        }
+        OutlinedTextField(
+            value = uiState.apiKey.apiKey,
+            onValueChange = onApiKeyChange,
+            label = { Text("API Key") },
+            singleLine = true,
+            visualTransformation = if (uiState.apiKey.showApiKey) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                IconButton(onClick = onToggleApiKeyVisibility) {
+                    Icon(
+                        imageVector = if (uiState.apiKey.showApiKey) {
+                            Icons.Default.VisibilityOff
+                        } else {
+                            Icons.Default.Visibility
+                        },
+                        contentDescription = "显示/隐藏 API Key",
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = baseUrl,
+            onValueChange = onBaseUrlChange,
+            label = { Text("Base URL") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (spec.needsCustomEndpoint) {
+            OutlinedTextField(
+                value = customEndpoint,
+                onValueChange = onCustomEndpointChange,
+                label = { Text("自定义 Endpoint（完整 URL 或路径）") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (spec.needsApiVersion) {
+            OutlinedTextField(
+                value = apiVersion,
+                onValueChange = onApiVersionChange,
+                label = { Text("API Version") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/** "获取地址"帮助链接：说明文字普通色，URL 用 primary + 下划线，点击打开浏览器。 */
+@Composable
+private fun HelpLink(url: String) {
+    val uriHandler = LocalUriHandler.current
+    Text(
+        text = buildAnnotatedString {
+            withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
+                append("获取地址：")
+            }
+            withStyle(
+                SpanStyle(
+                    color = MaterialTheme.colorScheme.primary,
+                    textDecoration = TextDecoration.Underline,
+                )
+            ) {
+                append(url)
+            }
+        },
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.clickable { uriHandler.openUri(url) },
+    )
+}
+
+// ──────────────────────────────────────
+// Model 区块
+// ──────────────────────────────────────
+
+/**
+ * 模型选择卡片：推荐 chips + 手动输入兜底 + 拉取列表。
+ *
+ * chips 数据源：已拉取列表优先，否则用 spec 内置推荐值——离线/拉取失败都有得选。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ModelCard(
+    spec: ProviderSpec,
+    model: ModelState,
+    apiKeyReady: Boolean,
+    onModelChange: (String) -> Unit,
+    onFetchModels: () -> Unit,
+) {
+    SettingsCard {
+        Text("模型选择", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "为 ${spec.displayName} 选择模型，或手动输入",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        val chipModels = model.availableModels.ifEmpty { spec.recommendedModels }
+        if (chipModels.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                chipModels.forEach { m ->
+                    FilterChip(
+                        selected = model.selectedModel == m,
+                        onClick = { onModelChange(m) },
+                        label = { Text(m) },
+                    )
+                }
+            }
+        }
+
+        OutlinedTextField(
+            value = model.selectedModel,
+            onValueChange = onModelChange,
+            label = { Text("模型名称") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        if (spec.supportsModelFetch) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(
+                    onClick = onFetchModels,
+                    enabled = apiKeyReady && !model.isLoading,
+                ) {
+                    Text("拉取可用模型列表")
+                }
+                if (model.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+            }
+            if (!apiKeyReady) {
+                Text(
+                    "填写 API Key 后可拉取",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
 
 /**
@@ -389,7 +628,7 @@ private fun AISettingsScreenPreview() {
             provider = ProviderState(
                 providers = listOf(
                     AIProviderConfig(
-                        id = "1",
+                        id = "DEEPSEEK",
                         name = "DeepSeek",
                         type = ProviderType.DEEPSEEK,
                         baseUrl = "https://api.deepseek.com",
@@ -397,31 +636,20 @@ private fun AISettingsScreenPreview() {
                         model = "deepseek-chat",
                         isPreset = true,
                     ),
-                    AIProviderConfig(
-                        id = "2",
-                        name = "Moonshot",
-                        type = ProviderType.MOONSHOT,
-                        baseUrl = "https://api.moonshot.cn",
-                        apiKey = "sk-yyy",
-                        model = "kimi-k2",
-                        isPreset = false,
-                    ),
                 ),
-                activeProviderId = "1",
+                activeProviderId = "DEEPSEEK",
+                selectedType = ProviderType.DEEPSEEK,
             ),
-            apiKey = ApiKeyState(),
-            model = ModelState(selectedModel = ""),
+            apiKey = ApiKeyState(apiKey = "sk-xxx"),
+            model = ModelState(selectedModel = "deepseek-chat"),
             test = TestState(),
             ui = UiState(),
         ),
-        onAddNew = {},
-        onEdit = {},
-        onDelete = {},
-        onSetActive = {},
-        onEditorDismiss = {},
+        onProviderSelected = {},
         onApiKeyChange = {},
         onToggleApiKeyVisibility = {},
         onModelChange = {},
+        onFetchModels = { _, _ -> },
         onSave = {},
         onErrorShown = {},
     )

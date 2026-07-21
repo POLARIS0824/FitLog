@@ -2,63 +2,66 @@ package com.example.fitlog.feature.aisettings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.fitlog.data.repository.AIChatRepository
 import com.example.fitlog.data.repository.AIProviderConfigRepository
 import com.example.fitlog.model.ai.AIProviderConfig
+import com.example.fitlog.model.ai.ProviderType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * AI 服务商设置页 ViewModel。
+ * AI 服务商设置页 ViewModel（单配置页范式）。
+ *
+ * ## 语义模型
+ *
+ * 每种 [ProviderType] 对应数据库中**一条**配置，id 固定为 `type.name`。
+ * 保存走 DAO 的 REPLACE 冲突策略，"新增"与"编辑"合并为同一个 upsert 操作。
  *
  * ## 状态来源
  *
- * - 配置列表、当前激活 ID → [AIProviderConfigRepository]（Room + DataStore，响应式自动刷新）
- * - 编辑器可见性 / 编辑目标、API Key 输入、模型选择 → 本地 [MutableStateFlow]（纯 UI 表单状态）
- *
- * 所有源通过 [combine] 汇聚为单个 [uiState]，任何一路变化都会触发重算，UI 无需手动刷新。
+ * - 已保存配置列表、激活 ID → [AIProviderConfigRepository]（Room + DataStore，响应式）
+ * - 当前选中的类型、API Key 输入、模型选择 → 本地 [MutableStateFlow]（表单状态）
  */
 @HiltViewModel
 class AISettingsViewModel @Inject constructor(
-    private val aiProviderConfigRepository: AIProviderConfigRepository
+    private val aiProviderConfigRepository: AIProviderConfigRepository,
+    private val aiChatRepository: AIChatRepository,
 ) : ViewModel() {
 
-    /**
-     * 编辑器状态。
-     *
-     * @property visible 编辑器对话框是否可见
-     * @property editing 正在编辑的配置；`null` 表示新建
-     */
-    data class EditorState(
-        val visible: Boolean = false,
-        val editing: AIProviderConfig? = null,
-    )
-
-    private val editorState = MutableStateFlow(EditorState())
+    private val selectedTypeState = MutableStateFlow(ProviderType.DEEPSEEK)
     private val apiKeyState = MutableStateFlow(ApiKeyState())
     private val modelState = MutableStateFlow(ModelState(selectedModel = ""))
     private val uiFlow = MutableStateFlow(UiState())
+
+    init {
+        // 首帧定位：表单落在当前激活的 provider 上；没有激活项则保持默认
+        viewModelScope.launch {
+            val active = aiProviderConfigRepository.activeProvider.first()
+            active?.let { onProviderSelected(it.type) }
+        }
+    }
 
     /** 设置页 UI 状态流，由数据层 Flow 与本地表单 Flow 组合而成。 */
     val uiState: StateFlow<AISettingsUiState> = combine(
         aiProviderConfigRepository.getAIProviders(),
         aiProviderConfigRepository.activeProviderId,
-        editorState,
+        selectedTypeState,
         apiKeyState,
         modelState,
-    ) { providers, activeId, editor, apiKey, model ->
+    ) { providers, activeId, selectedType, apiKey, model ->
         AISettingsUiState(
             provider = ProviderState(
                 providers = providers,
                 activeProviderId = activeId,
-                showEditor = editor.visible,
-                editing = editor.editing,
+                selectedType = selectedType,
             ),
             apiKey = apiKey,
             model = model,
@@ -80,25 +83,23 @@ class AISettingsViewModel @Inject constructor(
     )
 
     // ──────────────────────────────────────
-    // 编辑器开关
+    // Provider 选择
     // ──────────────────────────────────────
 
-    /** 打开编辑器（新建模式），并清空表单。 */
-    fun onAddNew() {
-        editorState.update { EditorState(visible = true, editing = null) }
-        apiKeyState.update { ApiKeyState() }
-        modelState.update { ModelState(selectedModel = "") }
+    /**
+     * 在底部弹层中选中某个服务商。
+     *
+     * 用该类型的已保存配置回填表单（apiKey / model 走 VM 状态）；
+     * 没有保存过则清空 apiKey、回填默认模型，同时清空已拉取的模型列表。
+     */
+    fun onProviderSelected(type: ProviderType) {
+        selectedTypeState.update { type }
+        val saved = uiState.value.provider.providers.firstOrNull { it.id == type.name }
+        apiKeyState.update { ApiKeyState(apiKey = saved?.apiKey.orEmpty()) }
+        modelState.update {
+            ModelState(selectedModel = saved?.model ?: ProviderSpecs.of(type).defaultModel)
+        }
     }
-
-    /** 打开编辑器（编辑模式），用现有配置回填表单。 */
-    fun onEdit(config: AIProviderConfig) {
-        editorState.update { EditorState(visible = true, editing = config) }
-        apiKeyState.update { it.copy(apiKey = config.apiKey) }
-        modelState.update { it.copy(selectedModel = config.model) }
-    }
-
-    /** 关闭编辑器。 */
-    fun onEditorDismiss() = editorState.update { EditorState() }
 
     // ──────────────────────────────────────
     // 表单输入
@@ -110,54 +111,64 @@ class AISettingsViewModel @Inject constructor(
     /** 切换 API Key 明文/密文显示。 */
     fun onToggleApiKeyVisibility() = apiKeyState.update { it.copy(showApiKey = !it.showApiKey) }
 
-    /** 模型输入框内容变化。 */
+    /** 模型输入框内容变化 / 点击推荐 chip。 */
     fun onModelChange(value: String) = modelState.update { it.copy(selectedModel = value) }
 
     // ──────────────────────────────────────
-    // 持久化操作
+    // 拉取模型列表
     // ──────────────────────────────────────
 
     /**
-     * 保存配置。
+     * 用当前表单里的凭据拉取可用模型列表。
      *
-     * [config] 由 Screen 组装（name / baseUrl / type 等纯表单字段由对话框本地维护），
-     * 此处仅按 [EditorState.editing] 区分新增或更新并落库。
+     * [baseUrl] / [customEndpoint] 由 Screen 传入（它们是 Screen 本地表单状态）；
+     * 失败后模型列表保持推荐值，用户仍可手动输入，不被阻塞。
+     */
+    fun onFetchModels(baseUrl: String, customEndpoint: String?) {
+        val type = selectedTypeState.value
+        val apiKey = apiKeyState.value.apiKey
+        if (apiKey.isBlank() || baseUrl.isBlank()) return
+
+        viewModelScope.launch {
+            modelState.update { it.copy(isLoading = true) }
+            val tempConfig = AIProviderConfig(
+                id = type.name,
+                name = "",
+                type = type,
+                baseUrl = baseUrl.trim(),
+                apiKey = apiKey.trim(),
+                model = "",
+                customEndpoint = customEndpoint,
+                isPreset = true,
+            )
+            aiChatRepository.fetchModels(tempConfig)
+                .onSuccess { models ->
+                    modelState.update { it.copy(availableModels = models, isLoading = false) }
+                }
+                .onFailure { e ->
+                    modelState.update { it.copy(isLoading = false) }
+                    uiFlow.update { it.copy(errorMessage = "拉取模型失败：${e.message}") }
+                }
+        }
+    }
+
+    // ──────────────────────────────────────
+    // 保存
+    // ──────────────────────────────────────
+
+    /**
+     * 保存当前服务商配置。
      *
-     * 注意：保存成功后无需手动刷新列表，Room Flow 检测到变更会自动重新发射。
+     * [config] 由 Screen 组装（id = type.name，REPLACE 即 upsert）。
+     * 保存成功后自动设为当前激活的服务商——保存即启用。
      */
     fun onSave(config: AIProviderConfig) {
         viewModelScope.launch {
             try {
-                if (editorState.value.editing == null) {
-                    aiProviderConfigRepository.insert(config)
-                } else {
-                    aiProviderConfigRepository.update(config)
-                }
-                onEditorDismiss()
+                aiProviderConfigRepository.insert(config)
+                aiProviderConfigRepository.setActiveProviderId(config.id)
             } catch (e: Exception) {
                 uiFlow.update { it.copy(errorMessage = e.message ?: "保存失败") }
-            }
-        }
-    }
-
-    /** 删除配置；若删除的是当前激活配置，仓库层会自动清除激活 ID。 */
-    fun onDelete(config: AIProviderConfig) {
-        viewModelScope.launch {
-            try {
-                aiProviderConfigRepository.delete(config)
-            } catch (e: Exception) {
-                uiFlow.update { it.copy(errorMessage = e.message ?: "删除失败") }
-            }
-        }
-    }
-
-    /** 将指定配置设为当前激活的服务商。 */
-    fun onSetActive(id: String) {
-        viewModelScope.launch {
-            try {
-                aiProviderConfigRepository.setActiveProviderId(id)
-            } catch (e: Exception) {
-                uiFlow.update { it.copy(errorMessage = e.message ?: "切换失败") }
             }
         }
     }

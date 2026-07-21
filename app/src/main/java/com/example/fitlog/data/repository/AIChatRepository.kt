@@ -4,6 +4,7 @@ import com.example.fitlog.data.mapper.toDto
 import com.example.fitlog.data.mapper.toModel
 import com.example.fitlog.data.remote.AIApi
 import com.example.fitlog.data.remote.dto.ChatCompletionRequestDto
+import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ChatMessage
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -85,6 +86,25 @@ class AIChatRepository @Inject constructor(
 
         } catch (e: Exception) {
             // 网络异常、超时、JSON 解析失败等，统一包装
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 拉取指定配置下的可用模型列表。
+     *
+     * 与 [chat] 不同，这里直接使用调用方传入的 [config]——设置页表单中
+     * 尚未保存的凭据也可以拿来拉取，不需要先落库。
+     *
+     * @param config 用于鉴权和寻址的配置（不需要已保存）
+     * @return [Result.success] 包含模型 id 列表；[Result.failure] 描述错误原因
+     */
+    suspend fun fetchModels(config: AIProviderConfig): Result<List<String>> {
+        return try {
+            val url = config.type.buildModelsUrl(config)
+            val headers = config.type.buildHeaders(config.apiKey)
+            Result.success(aiApi.models(url, headers).data.map { it.id })
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }
