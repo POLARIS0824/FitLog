@@ -1,6 +1,7 @@
 package com.example.fitlog.feature.aisettings
 
 import com.example.fitlog.model.ai.AIProviderConfig
+import com.example.fitlog.model.ai.ProviderType
 
 data class AISettingsUiState(
     val provider: ProviderState,
@@ -13,8 +14,8 @@ data class AISettingsUiState(
 data class ProviderState(
     val providers: List<AIProviderConfig> = emptyList(),
     val activeProviderId: String? = null,
-    val showEditor: Boolean = false,
-    val editing: AIProviderConfig? = null,  // null = 新建，非 null = 编辑已有
+    /** 当前表单正在配置的服务商类型（区别于 activeProviderId：选中 ≠ 已激活，保存时才激活） */
+    val selectedType: ProviderType = ProviderType.DEEPSEEK,
 )
 
 data class ApiKeyState(

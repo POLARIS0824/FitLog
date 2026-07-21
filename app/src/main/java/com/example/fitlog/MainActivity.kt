@@ -4,11 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import com.example.fitlog.feature.aisettings.AISettingsRoute
 import com.example.fitlog.ui.theme.FitLogTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -22,12 +18,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FitLogTheme {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("FitLog Placeholder")
-                }
+                // TODO: 导航框架搭建前先直接挂载 AI 设置页用于测试
+                AISettingsRoute()
             }
         }
     }

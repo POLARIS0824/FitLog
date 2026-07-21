@@ -2,7 +2,9 @@ package com.example.fitlog.data.remote
 
 import com.example.fitlog.data.remote.dto.ChatCompletionRequestDto
 import com.example.fitlog.data.remote.dto.ChatCompletionResponseDto
+import com.example.fitlog.data.remote.dto.ModelsResponseDto
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.HeaderMap
 import retrofit2.http.POST
 import retrofit2.http.Url
@@ -30,4 +32,17 @@ interface AIApi {
         @HeaderMap headers: Map<String, String>,
         @Body request: ChatCompletionRequestDto,
     ): ChatCompletionResponseDto
+
+    /**
+     * 拉取模型列表（OpenAI 兼容的 GET /models）。
+     *
+     * @param url 完整的请求地址（覆盖 Retrofit 的 baseUrl）
+     * @param headers 请求头键值对，同 [chatCompletions]
+     * @return 模型列表响应体
+     */
+    @GET
+    suspend fun models(
+        @Url url: String,
+        @HeaderMap headers: Map<String, String>,
+    ): ModelsResponseDto
 }
