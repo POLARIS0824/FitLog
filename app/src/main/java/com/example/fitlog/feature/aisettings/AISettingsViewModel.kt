@@ -40,6 +40,7 @@ class AISettingsViewModel @Inject constructor(
     private val apiKeyState = MutableStateFlow(ApiKeyState())
     private val modelState = MutableStateFlow(ModelState(selectedModel = ""))
     private val endpointState = MutableStateFlow(EndpointState())
+    private val testState = MutableStateFlow(TestState())
     private val uiFlow = MutableStateFlow(UiState())
 
     init {
@@ -72,6 +73,8 @@ class AISettingsViewModel @Inject constructor(
         )
     }.combine(endpointState) { state, endpoint ->
         state.copy(endpoint = endpoint)
+    }.combine(testState) { state, test ->
+        state.copy(test = test)
     }.combine(uiFlow) { state, ui ->
         state.copy(ui = ui)
     }.stateIn(
@@ -117,6 +120,8 @@ class AISettingsViewModel @Inject constructor(
                     apiVersion = saved?.apiVersion.orEmpty(),
                 )
             }
+            // 切换 provider 后旧的测试结果不再有意义
+            testState.update { TestState() }
         }
     }
 
@@ -179,6 +184,52 @@ class AISettingsViewModel @Inject constructor(
                 }
         }
     }
+
+    // ──────────────────────────────────────
+    // 连通性测试
+    // ──────────────────────────────────────
+
+    /**
+     * 用当前表单里的配置（无需已保存）发一条最小消息，验证全链路可用。
+     *
+     * 结果写入 [TestState]：测试中 → 成功（附带 AI 回复摘要）/ 失败（错误描述）。
+     */
+    fun onTestConnection() {
+        val type = selectedTypeState.value
+        val apiKey = apiKeyState.value.apiKey
+        val model = modelState.value.selectedModel
+        val endpoint = endpointState.value
+        if (apiKey.isBlank() || model.isBlank() || endpoint.baseUrl.isBlank()) return
+
+        viewModelScope.launch {
+            testState.update { TestState(isTesting = true) }
+            val tempConfig = AIProviderConfig(
+                id = type.name,
+                name = "",
+                type = type,
+                baseUrl = endpoint.baseUrl.trim(),
+                apiKey = apiKey.trim(),
+                model = model.trim(),
+                customEndpoint = endpoint.customEndpoint.trim().ifBlank { null },
+                apiVersion = endpoint.apiVersion.trim().ifBlank { null },
+                isPreset = true,
+            )
+            aiChatRepository.testConnection(tempConfig)
+                .onSuccess {
+                    testState.update {
+                        TestState(isTesting = false, lastResult = "✅ 连接成功")
+                    }
+                }
+                .onFailure { e ->
+                    testState.update {
+                        TestState(isTesting = false, lastResult = "❌ 连接失败：${e.message}")
+                    }
+                }
+        }
+    }
+
+    /** 测试结果提示已展示，清除结果文本。 */
+    fun onTestResultShown() = testState.update { it.copy(lastResult = "") }
 
     // ──────────────────────────────────────
     // 保存
