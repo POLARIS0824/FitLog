@@ -160,13 +160,15 @@ class AISettingsViewModel @Inject constructor(
      * 保存当前服务商配置。
      *
      * [config] 由 Screen 组装（id = type.name，REPLACE 即 upsert）。
-     * 保存成功后自动设为当前激活的服务商——保存即启用。
+     * 保存成功后自动设为当前激活的服务商——保存即启用，
+     * 并写入一次性 [UiState.successMessage] 供 Screen 弹出 Snackbar。
      */
     fun onSave(config: AIProviderConfig) {
         viewModelScope.launch {
             try {
                 aiProviderConfigRepository.insert(config)
                 aiProviderConfigRepository.setActiveProviderId(config.id)
+                uiFlow.update { it.copy(successMessage = "已保存并启用 ${config.name}") }
             } catch (e: Exception) {
                 uiFlow.update { it.copy(errorMessage = e.message ?: "保存失败") }
             }
@@ -175,4 +177,7 @@ class AISettingsViewModel @Inject constructor(
 
     /** 错误提示已展示，清除错误信息。 */
     fun onErrorShown() = uiFlow.update { it.copy(errorMessage = null) }
+
+    /** 保存成功提示已展示，清除成功信息。 */
+    fun onSuccessShown() = uiFlow.update { it.copy(successMessage = null) }
 }

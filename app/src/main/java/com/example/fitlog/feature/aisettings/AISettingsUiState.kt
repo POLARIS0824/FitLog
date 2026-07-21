@@ -38,4 +38,6 @@ data class TestState(
 data class UiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    /** 保存成功提示（Snackbar 一次性展示，展示后由 [AISettingsViewModel.onSuccessShown] 清除） */
+    val successMessage: String? = null,
 )
