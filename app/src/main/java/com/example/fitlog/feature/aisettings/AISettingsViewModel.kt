@@ -163,7 +163,7 @@ class AISettingsViewModel @Inject constructor(
         if (apiKey.isBlank() || baseUrl.isBlank()) return
 
         viewModelScope.launch {
-            modelState.update { it.copy(isLoading = true) }
+            modelState.update { it.copy(isLoading = true, fetchResult = "") }
             val tempConfig = AIProviderConfig(
                 id = type.name,
                 name = "",
@@ -176,14 +176,27 @@ class AISettingsViewModel @Inject constructor(
             )
             aiChatRepository.fetchModels(tempConfig)
                 .onSuccess { models ->
-                    modelState.update { it.copy(availableModels = models, isLoading = false) }
+                    modelState.update {
+                        it.copy(
+                            availableModels = models,
+                            isLoading = false,
+                            fetchResult = "✅ 成功拉取 ${models.size} 个模型",
+                        )
+                    }
                 }
                 .onFailure { e ->
-                    modelState.update { it.copy(isLoading = false) }
-                    uiFlow.update { it.copy(errorMessage = "拉取模型失败：${e.message}") }
+                    modelState.update {
+                        it.copy(
+                            isLoading = false,
+                            fetchResult = "❌ 拉取模型失败：${e.message ?: "未知错误"}",
+                        )
+                    }
                 }
         }
     }
+
+    /** 模型列表拉取结果提示已展示，清除结果文本。 */
+    fun onFetchResultShown() = modelState.update { it.copy(fetchResult = "") }
 
     // ──────────────────────────────────────
     // 连通性测试

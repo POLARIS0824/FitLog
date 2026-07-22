@@ -17,7 +17,7 @@ import com.example.fitlog.model.ai.ProviderType
  * @property defaultBaseUrl 默认 Base URL（未保存配置时的回填值）
  * @property defaultModel 未保存配置时的默认模型
  * @property recommendedModels 推荐模型 chips（未拉取/拉取失败时的离线选项）
- * @property supportsModelFetch 是否支持 GET /models 拉取模型列表（Azure/Custom 不支持）
+ * @property supportsModelFetch 是否支持 GET /models 拉取模型列表（Azure 不支持）
  * @property needsCustomEndpoint 是否需要 customEndpoint 字段（仅 CUSTOM）
  * @property needsApiVersion 是否需要 apiVersion 字段（仅 AZURE）
  * @property logoRes 品牌 logo 资源（`res/drawable` 下的 `R.drawable.xxx`）。
@@ -102,7 +102,7 @@ object ProviderSpecs {
             helpUrl = "",
             defaultBaseUrl = "",
             defaultModel = "",
-            supportsModelFetch = false,
+            supportsModelFetch = true,
             needsCustomEndpoint = true,
             // logoRes = R.drawable.ic_logo_custom, // TODO: 导入品牌 logo 后填上
         ),

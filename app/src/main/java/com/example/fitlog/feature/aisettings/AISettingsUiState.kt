@@ -28,6 +28,8 @@ data class ModelState(
     val availableModels: List<String> = emptyList(),
     val selectedModel: String,
     val isLoading: Boolean = false,
+    /** 拉取模型列表结果提示（Snackbar 一次性展示，展示后由 [AISettingsViewModel.onFetchResultShown] 清除） */
+    val fetchResult: String = "",
 )
 
 /** 端点相关表单字段（baseUrl / customEndpoint / apiVersion），随选中 provider 回填。 */

@@ -1,5 +1,7 @@
 package com.example.fitlog.feature.aisettings
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -18,20 +20,30 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Snackbar
+import kotlinx.coroutines.delay
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -40,7 +52,6 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -52,19 +63,27 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
@@ -84,6 +103,9 @@ import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ProviderType
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.SettingsCard
+import com.example.fitlog.ui.components.SubpageIndicator
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
 
 /**
  * 1. 容器层 (Stateful)
@@ -107,6 +129,7 @@ fun AISettingsRoute(
         onCustomEndpointChange = viewModel::onCustomEndpointChange,
         onApiVersionChange = viewModel::onApiVersionChange,
         onFetchModels = viewModel::onFetchModels,
+        onFetchResultShown = viewModel::onFetchResultShown,
         onTestConnection = viewModel::onTestConnection,
         onTestResultShown = viewModel::onTestResultShown,
         onSave = viewModel::onSave,
@@ -121,6 +144,11 @@ fun AISettingsRoute(
  *
  * 单配置页：页面只服务"当前选中的那一个服务商"，
  * 切换服务商通过底部弹层完成，不加号、无列表。
+ *
+ * 顶栏为 Google 风格双标题：顶行常驻小标题（父级板块 Settings），大标题置于滚动内容顶部；
+ * 滚动时大标题自然没入不透明的顶栏之下，顶行标题按滚动进度交叉淡化为本页标题
+ * （pinned TopAppBar + graphicsLayer alpha 联动滚动进度）；
+ * 滚动停止在半折叠态时自动吸附到最近的稳定态（对齐 M3 顶栏内置的 snap 行为）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -135,6 +163,7 @@ fun AISettingsScreen(
     onCustomEndpointChange: (String) -> Unit,
     onApiVersionChange: (String) -> Unit,
     onFetchModels: (baseUrl: String, customEndpoint: String?) -> Unit,
+    onFetchResultShown: () -> Unit,
     onTestConnection: () -> Unit,
     onTestResultShown: () -> Unit,
     onSave: (AIProviderConfig) -> Unit,
@@ -142,10 +171,47 @@ fun AISettingsScreen(
     onSuccessShown: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val scrollState = rememberScrollState()
     var showProviderSheet by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    val snackbarHostState = remember { SnackbarHostState() }
+    val stackedSnackbarHostState = rememberStackedSnackbarHostState()
+
+    val density = LocalDensity.current
+    val extraSpacingPx = remember(density) { with(density) { 12.dp.roundToPx() } }
+
+    // 双标题切换进度：0 = 完全展开（显示父级板块标题 Settings），1 = 大标题刚好完全滚入顶栏之下。
+    // 使用大标题 Header 容器高度加上底部 12.dp 间距，作为完全滚出顶栏的准确吸附阈值（确保大标题 100% 隐藏无残留）。
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val titleFraction by remember {
+        derivedStateOf {
+            if (headerHeightPx <= 0) 0f
+            else (scrollState.value.toFloat() / headerHeightPx.toFloat()).coerceIn(0f, 1f)
+        }
+    }
+
+    // 吸附效果：手势/惯性滚动停止后，若大标题处于半折叠的中间态，自动平滑吸附到最近的稳定边界（0 或 headerHeightPx）。
+    LaunchedEffect(scrollState, headerHeightPx) {
+        snapshotFlow { scrollState.isScrollInProgress }
+            .collect { inProgress ->
+                if (inProgress) return@collect
+                val currentScroll = scrollState.value
+                if (headerHeightPx > 0 && currentScroll in 1 until headerHeightPx) {
+                    val target = if (currentScroll < headerHeightPx / 2) 0 else headerHeightPx
+                    try {
+                        scrollState.animateScrollTo(
+                            value = target,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        )
+                    } catch (e: CancellationException) {
+                        // 吸附动画被用户新的手势打断，属正常交互
+                    }
+                }
+            }
+    }
 
     val selectedType = uiState.provider.selectedType
     val spec = ProviderSpecs.of(selectedType)
@@ -153,14 +219,41 @@ fun AISettingsScreen(
     // 该类型已保存的配置（用于 ProviderCard 展示配置状态）
     val savedConfig = uiState.provider.providers.firstOrNull { it.id == selectedType.name }
 
+    // 顶栏背景色随滚动进度在 surfaceContainerLow (展开) 与 surfaceContainer (折叠) 之间平滑过渡
+    val topAppBarContainerColor = androidx.compose.ui.graphics.lerp(
+        MaterialTheme.colorScheme.surfaceContainerLow,
+        MaterialTheme.colorScheme.surfaceContainer,
+        titleFraction
+    )
+
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { StackedSnackbarHost(hostState = stackedSnackbarHostState) },
         topBar = {
-            LargeTopAppBar(
+            TopAppBar(
                 title = {
-                    Text("AI Configuration")
+                    // 双标题 Material 3 轴向共享过渡：
+                    // 展开时显示父级板块（Settings），大标题滚出后向上淡出；
+                    // 本页标题（AI Configuration）从下方向上淡入顶栏，实现双标题自然切换。
+                    Box(contentAlignment = Alignment.CenterStart) {
+                        Text(
+                            text = "Settings",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.graphicsLayer {
+                                alpha = 1f - titleFraction
+                                translationY = -titleFraction * 12.dp.toPx()
+                            },
+                        )
+                        Text(
+                            text = "AI Configuration",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.graphicsLayer {
+                                alpha = titleFraction
+                                translationY = (1f - titleFraction) * 12.dp.toPx()
+                            },
+                        )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -170,9 +263,9 @@ fun AISettingsScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = topAppBarContainerColor,
+                    scrolledContainerColor = topAppBarContainerColor,
                 ),
                 scrollBehavior = scrollBehavior
             )
@@ -183,18 +276,29 @@ fun AISettingsScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
                 // 点击输入框以外的区域时清除焦点，收起软键盘
-                // （输入框自身会消费点击事件，不会误触发）
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { focusManager.clearFocus() })
                 }
-                // 键盘弹出时顶起内容（edge-to-edge 下 adjustResize 被忽略，需自行消费 IME inset）。
-                // 注意顺序：imePadding 必须在 verticalScroll 外层——滚动视口高度随键盘收缩，
-                // 聚焦的输入框才会自动滚到键盘上方；放在滚动之后只是给内容末尾加空白，无效。
                 .imePadding()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // 大标题 Header：包含 top/bottom 内边距及 12.dp 间距，整体测量高度作为完全滚出顶栏的准确吸附阈值
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, top = 8.dp, bottom = 4.dp)
+                    .onSizeChanged { size ->
+                        headerHeightPx = size.height + extraSpacingPx
+                    }
+            ) {
+                Text(
+                    text = "AI Configuration",
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+            }
+
             if (uiState.ui.isLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
@@ -286,18 +390,26 @@ fun AISettingsScreen(
         )
     }
 
-    // 连接测试结果：lastResult 出现时弹出 Snackbar，展示完毕后清除
+    // 模型列表拉取结果：fetchResult 出现时弹出 StackedSnackbar，展示完毕后清除
+    LaunchedEffect(uiState.model.fetchResult) {
+        uiState.model.fetchResult.takeIf { it.isNotEmpty() }?.let {
+            stackedSnackbarHostState.showSnackbar(it)
+            onFetchResultShown()
+        }
+    }
+
+    // 连接测试结果：lastResult 出现时弹出 StackedSnackbar，展示完毕后清除
     LaunchedEffect(uiState.test.lastResult) {
         uiState.test.lastResult.takeIf { it.isNotEmpty() }?.let {
-            snackbarHostState.showSnackbar(it)
+            stackedSnackbarHostState.showSnackbar(it)
             onTestResultShown()
         }
     }
 
-    // 保存成功提示：successMessage 出现时弹出 Snackbar，展示完毕后清除
+    // 保存成功提示：successMessage 出现时弹出 StackedSnackbar，展示完毕后清除
     LaunchedEffect(uiState.ui.successMessage) {
         uiState.ui.successMessage?.let {
-            snackbarHostState.showSnackbar(it)
+            stackedSnackbarHostState.showSnackbar(it)
             onSuccessShown()
         }
     }
@@ -388,8 +500,7 @@ private fun ProviderCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
-        elevation = CardDefaults.cardElevation(0.dp),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(20.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -426,13 +537,6 @@ private fun ProviderCard(
                     },
                 )
             }
-
-            // 末尾：展开示能
-//            Icon(
-//                Icons.Default.ExpandMore,
-//                contentDescription = "展开选择",
-//                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-//            )
         }
     }
 }
@@ -541,7 +645,7 @@ private fun CredentialsCard(
             OutlinedTextField(
                 value = customEndpoint,
                 onValueChange = onCustomEndpointChange,
-                label = { Text("自定义 Endpoint（完整 URL 或路径）") },
+                label = { Text("自定义 Endpoint") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -656,10 +760,7 @@ private fun ModelCard(
                     Text("拉取可用模型列表")
                 }
                 if (model.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
+                    SubpageIndicator()
                 }
             }
             if (!apiKeyReady) {
@@ -706,12 +807,7 @@ private fun TestCard(
                 Text("测试连接")
             }
             if (test.isTesting) {
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .padding(start = 12.dp)
-                        .size(20.dp),
-                    strokeWidth = 2.dp,
-                )
+                SubpageIndicator()
             }
         }
     }
@@ -756,10 +852,166 @@ private fun AISettingsScreenPreview() {
         onCustomEndpointChange = {},
         onApiVersionChange = {},
         onFetchModels = { _, _ -> },
+        onFetchResultShown = {},
         onTestConnection = {},
         onTestResultShown = {},
         onSave = {},
         onErrorShown = {},
         onSuccessShown = {},
     )
+}
+
+// ──────────────────────────────────────
+// 堆叠式 Snackbar 组件
+// ──────────────────────────────────────
+
+/**
+ * 堆叠式 Snackbar 数据项。
+ *
+ * @property id 唯一标识符
+ * @property message 提示内容
+ * @property actionLabel 按钮操作文案（可选）
+ * @property isVisible 是否可见（控制淡出与折叠动画）
+ */
+data class StackedSnackbarItem(
+    val id: Long,
+    val message: String,
+    val actionLabel: String? = null,
+    val isVisible: Boolean = true,
+)
+
+/**
+ * 堆叠式 Snackbar 状态管理器。
+ *
+ * 支持多个 Snackbar 同时存活与并存显示，新消息弹出时按队列压入，
+ * 消失时通过 key + 垂直折叠动画促使下方 Snackbar 平滑回归正常位置。
+ */
+class StackedSnackbarHostState {
+    var items by mutableStateOf<List<StackedSnackbarItem>>(emptyList())
+        private set
+
+    private var nextId = 0L
+
+    /**
+     * 弹出一条新的 Snackbar。
+     *
+     * @param message 提示文案
+     * @param actionLabel 操作按钮文案
+     */
+    fun showSnackbar(
+        message: String,
+        actionLabel: String? = null,
+    ) {
+        val id = ++nextId
+        val item = StackedSnackbarItem(id = id, message = message, actionLabel = actionLabel)
+        items = items + item
+    }
+
+    /**
+     * 触发指定 ID 的 Snackbar 淡出/折叠动画。
+     *
+     * @param id Snackbar 标识符
+     */
+    fun dismiss(id: Long) {
+        items = items.map {
+            if (it.id == id) it.copy(isVisible = false) else it
+        }
+    }
+
+    /**
+     * 从数据列表中彻底移除已完成动画的 Snackbar。
+     *
+     * @param id Snackbar 标识符
+     */
+    fun remove(id: Long) {
+        items = items.filterNot { it.id == id }
+    }
+}
+
+/**
+ * 创建并记住 [StackedSnackbarHostState] 实例。
+ */
+@Composable
+fun rememberStackedSnackbarHostState(): StackedSnackbarHostState {
+    return remember { StackedSnackbarHostState() }
+}
+
+/**
+ * 堆叠式 Snackbar 宿主组件。
+ *
+ * 允许多个 Snackbar 在重叠时间内同时展示。按倒序在 Column 中排列，
+ * 保证最先发出的 Snackbar 处在最底部（正常 Snackbar 锚定位置）。
+ * 当先发出的 Snackbar 消失时，利用 [shrinkVertically] (Alignment.Bottom)
+ * 使后发出的 Snackbar 平滑平移归位到底部。
+ *
+ * @param hostState 状态管理器
+ * @param modifier 布局修饰符
+ */
+@Composable
+fun StackedSnackbarHost(
+    hostState: StackedSnackbarHostState,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // 倒序排列：使得最早发出的 (Item 1) 处于 Column 最底部（正常 Snackbar 位置），
+        // 后发出的 (Item 2) 叠在 Item 1 上方。
+        // 当 Item 1 消失折叠时，Item 2 会平滑下落补位到最底部正常位置。
+        hostState.items.reversed().forEach { item ->
+            key(item.id) {
+                LaunchedEffect(item.id) {
+                    delay(4000L)
+                    hostState.dismiss(item.id)
+                }
+
+                LaunchedEffect(item.isVisible) {
+                    if (!item.isVisible) {
+                        delay(300L)
+                        hostState.remove(item.id)
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = item.isVisible,
+                    enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
+                            slideInVertically(
+                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                                initialOffsetY = { it }
+                            ),
+                    exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
+                           shrinkVertically(
+                               animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                               shrinkTowards = Alignment.Bottom
+                           ) +
+                           slideOutVertically(
+                               animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                               targetOffsetY = { it }
+                           ),
+                ) {
+                    Snackbar(
+                        modifier = Modifier.padding(vertical = 2.dp),
+                        action = item.actionLabel?.let { action ->
+                            {
+                                TextButton(onClick = { hostState.dismiss(item.id) }) {
+                                    Text(action)
+                                }
+                            }
+                        },
+                        dismissAction = {
+                            IconButton(onClick = { hostState.dismiss(item.id) }) {
+                                Icon(Icons.Default.Close, contentDescription = "关闭")
+                            }
+                        }
+                    ) {
+                        Text(item.message)
+                    }
+                }
+            }
+        }
+    }
 }

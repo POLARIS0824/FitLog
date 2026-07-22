@@ -20,12 +20,13 @@ import androidx.compose.ui.unit.dp
 /**
  * 同色系圆形图标底：浅色圆 + 同色相深色图标。
  *
- * 三对 tonal 色（primary / secondary / tertiary 的 container 配对）
- * 由动态取色生成，按 [index] 轮换，保证相邻图标色相不同。
+ * 遵循 Material Expressive 规范，包含 5 组 tonal 色槽（primary / secondary / tertiary / surfaceVariant / errorContainer），
+ * 由动态取色生成，按 [index] 轮换，保证相邻图标色相丰富且互不冲突。
  *
  * @param icon 图标
  * @param index 轮换序号（同一列表中相邻项传递增 index 即可）
  * @param size 圆形槽位尺寸
+ * @param modifier 修饰符
  */
 @Composable
 fun TonalIcon(
@@ -38,8 +39,10 @@ fun TonalIcon(
         MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer,
         MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer,
         MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer,
+        MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant,
+        MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer,
     )
-    val (bg, fg) = chips[index % chips.size]
+    val (bg, fg) = chips[(index % chips.size + chips.size) % chips.size]
     Box(
         modifier = modifier
             .size(size)
@@ -47,7 +50,12 @@ fun TonalIcon(
             .background(bg),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = fg)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = fg,
+            modifier = Modifier.size(size * 0.54f),
+        )
     }
 }
 
