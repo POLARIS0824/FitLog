@@ -45,4 +45,14 @@ interface UserProfileDao {
      */
     @Query("SELECT * FROM user_profiles WHERE id = :id")
     suspend fun getById(id: Long): UserProfileEntity?
+
+    /**
+     * 查询首条用户资料。
+     *
+     * 本应用为单用户个人 App，表里至多一条记录。
+     *
+     * @return 首条记录，若不存在则返回 null
+     */
+    @Query("SELECT * FROM user_profiles LIMIT 1")
+    suspend fun getFirst(): UserProfileEntity?
 }

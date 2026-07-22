@@ -20,4 +20,9 @@ class UserProfileRepository @Inject constructor(
     suspend fun delete(userProfile: UserProfile) = userProfileDao.delete(userProfile.toEntity())
 
     suspend fun getById(id: Long) = userProfileDao.getById(id)?.toModel()
+
+    /**
+     * 查询首条用户资料（单用户 App，至多一条）。
+     */
+    suspend fun getFirst() = userProfileDao.getFirst()?.toModel()
 }

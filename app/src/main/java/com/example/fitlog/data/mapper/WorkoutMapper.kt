@@ -15,6 +15,7 @@ fun WorkoutEntity.toModel(): Workout {
         exercises = emptyList(),
         feelings = feelings,
         sourceFileName = sourceFileName,
+        rawContent = rawContent,
     )
 }
 
@@ -26,6 +27,7 @@ fun WorkoutWithExerciseLogs.toModel(): Workout {
         exercises = exerciseLogs.map { it.toModel() },
         feelings = workout.feelings,
         sourceFileName = workout.sourceFileName,
+        rawContent = workout.rawContent,
     )
 }
 
@@ -44,6 +46,6 @@ fun Workout.toEntity(): WorkoutEntity {
         date = date,
         feelings = feelings,
         sourceFileName = sourceFileName,
-        rawContent = null,
+        rawContent = rawContent,
     )
 }

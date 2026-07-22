@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -11,7 +13,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 /**
  * 同色系圆形图标底：浅色圆 + 同色相深色图标。
@@ -45,4 +49,14 @@ fun TonalIcon(
     ) {
         Icon(icon, contentDescription = null, tint = fg)
     }
+}
+
+@Preview
+@Composable
+fun TonalIconPreview() {
+    TonalIcon(
+        icon = Icons.AutoMirrored.Filled.Send,
+        index = 0,
+        size = 40.dp
+    )
 }
