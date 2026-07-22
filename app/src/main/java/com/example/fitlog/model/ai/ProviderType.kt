@@ -63,16 +63,16 @@ enum class ProviderType {
      *
      * @param config 当前 AI 提供商配置
      * @return 模型列表请求地址
-     * @throws UnsupportedOperationException Azure / Custom 无通用模型列表端点
+     * @throws UnsupportedOperationException Azure 无通用模型列表端点
      */
     fun buildModelsUrl(config: AIProviderConfig): String {
         val base = config.baseUrl.toHttpUrlOrNull()
             ?: throw IllegalArgumentException("Invalid baseUrl: ${config.baseUrl}")
         val builder = base.newBuilder()
         when (this) {
-            OPENAI, MOONSHOT, SILICONFLOW -> builder.addPathSegments("v1/models")
+            OPENAI, MOONSHOT, SILICONFLOW, CUSTOM -> builder.addPathSegments("v1/models")
             DEEPSEEK -> builder.addPathSegments("models")
-            AZURE, CUSTOM -> throw UnsupportedOperationException("该类型不支持拉取模型列表")
+            AZURE -> throw UnsupportedOperationException("该类型不支持拉取模型列表")
         }
         return builder.build().toString()
     }
