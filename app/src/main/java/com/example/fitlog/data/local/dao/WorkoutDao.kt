@@ -5,8 +5,12 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.example.fitlog.data.local.entity.workout.WorkoutEntity
+import com.example.fitlog.data.local.relation.WorkoutWithExerciseLogs
+import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 
 /**
  * 训练日（[WorkoutEntity]）的数据访问对象。
@@ -34,20 +38,36 @@ interface WorkoutDao {
     /**
      * 根据日期查询训练日记录。
      *
-     * @param date ISO-8601 格式的日期字符串
+     * @param date LocalDate
      */
     @Query("SELECT * FROM workouts WHERE date = :date")
-    suspend fun getByDate(date: String): List<WorkoutEntity>
+    fun getByDate(date: LocalDate): Flow<List<WorkoutEntity>>
 
     /**
      * 查询所有训练日记录，按日期降序排列。
      */
     @Query("SELECT * FROM workouts ORDER BY date DESC")
-    suspend fun getAll(): List<WorkoutEntity>
+    fun getAll(): Flow<List<WorkoutEntity>>
 
     /**
      * 根据来源文件名查询训练日记录。
      */
     @Query("SELECT * FROM workouts WHERE sourceFileName = :fileName")
     suspend fun getBySourceFileName(fileName: String): WorkoutEntity?
+
+    /**
+     * 查询所有训练日记录及其关联的练习日志，按日期降序排列。
+     * 使用 @Transaction 注解确保查询和关联数据的原子性
+     */
+    @Transaction
+    @Query("SELECT * FROM workouts ORDER BY date DESC")
+    fun getAllWithDetails(): Flow<List<WorkoutWithExerciseLogs>>
+
+    /**
+     * 根据日期查询训练日记录及其关联的练习日志。
+     * 使用 @Transaction 注解确保查询和关联数据的原子性
+     */
+    @Transaction
+    @Query("SELECT * FROM workouts WHERE date = :date")
+    fun getByDateWithDetails(date: LocalDate): Flow<List<WorkoutWithExerciseLogs>>
 }

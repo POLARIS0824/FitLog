@@ -2,6 +2,7 @@ package com.example.fitlog.data.local.entity.plan
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.time.LocalDate
 
 /**
  * 训练计划的数据库实体。
@@ -27,5 +28,5 @@ data class WorkoutPlanEntity(
     val durationWeeks: Int,
     val sessionsPerWeek: Int,
     val isCustom: Boolean,
-    val createdAt: String,
+    val createdAt: LocalDate,
 )

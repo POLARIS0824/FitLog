@@ -14,17 +14,6 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import com.example.fitlog.data.local.AppDatabase
-import com.example.fitlog.data.repository.AIChatRepositoryImpl
-import com.example.fitlog.data.repository.AIProviderConfigRepositoryImpl
-import com.example.fitlog.data.repository.UserProfileRepositoryImpl
-import com.example.fitlog.data.repository.WorkoutPlanRepositoryImpl
-import com.example.fitlog.data.repository.WorkoutRepositoryImpl
-import com.example.fitlog.domain.repository.AIChatRepository
-import com.example.fitlog.domain.repository.AIProviderConfigRepository
-import com.example.fitlog.domain.repository.UserProfileRepository
-import com.example.fitlog.domain.repository.WorkoutPlanRepository
-import com.example.fitlog.domain.repository.WorkoutRepository
-import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -89,37 +78,7 @@ object DatabaseModule {
     @Singleton
     fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
         return PreferenceDataStoreFactory.create {
-            context.preferencesDataStoreFile("myfitness_prefs")
+            context.preferencesDataStoreFile("fitLog_prefs")
         }
     }
-}
-
-@Module
-@InstallIn(SingletonComponent::class)
-abstract class RepositoryModule {
-
-    @Binds
-    abstract fun bindUserProfileRepository(
-        impl: UserProfileRepositoryImpl,
-    ): UserProfileRepository
-
-    @Binds
-    abstract fun bindWorkoutRepository(
-        impl: WorkoutRepositoryImpl,
-    ): WorkoutRepository
-
-    @Binds
-    abstract fun bindAIProviderConfigRepository(
-        impl: AIProviderConfigRepositoryImpl,
-    ): AIProviderConfigRepository
-
-    @Binds
-    abstract fun bindAIChatRepository(
-        impl: AIChatRepositoryImpl,
-    ): AIChatRepository
-
-    @Binds
-    abstract fun bindWorkoutPlanRepository(
-        impl: WorkoutPlanRepositoryImpl,
-    ): WorkoutPlanRepository
 }

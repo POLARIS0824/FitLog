@@ -1,10 +1,7 @@
 package com.example.fitlog.di
 
 import com.example.fitlog.data.remote.AIApi
-import com.example.fitlog.data.repository.AIChatRepositoryImpl
-import com.example.fitlog.domain.repository.AIChatRepository
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
-import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -14,6 +11,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import java.util.concurrent.TimeUnit
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -21,7 +19,7 @@ import javax.inject.Singleton
  * 提供 AI 网络层依赖的 Hilt Module。
  */
 @Module
-@InstallIn(SingletonComponent::class)
+@InstallIn(SingletonComponent::class) // 这些依赖在整个 App 生命周期只创建一次（单例）
 object AIModule {
 
     /**
@@ -34,11 +32,19 @@ object AIModule {
     @Named("ai")
     fun provideAIRetrofit(): Retrofit {
         val json = Json { ignoreUnknownKeys = true }
+
+        // OkHttp 拦截器——在开发和调试阶段，把请求和响应的完整内容打印到 Logcat
+        // TODO: 发布时关闭，防止 API KEY 泄露
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
+
         val client = OkHttpClient.Builder()
             .addInterceptor(logging)
+            // LLM 非流式响应经常需要几十秒，默认 10s 读超时会误杀正常请求
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .build()
 
         return Retrofit.Builder()
@@ -56,17 +62,4 @@ object AIModule {
     fun provideAIApi(@Named("ai") retrofit: Retrofit): AIApi {
         return retrofit.create(AIApi::class.java)
     }
-}
-
-/**
- * 绑定 AI 聊天仓库实现。
- */
-@Module
-@InstallIn(SingletonComponent::class)
-abstract class AIRepositoryModule {
-
-    @Binds
-    abstract fun bindAIChatRepository(
-        impl: AIChatRepositoryImpl,
-    ): AIChatRepository
 }
