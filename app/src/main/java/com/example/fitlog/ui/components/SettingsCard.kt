@@ -35,7 +35,7 @@ fun SettingsCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(
