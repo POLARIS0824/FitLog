@@ -22,6 +22,12 @@ class WorkoutRepository @Inject constructor(
 ) {
     suspend fun insert(workout: Workout) = workoutDao.insert(workout.toEntity())
 
+    /**
+     * 判断指定来源文件名的训练记录是否已存在（导入去重用）。
+     */
+    suspend fun existsBySourceFileName(fileName: String) =
+        workoutDao.getBySourceFileName(fileName) != null
+
     suspend fun update(workout: Workout) = workoutDao.update(workout.toEntity())
 
     suspend fun delete(workout: Workout) = workoutDao.delete(workout.toEntity())

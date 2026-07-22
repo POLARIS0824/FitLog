@@ -45,8 +45,7 @@ import com.example.fitlog.ui.components.TonalIcon
  * 1. 容器层
  *
  * Settings 主页是纯导航页（只做分组入口，不含表单），暂无页面状态，
- * 因此不需要 ViewModel。导航回调由上层（NavDisplay）注入，
- * 未接入导航框架前为空实现。
+ * 因此不需要 ViewModel。导航回调由上层（NavDisplay）注入。
  */
 @Composable
 fun SettingsRoute(
@@ -98,7 +97,6 @@ fun SettingsScreen(
             LargeTopAppBar(
                 title = { Text("Settings") },
                 navigationIcon = {
-                    // TODO: 返回上一级页面（待导航框架接入后实现）
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,

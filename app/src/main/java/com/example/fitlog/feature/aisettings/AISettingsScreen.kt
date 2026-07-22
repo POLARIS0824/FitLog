@@ -91,12 +91,14 @@ import com.example.fitlog.ui.components.SettingsCard
  */
 @Composable
 fun AISettingsRoute(
+    onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: AISettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     AISettingsScreen(
         uiState = uiState,
+        onBack = onBack,
         onProviderSelected = viewModel::onProviderSelected,
         onApiKeyChange = viewModel::onApiKeyChange,
         onToggleApiKeyVisibility = viewModel::onToggleApiKeyVisibility,
@@ -124,6 +126,7 @@ fun AISettingsRoute(
 @Composable
 fun AISettingsScreen(
     uiState: AISettingsUiState,
+    onBack: () -> Unit,
     onProviderSelected: (ProviderType) -> Unit,
     onApiKeyChange: (String) -> Unit,
     onToggleApiKeyVisibility: () -> Unit,
@@ -156,10 +159,11 @@ fun AISettingsScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             LargeTopAppBar(
-                title = { Text("AI Configuration") },
+                title = {
+                    Text("AI Configuration")
+                },
                 navigationIcon = {
-                    // TODO: 返回 SettingsScreen（待导航框架接入后实现）
-                    IconButton(onClick = { }) {
+                    IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回",
@@ -167,11 +171,10 @@ fun AISettingsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.largeTopAppBarColors(
-                    // 展开时融入背景；滚动折叠时渐变为略深的托起色（插值自动完成）
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                 ),
-                scrollBehavior = scrollBehavior,
+                scrollBehavior = scrollBehavior
             )
         },
     ) { innerPadding ->
@@ -744,6 +747,7 @@ private fun AISettingsScreenPreview() {
             test = TestState(),
             ui = UiState(),
         ),
+        onBack = {},
         onProviderSelected = {},
         onApiKeyChange = {},
         onToggleApiKeyVisibility = {},

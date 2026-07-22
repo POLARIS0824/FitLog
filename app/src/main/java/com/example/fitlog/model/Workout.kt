@@ -13,6 +13,7 @@ data class Workout(
     val exercises: List<ExerciseLog>,
     val feelings: String?,
     val sourceFileName: String? = null,
+    val rawContent: String? = null,
 )
 
 /**
