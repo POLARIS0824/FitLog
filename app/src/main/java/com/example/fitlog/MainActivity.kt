@@ -14,7 +14,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.feature.aisettings.AISettingsRoute
 import com.example.fitlog.ui.SettingsRoute
-import com.example.fitlog.ui.about.AboutRoute
+import com.example.fitlog.ui.AboutRoute
 import com.example.fitlog.ui.appearance.AppearanceRoute
 import com.example.fitlog.ui.dataimport.DataImportRoute
 import com.example.fitlog.ui.navigation.AboutKey

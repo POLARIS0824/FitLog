@@ -88,8 +88,17 @@ FitLog 采用 **Material You（动态取色）**：不定义任何固定色板�
 - **页面背景**：`surfaceContainerLow`（浅底，微着色）
 - **卡片**：`surfaceContainerLowest`（最亮档，近白）——底深卡浅，对比出层级
 - **顶栏渐变**：展开 `surfaceContainerLow`（融入背景）→ 折叠 `surfaceContainer`
-  （深半档，托起滚过的内容），由 `TopAppBarScrollBehavior.state.collapsedFraction`
-  自动插值，无需手写动画
+  （深半档，托起滚过的内容），通过 `lerp(surfaceContainerLow, surfaceContainer, titleFraction)`
+  根据滚动进度平滑插值过渡
+- **自适应双态顶栏（方案 A）**：根据页面内容是否超出屏高可滚动 (`scrollState.maxValue > 0`) 智能切换顶栏形态：
+  - **内容可滚动（长页面）**：开启双标题范式。顶栏常驻父级板块标题（如 "Settings"），
+    内容区显示页面大标题 Header（如 "AI Configuration"）。滚动时父级标题向上淡出
+    （`translationY = -12.dp`），本页标题从下向上淡入顶栏（`translationY = 12.dp`）；
+    滚动停止时通过 `spring(dampingRatio = LowBouncy, stiffness = MediumLow)` 自动吸附。
+  - **内容不可滚动（短页面）**：顶栏直接常驻显示本页标题（如 "About"），
+    自动隐藏内容区重复的大标题 Header Box，避免双重标题混淆与纵向空间浪费。
+- **精准吸附**：测量大标题 Header 容器高度加上底部 `12.dp` 布局间距为 `headerHeightPx`；
+  滚动停止时自动平滑吸附至 `0` 或 `headerHeightPx`，保证大标题 100% 隐藏无残留。
 - **区块标签**：`primary`（截图中的"蓝色小字"效果）
 - **按钮**：主操作 `primary` 实色（`Button`）；次级操作 `secondaryContainer`
   （`FilledTonalButton`）。层级：primary > tonal > 纯文字（`TextButton` 仅用于
@@ -104,7 +113,8 @@ FitLog 采用 **Material You（动态取色）**：不定义任何固定色板�
 
 全部使用 `MaterialTheme.typography` 角色，不自定义字号：
 
-- **页面大标题**：`LargeTopAppBar` 自带（展开 display 级 → 折叠 title 级，自动过渡）
+- **页面大标题**：`headlineMedium`（位于滚动内容顶部 Header Box，`padding(start = 8.dp, top = 8.dp, bottom = 4.dp)`）
+- **顶栏标题**：`titleLarge`（位于 `TopAppBar` title 槽位，支持双标题 Shared Axis 位移淡化）
 - **卡片标题**：`titleMedium`
 - **卡片副标题/说明**：`bodyMedium` + `onSurfaceVariant`
 - **区块标签**：`titleSmall` + `primary`
@@ -116,13 +126,14 @@ FitLog 采用 **Material You（动态取色）**：不定义任何固定色板�
 
 - 页面水平 padding **16dp**；卡片间、区块间距 **12dp**（`Arrangement.spacedBy`）
 - 卡片内边距 **20dp**，卡内元素间距 **12dp**
-- 设置类页面的标准骨架（见 AISettingsScreen）：
+- 设置类页面的标准骨架（见 AISettingsScreen / AboutScreen）：
 
 ```
-Scaffold(containerColor = surfaceContainerLow)
-├─ LargeTopAppBar（折叠 + 渐变 + 返回钮 navigationIcon）
+Scaffold(containerColor = surfaceContainerLow, snackbarHost = { StackedSnackbarHost(hostState) })
+├─ TopAppBar（pinned scrollBehavior + lerp 背景色 + 共享轴向双标题）
 └─ Column(verticalScroll + imePadding + 点击空白收键盘)
-   ├─ SectionLabel / Card（按"Provider → Credentials → Model → Test"依赖顺序）
+   ├─ Header Box（大标题 + onSizeChanged 测量 headerHeightPx = size.height + extraSpacingPx）
+   ├─ SectionLabel / Card（按业务逻辑顺序组合）
    └─ 主按钮（filled，fillMaxWidth，页面底部）
 ```
 
@@ -148,7 +159,8 @@ Scaffold(containerColor = surfaceContainerLow)
 
 | 组件 | 实现 | 要点 |
 |---|---|---|
-| 折叠顶栏 | `LargeTopAppBar` + `exitUntilCollapsedScrollBehavior()` | `nestedScroll` 挂 **Scaffold**（漏挂则顶栏不动）；双色 `containerColor`/`scrolledContainerColor` 出渐变 |
+| 双标题吸附顶栏 | `TopAppBar` + `pinnedScrollBehavior()` + `titleFraction` | 共享轴向位移淡化双标题；`lerp` 背景色；`snapshotFlow` + `LowBouncy` 精准弹簧吸附 |
+| 堆叠 Snackbar 宿主 | `StackedSnackbarHost` + `StackedSnackbarHostState` | 倒序 Column + `fadeIn`/`slideIn` 与 `shrinkVertically(Bottom)`，支持多条 Snackbar 并行展示与消失平滑归位 |
 | 区块标签 | `SectionLabel` | `titleSmall` + `primary`，左缩 4dp |
 | 卡片容器 | `SettingsCard` | `surfaceContainerLowest` + 28dp + 0 阴影 + 20dp 内边距，全页面统一 |
 | 服务商图标 | `ProviderIcon` | 有 `logoRes` 用品牌 logo（0.7 缩放、不 tint），否则回退 tonal 图标；**只有它认识 logo，调用方无感知** |
@@ -156,7 +168,7 @@ Scaffold(containerColor = surfaceContainerLow)
 | 可编辑下拉框 | `ExposedDropdownMenuBox` + `menuAnchor(ExposedDropdownMenuAnchorType.SecondaryEditable)` | 点输入区弹键盘输入，点箭头只展开列表不弹键盘；**手动输入永远是兜底** |
 | Tonal 按钮 | `FilledTonalButton` | 次级操作；药囊形 + `secondaryContainer` 动态色 |
 | 帮助链接 | `HelpLink`（`buildAnnotatedString` + `LocalUriHandler`） | 说明文字普通色，URL 用 `primary` + 下划线 |
-| 一次性消息 | `SnackbarHost` + `LaunchedEffect(uiState.xxx)` + `onXxxShown()` 清除 | 见下方架构模式 |
+| 一次性消息 | `StackedSnackbarHost` + `LaunchedEffect(uiState.xxx)` + `onXxxShown()` 清除 | 见架构模式 |
 | 元数据注册表 | `ProviderSpec`/`ProviderSpecs` | 与具体实体绑定的 UI 元数据（显示名、默认值、字段开关）集中一处，UI 组件不认识任何具体实体 |
 
 ## Architecture Patterns（项目补充）

@@ -103,7 +103,9 @@ import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ProviderType
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.SettingsCard
+import com.example.fitlog.ui.components.StackedSnackbarHost
 import com.example.fitlog.ui.components.SubpageIndicator
+import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
 
@@ -180,18 +182,21 @@ fun AISettingsScreen(
     val density = LocalDensity.current
     val extraSpacingPx = remember(density) { with(density) { 12.dp.roundToPx() } }
 
+    // 自适应双态：动态检测页面内容是否能够产生滚动
+    val isScrollable by remember { derivedStateOf { scrollState.maxValue > 0 } }
+
     // 双标题切换进度：0 = 完全展开（显示父级板块标题 Settings），1 = 大标题刚好完全滚入顶栏之下。
-    // 使用大标题 Header 容器高度加上底部 12.dp 间距，作为完全滚出顶栏的准确吸附阈值（确保大标题 100% 隐藏无残留）。
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val titleFraction by remember {
         derivedStateOf {
-            if (headerHeightPx <= 0) 0f
+            if (!isScrollable || headerHeightPx <= 0) 0f
             else (scrollState.value.toFloat() / headerHeightPx.toFloat()).coerceIn(0f, 1f)
         }
     }
 
     // 吸附效果：手势/惯性滚动停止后，若大标题处于半折叠的中间态，自动平滑吸附到最近的稳定边界（0 或 headerHeightPx）。
-    LaunchedEffect(scrollState, headerHeightPx) {
+    LaunchedEffect(scrollState, headerHeightPx, isScrollable) {
+        if (!isScrollable) return@LaunchedEffect
         snapshotFlow { scrollState.isScrollInProgress }
             .collect { inProgress ->
                 if (inProgress) return@collect
@@ -233,26 +238,33 @@ fun AISettingsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    // 双标题 Material 3 轴向共享过渡：
-                    // 展开时显示父级板块（Settings），大标题滚出后向上淡出；
-                    // 本页标题（AI Configuration）从下方向上淡入顶栏，实现双标题自然切换。
+                    // 方案 A 顶栏形态：
+                    // - 可滚动页面：共享轴向过渡（展开 "Settings" ↔ 折叠 "AI Configuration"）
+                    // - 不可滚动页面：顶栏直接显示本页标题 "AI Configuration"，避免双标题混淆与空间浪费
                     Box(contentAlignment = Alignment.CenterStart) {
-                        Text(
-                            text = "Settings",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.graphicsLayer {
-                                alpha = 1f - titleFraction
-                                translationY = -titleFraction * 12.dp.toPx()
-                            },
-                        )
-                        Text(
-                            text = "AI Configuration",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.graphicsLayer {
-                                alpha = titleFraction
-                                translationY = (1f - titleFraction) * 12.dp.toPx()
-                            },
-                        )
+                        if (isScrollable) {
+                            Text(
+                                text = "Settings",
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.graphicsLayer {
+                                    alpha = 1f - titleFraction
+                                    translationY = -titleFraction * 12.dp.toPx()
+                                },
+                            )
+                            Text(
+                                text = "AI Configuration",
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.graphicsLayer {
+                                    alpha = titleFraction
+                                    translationY = (1f - titleFraction) * 12.dp.toPx()
+                                },
+                            )
+                        } else {
+                            Text(
+                                text = "AI Configuration",
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
@@ -284,19 +296,21 @@ fun AISettingsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // 大标题 Header：包含 top/bottom 内边距及 12.dp 间距，整体测量高度作为完全滚出顶栏的准确吸附阈值
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 8.dp, top = 8.dp, bottom = 4.dp)
-                    .onSizeChanged { size ->
-                        headerHeightPx = size.height + extraSpacingPx
-                    }
-            ) {
-                Text(
-                    text = "AI Configuration",
-                    style = MaterialTheme.typography.headlineMedium,
-                )
+            // 可滚动页面渲染大标题 Header；不可滚动页面隐藏 Body 重复大标题
+            if (isScrollable) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 8.dp, top = 8.dp, bottom = 4.dp)
+                        .onSizeChanged { size ->
+                            headerHeightPx = size.height + extraSpacingPx
+                        }
+                ) {
+                    Text(
+                        text = "AI Configuration",
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                }
             }
 
             if (uiState.ui.isLoading) {
@@ -859,159 +873,4 @@ private fun AISettingsScreenPreview() {
         onErrorShown = {},
         onSuccessShown = {},
     )
-}
-
-// ──────────────────────────────────────
-// 堆叠式 Snackbar 组件
-// ──────────────────────────────────────
-
-/**
- * 堆叠式 Snackbar 数据项。
- *
- * @property id 唯一标识符
- * @property message 提示内容
- * @property actionLabel 按钮操作文案（可选）
- * @property isVisible 是否可见（控制淡出与折叠动画）
- */
-data class StackedSnackbarItem(
-    val id: Long,
-    val message: String,
-    val actionLabel: String? = null,
-    val isVisible: Boolean = true,
-)
-
-/**
- * 堆叠式 Snackbar 状态管理器。
- *
- * 支持多个 Snackbar 同时存活与并存显示，新消息弹出时按队列压入，
- * 消失时通过 key + 垂直折叠动画促使下方 Snackbar 平滑回归正常位置。
- */
-class StackedSnackbarHostState {
-    var items by mutableStateOf<List<StackedSnackbarItem>>(emptyList())
-        private set
-
-    private var nextId = 0L
-
-    /**
-     * 弹出一条新的 Snackbar。
-     *
-     * @param message 提示文案
-     * @param actionLabel 操作按钮文案
-     */
-    fun showSnackbar(
-        message: String,
-        actionLabel: String? = null,
-    ) {
-        val id = ++nextId
-        val item = StackedSnackbarItem(id = id, message = message, actionLabel = actionLabel)
-        items = items + item
-    }
-
-    /**
-     * 触发指定 ID 的 Snackbar 淡出/折叠动画。
-     *
-     * @param id Snackbar 标识符
-     */
-    fun dismiss(id: Long) {
-        items = items.map {
-            if (it.id == id) it.copy(isVisible = false) else it
-        }
-    }
-
-    /**
-     * 从数据列表中彻底移除已完成动画的 Snackbar。
-     *
-     * @param id Snackbar 标识符
-     */
-    fun remove(id: Long) {
-        items = items.filterNot { it.id == id }
-    }
-}
-
-/**
- * 创建并记住 [StackedSnackbarHostState] 实例。
- */
-@Composable
-fun rememberStackedSnackbarHostState(): StackedSnackbarHostState {
-    return remember { StackedSnackbarHostState() }
-}
-
-/**
- * 堆叠式 Snackbar 宿主组件。
- *
- * 允许多个 Snackbar 在重叠时间内同时展示。按倒序在 Column 中排列，
- * 保证最先发出的 Snackbar 处在最底部（正常 Snackbar 锚定位置）。
- * 当先发出的 Snackbar 消失时，利用 [shrinkVertically] (Alignment.Bottom)
- * 使后发出的 Snackbar 平滑平移归位到底部。
- *
- * @param hostState 状态管理器
- * @param modifier 布局修饰符
- */
-@Composable
-fun StackedSnackbarHost(
-    hostState: StackedSnackbarHostState,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // 倒序排列：使得最早发出的 (Item 1) 处于 Column 最底部（正常 Snackbar 位置），
-        // 后发出的 (Item 2) 叠在 Item 1 上方。
-        // 当 Item 1 消失折叠时，Item 2 会平滑下落补位到最底部正常位置。
-        hostState.items.reversed().forEach { item ->
-            key(item.id) {
-                LaunchedEffect(item.id) {
-                    delay(4000L)
-                    hostState.dismiss(item.id)
-                }
-
-                LaunchedEffect(item.isVisible) {
-                    if (!item.isVisible) {
-                        delay(300L)
-                        hostState.remove(item.id)
-                    }
-                }
-
-                AnimatedVisibility(
-                    visible = item.isVisible,
-                    enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
-                            slideInVertically(
-                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                                initialOffsetY = { it }
-                            ),
-                    exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
-                           shrinkVertically(
-                               animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                               shrinkTowards = Alignment.Bottom
-                           ) +
-                           slideOutVertically(
-                               animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                               targetOffsetY = { it }
-                           ),
-                ) {
-                    Snackbar(
-                        modifier = Modifier.padding(vertical = 2.dp),
-                        action = item.actionLabel?.let { action ->
-                            {
-                                TextButton(onClick = { hostState.dismiss(item.id) }) {
-                                    Text(action)
-                                }
-                            }
-                        },
-                        dismissAction = {
-                            IconButton(onClick = { hostState.dismiss(item.id) }) {
-                                Icon(Icons.Default.Close, contentDescription = "关闭")
-                            }
-                        }
-                    ) {
-                        Text(item.message)
-                    }
-                }
-            }
-        }
-    }
 }
