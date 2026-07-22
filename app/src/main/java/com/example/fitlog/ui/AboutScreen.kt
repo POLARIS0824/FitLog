@@ -50,11 +50,35 @@ import com.example.fitlog.ui.components.TonalIcon
 import kotlinx.coroutines.CancellationException
 
 /**
- * 关于页：应用信息展示，无状态。
+ * 1. 容器层 (Route)
+ *
+ * 关于页：应用信息展示，路由容器层。
+ *
+ * @param onBack 返回回调
+ * @param modifier 修饰符
+ */
+@Composable
+fun AboutRoute(
+    onBack: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    AboutScreen(
+        onBack = onBack,
+        modifier = modifier,
+    )
+}
+
+/**
+ * 2. 纯 UI 展示层 (Stateless)
+ *
+ * 关于页纯 UI 展示，包含应用名称、版本号与项目链接。
+ *
+ * @param onBack 返回回调
+ * @param modifier 修饰符
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutRoute(
+fun AboutScreen(
     onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -225,6 +249,6 @@ fun AboutRoute(
 
 @Preview(showBackground = true)
 @Composable
-private fun AboutRoutePreview() {
-    AboutRoute()
+private fun AboutScreenPreview() {
+    AboutScreen()
 }
