@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 /**
  * AI 提供商配置的数据库实体。
  *
- * [encryptedApiKey] 为 AES-GCM 密文，由 [com.example.fitlog.core.security.KeystoreManager]
+ * [encryptedApiKey] 为 AES-GCM 密文，由 [com.example.fitlog.util.security.KeystoreManager]
  * 通过 Android Keystore 加密后存储。
  *
  * @property id 配置唯一标识，如 "openai"、用户自定义 UUID

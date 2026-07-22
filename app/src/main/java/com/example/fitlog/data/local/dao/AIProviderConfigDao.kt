@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.example.fitlog.data.local.entity.AIProviderConfigEntity
+import kotlinx.coroutines.flow.Flow
 
 /**
  * AI 提供商配置（[AIProviderConfigEntity]）的数据访问对象。
@@ -53,5 +54,5 @@ interface AIProviderConfigDao {
      * @return 配置列表
      */
     @Query("SELECT * FROM ai_provider_configs")
-    suspend fun getAll(): List<AIProviderConfigEntity>
+    fun getAll(): Flow<List<AIProviderConfigEntity>>
 }

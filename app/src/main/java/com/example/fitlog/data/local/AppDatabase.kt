@@ -25,7 +25,7 @@ import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
  * [UserProfileEntity]、[WorkoutEntity]、[ExerciseLogEntity]、[SetLogEntity]、
  * [AIProviderConfigEntity]、[WorkoutPlanEntity]、[PlannedSessionEntity]、[PlannedExerciseEntity]。
  */
-@TypeConverters(ExerciseConverters::class)
+@TypeConverters(ExerciseConverters::class, LocalDateConverters::class)
 @Database(
     entities = [
         UserProfileEntity::class,

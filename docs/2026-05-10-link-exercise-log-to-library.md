@@ -80,7 +80,7 @@ data class ExerciseLog(
 | 文件 | 修改内容 |
 |------|----------|
 | `app/src/main/java/com/example/fitlog/data/local/entity/workout/ExerciseLogEntity.kt` | 新增 `exerciseKey` 字段及外键约束 |
-| `app/src/main/java/com/example/fitlog/domain/model/WorkOut.kt` | `ExerciseLog` 新增 `exerciseKey` |
+| `app/src/main/java/com/example/fitlog/domain/model/Workout.kt` | `ExerciseLog` 新增 `exerciseKey` |
 | `app/src/main/java/com/example/fitlog/data/repository/WorkoutRepositoryImpl.kt` | 保存/查询时处理 `exerciseKey`，缺失动作自动创建自定义 `ExerciseEntity` |
 | `app/src/main/java/com/example/fitlog/data/local/AppDatabase.kt` | 升级 version = 2，加入 `ExerciseLogEntity` 变更 |
 
