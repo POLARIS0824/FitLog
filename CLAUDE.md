@@ -7,7 +7,7 @@ AI-powered native Android fitness app for personal use and portfolio/demo purpos
 ## Tech Stack
 
 - Kotlin
-- Jetpack Compose
+- Jetpack Compose (Material 3 / Expressive)
 - MVVM
 - Room
 - Hilt
@@ -16,33 +16,37 @@ AI-powered native Android fitness app for personal use and portfolio/demo purpos
 - Retrofit / OkHttp
 - WorkManager (TODO)
 
-## Architecture
+## Architecture & Package Structure
 
 Single `app` module, organized by package:
 
-- `data/`: Room (entities, DAOs, converters, relation wrappers, repos), Retrofit/OkHttp, file I/O
-- `data/local/relation/`: Room `@Relation` wrapper classes for multi-level eager-loading (Workout→ExerciseLog→SetLog, WorkoutPlan→PlannedSession→PlannedExercise)
-- `data/file/`: Markdown file scanner and parser for importing workout logs
-- `data/remote/dto/`: AI API request/response DTOs
-- `model/`: domain models (no separate `domain/` package yet — repos call DAOs directly, no interfaces or use cases)
-- `feature/`: screens, ViewModels, UI state (currently only `workout/`)
-- `di/`: Hilt modules
-- `util/`: utilities (e.g. `KeystoreManager` for encrypted API key)
+- `data/`: Room (entities, DAOs, converters, relation wrappers), Retrofit/OkHttp DTOs & API, Repositories, SAF file I/O
+- `data/local/relation/`: `@Relation` wrappers for 3-level eager-loading (`WorkoutWithExerciseLogs`, `WorkoutPlanWithSessions`)
+- `data/file/`: `MarkdownFileScanner` and `MarkdownParser` for importing workout logs
+- `model/`: Domain models (repos map DAOs/DTOs directly to domain models)
+- `feature/`: Feature modules (`aisettings`, `chat`, `workout`)
+- `ui/`: Global UI components, Theme, Navigation3 routes (`appearance`, `dataimport`, `profile`, `reminder`, `SettingsScreen`)
+- `di/`: Hilt modules (`DatabaseModule`, `AIModule`)
+- `util/`: Utilities (e.g. `KeystoreManager` for AES-GCM API key encryption)
 
-Keep package boundaries clean so the project can be modularized later if needed.
+Keep package boundaries clean for potential future modularization.
+
+## UI & Design System
+
+- Follow Google Material Expressive design system.
+- Screen Use xxxRoute & xxxScreen pattern.
 
 ## Database
 
-- `user_profiles`: basic user info.
-- `workouts` -> `exercise_logs` -> `set_logs`: 3-level workout log hierarchy (1:N:N), entities under `entity/workout/`.
-- `exercises`: exercise library, business IDs in kebab-case (e.g. `barbell-bench-press`), enums and lists stored via `ExerciseConverters`.
-- `workout_plans` -> `planned_sessions` -> `planned_exercises`: 3-level plan hierarchy (1:N:N), entities under `entity/plan/`.
-- `ai_provider_configs`: AI provider settings.
-- Multi-level queries use `@Relation` + `@Transaction`, not manual JOIN assembly.
-- `encryptedApiKey` uses Keystore AES-GCM (standalone).
+- `user_profiles`: User profile info.
+- `workouts` -> `exercise_logs` -> `set_logs`: 3-level workout log hierarchy (1:N:N) in `entity/workout/`.
+- `workout_plans` -> `planned_sessions` -> `planned_exercises`: 3-level plan hierarchy (1:N:N) in `entity/plan/`.
+- `exercises`: Exercise library (kebab-case IDs e.g. `barbell-bench-press`).
+- `ai_provider_configs`: AI provider settings (AES-GCM encrypted API key).
 - DataStore: `active_ai_provider_id` for dynamic engine switching.
-- Database version upgrade does not require migration.
+- Multi-level queries use `@Relation` + `@Transaction`.
 
-## Code Style Guidelines
+## Code Style & Guidelines
 
 - Always use Javadoc-style comments for all public classes, interfaces, methods, and significant fields.
+- Form state lives in ViewModel (`MutableStateFlow` + `combine`), UI holds transient state (sheets/dropdowns).
