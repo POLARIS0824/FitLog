@@ -48,10 +48,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.fitlog.R
 import com.example.fitlog.ui.components.SettingsCard
 import com.example.fitlog.ui.components.TonalIcon
 import kotlinx.coroutines.CancellationException
@@ -182,7 +184,7 @@ fun SettingsScreen(
                 title = {
                     Box(contentAlignment = Alignment.CenterStart) {
                         Text(
-                            text = "Settings",
+                            text = stringResource(R.string.settings_title),
                             style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.graphicsLayer {
                                 alpha = if (isScrollable) titleFraction else 1f
@@ -195,7 +197,7 @@ fun SettingsScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.cd_back),
                         )
                     }
                 },
@@ -226,7 +228,7 @@ fun SettingsScreen(
                         },
                 ) {
                     Text(
-                        text = "Settings",
+                        text = stringResource(R.string.settings_title),
                         style = MaterialTheme.typography.headlineMedium,
                     )
                 }
@@ -239,8 +241,8 @@ fun SettingsScreen(
             ) {
                 SettingsEntryRow(
                     icon = Icons.Default.Person,
-                    title = "个人资料",
-                    subtitle = "身高、体重、单位",
+                    title = stringResource(R.string.settings_profile_title),
+                    subtitle = stringResource(R.string.settings_profile_subtitle),
                     tonalIndex = 0,
                     onClick = onNavigateToProfile,
                 )
@@ -250,8 +252,8 @@ fun SettingsScreen(
                 )
                 SettingsEntryRow(
                     icon = Icons.Default.Palette,
-                    title = "外观",
-                    subtitle = "主题、动态取色",
+                    title = stringResource(R.string.settings_appearance_title),
+                    subtitle = stringResource(R.string.settings_appearance_subtitle),
                     tonalIndex = 1,
                     onClick = onNavigateToAppearance,
                 )
@@ -264,8 +266,8 @@ fun SettingsScreen(
             ) {
                 SettingsEntryRow(
                     icon = Icons.Default.AutoAwesome,
-                    title = "AI Configuration",
-                    subtitle = "服务商、凭据、模型",
+                    title = stringResource(R.string.settings_ai_title),
+                    subtitle = stringResource(R.string.settings_ai_subtitle),
                     tonalIndex = 2,
                     onClick = onNavigateToAISettings,
                 )
@@ -278,8 +280,8 @@ fun SettingsScreen(
             ) {
                 SettingsEntryRow(
                     icon = Icons.Default.Upload,
-                    title = "数据导入",
-                    subtitle = "从 Markdown 导入训练日志",
+                    title = stringResource(R.string.settings_data_import_title),
+                    subtitle = stringResource(R.string.settings_data_import_subtitle),
                     tonalIndex = 3,
                     onClick = onNavigateToDataImport,
                 )
@@ -289,8 +291,8 @@ fun SettingsScreen(
                 )
                 SettingsEntryRow(
                     icon = Icons.Default.Notifications,
-                    title = "训练提醒",
-                    subtitle = "定期提醒你训练",
+                    title = stringResource(R.string.settings_reminder_title),
+                    subtitle = stringResource(R.string.settings_reminder_subtitle),
                     tonalIndex = 4,
                     onClick = onNavigateToReminder,
                 )
@@ -303,8 +305,8 @@ fun SettingsScreen(
             ) {
                 SettingsEntryRow(
                     icon = Icons.Default.Info,
-                    title = "关于 FitLog",
-                    subtitle = "版本与开源许可",
+                    title = stringResource(R.string.settings_about_title),
+                    subtitle = stringResource(R.string.settings_about_subtitle),
                     tonalIndex = 0,
                     onClick = onNavigateToAbout,
                 )

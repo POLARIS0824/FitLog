@@ -1,3 +1,137 @@
 <resources>
     <string name="app_name">FitLog</string>
+
+    <!-- 通用与动作 -->
+    <string name="cd_back">返回</string>
+    <string name="cd_close">关闭</string>
+    <string name="cd_currently_selected">当前选中</string>
+    <string name="cd_toggle_api_key">显示/隐藏 API Key</string>
+    <string name="action_save">保存</string>
+    <string name="action_modify">修改</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_got_it">知道了</string>
+    <string name="dialog_error_title">出错了</string>
+    <string name="error_unknown">未知错误</string>
+    <string name="error_save_failed">保存失败</string>
+
+    <!-- 设置主页 (SettingsScreen) -->
+    <string name="settings_title">设置</string>
+    <string name="settings_profile_title">个人资料</string>
+    <string name="settings_profile_subtitle">身高、体重、单位</string>
+    <string name="settings_appearance_title">外观</string>
+    <string name="settings_appearance_subtitle">主题、动态取色</string>
+    <string name="settings_ai_title">AI 配置</string>
+    <string name="settings_ai_subtitle">服务商、凭据、模型</string>
+    <string name="settings_data_import_title">数据导入</string>
+    <string name="settings_data_import_subtitle">从 Markdown 导入训练日志</string>
+    <string name="settings_reminder_title">训练提醒</string>
+    <string name="settings_reminder_subtitle">定期提醒你训练</string>
+    <string name="settings_about_title">关于 FitLog</string>
+    <string name="settings_about_subtitle">版本与开源许可</string>
+
+    <!-- 关于页 (AboutScreen) -->
+    <string name="about_title">关于</string>
+    <string name="about_section_app">应用</string>
+    <string name="about_section_links">链接</string>
+    <string name="about_version_format">Version %1$s</string>
+    <string name="about_github_title">GitHub 仓库</string>
+    <string name="about_github_subtitle">AI 驱动的训练记录与分析，个人项目</string>
+
+    <!-- 外观页 (AppearanceScreen) -->
+    <string name="appearance_title">外观</string>
+    <string name="appearance_section_theme">主题</string>
+    <string name="appearance_theme_mode">主题模式</string>
+    <string name="appearance_theme_system">跟随系统</string>
+    <string name="appearance_theme_light">浅色</string>
+    <string name="appearance_theme_dark">深色</string>
+    <string name="appearance_section_color">颜色</string>
+    <string name="appearance_dynamic_color">动态取色</string>
+    <string name="appearance_dynamic_color_subtitle">根据壁纸生成整套配色（Material You）</string>
+
+    <!-- 数据导入页 (DataImportScreen & ViewModel) -->
+    <string name="data_import_title">数据导入</string>
+    <string name="data_import_section_description">说明</string>
+    <string name="data_import_section_results">扫描结果</string>
+    <string name="data_import_card_title">从 Markdown 导入训练日志</string>
+    <string name="data_import_card_subtitle">选择存放日志的文件夹，每个文件代表一天训练，文件名需为日期格式，如 2026-05-07.md</string>
+    <string name="data_import_select_folder">选择文件夹</string>
+    <string name="data_import_importing">导入中…</string>
+    <string name="data_import_start_import_format">导入 %1$d 条记录</string>
+    <string name="data_import_scan_failed_format">扫描失败：%1$s</string>
+    <string name="data_import_result_format">导入完成：新增 %1$d 条，跳过 %2$d 条</string>
+    <string name="data_import_failed_format">导入失败：%1$s</string>
+
+    <!-- 个人资料页 (ProfileScreen & ViewModel) -->
+    <string name="profile_title">个人资料</string>
+    <string name="profile_section_basic">基本信息</string>
+    <string name="profile_section_body">身体数据</string>
+    <string name="profile_section_goal">训练目标</string>
+    <string name="profile_field_name">姓名</string>
+    <string name="profile_field_age">年龄</string>
+    <string name="profile_field_gender">性别</string>
+    <string name="profile_gender_male">男</string>
+    <string name="profile_gender_female">女</string>
+    <string name="profile_gender_other">其他</string>
+    <string name="profile_field_height">身高 (cm)</string>
+    <string name="profile_field_weight">体重 (kg)</string>
+    <string name="profile_goal_hypertrophy">增肌</string>
+    <string name="profile_goal_fatloss">减脂</string>
+    <string name="profile_goal_strength">力量</string>
+    <string name="profile_error_empty_name">请填写姓名</string>
+    <string name="profile_success_saved">个人资料已保存</string>
+
+    <!-- 训练提醒页 (ReminderScreen) -->
+    <string name="reminder_title">训练提醒</string>
+    <string name="reminder_section">提醒</string>
+    <string name="reminder_enable">启用提醒</string>
+    <string name="reminder_enable_subtitle">每天到点提醒你训练</string>
+    <string name="reminder_time">提醒时间</string>
+    <string name="reminder_workmanager_todo">提醒调度将在 WorkManager 接入后生效（TODO）</string>
+    <string name="reminder_dialog_title">选择提醒时间</string>
+
+    <!-- AI 配置页 (AISettingsScreen, ProviderSpec & ViewModel) -->
+    <string name="ai_settings_title">AI 配置</string>
+    <string name="ai_settings_section_provider">AI Provider</string>
+    <string name="ai_settings_section_credentials">Credentials</string>
+    <string name="ai_settings_section_model">Model</string>
+    <string name="ai_settings_section_test">Test</string>
+    <string name="ai_settings_provider_configured_format">已配置 · %1$s</string>
+    <string name="ai_settings_provider_not_configured">尚未配置 API Key</string>
+    <string name="ai_settings_sheet_title">Provider</string>
+    <string name="ai_settings_status_configured">已配置</string>
+    <string name="ai_settings_status_not_configured">未配置</string>
+    <string name="ai_settings_get_url_prefix">获取地址：</string>
+    <string name="ai_settings_field_api_key">API Key</string>
+    <string name="ai_settings_field_base_url">Base URL</string>
+    <string name="ai_settings_field_custom_endpoint">自定义 Endpoint</string>
+    <string name="ai_settings_field_api_version">API Version</string>
+    <string name="ai_settings_model_card_title">模型选择</string>
+    <string name="ai_settings_model_card_subtitle_format">为 %1$s 选择模型，或手动输入</string>
+    <string name="ai_settings_field_model_name">模型名称</string>
+    <string name="ai_settings_btn_fetch_models">拉取可用模型列表</string>
+    <string name="ai_settings_fetch_models_hint">填写 API Key 后可拉取</string>
+    <string name="ai_settings_test_card_title">连接测试</string>
+    <string name="ai_settings_test_card_subtitle">用当前配置发一条测试消息</string>
+    <string name="ai_settings_btn_test_connection">测试连接</string>
+    <string name="ai_settings_fetch_models_success_format">✅ 成功拉取 %1$d 个模型</string>
+    <string name="ai_settings_fetch_models_error_format">❌ 拉取模型失败：%1$s</string>
+    <string name="ai_settings_test_success">✅ 连接成功</string>
+    <string name="ai_settings_test_error_format">❌ 连接失败：%1$s</string>
+    <string name="ai_settings_save_success_format">已保存并启用 %1$s</string>
+    <string name="ai_settings_key_openai">OpenAI API Key</string>
+    <string name="ai_settings_key_moonshot">Moonshot API Key</string>
+    <string name="ai_settings_key_deepseek">DeepSeek API Key</string>
+    <string name="ai_settings_key_siliconflow">SiliconFlow API Key</string>
+    <string name="ai_settings_key_azure">Azure API Key</string>
+
+    <!-- 聊天页 (ChatScreen) -->
+    <string name="chat_ai_thinking">AI 正在思考…</string>
+    <string name="chat_send">发送</string>
+
+    <!-- 训练页 (WorkoutScreen) -->
+    <string name="workout_empty_prompt">今天还没有记录训练，开始你的第一练吧！</string>
+    <string name="workout_item_format">训练日期: %1$s, 感受: %2$s</string>
+    <string name="workout_no_feelings">无</string>
+    <string name="workout_error_format">加载出错: %1$s</string>
 </resources>

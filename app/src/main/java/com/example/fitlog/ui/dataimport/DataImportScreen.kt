@@ -45,10 +45,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.fitlog.R
 import com.example.fitlog.data.file.MarkdownFileScanner
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.SettingsCard
@@ -152,7 +154,7 @@ fun DataImportScreen(
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (isScrollable) {
                             Text(
-                                text = "Settings",
+                                text = stringResource(R.string.settings_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = 1f - titleFraction
@@ -160,7 +162,7 @@ fun DataImportScreen(
                                 },
                             )
                             Text(
-                                text = "Data Import",
+                                text = stringResource(R.string.data_import_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = titleFraction
@@ -169,7 +171,7 @@ fun DataImportScreen(
                             )
                         } else {
                             Text(
-                                text = "Data Import",
+                                text = stringResource(R.string.data_import_title),
                                 style = MaterialTheme.typography.titleLarge,
                             )
                         }
@@ -179,7 +181,7 @@ fun DataImportScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.cd_back),
                         )
                     }
                 },
@@ -209,18 +211,17 @@ fun DataImportScreen(
                         }
                 ) {
                     Text(
-                        text = "Data Import",
+                        text = stringResource(R.string.data_import_title),
                         style = MaterialTheme.typography.headlineMedium,
                     )
                 }
             }
 
-            SectionLabel("说明")
+            SectionLabel(stringResource(R.string.data_import_section_description))
             SettingsCard {
-                Text("从 Markdown 导入训练日志", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.data_import_card_title), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "选择存放日志的文件夹，每个文件代表一天训练，" +
-                        "文件名需为日期格式，如 2026-05-07.md",
+                    stringResource(R.string.data_import_card_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -229,7 +230,7 @@ fun DataImportScreen(
                         onClick = { folderLauncher.launch(null) },
                         enabled = !uiState.isScanning,
                     ) {
-                        Text("选择文件夹")
+                        Text(stringResource(R.string.data_import_select_folder))
                     }
                     if (uiState.isScanning) {
                         CircularProgressIndicator(
@@ -243,7 +244,7 @@ fun DataImportScreen(
             }
 
             if (uiState.successes.isNotEmpty() || uiState.failures.isNotEmpty()) {
-                SectionLabel("扫描结果")
+                SectionLabel(stringResource(R.string.data_import_section_results))
                 SettingsCard {
                     uiState.successes.forEach { item ->
                         ScanResultRow(
@@ -268,9 +269,9 @@ fun DataImportScreen(
                 ) {
                     Text(
                         if (uiState.isImporting) {
-                            "导入中…"
+                            stringResource(R.string.data_import_importing)
                         } else {
-                            "导入 ${uiState.successes.size} 条记录"
+                            stringResource(R.string.data_import_start_import_format, uiState.successes.size)
                         }
                     )
                 }

@@ -1,6 +1,7 @@
 package com.example.fitlog.feature.aisettings
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import com.example.fitlog.R
 import com.example.fitlog.model.ai.ProviderType
 
@@ -13,6 +14,7 @@ import com.example.fitlog.model.ai.ProviderType
  * @property type 对应的协议类型
  * @property displayName 展示名，如 "DeepSeek"
  * @property keyLabel Credentials 卡片标题，如 "DeepSeek API Key"
+ * @property keyLabelRes Credentials 卡片标题资源 ID
  * @property helpUrl API Key 申请地址（展示为帮助链接），空串表示不显示
  * @property defaultBaseUrl 默认 Base URL（未保存配置时的回填值）
  * @property defaultModel 未保存配置时的默认模型
@@ -28,6 +30,7 @@ data class ProviderSpec(
     val type: ProviderType,
     val displayName: String,
     val keyLabel: String,
+    @StringRes val keyLabelRes: Int = R.string.ai_settings_field_api_key,
     val helpUrl: String,
     val defaultBaseUrl: String,
     val defaultModel: String,
@@ -48,6 +51,7 @@ object ProviderSpecs {
             type = ProviderType.OPENAI,
             displayName = "OpenAI",
             keyLabel = "OpenAI API Key",
+            keyLabelRes = R.string.ai_settings_key_openai,
             helpUrl = "https://platform.openai.com/api-keys",
             defaultBaseUrl = "https://api.openai.com",
             defaultModel = "gpt-5.6-sol",
@@ -58,6 +62,7 @@ object ProviderSpecs {
             type = ProviderType.MOONSHOT,
             displayName = "Moonshot",
             keyLabel = "Moonshot API Key",
+            keyLabelRes = R.string.ai_settings_key_moonshot,
             helpUrl = "https://platform.moonshot.cn/console/api-keys",
             defaultBaseUrl = "https://api.moonshot.cn",
             defaultModel = "kimi-k3",
@@ -68,6 +73,7 @@ object ProviderSpecs {
             type = ProviderType.DEEPSEEK,
             displayName = "DeepSeek",
             keyLabel = "DeepSeek API Key",
+            keyLabelRes = R.string.ai_settings_key_deepseek,
             helpUrl = "https://platform.deepseek.com/api_keys",
             defaultBaseUrl = "https://api.deepseek.com",
             defaultModel = "deepseek-v4-pro",
@@ -78,6 +84,7 @@ object ProviderSpecs {
             type = ProviderType.SILICONFLOW,
             displayName = "SiliconFlow",
             keyLabel = "SiliconFlow API Key",
+            keyLabelRes = R.string.ai_settings_key_siliconflow,
             helpUrl = "https://cloud.siliconflow.cn/account/ak",
             defaultBaseUrl = "https://api.siliconflow.cn",
             defaultModel = "zai-org/GLM-5.2",
@@ -88,6 +95,7 @@ object ProviderSpecs {
             type = ProviderType.AZURE,
             displayName = "Azure OpenAI",
             keyLabel = "Azure API Key",
+            keyLabelRes = R.string.ai_settings_key_azure,
             helpUrl = "https://portal.azure.com",
             defaultBaseUrl = "",
             defaultModel = "",
@@ -99,6 +107,7 @@ object ProviderSpecs {
             type = ProviderType.CUSTOM,
             displayName = "Custom",
             keyLabel = "API Key",
+            keyLabelRes = R.string.ai_settings_field_api_key,
             helpUrl = "",
             defaultBaseUrl = "",
             defaultModel = "",

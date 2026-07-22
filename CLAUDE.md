@@ -21,10 +21,11 @@ AI-powered native Android fitness app for personal use and portfolio/demo purpos
 Single `app` module, organized by package:
 
 - `data/`: Room (entities, DAOs, converters, relation wrappers), Retrofit/OkHttp DTOs & API, Repositories, SAF file I/O
+- `data/agent/`: Agent 核心（`AgentOrchestrator` tool-calling 循环、`AgentToolRegistry`、`AgentPromptBuilder`、`ChatCompletionClient` 端口）；`data/agent/tools/` 为只读 `AgentTool` 实现
 - `data/local/relation/`: `@Relation` wrappers for 3-level eager-loading (`WorkoutWithExerciseLogs`, `WorkoutPlanWithSessions`)
 - `data/file/`: `MarkdownFileScanner` and `MarkdownParser` for importing workout logs
-- `model/`: Domain models (repos map DAOs/DTOs directly to domain models)
-- `feature/`: Feature modules (`aisettings`, `chat`, `workout`)
+- `model/`: Domain models (repos map DAOs/DTOs directly to domain models); `model/ai/` 含 `AgentTool` 接口、`ToolCall`、`ToolDefinition`
+- `feature/`: Feature modules (`aisettings`, `chat`——tool-calling AI 教练，App 根页面, `workout`)
 - `ui/`: Global UI components, Theme, Navigation3 routes (`appearance`, `dataimport`, `profile`, `reminder`, `SettingsScreen`)
 - `di/`: Hilt modules (`DatabaseModule`, `AIModule`)
 - `util/`: Utilities (e.g. `KeystoreManager` for AES-GCM API key encryption)

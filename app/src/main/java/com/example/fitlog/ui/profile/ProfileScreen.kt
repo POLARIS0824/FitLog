@@ -48,11 +48,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.fitlog.R
 import com.example.fitlog.model.user.Gender
 import com.example.fitlog.model.user.TrainingGoal
 import com.example.fitlog.ui.components.SectionLabel
@@ -162,7 +164,7 @@ fun ProfileScreen(
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (isScrollable) {
                             Text(
-                                text = "Settings",
+                                text = stringResource(R.string.settings_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = 1f - titleFraction
@@ -170,7 +172,7 @@ fun ProfileScreen(
                                 },
                             )
                             Text(
-                                text = "Personal Info",
+                                text = stringResource(R.string.profile_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = titleFraction
@@ -179,7 +181,7 @@ fun ProfileScreen(
                             )
                         } else {
                             Text(
-                                text = "Personal Info",
+                                text = stringResource(R.string.profile_title),
                                 style = MaterialTheme.typography.titleLarge,
                             )
                         }
@@ -189,7 +191,7 @@ fun ProfileScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.cd_back),
                         )
                     }
                 },
@@ -223,38 +225,38 @@ fun ProfileScreen(
                         }
                 ) {
                     Text(
-                        text = "Personal Info",
+                        text = stringResource(R.string.profile_title),
                         style = MaterialTheme.typography.headlineMedium,
                     )
                 }
             }
 
-            SectionLabel("基本信息")
+            SectionLabel(stringResource(R.string.profile_section_basic))
             SettingsCard {
                 OutlinedTextField(
                     value = uiState.name,
                     onValueChange = onNameChange,
-                    label = { Text("姓名") },
+                    label = { Text(stringResource(R.string.profile_field_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = uiState.age,
                     onValueChange = onAgeChange,
-                    label = { Text("年龄") },
+                    label = { Text(stringResource(R.string.profile_field_age)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
-                    "性别",
+                    stringResource(R.string.profile_field_gender),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 val genders = listOf(
-                    Gender.MALE to "男",
-                    Gender.FEMALE to "女",
-                    Gender.OTHER to "其他",
+                    Gender.MALE to stringResource(R.string.profile_gender_male),
+                    Gender.FEMALE to stringResource(R.string.profile_gender_female),
+                    Gender.OTHER to stringResource(R.string.profile_gender_other),
                 )
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     genders.forEachIndexed { index, (gender, label) ->
@@ -272,12 +274,12 @@ fun ProfileScreen(
                 }
             }
 
-            SectionLabel("身体数据")
+            SectionLabel(stringResource(R.string.profile_section_body))
             SettingsCard {
                 OutlinedTextField(
                     value = uiState.height,
                     onValueChange = onHeightChange,
-                    label = { Text("身高 (cm)") },
+                    label = { Text(stringResource(R.string.profile_field_height)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
@@ -285,19 +287,19 @@ fun ProfileScreen(
                 OutlinedTextField(
                     value = uiState.weight,
                     onValueChange = onWeightChange,
-                    label = { Text("体重 (kg)") },
+                    label = { Text(stringResource(R.string.profile_field_weight)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
 
-            SectionLabel("训练目标")
+            SectionLabel(stringResource(R.string.profile_section_goal))
             SettingsCard {
                 val goals = listOf(
-                    TrainingGoal.HYPERTROPHY to "增肌",
-                    TrainingGoal.FATLOSS to "减脂",
-                    TrainingGoal.STRENGTH to "力量",
+                    TrainingGoal.HYPERTROPHY to stringResource(R.string.profile_goal_hypertrophy),
+                    TrainingGoal.FATLOSS to stringResource(R.string.profile_goal_fatloss),
+                    TrainingGoal.STRENGTH to stringResource(R.string.profile_goal_strength),
                 )
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     goals.forEachIndexed { index, (goal, label) ->
@@ -322,7 +324,7 @@ fun ProfileScreen(
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
             ) {
-                Text("保存")
+                Text(stringResource(R.string.action_save))
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -340,8 +342,8 @@ fun ProfileScreen(
     uiState.errorMessage?.let { message ->
         AlertDialog(
             onDismissRequest = onErrorShown,
-            confirmButton = { TextButton(onClick = onErrorShown) { Text("知道了") } },
-            title = { Text("出错了") },
+            confirmButton = { TextButton(onClick = onErrorShown) { Text(stringResource(R.string.action_got_it)) } },
+            title = { Text(stringResource(R.string.dialog_error_title)) },
             text = { Text(message) },
         )
     }

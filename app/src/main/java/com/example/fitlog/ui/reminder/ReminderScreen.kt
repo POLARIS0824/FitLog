@@ -44,10 +44,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.fitlog.R
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.SettingsCard
 import kotlinx.coroutines.CancellationException
@@ -137,7 +139,7 @@ fun ReminderScreen(
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (isScrollable) {
                             Text(
-                                text = "Settings",
+                                text = stringResource(R.string.settings_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = 1f - titleFraction
@@ -145,7 +147,7 @@ fun ReminderScreen(
                                 },
                             )
                             Text(
-                                text = "Training Reminder",
+                                text = stringResource(R.string.reminder_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = titleFraction
@@ -154,7 +156,7 @@ fun ReminderScreen(
                             )
                         } else {
                             Text(
-                                text = "Training Reminder",
+                                text = stringResource(R.string.reminder_title),
                                 style = MaterialTheme.typography.titleLarge,
                             )
                         }
@@ -164,7 +166,7 @@ fun ReminderScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.cd_back),
                         )
                     }
                 },
@@ -194,22 +196,22 @@ fun ReminderScreen(
                         }
                 ) {
                     Text(
-                        text = "Training Reminder",
+                        text = stringResource(R.string.reminder_title),
                         style = MaterialTheme.typography.headlineMedium,
                     )
                 }
             }
 
-            SectionLabel("提醒")
+            SectionLabel(stringResource(R.string.reminder_section))
             SettingsCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("启用提醒", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.reminder_enable), style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "每天到点提醒你训练",
+                            stringResource(R.string.reminder_enable_subtitle),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -226,7 +228,7 @@ fun ReminderScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("提醒时间", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.reminder_time), style = MaterialTheme.typography.titleMedium)
                         Text(
                             timeText,
                             style = MaterialTheme.typography.bodyMedium,
@@ -237,13 +239,13 @@ fun ReminderScreen(
                         onClick = { showTimePicker = true },
                         enabled = uiState.enabled,
                     ) {
-                        Text("修改")
+                        Text(stringResource(R.string.action_modify))
                     }
                 }
             }
 
             Text(
-                "提醒调度将在 WorkManager 接入后生效（TODO）",
+                stringResource(R.string.reminder_workmanager_todo),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 4.dp),
@@ -267,12 +269,12 @@ fun ReminderScreen(
                         onTimeChange(timePickerState.hour * 60 + timePickerState.minute)
                         showTimePicker = false
                     },
-                ) { Text("确定") }
+                ) { Text(stringResource(R.string.action_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) { Text("取消") }
+                TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.action_cancel)) }
             },
-            title = { Text("选择提醒时间") },
+            title = { Text(stringResource(R.string.reminder_dialog_title)) },
             text = { TimePicker(state = timePickerState) },
         )
     }

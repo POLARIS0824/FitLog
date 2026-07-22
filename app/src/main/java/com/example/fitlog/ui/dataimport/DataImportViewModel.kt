@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.fitlog.R
 import com.example.fitlog.data.file.MarkdownFileScanner
 import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.model.Workout
@@ -50,7 +51,10 @@ class DataImportViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isScanning = false, message = "扫描失败：${e.message}")
+                    it.copy(
+                        isScanning = false,
+                        message = context.getString(R.string.data_import_scan_failed_format, e.message.orEmpty()),
+                    )
                 }
             }
         }
@@ -86,12 +90,15 @@ class DataImportViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isImporting = false,
-                        message = "导入完成：新增 $imported 条，跳过 $skipped 条",
+                        message = context.getString(R.string.data_import_result_format, imported, skipped),
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isImporting = false, message = "导入失败：${e.message}")
+                    it.copy(
+                        isImporting = false,
+                        message = context.getString(R.string.data_import_failed_format, e.message.orEmpty()),
+                    )
                 }
             }
         }

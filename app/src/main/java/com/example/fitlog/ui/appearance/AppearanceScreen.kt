@@ -41,10 +41,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.fitlog.R
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.SettingsCard
@@ -134,7 +136,7 @@ fun AppearanceScreen(
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (isScrollable) {
                             Text(
-                                text = "Settings",
+                                text = stringResource(R.string.settings_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = 1f - titleFraction
@@ -142,7 +144,7 @@ fun AppearanceScreen(
                                 },
                             )
                             Text(
-                                text = "Appearance",
+                                text = stringResource(R.string.appearance_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = titleFraction
@@ -151,7 +153,7 @@ fun AppearanceScreen(
                             )
                         } else {
                             Text(
-                                text = "Appearance",
+                                text = stringResource(R.string.appearance_title),
                                 style = MaterialTheme.typography.titleLarge,
                             )
                         }
@@ -161,7 +163,7 @@ fun AppearanceScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.cd_back),
                         )
                     }
                 },
@@ -191,19 +193,19 @@ fun AppearanceScreen(
                         }
                 ) {
                     Text(
-                        text = "Appearance",
+                        text = stringResource(R.string.appearance_title),
                         style = MaterialTheme.typography.headlineMedium,
                     )
                 }
             }
 
-            SectionLabel("主题")
+            SectionLabel(stringResource(R.string.appearance_section_theme))
             SettingsCard {
-                Text("主题模式", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.appearance_theme_mode), style = MaterialTheme.typography.titleMedium)
                 val options = listOf(
-                    ThemeMode.SYSTEM to "跟随系统",
-                    ThemeMode.LIGHT to "浅色",
-                    ThemeMode.DARK to "深色",
+                    ThemeMode.SYSTEM to stringResource(R.string.appearance_theme_system),
+                    ThemeMode.LIGHT to stringResource(R.string.appearance_theme_light),
+                    ThemeMode.DARK to stringResource(R.string.appearance_theme_dark),
                 )
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     options.forEachIndexed { index, (mode, label) ->
@@ -221,16 +223,16 @@ fun AppearanceScreen(
                 }
             }
 
-            SectionLabel("颜色")
+            SectionLabel(stringResource(R.string.appearance_section_color))
             SettingsCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("动态取色", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.appearance_dynamic_color), style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "根据壁纸生成整套配色（Material You）",
+                            stringResource(R.string.appearance_dynamic_color_subtitle),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -13,6 +13,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.feature.aisettings.AISettingsRoute
+import com.example.fitlog.feature.chat.ChatRoute
 import com.example.fitlog.ui.SettingsRoute
 import com.example.fitlog.ui.AboutRoute
 import com.example.fitlog.ui.appearance.AppearanceRoute
@@ -20,6 +21,7 @@ import com.example.fitlog.ui.dataimport.DataImportRoute
 import com.example.fitlog.ui.navigation.AboutKey
 import com.example.fitlog.ui.navigation.AISettingsKey
 import com.example.fitlog.ui.navigation.AppearanceKey
+import com.example.fitlog.ui.navigation.ChatKey
 import com.example.fitlog.ui.navigation.DataImportKey
 import com.example.fitlog.ui.navigation.ProfileKey
 import com.example.fitlog.ui.navigation.ReminderKey
@@ -55,12 +57,19 @@ class MainActivity : ComponentActivity() {
 
             FitLogTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
                 // 回退栈：rememberNavBackStack 跨配置更改/进程死亡持久化（key 需 @Serializable）
-                val backStack = rememberNavBackStack(SettingsKey)
+                // Chat 是根页面：打开 app 直接进入 AI 教练
+                val backStack = rememberNavBackStack(ChatKey)
 
                 NavDisplay(
                     backStack = backStack,
                     onBack = { backStack.removeLastOrNull() },
                     entryProvider = entryProvider {
+                        entry<ChatKey> {
+                            ChatRoute(
+                                onNavigateToSettings = { backStack.add(SettingsKey) },
+                                onNavigateToAISettings = { backStack.add(AISettingsKey) },
+                            )
+                        }
                         entry<SettingsKey> {
                             SettingsRoute(
                                 onBack = { backStack.removeLastOrNull() },

@@ -23,6 +23,25 @@ import javax.inject.Singleton
 object AIModule {
 
     /**
+     * 提供 AI 请求共用的 [Json] 序列化配置。
+     *
+     * - ignoreUnknownKeys：响应中未建模的字段（如 provider 私有扩展字段）直接忽略
+     * - explicitNulls = false：null 字段不输出——否则 tools=null / content=null 会被
+     *   序列化进请求体，DeepSeek 等 provider 对 "tools": null 直接报 400
+     *
+     * Retrofit 与 AgentOrchestrator（解析 tool 参数 JSON）共用同一实例。
+     */
+    @Provides
+    @Singleton
+    @Named("ai")
+    fun provideAiJson(): Json {
+        return Json {
+            ignoreUnknownKeys = true
+            explicitNulls = false
+        }
+    }
+
+    /**
      * 提供用于 AI 请求的 [Retrofit] 实例。
      *
      * baseUrl 使用占位符，实际请求地址通过 [@Url] 动态传入。
@@ -30,9 +49,7 @@ object AIModule {
     @Provides
     @Singleton
     @Named("ai")
-    fun provideAIRetrofit(): Retrofit {
-        val json = Json { ignoreUnknownKeys = true }
-
+    fun provideAIRetrofit(@Named("ai") json: Json): Retrofit {
         // OkHttp 拦截器——在开发和调试阶段，把请求和响应的完整内容打印到 Logcat
         // TODO: 发布时关闭，防止 API KEY 泄露
         val logging = HttpLoggingInterceptor().apply {

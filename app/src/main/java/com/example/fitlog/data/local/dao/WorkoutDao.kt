@@ -70,4 +70,36 @@ interface WorkoutDao {
     @Transaction
     @Query("SELECT * FROM workouts WHERE date = :date")
     fun getByDateWithDetails(date: LocalDate): Flow<List<WorkoutWithExerciseLogs>>
+
+    /**
+     * 查询最近 [limit] 次训练日记录及其关联的练习日志，按日期降序。
+     * suspend 一次性读取，供 agent 工具（list_recent_workouts）使用。
+     */
+    @Transaction
+    @Query("SELECT * FROM workouts ORDER BY date DESC LIMIT :limit")
+    suspend fun getRecentWithDetails(limit: Int): List<WorkoutWithExerciseLogs>
+
+    /**
+     * 按主键查询单条训练日记录及其关联的练习日志。
+     */
+    @Transaction
+    @Query("SELECT * FROM workouts WHERE id = :id")
+    suspend fun getByIdWithDetails(id: Long): WorkoutWithExerciseLogs?
+
+    /**
+     * 查询包含指定动作的训练日记录，按日期降序。
+     *
+     * 优先匹配 exerciseKey（动作库 kebab-case ID），名称 LIKE 模糊匹配兜底——
+     * 大量历史记录的 exerciseKey 为空，仅有冗余的 name 字段。
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM workouts WHERE id IN (
+            SELECT workoutId FROM exercise_logs
+            WHERE exerciseKey = :query OR name LIKE '%' || :query || '%'
+        ) ORDER BY date DESC LIMIT :limit
+        """
+    )
+    suspend fun getByExerciseWithDetails(query: String, limit: Int): List<WorkoutWithExerciseLogs>
 }

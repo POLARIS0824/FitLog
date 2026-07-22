@@ -28,7 +28,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.fitlog.R
 import kotlinx.coroutines.delay
 
 /**
@@ -170,7 +172,7 @@ fun StackedSnackbarHost(
                         },
                         dismissAction = {
                             IconButton(onClick = { hostState.dismiss(item.id) }) {
-                                Icon(Icons.Default.Close, contentDescription = "关闭")
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_close))
                             }
                         }
                     ) {

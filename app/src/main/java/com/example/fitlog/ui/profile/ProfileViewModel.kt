@@ -1,13 +1,16 @@
 package com.example.fitlog.ui.profile
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.fitlog.R
 import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.model.user.Gender
 import com.example.fitlog.model.user.TrainingGoal
 import com.example.fitlog.model.user.TrainingLevel
 import com.example.fitlog.model.user.UserProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,6 +27,7 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val userProfileRepository: UserProfileRepository,
 ) : ViewModel() {
 
@@ -61,7 +65,7 @@ class ProfileViewModel @Inject constructor(
     fun onSave() {
         val state = _uiState.value
         if (state.name.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "请填写姓名") }
+            _uiState.update { it.copy(errorMessage = context.getString(R.string.profile_error_empty_name)) }
             return
         }
         viewModelScope.launch {
@@ -82,9 +86,9 @@ class ProfileViewModel @Inject constructor(
                 } else {
                     userProfileRepository.insert(profile)
                 }
-                _uiState.update { it.copy(isSaving = false, successMessage = "个人资料已保存") }
+                _uiState.update { it.copy(isSaving = false, successMessage = context.getString(R.string.profile_success_saved)) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isSaving = false, errorMessage = e.message ?: "保存失败") }
+                _uiState.update { it.copy(isSaving = false, errorMessage = e.message ?: context.getString(R.string.error_save_failed)) }
             }
         }
     }

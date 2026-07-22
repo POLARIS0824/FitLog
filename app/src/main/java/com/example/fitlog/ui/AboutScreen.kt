@@ -40,10 +40,12 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.BuildConfig
+import com.example.fitlog.R
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.SettingsCard
 import com.example.fitlog.ui.components.TonalIcon
@@ -136,7 +138,7 @@ fun AboutScreen(
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (isScrollable) {
                             Text(
-                                text = "Settings",
+                                text = stringResource(R.string.settings_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = 1f - titleFraction
@@ -144,7 +146,7 @@ fun AboutScreen(
                                 },
                             )
                             Text(
-                                text = "About",
+                                text = stringResource(R.string.about_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = titleFraction
@@ -153,7 +155,7 @@ fun AboutScreen(
                             )
                         } else {
                             Text(
-                                text = "About",
+                                text = stringResource(R.string.about_title),
                                 style = MaterialTheme.typography.titleLarge,
                             )
                         }
@@ -163,7 +165,7 @@ fun AboutScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.cd_back),
                         )
                     }
                 },
@@ -193,13 +195,13 @@ fun AboutScreen(
                         }
                 ) {
                     Text(
-                        text = "About",
+                        text = stringResource(R.string.about_title),
                         style = MaterialTheme.typography.headlineMedium,
                     )
                 }
             }
 
-            SectionLabel("应用")
+            SectionLabel(stringResource(R.string.about_section_app))
             SettingsCard {
                 Column(
                     modifier = Modifier
@@ -213,22 +215,22 @@ fun AboutScreen(
                         size = 64.dp,
                     )
                     Text(
-                        "FitLog",
+                        stringResource(R.string.app_name),
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(top = 12.dp),
                     )
                     Text(
-                        "Version ${BuildConfig.VERSION_NAME}",
+                        stringResource(R.string.about_version_format, BuildConfig.VERSION_NAME),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
 
-            SectionLabel("链接")
+            SectionLabel(stringResource(R.string.about_section_links))
             SettingsCard {
                 Text(
-                    text = "GitHub 仓库",
+                    text = stringResource(R.string.about_github_title),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                     textDecoration = TextDecoration.Underline,
@@ -237,7 +239,7 @@ fun AboutScreen(
                     },
                 )
                 Text(
-                    text = "AI 驱动的训练记录与分析，个人项目",
+                    text = stringResource(R.string.about_github_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

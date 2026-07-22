@@ -14,6 +14,9 @@ import kotlinx.serialization.Serializable
  */
 
 @Serializable
+data object ChatKey : NavKey
+
+@Serializable
 data object SettingsKey : NavKey
 
 @Serializable
