@@ -238,7 +238,6 @@ fun AISettingsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    // 方案 A 顶栏形态：
                     // - 可滚动页面：共享轴向过渡（展开 "Settings" ↔ 折叠 "AI Configuration"）
                     // - 不可滚动页面：顶栏直接显示本页标题 "AI Configuration"，避免双标题混淆与空间浪费
                     Box(contentAlignment = Alignment.CenterStart) {
