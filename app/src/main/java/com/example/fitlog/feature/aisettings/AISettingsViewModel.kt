@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * AI 服务商设置页 ViewModel（单配置页范式）。
@@ -274,6 +275,8 @@ class AISettingsViewModel @Inject constructor(
                 aiProviderConfigRepository.insert(config)
                 aiProviderConfigRepository.setActiveProviderId(config.id)
                 uiFlow.update { it.copy(successMessage = "已保存并启用 ${config.name}") }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 uiFlow.update { it.copy(errorMessage = e.message ?: "保存失败") }
             }

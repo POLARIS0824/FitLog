@@ -8,6 +8,7 @@ import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ChatMessage
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * AI 对话网络仓库。
@@ -97,6 +98,9 @@ class AIChatRepository @Inject constructor(
             // ── 步骤 5: DTO 转领域模型并返回 ──
             Result.success(choice.message.toModel())
 
+        } catch (e: CancellationException) {
+            // 取消不是"请求失败"，必须向上传播，不包装进 Result
+            throw e
         } catch (e: Exception) {
             // 网络异常、超时、JSON 解析失败等，统一包装
             Result.failure(e)
@@ -127,6 +131,8 @@ class AIChatRepository @Inject constructor(
             val url = config.type.buildModelsUrl(config)
             val headers = config.type.buildHeaders(config.apiKey)
             Result.success(aiApi.models(url, headers).data.map { it.id })
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
