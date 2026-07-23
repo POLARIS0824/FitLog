@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * 个人资料页 ViewModel。
@@ -83,6 +84,8 @@ class ProfileViewModel @Inject constructor(
                     userProfileRepository.insert(profile)
                 }
                 _uiState.update { it.copy(isSaving = false, successMessage = "个人资料已保存") }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isSaving = false, errorMessage = e.message ?: "保存失败") }
             }

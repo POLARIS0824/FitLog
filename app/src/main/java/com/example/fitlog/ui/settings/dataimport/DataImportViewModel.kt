@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * 数据导入页 ViewModel。
@@ -48,6 +49,8 @@ class DataImportViewModel @Inject constructor(
                         failures = result.failures,
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isScanning = false, message = "扫描失败：${e.message}")
@@ -89,6 +92,8 @@ class DataImportViewModel @Inject constructor(
                         message = "导入完成：新增 $imported 条，跳过 $skipped 条",
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isImporting = false, message = "导入失败：${e.message}")

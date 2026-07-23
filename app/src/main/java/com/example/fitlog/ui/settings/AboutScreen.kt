@@ -48,6 +48,7 @@ import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.SettingsCard
 import com.example.fitlog.ui.components.TonalIcon
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
 
 /**
  * 1. 容器层 (Route)
@@ -115,7 +116,9 @@ fun AboutScreen(
                             )
                         )
                     } catch (e: CancellationException) {
-                        // 吸附动画被用户手势打断
+                        // 仅当 LaunchedEffect 自身仍活跃（即动画是被新手势打断）才吞掉；
+                        // 若父协程已取消，ensureActive() 会重新抛出，让 collect 立即终止
+                        coroutineContext.ensureActive()
                     }
                 }
             }
