@@ -28,6 +28,7 @@ androidxTestCore = "1.6.1"
 material = "1.14.0"
 material3 = "1.5.0-alpha24"
 googleADK = "0.6.0"
+coil = "2.7.0"
 
 
 [libraries]
@@ -79,6 +80,10 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3",
 # Google ADK
 google-adk-core-android = { group = "com.google.adk", name = "google-adk-kotlin-core-android", version.ref = "googleADK" }
 google-adk-processor = { group = "com.google.adk", name = "google-adk-kotlin-processor", version.ref = "googleADK" }
+
+# Coil image loading
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+coil-gif = { group = "io.coil-kt", name = "coil-gif", version.ref = "coil" }
 
 
 [plugins]

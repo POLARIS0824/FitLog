@@ -4,11 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.data.repository.UserPreferencesRepository
+import com.example.fitlog.data.seed.ExerciseSeeder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -16,11 +18,20 @@ import javax.inject.Inject
  *
  * 暴露主题偏好（主题模式 + 动态取色开关），驱动 [com.example.fitlog.ui.theme.FitLogTheme]
  * 在运行时响应"外观"设置页的修改。
+ *
+ * 首次启动时触发动作库种子数据导入。
  */
 @HiltViewModel
 class MainViewModel @Inject constructor(
     userPreferencesRepository: UserPreferencesRepository,
+    private val exerciseSeeder: ExerciseSeeder,
 ) : ViewModel() {
+
+    init {
+        viewModelScope.launch {
+            exerciseSeeder.seedIfNeeded()
+        }
+    }
 
     /** （主题模式, 动态取色开关） */
     val appearance: StateFlow<Pair<ThemeMode, Boolean>> = combine(

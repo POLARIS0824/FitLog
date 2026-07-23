@@ -1,10 +1,11 @@
 package com.example.fitlog.model
 
 import com.example.fitlog.model.user.TrainingGoal
+import kotlinx.serialization.Serializable
 import java.time.LocalDate
 
 /**
- * WorkoutPlan -> PlanedSession -> PlannedExercise
+ * WorkoutPlan -> PlannedSession（内含 PlannedExerciseItem JSON 列表）
  */
 
 /**
@@ -13,15 +14,18 @@ import java.time.LocalDate
  * 采用扁平化 session 设计：周期性计划直接展开为多个 [PlannedSession]，
  * 不引入"模板"抽象，降低初期复杂度。
  *
+ * 结构化骨架（周/日/动作清单）供 App 查询与预填训练记录；
+ * [rawPlanText] 保存 AI 生成计划的原始文本，供 AI 教练后续理解和调整计划。
+ *
  * @property id 业务标识，如 "plan-hypertrophy-4wk-001"
  * @property name 计划展示名称
  * @property description 计划说明，可选
  * @property goal 训练目标，复用 [TrainingGoal]
- * @property difficulty 建议难度等级，复用 [Difficulty]
  * @property durationWeeks 计划持续周数
  * @property sessionsPerWeek 每周训练次数
  * @property isCustom false = AI/系统预设，true = 用户自定义
  * @property createdAt 计划创建日期
+ * @property rawPlanText AI 生成计划的原始文本（Markdown/JSON 均可），可选
  * @property sessions 计划中的所有训练日
  */
 data class WorkoutPlan(
@@ -29,11 +33,11 @@ data class WorkoutPlan(
     val name: String,
     val description: String?,
     val goal: TrainingGoal?,
-    val difficulty: Difficulty?,
     val durationWeeks: Int,
     val sessionsPerWeek: Int,
     val isCustom: Boolean,
     val createdAt: LocalDate,
+    val rawPlanText: String? = null,
     val sessions: List<PlannedSession>,
 )
 
@@ -56,35 +60,32 @@ data class PlannedSession(
     val dayNumber: Int,
     val weekNumber: Int,
     val targetDurationMinutes: Int?,
-    val exercises: List<PlannedExercise>,
+    val exercises: List<PlannedExerciseItem>,
     val completedWorkoutId: Long? = null,
 )
 
 /**
- * 计划中的单个动作配置。
+ * 计划中的单个动作配置（JSON 内嵌项，非独立表）。
  *
- * @property id 业务标识
+ * 只保留预填训练记录和展示所需的最小字段；
+ * 重量、RPE、组间休息等动态处方信息由 AI 教练在训练时根据历史记录实时给出，
+ * 或记录在 [notes] / [WorkoutPlan.rawPlanText] 中。
+ *
  * @property exerciseKey 关联 [Exercise.id]（kebab-case），如 "barbell-bench-press"
  * @property exerciseName 动作名称缓存，避免 Exercise 目录未加载时无法显示
  * @property targetSets 目标组数
  * @property targetRepsMin 目标次数下限，可选（留空时由 AI/系统根据历史推算）
  * @property targetRepsMax 目标次数上限，可选
- * @property targetWeightKg 目标重量（公斤），可选
- * @property targetRpe 目标 RPE（1-10），可选
- * @property restSeconds 组间休息秒数，可选
  * @property notes AI 指导备注，如"注意肩胛骨下沉"，可选
  * @property order 在训练日中的执行顺序
  */
-data class PlannedExercise(
-    val id: String,
+@Serializable
+data class PlannedExerciseItem(
     val exerciseKey: String,
-    val exerciseName: String?,
+    val exerciseName: String? = null,
     val targetSets: Int,
-    val targetRepsMin: Int?,
-    val targetRepsMax: Int?,
-    val targetWeightKg: Float?,
-    val targetRpe: Int?,
-    val restSeconds: Int?,
-    val notes: String?,
+    val targetRepsMin: Int? = null,
+    val targetRepsMax: Int? = null,
+    val notes: String? = null,
     val order: Int,
 )

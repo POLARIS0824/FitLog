@@ -1,10 +1,8 @@
 package com.example.fitlog.data.mapper
 
+import com.example.fitlog.data.local.entity.plan.PlannedSessionEntity
 import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
-import com.example.fitlog.data.local.relation.PlannedSessionWithExercises
 import com.example.fitlog.data.local.relation.WorkoutPlanWithSessions
-import com.example.fitlog.model.Difficulty
-import com.example.fitlog.model.PlannedExercise
 import com.example.fitlog.model.PlannedSession
 import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.model.user.TrainingGoal
@@ -15,11 +13,11 @@ fun WorkoutPlanEntity.toModel(): WorkoutPlan {
         name = name,
         description = description,
         goal = goal?.let { TrainingGoal.valueOf(it) },
-        difficulty = difficulty?.let { Difficulty.valueOf(it) },
         durationWeeks = durationWeeks,
         sessionsPerWeek = sessionsPerWeek,
         isCustom = isCustom,
         createdAt = createdAt,
+        rawPlanText = rawPlanText,
         sessions = emptyList(),
     )
 }
@@ -30,41 +28,25 @@ fun WorkoutPlanWithSessions.toModel(): WorkoutPlan {
         name = plan.name,
         description = plan.description,
         goal = plan.goal?.let { TrainingGoal.valueOf(it) },
-        difficulty = plan.difficulty?.let { Difficulty.valueOf(it) },
         durationWeeks = plan.durationWeeks,
         sessionsPerWeek = plan.sessionsPerWeek,
         isCustom = plan.isCustom,
         createdAt = plan.createdAt,
+        rawPlanText = plan.rawPlanText,
         sessions = sessions.map { it.toModel() },
     )
 }
 
-fun PlannedSessionWithExercises.toModel(): PlannedSession {
+fun PlannedSessionEntity.toModel(): PlannedSession {
     return PlannedSession(
-        id = session.id,
-        name = session.name,
-        description = session.description,
-        dayNumber = session.dayNumber,
-        weekNumber = session.weekNumber,
-        targetDurationMinutes = session.targetDurationMinutes,
-        exercises = exercises.map { it.toModel() },
-        completedWorkoutId = session.completedWorkoutId,
-    )
-}
-
-fun com.example.fitlog.data.local.entity.plan.PlannedExerciseEntity.toModel(): PlannedExercise {
-    return PlannedExercise(
         id = id,
-        exerciseKey = exerciseKey,
-        exerciseName = exerciseName,
-        targetSets = targetSets,
-        targetRepsMin = targetRepsMin,
-        targetRepsMax = targetRepsMax,
-        targetWeightKg = targetWeightKg,
-        targetRpe = targetRpe,
-        restSeconds = restSeconds,
-        notes = notes,
-        order = order,
+        name = name,
+        description = description,
+        dayNumber = dayNumber,
+        weekNumber = weekNumber,
+        targetDurationMinutes = targetDurationMinutes,
+        exercises = exercises,
+        completedWorkoutId = completedWorkoutId,
     )
 }
 
@@ -74,10 +56,24 @@ fun WorkoutPlan.toEntity(): WorkoutPlanEntity {
         name = name,
         description = description,
         goal = goal?.name,
-        difficulty = difficulty?.name,
         durationWeeks = durationWeeks,
         sessionsPerWeek = sessionsPerWeek,
         isCustom = isCustom,
         createdAt = createdAt,
+        rawPlanText = rawPlanText,
+    )
+}
+
+fun PlannedSession.toEntity(planId: String): PlannedSessionEntity {
+    return PlannedSessionEntity(
+        id = id,
+        planId = planId,
+        name = name,
+        description = description,
+        dayNumber = dayNumber,
+        weekNumber = weekNumber,
+        targetDurationMinutes = targetDurationMinutes,
+        exercises = exercises,
+        completedWorkoutId = completedWorkoutId,
     )
 }

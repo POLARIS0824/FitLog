@@ -28,6 +28,6 @@ fun ChatMessage.toDto(): MessageDto {
 fun MessageDto.toModel(): ChatMessage {
     return ChatMessage(
         role = role,
-        content = content,
+        content = content ?: "",
     )
 }

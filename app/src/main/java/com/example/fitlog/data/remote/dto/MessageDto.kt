@@ -11,5 +11,5 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class MessageDto(
     val role: String,
-    val content: String,
+    val content: String?,
 )

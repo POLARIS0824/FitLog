@@ -7,17 +7,16 @@ fun ExerciseEntity.toModel() : Exercise {
     return Exercise(
         id = id,
         name = name,
-        primaryMuscle = primaryMuscle,
+        primaryMuscles = primaryMuscles,
         secondaryMuscles = secondaryMuscles,
-        movementPattern = movementPattern,
-        force = force,
-        difficulty = difficulty,
         isCompound = isCompound,
         isCustom = isCustom,
         equipment = equipment,
-        category = category,
+        bodyPart = bodyPart,
         description = description,
         instructions = instructions,
+        imageUrl = imageUrl,
+        gifUrl = gifUrl,
     )
 }
 
@@ -25,16 +24,15 @@ fun Exercise.toEntity() : ExerciseEntity {
     return ExerciseEntity(
         id = id,
         name = name,
-        primaryMuscle = primaryMuscle,
+        primaryMuscles = primaryMuscles,
         secondaryMuscles = secondaryMuscles,
-        movementPattern = movementPattern,
-        force = force,
-        difficulty = difficulty,
         isCompound = isCompound,
         isCustom = isCustom,
         equipment = equipment,
-        category = category,
+        bodyPart = bodyPart,
         description = description,
         instructions = instructions,
+        imageUrl = imageUrl,
+        gifUrl = gifUrl,
     )
 }
