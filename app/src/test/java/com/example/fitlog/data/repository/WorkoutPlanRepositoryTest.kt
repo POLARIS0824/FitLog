@@ -4,16 +4,16 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.fitlog.data.local.AppDatabase
-import com.example.fitlog.data.local.entity.plan.PlannedExerciseEntity
-import com.example.fitlog.data.local.entity.plan.PlannedSessionEntity
-import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
-import com.example.fitlog.model.Difficulty
+import com.example.fitlog.model.PlannedExerciseItem
+import com.example.fitlog.model.PlannedSession
+import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.model.user.TrainingGoal
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,7 +22,9 @@ import java.time.LocalDate
 
 /**
  * 训练计划仓库 [WorkoutPlanRepository] 的单元测试。
- * 使用 Robolectric 在 JVM 环境下验证训练计划（3层嵌套：计划 -> 训练日 -> 动作配置）的存储、级联关系和聚合查询。
+ *
+ * 使用 Robolectric 在 JVM 环境下验证训练计划（2 层结构：计划 -> 训练日，
+ * 动作清单以 JSON 内嵌于训练日）的存储、级联关系和聚合查询。
  */
 @RunWith(RobolectricTestRunner::class)
 class WorkoutPlanRepositoryTest {
@@ -51,168 +53,158 @@ class WorkoutPlanRepositoryTest {
     }
 
     /**
-     * 测试最基础的计划实体插入与获取。
+     * 测试完整的计划保存与获取（含训练日和内嵌动作清单）。
      */
     @Test
-    fun testInsertPlan() = runTest {
-        val plan = com.example.fitlog.model.WorkoutPlan(
-            id = "push-pull-legs-1",
+    fun testSaveAndGetPlanWithFullHierarchy() = runTest {
+        val plan = createPlan(
+            id = "ppl-1",
             name = "推拉腿经典计划",
-            description = "经典的推拉腿三分化训练计划",
-            goal = TrainingGoal.HYPERTROPHY,
-            difficulty = Difficulty.INTERMEDIATE,
-            durationWeeks = 8,
-            sessionsPerWeek = 3,
-            isCustom = false,
-            createdAt = LocalDate.of(2026, 5, 20),
-            sessions = emptyList()
+            sessions = listOf(
+                createSession(
+                    id = "session-1",
+                    name = "推日 (Push)",
+                    exercises = listOf(
+                        PlannedExerciseItem(
+                            exerciseKey = "barbell-bench-press",
+                            exerciseName = "杠铃卧推",
+                            targetSets = 4,
+                            targetRepsMin = 8,
+                            targetRepsMax = 12,
+                            notes = "专注于离心收缩",
+                            order = 1,
+                        ),
+                        PlannedExerciseItem(
+                            exerciseKey = "dumbbell-shoulder-press",
+                            exerciseName = "哑铃推举",
+                            targetSets = 3,
+                            targetRepsMin = 10,
+                            targetRepsMax = 12,
+                            order = 2,
+                        ),
+                    ),
+                ),
+            ),
         )
 
-        repository.insert(plan)
+        repository.save(plan)
 
-        val fetched = repository.getPlanById("push-pull-legs-1")
+        val fetched = repository.getPlanById("ppl-1")
         assertNotNull(fetched)
         assertEquals("推拉腿经典计划", fetched?.name)
         assertEquals(TrainingGoal.HYPERTROPHY, fetched?.goal)
-        assertEquals(Difficulty.INTERMEDIATE, fetched?.difficulty)
         assertEquals(8, fetched?.durationWeeks)
-    }
+        assertEquals("AI 原始计划文本", fetched?.rawPlanText)
 
-    /**
-     * 测试完整的 3 层训练计划级联查询与拼装。
-     */
-    @Test
-    fun testGetPlanWithFullNestedHierarchy() = runTest {
-        // 1. 准备并插入 3 层级联的计划数据
-        val planEntity = WorkoutPlanEntity(
-            id = "ppl-nested",
-            name = "嵌套推拉腿计划",
-            description = "测试嵌套级联",
-            goal = "HYPERTROPHY",
-            difficulty = "INTERMEDIATE",
-            durationWeeks = 4,
-            sessionsPerWeek = 3,
-            isCustom = false,
-            createdAt = LocalDate.of(2026, 5, 20)
-        )
-
-        val sessions = listOf(
-            PlannedSessionEntity(
-                id = "session-1",
-                planId = "ppl-nested",
-                name = "推日 (Push)",
-                description = "胸肩三头训练",
-                dayNumber = 1,
-                weekNumber = 1,
-                targetDurationMinutes = 60,
-                completedWorkoutId = null
-            )
-        )
-
-        val exercises = listOf(
-            PlannedExerciseEntity(
-                id = "exercise-config-1",
-                sessionId = "session-1",
-                exerciseKey = "barbell-bench-press",
-                exerciseName = "杠铃卧推",
-                targetSets = 4,
-                targetRepsMin = 8,
-                targetRepsMax = 12,
-                targetWeightKg = 80f,
-                targetRpe = 8,
-                restSeconds = 90,
-                notes = "专注于离心收缩",
-                order = 1
-            )
-        )
-
-        // 使用 DAO 提供的级联事务保存方法
-        db.workoutPlanDao().savePlanWithSessions(planEntity, sessions, exercises)
-
-        // 2. 使用 Repository 获取完整的多级计划
-        val fetched = repository.getPlanById("ppl-nested")
-
-        // 3. 验证级联数据
-        assertNotNull(fetched)
-        assertEquals("嵌套推拉腿计划", fetched?.name)
         assertEquals(1, fetched?.sessions?.size)
-
         val session = fetched?.sessions?.get(0)
         assertEquals("推日 (Push)", session?.name)
         assertEquals(1, session?.dayNumber)
         assertEquals(1, session?.weekNumber)
-        assertEquals(1, session?.exercises?.size)
 
+        assertEquals(2, session?.exercises?.size)
         val exercise = session?.exercises?.get(0)
         assertEquals("barbell-bench-press", exercise?.exerciseKey)
         assertEquals("杠铃卧推", exercise?.exerciseName)
         assertEquals(4, exercise?.targetSets)
         assertEquals(8, exercise?.targetRepsMin)
         assertEquals(12, exercise?.targetRepsMax)
-        assertEquals(80f, exercise?.targetWeightKg)
-        assertEquals(90, exercise?.restSeconds)
+        assertEquals("专注于离心收缩", exercise?.notes)
     }
 
     /**
-     * 测试计划列表获取。
+     * 测试计划列表按创建日期降序返回。
      */
     @Test
     fun testGetAllPlans() = runTest {
-        val plan1 = WorkoutPlanEntity(
-            id = "plan-1",
-            name = "计划A",
-            description = null,
-            goal = null,
-            difficulty = null,
-            durationWeeks = 4,
-            sessionsPerWeek = 2,
-            isCustom = false,
-            createdAt = LocalDate.of(2026, 5, 1)
-        )
-        val plan2 = WorkoutPlanEntity(
-            id = "plan-2",
-            name = "计划B",
-            description = null,
-            goal = null,
-            difficulty = null,
-            durationWeeks = 12,
-            sessionsPerWeek = 4,
-            isCustom = true,
-            createdAt = LocalDate.of(2026, 5, 10)
-        )
-
-        db.workoutPlanDao().insertPlan(plan1)
-        db.workoutPlanDao().insertPlan(plan2)
+        repository.save(createPlan(id = "plan-1", createdAt = LocalDate.of(2026, 5, 1)))
+        repository.save(createPlan(id = "plan-2", createdAt = LocalDate.of(2026, 5, 10)))
 
         val plans = repository.getAllPlans()
         assertEquals(2, plans.size)
-        // 按照默认 orderBy createdAt DESC，应该 plan2 在最前面
         assertEquals("plan-2", plans[0].id)
         assertEquals("plan-1", plans[1].id)
     }
 
     /**
-     * 测试计划的删除。
+     * 测试删除计划后级联删除训练日。
      */
     @Test
     fun testDeletePlan() = runTest {
-        val plan = WorkoutPlanEntity(
-            id = "plan-to-delete",
-            name = "待删除计划",
-            description = null,
-            goal = null,
-            difficulty = null,
-            durationWeeks = 4,
-            sessionsPerWeek = 3,
-            isCustom = true,
-            createdAt = LocalDate.now()
+        repository.save(
+            createPlan(
+                id = "plan-to-delete",
+                sessions = listOf(createSession(id = "s1")),
+            ),
         )
-        db.workoutPlanDao().insertPlan(plan)
 
-        // 使用 DAO 提供的删除逻辑
-        db.workoutPlanDao().deletePlan("plan-to-delete")
+        repository.delete("plan-to-delete")
 
-        val fetched = repository.getPlanById("plan-to-delete")
-        assertNull(fetched)
+        assertNull(repository.getPlanById("plan-to-delete"))
+        assertTrue(db.workoutPlanDao().getSessionsByPlanId("plan-to-delete").isEmpty())
     }
+
+    /**
+     * 测试标记与取消训练日完成状态。
+     */
+    @Test
+    fun testMarkAndUnmarkSessionCompleted() = runTest {
+        repository.save(
+            createPlan(
+                id = "p1",
+                sessions = listOf(createSession(id = "s1")),
+            ),
+        )
+        val workoutId = db.workoutDao().insert(
+            com.example.fitlog.data.local.entity.workout.WorkoutEntity(
+                date = LocalDate.of(2026, 5, 20),
+                sourceFileName = null,
+                rawContent = null,
+            ),
+        )
+
+        repository.markSessionCompleted("s1", workoutId)
+        assertEquals(
+            workoutId,
+            db.workoutPlanDao().getSessionsByPlanId("p1")[0].completedWorkoutId,
+        )
+
+        repository.unmarkSessionCompleted("s1")
+        assertNull(db.workoutPlanDao().getSessionsByPlanId("p1")[0].completedWorkoutId)
+    }
+
+    // ── 辅助方法 ──
+
+    private fun createPlan(
+        id: String = "test-plan",
+        name: String = "测试计划",
+        createdAt: LocalDate = LocalDate.of(2026, 5, 20),
+        sessions: List<PlannedSession> = emptyList(),
+    ) = WorkoutPlan(
+        id = id,
+        name = name,
+        description = "计划说明",
+        goal = TrainingGoal.HYPERTROPHY,
+        durationWeeks = 8,
+        sessionsPerWeek = 3,
+        isCustom = false,
+        createdAt = createdAt,
+        rawPlanText = "AI 原始计划文本",
+        sessions = sessions,
+    )
+
+    private fun createSession(
+        id: String = "test-session",
+        name: String = "训练日",
+        exercises: List<PlannedExerciseItem> = emptyList(),
+    ) = PlannedSession(
+        id = id,
+        name = name,
+        description = null,
+        dayNumber = 1,
+        weekNumber = 1,
+        targetDurationMinutes = 60,
+        exercises = exercises,
+        completedWorkoutId = null,
+    )
 }
