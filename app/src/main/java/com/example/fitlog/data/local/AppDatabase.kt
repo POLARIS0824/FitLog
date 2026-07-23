@@ -13,7 +13,6 @@ import com.example.fitlog.data.local.dao.WorkoutPlanDao
 import com.example.fitlog.data.local.entity.AIProviderConfigEntity
 import com.example.fitlog.data.local.entity.ExerciseEntity
 import com.example.fitlog.data.local.entity.workout.ExerciseLogEntity
-import com.example.fitlog.data.local.entity.plan.PlannedExerciseEntity
 import com.example.fitlog.data.local.entity.plan.PlannedSessionEntity
 import com.example.fitlog.data.local.entity.workout.SetLogEntity
 import com.example.fitlog.data.local.entity.UserProfileEntity
@@ -23,9 +22,9 @@ import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
 /**
  * Room 数据库入口，管理以下表：
  * [UserProfileEntity]、[WorkoutEntity]、[ExerciseLogEntity]、[SetLogEntity]、
- * [AIProviderConfigEntity]、[WorkoutPlanEntity]、[PlannedSessionEntity]、[PlannedExerciseEntity]。
+ * [AIProviderConfigEntity]、[WorkoutPlanEntity]、[PlannedSessionEntity]。
  */
-@TypeConverters(ExerciseConverters::class, LocalDateConverters::class)
+@TypeConverters(ExerciseConverters::class, LocalDateConverters::class, PlanConverters::class)
 @Database(
     entities = [
         UserProfileEntity::class,
@@ -36,9 +35,8 @@ import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
         AIProviderConfigEntity::class,
         WorkoutPlanEntity::class,
         PlannedSessionEntity::class,
-        PlannedExerciseEntity::class,
     ],
-    version = 3,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {

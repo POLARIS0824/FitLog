@@ -5,9 +5,14 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.example.fitlog.data.local.entity.workout.WorkoutEntity
+import com.example.fitlog.model.PlannedExerciseItem
 
 /**
  * 计划中的单次训练的数据库实体。
+ *
+ * 动作清单以 JSON 列内嵌存储（[exercises]），不再使用独立的
+ * planned_exercises 表——动作清单从不跨 session 独立查询，
+ * 始终随所属 session 整体加载。
  *
  * @property id 业务标识主键
  * @property planId 所属计划 ID
@@ -16,6 +21,7 @@ import com.example.fitlog.data.local.entity.workout.WorkoutEntity
  * @property dayNumber 计划中的第几天（1-based）
  * @property weekNumber 第几周（1-based）
  * @property targetDurationMinutes 目标训练时长
+ * @property exercises 动作清单（JSON 序列化的 [PlannedExerciseItem] 列表）
  * @property completedWorkoutId 关联实际完成的 workouts.id
  */
 @Entity(
@@ -48,5 +54,6 @@ data class PlannedSessionEntity(
     val dayNumber: Int,
     val weekNumber: Int,
     val targetDurationMinutes: Int?,
+    val exercises: List<PlannedExerciseItem>,
     val completedWorkoutId: Long?,
 )

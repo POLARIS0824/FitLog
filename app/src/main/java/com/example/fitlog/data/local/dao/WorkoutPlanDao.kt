@@ -5,13 +5,15 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
-import com.example.fitlog.data.local.entity.plan.PlannedExerciseEntity
 import com.example.fitlog.data.local.entity.plan.PlannedSessionEntity
 import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
 import com.example.fitlog.data.local.relation.WorkoutPlanWithSessions
 
 /**
  * 训练计划 DAO，支持级联查询与操作。
+ *
+ * 动作清单内嵌在 [PlannedSessionEntity.exercises] JSON 列中，
+ * 无需独立的动作级联操作。
  */
 @Dao
 interface WorkoutPlanDao {
@@ -27,12 +29,6 @@ interface WorkoutPlanDao {
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSessions(sessions: List<PlannedSessionEntity>)
-
-    /**
-     * 插入或替换计划动作。
-     */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExercises(exercises: List<PlannedExerciseEntity>)
 
     /**
      * 获取所有训练计划（不含级联详情）。
@@ -53,12 +49,6 @@ interface WorkoutPlanDao {
     suspend fun getSessionsByPlanId(planId: String): List<PlannedSessionEntity>
 
     /**
-     * 获取某训练日下的所有动作。
-     */
-    @Query("SELECT * FROM planned_exercises WHERE sessionId = :sessionId ORDER BY `order`")
-    suspend fun getExercisesBySessionId(sessionId: String): List<PlannedExerciseEntity>
-
-    /**
      * 删除训练计划（级联删除由外键约束处理）。
      */
     @Query("DELETE FROM workout_plans WHERE id = :id")
@@ -77,7 +67,7 @@ interface WorkoutPlanDao {
     suspend fun unmarkSessionCompleted(sessionId: String)
 
     /**
-     * 删除某计划下的所有训练日（级联删除动作由外键处理）。
+     * 删除某计划下的所有训练日。
      */
     @Query("DELETE FROM planned_sessions WHERE planId = :planId")
     suspend fun deleteSessionsByPlanId(planId: String)
@@ -93,20 +83,16 @@ interface WorkoutPlanDao {
     /**
      * 事务级保存完整计划。
      *
-     * 先保存 plan，再级联保存 sessions 和 exercises。
+     * 先保存 plan，再保存 sessions（动作清单内嵌于 session）。
      */
     @Transaction
     suspend fun savePlanWithSessions(
         plan: WorkoutPlanEntity,
         sessions: List<PlannedSessionEntity>,
-        exercises: List<PlannedExerciseEntity>,
     ) {
         insertPlan(plan)
         if (sessions.isNotEmpty()) {
             insertSessions(sessions)
-        }
-        if (exercises.isNotEmpty()) {
-            insertExercises(exercises)
         }
     }
 }

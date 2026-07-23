@@ -1,49 +1,41 @@
 package com.example.fitlog.data.local
 
 import androidx.room.TypeConverter
-import com.example.fitlog.model.Difficulty
+import com.example.fitlog.model.BodyPart
 import com.example.fitlog.model.Equipment
-import com.example.fitlog.model.ExerciseCategory
-import com.example.fitlog.model.Force
-import com.example.fitlog.model.MovementPattern
-import com.example.fitlog.model.MuscleGroup
-import com.example.fitlog.model.PrimaryMuscle
+import com.example.fitlog.model.Muscle
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 
 
 /**
- * [ExerciseEntity] 的 Room TypeConverter。
+ * [com.example.fitlog.data.local.entity.ExerciseEntity] 的 Room TypeConverter。
  *
  * 负责枚举和列表类型与数据库可存储的字符串之间的双向转换。
  */
 class ExerciseConverters {
     private val json = Json { ignoreUnknownKeys = true }
 
-    @TypeConverter
-    fun fromPrimaryMuscle(value: PrimaryMuscle?): String? = value?.name
+    // ── Muscle 列表 ──
 
     @TypeConverter
-    fun toPrimaryMuscle(value: String?): PrimaryMuscle? = value?.let { PrimaryMuscle.valueOf(it) }
+    fun fromMuscleList(value: List<Muscle>): String =
+        value.joinToString(",") { it.name }
 
     @TypeConverter
-    fun fromMovementPattern(value: MovementPattern?): String? = value?.name
+    fun toMuscleList(value: String): List<Muscle> =
+        if (value.isEmpty()) emptyList() else value.split(",").map { Muscle.valueOf(it) }
+
+    // ── BodyPart ──
 
     @TypeConverter
-    fun toMovementPattern(value: String?): MovementPattern? = value?.let { MovementPattern.valueOf(it) }
+    fun fromBodyPart(value: BodyPart): String = value.name
 
     @TypeConverter
-    fun fromForce(value: Force?): String? = value?.name
+    fun toBodyPart(value: String): BodyPart = BodyPart.valueOf(value)
 
-    @TypeConverter
-    fun toForce(value: String?): Force? = value?.let { Force.valueOf(it) }
-
-    @TypeConverter
-    fun fromDifficulty(value: Difficulty?): String? = value?.name
-
-    @TypeConverter
-    fun toDifficulty(value: String?): Difficulty? = value?.let { Difficulty.valueOf(it) }
+    // ── Equipment ──
 
     @TypeConverter
     fun fromEquipment(value: Equipment?): String? = value?.name
@@ -51,19 +43,7 @@ class ExerciseConverters {
     @TypeConverter
     fun toEquipment(value: String?): Equipment? = value?.let { Equipment.valueOf(it) }
 
-    @TypeConverter
-    fun fromExerciseCategory(value: ExerciseCategory): String = value.name
-
-    @TypeConverter
-    fun toExerciseCategory(value: String): ExerciseCategory = ExerciseCategory.valueOf(value)
-
-    @TypeConverter
-    fun fromMuscleGroupList(value: List<MuscleGroup>): String =
-        value.joinToString(",") { it.name }
-
-    @TypeConverter
-    fun toMuscleGroupList(value: String): List<MuscleGroup> =
-        if (value.isEmpty()) emptyList() else value.split(",").map { MuscleGroup.valueOf(it) }
+    // ── String 列表（JSON 序列化） ──
 
     @TypeConverter
     fun fromStringList(value: List<String>): String =

@@ -86,6 +86,9 @@ dependencies {
     implementation(libs.google.adk.core.android)
     implementation(libs.google.adk.processor)
 
+    implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
