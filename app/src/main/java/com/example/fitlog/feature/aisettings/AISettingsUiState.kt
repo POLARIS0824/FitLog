@@ -39,7 +39,6 @@ data class EndpointState(
     val apiVersion: String = "",
 )
 
-// TODO: TestState
 data class TestState(
     val isTesting: Boolean = false,
     val lastResult: String = "",

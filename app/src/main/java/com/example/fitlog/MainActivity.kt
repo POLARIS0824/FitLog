@@ -13,10 +13,10 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.feature.aisettings.AISettingsRoute
-import com.example.fitlog.ui.SettingsRoute
-import com.example.fitlog.ui.AboutRoute
-import com.example.fitlog.ui.appearance.AppearanceRoute
-import com.example.fitlog.ui.dataimport.DataImportRoute
+import com.example.fitlog.ui.settings.SettingsRoute
+import com.example.fitlog.ui.settings.AboutRoute
+import com.example.fitlog.ui.settings.appearance.AppearanceRoute
+import com.example.fitlog.ui.settings.dataimport.DataImportRoute
 import com.example.fitlog.ui.navigation.AboutKey
 import com.example.fitlog.ui.navigation.AISettingsKey
 import com.example.fitlog.ui.navigation.AppearanceKey
@@ -24,8 +24,8 @@ import com.example.fitlog.ui.navigation.DataImportKey
 import com.example.fitlog.ui.navigation.ProfileKey
 import com.example.fitlog.ui.navigation.ReminderKey
 import com.example.fitlog.ui.navigation.SettingsKey
-import com.example.fitlog.ui.profile.ProfileRoute
-import com.example.fitlog.ui.reminder.ReminderRoute
+import com.example.fitlog.ui.settings.profile.ProfileRoute
+import com.example.fitlog.ui.settings.reminder.ReminderRoute
 import com.example.fitlog.ui.theme.FitLogTheme
 import dagger.hilt.android.AndroidEntryPoint
 

@@ -1,4 +1,4 @@
-package com.example.fitlog.ui.appearance
+package com.example.fitlog.ui.settings.appearance
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

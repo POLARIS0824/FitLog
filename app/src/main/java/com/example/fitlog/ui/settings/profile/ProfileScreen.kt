@@ -1,4 +1,4 @@
-package com.example.fitlog.ui.profile
+package com.example.fitlog.ui.settings.profile
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -43,6 +43,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -146,7 +147,7 @@ fun ProfileScreen(
             }
     }
 
-    val topAppBarContainerColor = androidx.compose.ui.graphics.lerp(
+    val topAppBarContainerColor = lerp(
         MaterialTheme.colorScheme.surfaceContainerLow,
         MaterialTheme.colorScheme.surfaceContainer,
         titleFraction

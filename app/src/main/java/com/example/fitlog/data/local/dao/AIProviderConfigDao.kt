@@ -55,4 +55,13 @@ interface AIProviderConfigDao {
      */
     @Query("SELECT * FROM ai_provider_configs")
     fun getAll(): Flow<List<AIProviderConfigEntity>>
+
+    /**
+     * 更新指定配置的缓存模型列表。
+     *
+     * @param id 配置唯一标识
+     * @param cachedModels 以逗号分隔的模型名称列表
+     */
+    @Query("UPDATE ai_provider_configs SET cachedModels = :cachedModels WHERE id = :id")
+    suspend fun updateCachedModels(id: String, cachedModels: String?)
 }

@@ -25,6 +25,7 @@ fun AIProviderConfigEntity.toModel(): AIProviderConfig {
         customEndpoint = customEndpoint,
         apiVersion = apiVersion,
         isPreset = isPreset,
+        cachedModels = cachedModels?.split(",")?.filter { it.isNotBlank() } ?: emptyList(),
     )
 }
 
@@ -47,5 +48,6 @@ fun AIProviderConfig.toEntity(): AIProviderConfigEntity {
         customEndpoint = customEndpoint,
         apiVersion = apiVersion,
         isPreset = isPreset,
+        cachedModels = cachedModels.joinToString(",").ifBlank { null },
     )
 }

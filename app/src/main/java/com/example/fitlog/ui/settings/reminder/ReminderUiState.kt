@@ -1,4 +1,4 @@
-package com.example.fitlog.ui.reminder
+package com.example.fitlog.ui.settings.reminder
 
 /**
  * 训练提醒页的 UI 状态。

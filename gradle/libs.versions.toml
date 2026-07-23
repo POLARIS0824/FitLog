@@ -8,7 +8,6 @@ lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.13.0"
 kotlin = "2.3.21"
 composeBom = "2026.05.00"
-nav2 = "2.9.8"
 nav3Core = "1.1.1"
 room = "2.8.4"
 hilt = "2.59.2"
@@ -28,6 +27,7 @@ robolectric = "4.12.2"
 androidxTestCore = "1.6.1"
 material = "1.14.0"
 material3 = "1.5.0-alpha24"
+googleADK = "0.6.0"
 
 
 [libraries]
@@ -45,11 +45,8 @@ androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
-androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
-
-androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "nav2" }
 
 androidx-navigation3-runtime = { group = "androidx.navigation3", name = "navigation3-runtime", version.ref = "nav3Core" }
 androidx-navigation3-ui = { group = "androidx.navigation3", name = "navigation3-ui", version.ref = "nav3Core" }
@@ -78,6 +75,10 @@ robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "
 androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+
+# Google ADK
+google-adk-core-android = { group = "com.google.adk", name = "google-adk-kotlin-core-android", version.ref = "googleADK" }
+google-adk-processor = { group = "com.google.adk", name = "google-adk-kotlin-processor", version.ref = "googleADK" }
 
 
 [plugins]

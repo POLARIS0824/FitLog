@@ -1,4 +1,4 @@
-package com.example.fitlog.ui.reminder
+package com.example.fitlog.ui.settings.reminder
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

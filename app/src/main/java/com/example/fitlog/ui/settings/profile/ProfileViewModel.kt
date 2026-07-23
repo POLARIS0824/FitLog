@@ -1,4 +1,4 @@
-package com.example.fitlog.ui.profile
+package com.example.fitlog.ui.settings.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

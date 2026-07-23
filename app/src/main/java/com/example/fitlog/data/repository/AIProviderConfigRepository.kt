@@ -123,6 +123,17 @@ class AIProviderConfigRepository @Inject constructor(
         return aiProviderConfigDao.getById(id)?.toModel()
     }
 
+    /**
+     * 更新指定 AI 服务商已缓存的模型列表。
+     *
+     * @param id 配置唯一标识
+     * @param cachedModels 缓存的模型名称列表
+     */
+    suspend fun updateCachedModels(id: String, cachedModels: List<String>) {
+        val serialized = cachedModels.joinToString(",").ifBlank { null }
+        aiProviderConfigDao.updateCachedModels(id, serialized)
+    }
+
     // ──────────────────────────────────────
     // 激活管理 — "当前正在使用哪个服务商？"
     // ──────────────────────────────────────

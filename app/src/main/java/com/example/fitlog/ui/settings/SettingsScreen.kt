@@ -1,4 +1,4 @@
-package com.example.fitlog.ui
+package com.example.fitlog.ui.settings
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring

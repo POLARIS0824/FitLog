@@ -1,4 +1,4 @@
-package com.example.fitlog.ui.profile
+package com.example.fitlog.ui.settings.profile
 
 import com.example.fitlog.model.user.Gender
 import com.example.fitlog.model.user.TrainingGoal

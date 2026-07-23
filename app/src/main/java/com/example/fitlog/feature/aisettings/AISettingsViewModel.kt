@@ -111,7 +111,10 @@ class AISettingsViewModel @Inject constructor(
             val saved = aiProviderConfigRepository.getById(type.name)
             apiKeyState.update { ApiKeyState(apiKey = saved?.apiKey.orEmpty()) }
             modelState.update {
-                ModelState(selectedModel = saved?.model ?: spec.defaultModel)
+                ModelState(
+                    selectedModel = saved?.model ?: spec.defaultModel,
+                    availableModels = saved?.cachedModels ?: emptyList(),
+                )
             }
             endpointState.update {
                 EndpointState(
@@ -156,21 +159,23 @@ class AISettingsViewModel @Inject constructor(
      *
      * [baseUrl] / [customEndpoint] 由 Screen 传入（它们是 Screen 本地表单状态）；
      * 失败后模型列表保持推荐值，用户仍可手动输入，不被阻塞。
+     * 成功拉取后会将模型列表持久化保存到 Room 数据库中。
      */
     fun onFetchModels(baseUrl: String, customEndpoint: String?) {
         val type = selectedTypeState.value
         val apiKey = apiKeyState.value.apiKey
+        val spec = ProviderSpecs.of(type)
         if (apiKey.isBlank() || baseUrl.isBlank()) return
 
         viewModelScope.launch {
             modelState.update { it.copy(isLoading = true, fetchResult = "") }
             val tempConfig = AIProviderConfig(
                 id = type.name,
-                name = "",
+                name = spec.displayName,
                 type = type,
                 baseUrl = baseUrl.trim(),
                 apiKey = apiKey.trim(),
-                model = "",
+                model = modelState.value.selectedModel.ifBlank { spec.defaultModel },
                 customEndpoint = customEndpoint,
                 isPreset = true,
             )
@@ -181,6 +186,14 @@ class AISettingsViewModel @Inject constructor(
                             availableModels = models,
                             isLoading = false,
                             fetchResult = "✅ 成功拉取 ${models.size} 个模型",
+                        )
+                    }
+                    val existing = aiProviderConfigRepository.getById(type.name)
+                    if (existing != null) {
+                        aiProviderConfigRepository.updateCachedModels(type.name, models)
+                    } else {
+                        aiProviderConfigRepository.insert(
+                            tempConfig.copy(cachedModels = models)
                         )
                     }
                 }

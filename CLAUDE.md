@@ -37,7 +37,7 @@ Keep package boundaries clean for potential future modularization.
 - Screen Use xxxRoute & xxxScreen pattern.
 
 ## Database
-
+********
 - `user_profiles`: User profile info.
 - `workouts` -> `exercise_logs` -> `set_logs`: 3-level workout log hierarchy (1:N:N) in `entity/workout/`.
 - `workout_plans` -> `planned_sessions` -> `planned_exercises`: 3-level plan hierarchy (1:N:N) in `entity/plan/`.

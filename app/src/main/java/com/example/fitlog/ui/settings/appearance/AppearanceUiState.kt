@@ -1,4 +1,4 @@
-package com.example.fitlog.ui.appearance
+package com.example.fitlog.ui.settings.appearance
 
 import com.example.fitlog.data.repository.ThemeMode
 

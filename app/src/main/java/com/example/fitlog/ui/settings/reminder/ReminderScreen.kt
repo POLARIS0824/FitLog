@@ -1,4 +1,4 @@
-package com.example.fitlog.ui.reminder
+package com.example.fitlog.ui.settings.reminder
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -41,6 +41,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -122,7 +123,7 @@ fun ReminderScreen(
             }
     }
 
-    val topAppBarContainerColor = androidx.compose.ui.graphics.lerp(
+    val topAppBarContainerColor = lerp(
         MaterialTheme.colorScheme.surfaceContainerLow,
         MaterialTheme.colorScheme.surfaceContainer,
         titleFraction
