@@ -1,11 +1,11 @@
-package com.example.fitlog.ui
+package com.example.fitlog.ui.settings.appearance
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,12 +15,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -39,52 +42,48 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.fitlog.BuildConfig
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.SettingsCard
-import com.example.fitlog.ui.components.TonalIcon
 import kotlinx.coroutines.CancellationException
 
 /**
- * 1. 容器层 (Route)
- *
- * 关于页：应用信息展示，路由容器层。
- *
- * @param onBack 返回回调
- * @param modifier 修饰符
+ * 1. 容器层 (Stateful)
  */
 @Composable
-fun AboutRoute(
+fun AppearanceRoute(
     onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
+    viewModel: AppearanceViewModel = hiltViewModel(),
 ) {
-    AboutScreen(
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    AppearanceScreen(
+        uiState = uiState,
         onBack = onBack,
+        onThemeModeChange = viewModel::onThemeModeChange,
+        onDynamicColorChange = viewModel::onDynamicColorChange,
         modifier = modifier,
     )
 }
 
 /**
  * 2. 纯 UI 展示层 (Stateless)
- *
- * 关于页纯 UI 展示，包含应用名称、版本号与项目链接。
- *
- * @param onBack 返回回调
- * @param modifier 修饰符
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(
-    onBack: () -> Unit = {},
+fun AppearanceScreen(
+    uiState: AppearanceUiState,
+    onBack: () -> Unit,
+    onThemeModeChange: (ThemeMode) -> Unit,
+    onDynamicColorChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val scrollState = rememberScrollState()
-    val uriHandler = LocalUriHandler.current
 
     val density = LocalDensity.current
     val extraSpacingPx = remember(density) { with(density) { 12.dp.roundToPx() } }
@@ -144,7 +143,7 @@ fun AboutScreen(
                                 },
                             )
                             Text(
-                                text = "About",
+                                text = "Appearance",
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = titleFraction
@@ -153,7 +152,7 @@ fun AboutScreen(
                             )
                         } else {
                             Text(
-                                text = "About",
+                                text = "Appearance",
                                 style = MaterialTheme.typography.titleLarge,
                             )
                         }
@@ -193,62 +192,71 @@ fun AboutScreen(
                         }
                 ) {
                     Text(
-                        text = "About",
+                        text = "Appearance",
                         style = MaterialTheme.typography.headlineMedium,
                     )
                 }
             }
 
-            SectionLabel("应用")
+            SectionLabel("主题")
             SettingsCard {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    TonalIcon(
-                        icon = Icons.Default.FitnessCenter,
-                        index = 0,
-                        size = 64.dp,
-                    )
-                    Text(
-                        "FitLog",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                    Text(
-                        "Version ${BuildConfig.VERSION_NAME}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Text("主题模式", style = MaterialTheme.typography.titleMedium)
+                val options = listOf(
+                    ThemeMode.SYSTEM to "跟随系统",
+                    ThemeMode.LIGHT to "浅色",
+                    ThemeMode.DARK to "深色",
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    options.forEachIndexed { index, (mode, label) ->
+                        SegmentedButton(
+                            selected = uiState.themeMode == mode,
+                            onClick = { onThemeModeChange(mode) },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = options.size,
+                            ),
+                        ) {
+                            Text(label)
+                        }
+                    }
                 }
             }
 
-            SectionLabel("链接")
+            SectionLabel("颜色")
             SettingsCard {
-                Text(
-                    text = "GitHub 仓库",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.clickable {
-                        uriHandler.openUri("https://github.com/POLARIS0824/FitLog")
-                    },
-                )
-                Text(
-                    text = "AI 驱动的训练记录与分析，个人项目",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("动态取色", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "根据壁纸生成整套配色（Material You）",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = uiState.dynamicColor,
+                        onCheckedChange = onDynamicColorChange,
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
+/**
+ * 3. 预览层
+ */
 @Preview(showBackground = true)
 @Composable
-private fun AboutScreenPreview() {
-    AboutScreen()
+private fun AppearanceScreenPreview() {
+    AppearanceScreen(
+        uiState = AppearanceUiState(),
+        onBack = {},
+        onThemeModeChange = {},
+        onDynamicColorChange = {},
+    )
 }

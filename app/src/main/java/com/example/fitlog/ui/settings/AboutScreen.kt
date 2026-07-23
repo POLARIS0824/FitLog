@@ -1,29 +1,22 @@
-package com.example.fitlog.ui.dataimport
+package com.example.fitlog.ui.settings
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,57 +35,56 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.fitlog.data.file.MarkdownFileScanner
+import com.example.fitlog.BuildConfig
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.SettingsCard
-import com.example.fitlog.ui.components.StackedSnackbarHost
-import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
+import com.example.fitlog.ui.components.TonalIcon
 import kotlinx.coroutines.CancellationException
-import java.time.LocalDate
 
 /**
- * 1. 容器层 (Stateful)
+ * 1. 容器层 (Route)
+ *
+ * 关于页：应用信息展示，路由容器层。
+ *
+ * @param onBack 返回回调
+ * @param modifier 修饰符
  */
 @Composable
-fun DataImportRoute(
+fun AboutRoute(
     onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
-    viewModel: DataImportViewModel = hiltViewModel(),
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    DataImportScreen(
-        uiState = uiState,
+    AboutScreen(
         onBack = onBack,
-        onFolderSelected = viewModel::onFolderSelected,
-        onImport = viewModel::onImport,
-        onMessageShown = viewModel::onMessageShown,
         modifier = modifier,
     )
 }
 
 /**
  * 2. 纯 UI 展示层 (Stateless)
+ *
+ * 关于页纯 UI 展示，包含应用名称、版本号与项目链接。
+ *
+ * @param onBack 返回回调
+ * @param modifier 修饰符
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DataImportScreen(
-    uiState: DataImportUiState,
-    onBack: () -> Unit,
-    onFolderSelected: (android.net.Uri) -> Unit,
-    onImport: () -> Unit,
-    onMessageShown: () -> Unit,
+fun AboutScreen(
+    onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val scrollState = rememberScrollState()
-    val stackedSnackbarHostState = rememberStackedSnackbarHostState()
+    val uriHandler = LocalUriHandler.current
 
     val density = LocalDensity.current
     val extraSpacingPx = remember(density) { with(density) { 12.dp.roundToPx() } }
@@ -129,23 +121,15 @@ fun DataImportScreen(
             }
     }
 
-    val topAppBarContainerColor = androidx.compose.ui.graphics.lerp(
+    val topAppBarContainerColor = lerp(
         MaterialTheme.colorScheme.surfaceContainerLow,
         MaterialTheme.colorScheme.surfaceContainer,
         titleFraction
     )
 
-    // SAF 文件夹选择器
-    val folderLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        uri?.let(onFolderSelected)
-    }
-
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        snackbarHost = { StackedSnackbarHost(hostState = stackedSnackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -160,7 +144,7 @@ fun DataImportScreen(
                                 },
                             )
                             Text(
-                                text = "Data Import",
+                                text = "About",
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
                                     alpha = titleFraction
@@ -169,7 +153,7 @@ fun DataImportScreen(
                             )
                         } else {
                             Text(
-                                text = "Data Import",
+                                text = "About",
                                 style = MaterialTheme.typography.titleLarge,
                             )
                         }
@@ -209,134 +193,62 @@ fun DataImportScreen(
                         }
                 ) {
                     Text(
-                        text = "Data Import",
+                        text = "About",
                         style = MaterialTheme.typography.headlineMedium,
                     )
                 }
             }
 
-            SectionLabel("说明")
+            SectionLabel("应用")
             SettingsCard {
-                Text("从 Markdown 导入训练日志", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "选择存放日志的文件夹，每个文件代表一天训练，" +
-                        "文件名需为日期格式，如 2026-05-07.md",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilledTonalButton(
-                        onClick = { folderLauncher.launch(null) },
-                        enabled = !uiState.isScanning,
-                    ) {
-                        Text("选择文件夹")
-                    }
-                    if (uiState.isScanning) {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .padding(start = 12.dp)
-                                .size(20.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    }
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    TonalIcon(
+                        icon = Icons.Default.FitnessCenter,
+                        index = 0,
+                        size = 64.dp,
+                    )
+                    Text(
+                        "FitLog",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    Text(
+                        "Version ${BuildConfig.VERSION_NAME}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 
-            if (uiState.successes.isNotEmpty() || uiState.failures.isNotEmpty()) {
-                SectionLabel("扫描结果")
-                SettingsCard {
-                    uiState.successes.forEach { item ->
-                        ScanResultRow(
-                            fileName = item.fileName,
-                            detail = item.date.toString(),
-                            success = true,
-                        )
-                    }
-                    uiState.failures.forEach { item ->
-                        ScanResultRow(
-                            fileName = item.fileName,
-                            detail = item.reason,
-                            success = false,
-                        )
-                    }
-                }
-
-                Button(
-                    onClick = onImport,
-                    enabled = uiState.successes.isNotEmpty() && !uiState.isImporting,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        if (uiState.isImporting) {
-                            "导入中…"
-                        } else {
-                            "导入 ${uiState.successes.size} 条记录"
-                        }
-                    )
-                }
+            SectionLabel("链接")
+            SettingsCard {
+                Text(
+                    text = "GitHub 仓库",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.clickable {
+                        uriHandler.openUri("https://github.com/POLARIS0824/FitLog")
+                    },
+                )
+                Text(
+                    text = "AI 驱动的训练记录与分析，个人项目",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
-
-    // 一次性提示（导入结果 / 扫描失败等）
-    LaunchedEffect(uiState.message) {
-        uiState.message?.let {
-            stackedSnackbarHostState.showSnackbar(it)
-            onMessageShown()
-        }
-    }
 }
 
-/** 扫描结果行：文件名 + 日期/失败原因 + 状态图标。 */
-@Composable
-private fun ScanResultRow(fileName: String, detail: String, success: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(fileName, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                detail,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Icon(
-            imageVector = if (success) Icons.Default.Check else Icons.Default.Close,
-            contentDescription = null,
-            tint = if (success) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.error
-            },
-        )
-    }
-}
-
-/**
- * 3. 预览层
- */
 @Preview(showBackground = true)
 @Composable
-private fun DataImportScreenPreview() {
-    DataImportScreen(
-        uiState = DataImportUiState(
-            successes = listOf(
-                MarkdownFileScanner.ScannedMarkdown(
-                    fileName = "2026-05-07.md",
-                    date = LocalDate.of(2026, 5, 7),
-                    content = "",
-                ),
-            ),
-            failures = listOf(
-                MarkdownFileScanner.Failure("notes.md", "文件名日期解析失败"),
-            ),
-        ),
-        onBack = {},
-        onFolderSelected = {},
-        onImport = {},
-        onMessageShown = {},
-    )
+private fun AboutScreenPreview() {
+    AboutScreen()
 }

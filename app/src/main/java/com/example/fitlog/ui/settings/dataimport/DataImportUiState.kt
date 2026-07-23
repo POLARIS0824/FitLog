@@ -1,4 +1,4 @@
-package com.example.fitlog.ui.dataimport
+package com.example.fitlog.ui.settings.dataimport
 
 import com.example.fitlog.data.file.MarkdownFileScanner
 

@@ -19,6 +19,7 @@ import androidx.room.PrimaryKey
  * @property customEndpoint 自定义 endpoint 路径
  * @property apiVersion API 版本号
  * @property isPreset 是否为内置预设配置（用户不可删除）
+ * @property cachedModels 缓存的可用模型列表（以逗号分隔的字符串存储）
  */
 @Entity(tableName = "ai_provider_configs")
 data class AIProviderConfigEntity(
@@ -33,4 +34,5 @@ data class AIProviderConfigEntity(
     val customEndpoint: String?,
     val apiVersion: String?,
     val isPreset: Boolean,
+    val cachedModels: String? = null,
 )

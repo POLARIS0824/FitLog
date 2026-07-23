@@ -12,6 +12,7 @@ package com.example.fitlog.model.ai
  * @property customEndpoint 自定义 endpoint 路径（仅 [ProviderType.CUSTOM] 使用）
  * @property apiVersion API 版本（仅 [ProviderType.AZURE] 使用）
  * @property isPreset 是否为系统内置预设配置
+ * @property cachedModels 上次在线成功拉取的可用模型列表
  */
 data class AIProviderConfig(
     val id: String,
@@ -23,4 +24,5 @@ data class AIProviderConfig(
     val customEndpoint: String? = null,
     val apiVersion: String? = null,
     val isPreset: Boolean,
+    val cachedModels: List<String> = emptyList(),
 )

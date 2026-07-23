@@ -39,6 +39,13 @@ android {
         compose = true
         buildConfig = true
     }
+
+    packaging {
+        resources {
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/DEPENDENCIES"
+        }
+    }
 }
 
 dependencies {
@@ -75,6 +82,9 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.datastore.preferences)
+
+    implementation(libs.google.adk.core.android)
+    implementation(libs.google.adk.processor)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

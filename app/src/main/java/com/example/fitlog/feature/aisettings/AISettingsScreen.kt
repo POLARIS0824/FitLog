@@ -374,6 +374,7 @@ fun AISettingsScreen(
                             customEndpoint = uiState.endpoint.customEndpoint.trim().ifBlank { null },
                             apiVersion = uiState.endpoint.apiVersion.trim().ifBlank { null },
                             isPreset = true, // 每类型一条的内置槽位配置
+                            cachedModels = uiState.model.availableModels,
                         )
                     )
                 },
