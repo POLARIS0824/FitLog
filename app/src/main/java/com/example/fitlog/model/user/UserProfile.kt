@@ -16,12 +16,11 @@ data class UserProfile(
     val gender: Gender?,
     val height: Float?,
     val weight: Float?,
-    val trainingLevel: TrainingLevel,
     val trainingGoal: TrainingGoal?,
 )
 
 /**
- * 单个动作的训练水平子结构
+ * 单个动作的训练水平子结构（由 [com.example.fitlog.util.TrainingLevelCalculator] 按需计算，不落库）
  */
 data class ExerciseTrainingLevel(
     val estimatedOneRMKg: Double?,   // 估算 1RM (kg)

@@ -1,5 +1,7 @@
 package com.example.fitlog.data.mapper
 
+import com.example.fitlog.data.local.entity.workout.ExerciseLogEntity
+import com.example.fitlog.data.local.entity.workout.SetLogEntity
 import com.example.fitlog.data.local.entity.workout.WorkoutEntity
 import com.example.fitlog.data.local.relation.ExerciseLogWithSets
 import com.example.fitlog.data.local.relation.WorkoutWithExerciseLogs
@@ -47,5 +49,35 @@ fun Workout.toEntity(): WorkoutEntity {
         feelings = feelings,
         sourceFileName = sourceFileName,
         rawContent = rawContent,
+    )
+}
+
+/**
+ * 领域模型 [ExerciseLog] → 数据库实体。
+ *
+ * @param workoutId 所属训练日的数据库主键（级联插入时由 workout 插入返回值提供）
+ * @param sortOrder 动作在当天的排序序号
+ */
+fun ExerciseLog.toEntity(workoutId: Long, sortOrder: Int): ExerciseLogEntity {
+    return ExerciseLogEntity(
+        workoutId = workoutId,
+        exerciseKey = exerciseKey,
+        name = name,
+        sortOrder = sortOrder,
+    )
+}
+
+/**
+ * 领域模型 [SetLog] → 数据库实体。
+ *
+ * @param exerciseLogId 所属动作记录的数据库主键（级联插入时由 exerciseLog 插入返回值提供）
+ * @param setNumber 组号（1-based）
+ */
+fun SetLog.toEntity(exerciseLogId: Long, setNumber: Int): SetLogEntity {
+    return SetLogEntity(
+        exerciseLogId = exerciseLogId,
+        setNumber = setNumber,
+        weightKg = weightKg,
+        reps = reps,
     )
 }

@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.model.user.Gender
 import com.example.fitlog.model.user.TrainingGoal
-import com.example.fitlog.model.user.TrainingLevel
 import com.example.fitlog.model.user.UserProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -75,7 +74,6 @@ class ProfileViewModel @Inject constructor(
                     gender = state.gender,
                     height = state.height.trim().toFloatOrNull(),
                     weight = state.weight.trim().toFloatOrNull(),
-                    trainingLevel = TrainingLevel(emptyMap()),
                     trainingGoal = state.goal,
                 )
                 if (existingId != null) {

@@ -14,7 +14,7 @@ import com.example.fitlog.data.local.entity.UserProfileEntity
 @Dao
 interface UserProfileDao {
     /**
-     * 插入一条用户资料，若主键冲突则忽略。
+     * 插入一条用户资料，若主键冲突则替换。
      *
      * @param userProfileEntity 待插入的实体
      */

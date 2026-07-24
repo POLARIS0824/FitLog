@@ -3,11 +3,9 @@ package com.example.fitlog.data.mapper
 import com.example.fitlog.data.local.entity.UserProfileEntity
 import com.example.fitlog.model.user.Gender
 import com.example.fitlog.model.user.TrainingGoal
-import com.example.fitlog.model.user.TrainingLevel
 import com.example.fitlog.model.user.UserProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -67,27 +65,6 @@ class UserProfileMapperTest {
     }
 
     /**
-     * 测试 Entity 转领域模型时 trainingLevel 恒为空 Map。
-     *
-     * 注意：当前 user_profiles 表没有 trainingLevel 列，
-     * 训练水平在持久化过程中不被保存，读取时只能重建为空。
-     */
-    @Test
-    fun testEntityToModel_trainingLevelAlwaysEmpty() {
-        val entity = UserProfileEntity(
-            id = 1L,
-            name = "张三",
-            age = 25,
-            gender = "MALE",
-            height = 175f,
-            weight = 70f,
-            trainingGoal = "STRENGTH",
-        )
-
-        assertTrue(entity.toModel().trainingLevel.exercises.isEmpty())
-    }
-
-    /**
      * 测试领域模型转 Entity：枚举序列化为 name 字符串。
      */
     @Test
@@ -99,7 +76,6 @@ class UserProfileMapperTest {
             gender = Gender.FEMALE,
             height = 165f,
             weight = 55f,
-            trainingLevel = TrainingLevel(emptyMap()),
             trainingGoal = TrainingGoal.HYPERTROPHY,
         )
 
@@ -126,7 +102,6 @@ class UserProfileMapperTest {
             gender = null,
             height = null,
             weight = null,
-            trainingLevel = TrainingLevel(emptyMap()),
             trainingGoal = null,
         )
 

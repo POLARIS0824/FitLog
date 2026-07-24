@@ -7,14 +7,17 @@ import android.provider.DocumentsContract
 import androidx.annotation.RequiresApi
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
+import javax.inject.Inject
 
 /**
  * Markdown 训练日志文件扫描器。
  *
  * 通过 Storage Access Framework (SAF) 遍历用户授权的文件夹，
  * 读取所有 `.md` 文件内容，从文件名提取日期，并调用 [MarkdownParser.preprocess] 做预处理。
+ *
+ * 以 @Inject 类形式提供（而非 object），便于 ViewModel 构造注入、测试替换替身。
  */
-object MarkdownFileScanner {
+class MarkdownFileScanner @Inject constructor() {
 
     /**
      * 扫描结果。

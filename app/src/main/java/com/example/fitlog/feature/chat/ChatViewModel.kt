@@ -44,7 +44,7 @@ class ChatViewModel @Inject constructor(
         if (input.isEmpty()) return
         if (_uiState.value.isSending) return
 
-        // 消息立刻上屏
+        // 消息立刻上屏，同时清除上一次的错误提示
         val userMessage = ChatMessage(role = "user", content = input)
         val messagesBeforeSend = _uiState.value.messages + userMessage
         _uiState.update {
@@ -52,6 +52,7 @@ class ChatViewModel @Inject constructor(
                 messages = messagesBeforeSend,
                 input = "",
                 isSending = true,
+                errorMessage = null,
             )
         }
 
