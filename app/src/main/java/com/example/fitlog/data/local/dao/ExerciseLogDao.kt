@@ -42,4 +42,12 @@ interface ExerciseLogDao {
      */
     @Query("SELECT * FROM exercise_logs WHERE workoutId = :workoutId ORDER BY sortOrder ASC")
     suspend fun getByWorkoutId(workoutId: Long): List<ExerciseLogEntity>
+
+    /**
+     * 删除指定训练日下的所有动作记录（set_logs 由外键 CASCADE 连带删除）。
+     *
+     * @param workoutId 训练日 ID
+     */
+    @Query("DELETE FROM exercise_logs WHERE workoutId = :workoutId")
+    suspend fun deleteByWorkoutId(workoutId: Long)
 }

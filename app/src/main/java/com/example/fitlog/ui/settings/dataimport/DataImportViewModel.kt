@@ -29,6 +29,7 @@ import kotlin.coroutines.cancellation.CancellationException
 class DataImportViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val workoutRepository: WorkoutRepository,
+    private val markdownFileScanner: MarkdownFileScanner,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DataImportUiState())
@@ -40,7 +41,7 @@ class DataImportViewModel @Inject constructor(
             _uiState.update { it.copy(isScanning = true, message = null) }
             try {
                 val result = withContext(Dispatchers.IO) {
-                    MarkdownFileScanner.scanFolder(context.contentResolver, treeUri)
+                    markdownFileScanner.scanFolder(context.contentResolver, treeUri)
                 }
                 _uiState.update {
                     it.copy(

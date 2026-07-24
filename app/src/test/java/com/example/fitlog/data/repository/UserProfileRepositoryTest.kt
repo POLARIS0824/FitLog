@@ -59,7 +59,6 @@ class UserProfileRepositoryTest {
             gender = Gender.MALE,
             height = 175f,
             weight = 70f,
-            trainingLevel = com.example.fitlog.model.user.TrainingLevel(emptyMap()),
             trainingGoal = TrainingGoal.STRENGTH
         )
 
@@ -87,7 +86,6 @@ class UserProfileRepositoryTest {
             gender = Gender.MALE,
             height = 175f,
             weight = 70f,
-            trainingLevel = com.example.fitlog.model.user.TrainingLevel(emptyMap()),
             trainingGoal = TrainingGoal.STRENGTH
         )
         repository.insert(profile)
@@ -114,7 +112,6 @@ class UserProfileRepositoryTest {
             gender = Gender.MALE,
             height = 175f,
             weight = 70f,
-            trainingLevel = com.example.fitlog.model.user.TrainingLevel(emptyMap()),
             trainingGoal = TrainingGoal.STRENGTH
         )
         repository.insert(profile)

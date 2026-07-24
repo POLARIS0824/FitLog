@@ -24,8 +24,7 @@ import org.junit.runner.RunWith
  *
  * 验证输入框事件转发、发送按钮的启用/禁用与"AI 正在思考"提示的可见性。
  *
- * 注意：测试始终使用空消息列表——[MessageBubble] 目前仍是 `TODO()` 未实现，
- * 渲染任何消息都会抛出 NotImplementedError，因此消息气泡路径刻意不覆盖。
+ * 消息渲染路径（[UserMessageBubble] / AI 纯文本）待后续补充覆盖。
  */
 @RunWith(AndroidJUnit4::class)
 class ChatScreenTest {

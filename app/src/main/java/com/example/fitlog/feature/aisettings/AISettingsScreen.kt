@@ -579,27 +579,29 @@ private fun ProviderPickerSheet(
             val spec = ProviderSpecs.of(type)
             val configured = providers.any { it.id == type.name && it.apiKey.isNotBlank() }
             ListItem(
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                leadingContent = { ProviderIcon(spec = spec, size = 40.dp) },
-                headlineContent = { Text(spec.displayName) },
-                supportingContent = { Text(
-                    text = if (configured) "已配置" else "未配置",
-                    color = if (configured) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                ) },
-                trailingContent = {
-                    if (type == selectedType) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = "当前选中",
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                },
                 modifier = Modifier.clickable { onSelect(type) },
+                leadingContent = { ProviderIcon(spec = spec, size = 40.dp) },
+                trailingContent = {
+                                if (type == selectedType) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = "当前选中",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            },
+                overlineContent = null,
+                supportingContent = { Text(
+                                text = if (configured) "已配置" else "未配置",
+                                color = if (configured) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            ) },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                elevation = ListItemDefaults.elevation(ListItemDefaults.Elevation),
+                content = { Text(spec.displayName) },
             )
         }
         Spacer(modifier = Modifier.height(32.dp)) // 避开底部手势区

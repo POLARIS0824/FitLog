@@ -1,5 +1,7 @@
 package com.example.fitlog.data.repository
 
+import androidx.room.withTransaction
+import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.local.dao.ExerciseLogDao
 import com.example.fitlog.data.local.dao.SetLogDao
 import com.example.fitlog.data.local.dao.WorkoutDao
@@ -12,23 +14,67 @@ import java.time.LocalDate
 import javax.inject.Inject
 
 /**
- * 训练日志仓库
- * 协调 WorkoutDao、ExerciseLogDao 和 SetLogDao，完成 3 层训练日志级联体系的存储、删除以及联表/级联查询聚合
+ * 训练日志仓库。
+ *
+ * 协调 [WorkoutDao]、[ExerciseLogDao] 和 [SetLogDao]，
+ * 通过 [androidx.room.withTransaction] 完成 3 层训练日志（Workout → ExerciseLog → SetLog）
+ * 的事务级联存储、删除以及联表查询聚合。
  */
 class WorkoutRepository @Inject constructor(
     private val workoutDao: WorkoutDao,
     private val exerciseLogDao: ExerciseLogDao,
     private val setLogDao: SetLogDao,
+    private val db: AppDatabase,
 ) {
-    suspend fun insert(workout: Workout) = workoutDao.insert(workout.toEntity())
+    /**
+     * 事务级联插入完整训练日志。
+     *
+     * 依次写入 workouts → exercise_logs → set_logs：
+     * 父行插入返回的自增主键作为子行的外键。
+     * 任一环节失败则整体回滚。
+     *
+     * @param workout 完整训练日志（含动作与组）
+     * @return 新插入训练日的数据库主键（冲突被 IGNORE 时为 -1）
+     */
+    suspend fun insert(workout: Workout): Long = db.withTransaction {
+        val workoutId = workoutDao.insert(workout.toEntity())
+        insertChildren(workoutId, workout)
+        workoutId
+    }
+
+    /**
+     * 事务级联更新：更新父行后删除旧子行并重新插入。
+     *
+     * set_logs 由 exercise_logs 的外键 CASCADE 连带删除，无需显式清理。
+     *
+     * @param workout 完整训练日志（id 必须已存在）
+     */
+    suspend fun update(workout: Workout) = db.withTransaction {
+        workoutDao.update(workout.toEntity())
+        exerciseLogDao.deleteByWorkoutId(workout.id)
+        insertChildren(workout.id, workout)
+    }
+
+    /**
+     * 级联插入动作与组（须在事务内调用）。
+     */
+    private suspend fun insertChildren(workoutId: Long, workout: Workout) {
+        workout.exercises.forEachIndexed { index, exerciseLog ->
+            val exerciseLogId = exerciseLogDao.insert(
+                exerciseLog.toEntity(workoutId = workoutId, sortOrder = index),
+            )
+            val setEntities = exerciseLog.sets.mapIndexed { setIndex, setLog ->
+                setLog.toEntity(exerciseLogId = exerciseLogId, setNumber = setIndex + 1)
+            }
+            setLogDao.insertAll(setEntities)
+        }
+    }
 
     /**
      * 判断指定来源文件名的训练记录是否已存在（导入去重用）。
      */
     suspend fun existsBySourceFileName(fileName: String) =
         workoutDao.getBySourceFileName(fileName) != null
-
-    suspend fun update(workout: Workout) = workoutDao.update(workout.toEntity())
 
     suspend fun delete(workout: Workout) = workoutDao.delete(workout.toEntity())
 

@@ -61,6 +61,11 @@ enum class ProviderType {
     /**
      * 构建模型列表请求 URL（OpenAI 兼容的 GET /models）。
      *
+     * 注意与 [buildUrl] 的策略差异：[AIProviderConfig.customEndpoint] 仅覆盖
+     * 聊天补全路径（chat/completions），模型列表始终由 baseUrl + 各提供商
+     * 约定路径构造（CUSTOM 与 OpenAI 一致，为 `v1/models`）。
+     * 即 customEndpoint 是"仅聊天"的覆盖项，不影响模型列表。
+     *
      * @param config 当前 AI 提供商配置
      * @return 模型列表请求地址
      * @throws UnsupportedOperationException Azure 无通用模型列表端点

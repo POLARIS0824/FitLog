@@ -7,7 +7,6 @@ import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.model.user.Gender
 import com.example.fitlog.model.user.TrainingGoal
-import com.example.fitlog.model.user.TrainingLevel
 import com.example.fitlog.model.user.UserProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -79,7 +78,6 @@ class ProfileViewModelTest {
         gender = gender,
         height = height,
         weight = weight,
-        trainingLevel = TrainingLevel(emptyMap()),
         trainingGoal = goal,
     )
 
