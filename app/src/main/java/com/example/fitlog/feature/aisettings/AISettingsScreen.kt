@@ -558,6 +558,8 @@ private fun ProviderCard(
     }
 }
 
+// TODO: Bottom Sheet nested scroll
+// TODO: Segmented List Item Type
 /** Provider 选择弹层：列出全部协议类型，标注已配置状态。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
