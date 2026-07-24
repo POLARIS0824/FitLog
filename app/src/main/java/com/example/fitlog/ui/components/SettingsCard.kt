@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 /**
- * 统一的设置页卡片容器：圆角 28dp、无阴影、白卡（比页面背景亮一档）。
+ * 统一的设置页卡片容器：圆角 24dp、无阴影、白卡（比页面背景亮一档）。
  *
  * 设计语言见 `design.md`：层级全靠 surface container 色阶明度差，不用投影。
  *
