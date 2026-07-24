@@ -100,6 +100,37 @@ class ExerciseConvertersTest {
         assertEquals("down", restored[1])
     }
 
+    /**
+     * 测试包含逗号的步骤文本经 JSON 序列化后往返不丢失。
+     *
+     * 这是选择 JSON 而非逗号拼接的关键原因：若用逗号分隔存储，
+     * "握住杠铃, 略宽于肩" 这类文本会被错误拆分。
+     */
+    @Test
+    fun `string list with commas round trip preserves items`() {
+        val original = listOf("握住杠铃, 略宽于肩", "下放, 再推起")
+        val restored = converters.toStringList(converters.fromStringList(original))
+        assertEquals(original, restored)
+    }
+
+    /**
+     * 测试空步骤列表的 JSON 往返（序列化为 "[]" 而非空串）。
+     */
+    @Test
+    fun `empty string list round trip`() {
+        val serialized = converters.fromStringList(emptyList<String>())
+        assertTrue(converters.toStringList(serialized).isEmpty())
+    }
+
+    /**
+     * 测试可空 Equipment 枚举为 null 时的双向转换。
+     */
+    @Test
+    fun `null equipment conversion both ways`() {
+        org.junit.Assert.assertNull(converters.fromEquipment(null))
+        org.junit.Assert.assertNull(converters.toEquipment(null))
+    }
+
     @Test
     fun `empty string list conversion`() {
         val restored = converters.toStringList("")
