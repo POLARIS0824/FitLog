@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,7 +45,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +59,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,6 +84,7 @@ import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.components.LargeMetricCard
 import com.example.fitlog.ui.components.MetricDashboardGrid
+import com.example.fitlog.ui.components.MetricPageIndicator
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.SmallMetricCard
 import com.example.fitlog.ui.components.TonalIcon
@@ -555,40 +558,54 @@ private fun CoachInsightCard(
 // ──────────────────────────────────────
 
 /**
- * 本周进度区块：模式切换 FilterChip 行 + MetricDashboardGrid 仪表盘。
+ * 本周进度区块：HorizontalPager 卡片横向滑动 + 底部 MetricPageIndicator 纯展示指示点。
+ * 性能优化：通过 [snapshotFlow] 仅监听 [settledPage]（即手势释放且页面停稳后），
+ * 避免在拖拽中途频繁触发 ViewModel 状态刷新与数据库查询导致的滑动卡顿。
  */
 @Composable
 private fun WeekProgressSection(
     weekProgress: WeekProgressState,
     onDisplayModeSelected: (WeekProgressDisplayMode) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // 模式切换：可横滑的 FilterChip 行（四个中文标签较长，不用 SegmentedButton 防挤压）
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            WeekProgressDisplayMode.entries.forEach { mode ->
-                FilterChip(
-                    selected = weekProgress.displayMode == mode,
-                    onClick = { onDisplayModeSelected(mode) },
-                    label = { Text(mode.label) },
-                    leadingIcon = {
-                        if (weekProgress.displayMode == mode) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = null,
-                                modifier = Modifier.height(18.dp),
-                            )
-                        }
-                    },
-                )
+    val modes = WeekProgressDisplayMode.entries
+    val initialPage = remember { modes.indexOf(weekProgress.displayMode).coerceAtLeast(0) }
+    val pagerState = rememberPagerState(
+        initialPage = initialPage,
+        pageCount = { modes.size },
+    )
+
+    // 仅在拖拽释放、动画结束停稳后 (settledPage) 才通知 ViewModel 切换显示模式，彻底解决滑动卡顿
+    LaunchedEffect(pagerState) {
+        androidx.compose.runtime.snapshotFlow { pagerState.settledPage }.collect { page ->
+            val selectedMode = modes[page]
+            if (selectedMode != weekProgress.displayMode) {
+                onDisplayModeSelected(selectedMode)
             }
         }
+    }
 
-        WeekProgressDashboard(weekProgress = weekProgress)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // 卡片横向滑动 Pager（使用预计算好的 itemsMap，让每一页数据即刻就位，滑动无延迟）
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxWidth(),
+            pageSpacing = 12.dp,
+        ) { page ->
+            val mode = modes[page]
+            val pageItems = weekProgress.itemsMap[mode] ?: weekProgress.items
+            WeekProgressDashboard(
+                weekProgress = weekProgress.copy(
+                    displayMode = mode,
+                    items = pageItems,
+                )
+            )
+        }
+
+        // 底部指示点：纯展示状态，不开启点击事件以防误触
+        MetricPageIndicator(
+            pageCount = modes.size,
+            currentPage = pagerState.currentPage,
+        )
     }
 }
 

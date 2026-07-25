@@ -105,33 +105,13 @@ class TodayViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 展示模式与其对应历史数据的**原子对**。
-     *
-     * 全历史训练（3 级 relation 全量联查，观察三张表）仅 VOLUME_PR 模式的
-     * PR 对比需要，其余模式不订阅；切换模式时 mode 与 history 同帧到达，
-     * 避免"模式先切、历史后到"的瞬态错帧。
-     */
-    private data class ModeHistory(
-        val mode: WeekProgressDisplayMode,
-        val history: List<Workout>,
-    )
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val modeHistory: Flow<ModeHistory> = displayMode.flatMapLatest { mode ->
-        val source = if (mode == WeekProgressDisplayMode.VOLUME_PR) {
-            workoutRepository.getWorkouts()
-        } else {
-            flowOf(emptyList())
-        }
-        source.map { ModeHistory(mode, it) }
-    }
+    private val allWorkouts = workoutRepository.getWorkouts()
 
     /** 数据层五元快照（combine 单次最多 5 个 Flow 的一手组合）。 */
     private data class TodaySnapshot(
         val weekWorkouts: List<Workout>,
         val todayWorkouts: List<Workout>,
-        val modeHistory: ModeHistory,
+        val allWorkouts: List<Workout>,
         val activePlan: WorkoutPlan?,
         val nextSession: PlannedSession?,
     )
@@ -157,19 +137,21 @@ class TodayViewModel @Inject constructor(
 
     /** 页面 UI 状态流，由数据层 Flow 与本地事件 Flow 组合而成。 */
     val uiState: StateFlow<TodayUiState> = combine(
-        weekWorkouts, todayWorkouts, modeHistory, activePlan, nextSession, ::TodaySnapshot,
+        weekWorkouts, todayWorkouts, allWorkouts, activePlan, nextSession, ::TodaySnapshot,
     ).combine(
         combine(latestWorkout, profileFlow, catalogFlow, ::TodayExtras),
     ) { snapshot, extras ->
-        assemble(
-            TodayMaterials(
-                snapshot = snapshot,
-                latestWorkout = extras.latestWorkout,
-                displayMode = snapshot.modeHistory.mode,
-                profile = extras.profile,
-                catalog = extras.catalog,
-            ),
+        TodayMaterials(
+            snapshot = snapshot,
+            latestWorkout = extras.latestWorkout,
+            displayMode = displayMode.value,
+            profile = extras.profile,
+            catalog = extras.catalog,
         )
+    }.combine(displayMode) { materials, mode ->
+        materials.copy(displayMode = mode)
+    }.map { materials ->
+        assemble(materials)
     }.combine(uiFlow) { state, ui ->
         state.copy(uiState = ui)
     }.combine(seedGate) { state, _ ->
@@ -222,18 +204,24 @@ class TodayViewModel @Inject constructor(
             hour = LocalTime.now().hour,
         )
 
+        // 预先计算好所有模式的 ProgressItemState，让 Pager 左右切页时数据即刻就位（0ms 零延迟）
+        val itemsMap = WeekProgressDisplayMode.entries.associateWith { mode ->
+            WeekProgressCalculator.calculate(
+                mode = mode,
+                weekWorkouts = snapshot.weekWorkouts,
+                allWorkouts = snapshot.allWorkouts,
+                activePlan = snapshot.activePlan,
+                catalog = materials.catalog,
+                weekStart = weekStart,
+            )
+        }
+
         val weekProgress = WeekProgressState(
             completedWorkouts = weekCompleted,
             targetWorkouts = weekTarget,
             displayMode = materials.displayMode,
-            items = WeekProgressCalculator.calculate(
-                mode = materials.displayMode,
-                weekWorkouts = snapshot.weekWorkouts,
-                allWorkouts = snapshot.modeHistory.history,
-                activePlan = snapshot.activePlan,
-                catalog = materials.catalog,
-                weekStart = weekStart,
-            ),
+            items = itemsMap[materials.displayMode] ?: emptyList(),
+            itemsMap = itemsMap,
             statusText = when {
                 weekCompleted >= weekTarget -> "Great job!"
                 weekCompleted == 0 -> "这周还没开始"
