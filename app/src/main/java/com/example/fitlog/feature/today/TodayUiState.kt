@@ -25,6 +25,8 @@ data class WeekProgressState(
     val displayMode: WeekProgressDisplayMode = WeekProgressDisplayMode.SPLIT,
     /** 根据 displayMode 动态计算生成的渲染项列表 */
     val items: List<ProgressItemState> = emptyList(),
+    /** 预先计算好的全部模式渲染项，供 HorizontalPager 滑动时实现 0ms 零延迟极速切换 */
+    val itemsMap: Map<WeekProgressDisplayMode, List<ProgressItemState>> = emptyMap(),
     val statusText: String = "Great job!",
 )
 

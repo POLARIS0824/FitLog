@@ -75,7 +75,7 @@ fun LargeMetricCard(
             .then(
                 if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
             ),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
             contentColor = contentColor,
@@ -85,16 +85,16 @@ fun LargeMetricCard(
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(16.dp),
+                .padding(start = 7.dp, top = 7.dp, end = 12.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            // 顶部图标胶囊徽章
+            // 顶部图标胶囊徽章（紧贴卡片边距，去除厚重卡框感）
             if (icon != null) {
                 Box(
                     modifier = Modifier
-                        .width(36.dp)
-                        .height(52.dp)
-                        .clip(RoundedCornerShape(18.dp))
+                        .width(32.dp)
+                        .height(46.dp)
+                        .clip(CircleShape)
                         .background(badgeContainerColor),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -102,7 +102,7 @@ fun LargeMetricCard(
                         imageVector = icon,
                         contentDescription = title,
                         tint = badgeContentColor,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(17.dp),
                     )
                 }
             } else {
@@ -113,6 +113,7 @@ fun LargeMetricCard(
 
             // 底部文字内容
             Column(
+                modifier = Modifier.padding(start = 5.dp, bottom = 2.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
@@ -154,7 +155,7 @@ fun LargeMetricCard(
 
 /**
  * 小号指标卡片（如 Steps, Readiness, Sleep duration）：
- * 位于仪表盘右侧，横向卡片布局，包含左侧圆形/胶囊图标徽章及右侧两行标题与数值信息。
+ * 位于仪表盘右侧，横向卡片布局，包含左侧椭圆/胶囊图标徽章及右侧两行标题与数值信息。
  * 遵循 Material 3 Expressive 规范，支持多色调色彩方案与 Dynamic Color。
  *
  * @param title 指标标题（例如 "Steps"）
@@ -184,7 +185,7 @@ fun SmallMetricCard(
             .then(
                 if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
             ),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
             contentColor = contentColor,
@@ -194,15 +195,16 @@ fun SmallMetricCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(start = 5.dp, top = 5.dp, end = 12.dp, bottom = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // 左侧图标徽章
+            // 左侧瘦长椭圆胶囊徽章（增加高度至44dp提升卡片高度与纵向比例，同时紧贴边框边距消除厚重感）
             if (icon != null) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .width(26.dp)
+                        .height(44.dp)
                         .clip(CircleShape)
                         .background(badgeContainerColor),
                     contentAlignment = Alignment.Center,
@@ -211,7 +213,7 @@ fun SmallMetricCard(
                         imageVector = icon,
                         contentDescription = title,
                         tint = badgeContentColor,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                     )
                 }
             }
