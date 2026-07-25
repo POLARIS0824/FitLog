@@ -3,6 +3,8 @@ package com.example.fitlog.feature.today
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.fitlog.data.local.AppDatabase
@@ -12,6 +14,9 @@ import com.example.fitlog.data.repository.ExerciseRepository
 import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.data.repository.WorkoutPlanRepository
 import com.example.fitlog.data.repository.WorkoutRepository
+import com.example.fitlog.data.seed.ExerciseSeeder
+import com.example.fitlog.data.seed.SeedOrchestrator
+import com.example.fitlog.data.seed.WorkoutPlanSeeder
 import com.example.fitlog.model.ExerciseLog
 import com.example.fitlog.model.Muscle
 import com.example.fitlog.model.PlannedExerciseItem
@@ -65,21 +70,37 @@ class TodayViewModelTest {
     private lateinit var workoutPlanRepository: WorkoutPlanRepository
     private lateinit var userProfileRepository: UserProfileRepository
     private lateinit var exerciseRepository: ExerciseRepository
+    private lateinit var seedOrchestrator: SeedOrchestrator
 
     private val today: LocalDate = LocalDate.now()
 
     /**
      * 设置主调度器并初始化数据库与仓库（ViewModel 由各测试按需创建，
      * 以便在创建前插入 profile 等一次性加载的数据）。
+     *
+     * 预置 seed 版本号 + 一条桩动作行使 [SeedOrchestrator] 短路：
+     * 避免每个测试真实解析 1.33MB exercises.json 并写入预置计划。
      */
     @Before
-    fun setUp() {
+    fun setUp() = runTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
         dataStore = createTestPreferencesDataStore(tmpFolder.newFile("today_prefs.preferences_pb"))
+        // ExerciseSeeder 短路需"版本号 ≥ SEED_VERSION 且动作表非空"；WorkoutPlanSeeder 仅需版本号
+        dataStore.edit { it[intPreferencesKey("exercise_seed_version")] = 1 }
+        dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 2 }
+        db.exerciseDao().insertAll(
+            listOf(
+                ExerciseEntity(
+                    id = "seed-stub",
+                    name = "Seed stub",
+                    primaryMuscles = listOf(Muscle.CORE),
+                ),
+            ),
+        )
         workoutRepository = WorkoutRepository(
             workoutDao = db.workoutDao(),
             exerciseLogDao = db.exerciseLogDao(),
@@ -89,6 +110,10 @@ class TodayViewModelTest {
         workoutPlanRepository = WorkoutPlanRepository(db.workoutPlanDao(), dataStore)
         userProfileRepository = UserProfileRepository(db.userProfileDao())
         exerciseRepository = ExerciseRepository(db.exerciseDao())
+        seedOrchestrator = SeedOrchestrator(
+            ExerciseSeeder(db.exerciseDao(), dataStore, context),
+            WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore),
+        )
     }
 
     /**
@@ -100,12 +125,19 @@ class TodayViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel() = TodayViewModel(
-        workoutRepository = workoutRepository,
-        workoutPlanRepository = workoutPlanRepository,
-        userProfileRepository = userProfileRepository,
-        exerciseRepository = exerciseRepository,
-    )
+    /**
+     * 创建 ViewModel 前先触发种子（短路完成），打开 uiState 的种子门。
+     */
+    private suspend fun createViewModel(): TodayViewModel {
+        seedOrchestrator.seedIfNeeded()
+        return TodayViewModel(
+            workoutRepository = workoutRepository,
+            workoutPlanRepository = workoutPlanRepository,
+            userProfileRepository = userProfileRepository,
+            exerciseRepository = exerciseRepository,
+            seedOrchestrator = seedOrchestrator,
+        )
+    }
 
     /**
      * 测试初始暴露的状态为加载中（stateIn initialValue）。
