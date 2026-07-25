@@ -2,4 +2,13 @@
 <resources>
 
     <style name="Theme.fitLog" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- 启动画面主题：Splash 底色经 splash_background 的夜间变体适配深浅色；
+         图标取 adaptive icon 的前景层（整枚 adaptive icon 会连带 stock 网格背景）；
+         Splash 退出后回落到 Theme.fitLog -->
+    <style name="Theme.fitLog.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.fitLog</item>
+    </style>
 </resources>
