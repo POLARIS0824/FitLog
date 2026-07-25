@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import com.example.fitlog.data.local.entity.plan.PlannedSessionEntity
 import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
 import com.example.fitlog.data.local.relation.WorkoutPlanWithSessions
+import kotlinx.coroutines.flow.Flow
 
 /**
  * 训练计划 DAO，支持级联查询与操作。
@@ -79,6 +80,33 @@ interface WorkoutPlanDao {
     @Transaction
     @Query("SELECT * FROM workout_plans WHERE id = :id")
     suspend fun getPlanByIdWithDetails(id: String): WorkoutPlanWithSessions?
+
+    /**
+     * 观察所有训练计划（含级联训练日），按创建日期降序（Plan 页计划库）。
+     */
+    @Transaction
+    @Query("SELECT * FROM workout_plans ORDER BY createdAt DESC")
+    fun getAllPlansWithDetailsFlow(): Flow<List<WorkoutPlanWithSessions>>
+
+    /**
+     * 观察单个训练计划（含级联训练日）。
+     * 训练日完成标记变化时 Flow 重新发射（进度展示）。
+     */
+    @Transaction
+    @Query("SELECT * FROM workout_plans WHERE id = :id")
+    fun getPlanByIdWithDetailsFlow(id: String): Flow<WorkoutPlanWithSessions?>
+
+    /**
+     * 观察某计划下一个未完成的训练日（Today 待练卡 / Plan 页进度）。
+     */
+    @Query(
+        """
+        SELECT * FROM planned_sessions
+        WHERE planId = :planId AND completedWorkoutId IS NULL
+        ORDER BY weekNumber, dayNumber LIMIT 1
+        """,
+    )
+    fun getNextIncompleteSession(planId: String): Flow<PlannedSessionEntity?>
 
     /**
      * 事务级保存完整计划。

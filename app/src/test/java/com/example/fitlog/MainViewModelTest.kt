@@ -9,6 +9,7 @@ import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.data.repository.UserPreferencesRepository
 import com.example.fitlog.data.seed.ExerciseSeeder
+import com.example.fitlog.data.seed.WorkoutPlanSeeder
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -57,14 +58,16 @@ class MainViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val context = ApplicationProvider.getApplicationContext<Context>()
         val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("main_prefs.preferences_pb"))
-        // 预置 seed 版本号，使 ExerciseSeeder.seedIfNeeded() 立即返回
+        // 预置 seed 版本号，使 ExerciseSeeder/WorkoutPlanSeeder.seedIfNeeded() 立即返回
         dataStore.edit { it[intPreferencesKey("exercise_seed_version")] = 1 }
+        dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 1 }
         preferencesRepository = UserPreferencesRepository(dataStore)
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        val seeder = ExerciseSeeder(db.exerciseDao(), dataStore, context)
-        viewModel = MainViewModel(preferencesRepository, seeder)
+        val exerciseSeeder = ExerciseSeeder(db.exerciseDao(), dataStore, context)
+        val planSeeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
+        viewModel = MainViewModel(preferencesRepository, exerciseSeeder, planSeeder)
     }
 
     /**

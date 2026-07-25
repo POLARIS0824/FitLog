@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.fitlog.data.local.AppDatabase
+import com.example.fitlog.data.local.entity.ExerciseEntity
 import com.example.fitlog.data.local.entity.workout.ExerciseLogEntity
 import com.example.fitlog.data.local.entity.workout.SetLogEntity
 import com.example.fitlog.data.local.entity.workout.WorkoutEntity
@@ -105,6 +106,11 @@ class WorkoutRepositoryTest {
      */
     @Test
     fun testInsert_cascadesExercisesAndSets() = runTest {
+        // exerciseKey 有指向 exercises 的外键，先插入被引用的动作
+        db.exerciseDao().insertAll(
+            listOf(ExerciseEntity(id = "barbell-bench-press", name = "Barbell bench press")),
+        )
+
         val workout = Workout(
             id = 0,
             userId = 0,

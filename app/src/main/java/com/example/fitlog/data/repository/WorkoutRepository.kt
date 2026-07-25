@@ -87,4 +87,30 @@ class WorkoutRepository @Inject constructor(
             list.map { it.toModel() }
         }
     }
+
+    /**
+     * 观察最近一次训练（Today「身体状态」卡片）。
+     */
+    fun getLatest(): Flow<Workout?> = workoutDao.getLatest().map { it?.toModel() }
+
+    /**
+     * 观察最近 N 条完整训练日志（Today「最近训练」列表）。
+     *
+     * @param limit 返回条数上限
+     */
+    fun getRecentWithDetails(limit: Int): Flow<List<Workout>> =
+        workoutDao.getRecentWithDetails(limit).map { list ->
+            list.map { it.toModel() }
+        }
+
+    /**
+     * 观察日期区间内的完整训练日志（Today「本周概览」与 Stats 区间聚合）。
+     *
+     * @param from 起始日期（含）
+     * @param to 结束日期（含）
+     */
+    fun getByDateRange(from: LocalDate, to: LocalDate): Flow<List<Workout>> =
+        workoutDao.getByDateRangeWithDetails(from, to).map { list ->
+            list.map { it.toModel() }
+        }
 }

@@ -70,4 +70,32 @@ interface WorkoutDao {
     @Transaction
     @Query("SELECT * FROM workouts WHERE date = :date")
     fun getByDateWithDetails(date: LocalDate): Flow<List<WorkoutWithExerciseLogs>>
+
+    /**
+     * 查询最近一次训练（Today「最近训练」与「身体状态」卡片）。
+     */
+    @Query("SELECT * FROM workouts ORDER BY date DESC, id DESC LIMIT 1")
+    fun getLatest(): Flow<WorkoutEntity?>
+
+    /**
+     * 查询最近 N 条训练（含动作与组），按日期降序排列。
+     * 使用 @Transaction 注解确保查询和关联数据的原子性。
+     *
+     * @param limit 返回条数上限
+     */
+    @Transaction
+    @Query("SELECT * FROM workouts ORDER BY date DESC, id DESC LIMIT :limit")
+    fun getRecentWithDetails(limit: Int): Flow<List<WorkoutWithExerciseLogs>>
+
+    /**
+     * 查询日期区间内的训练（含动作与组），按日期降序排列
+     * （Today「本周概览」与 Stats 区间聚合取数；聚合在 Kotlin 端完成）。
+     * 使用 @Transaction 注解确保查询和关联数据的原子性。
+     *
+     * @param from 起始日期（含）
+     * @param to 结束日期（含）
+     */
+    @Transaction
+    @Query("SELECT * FROM workouts WHERE date BETWEEN :from AND :to ORDER BY date DESC")
+    fun getByDateRangeWithDetails(from: LocalDate, to: LocalDate): Flow<List<WorkoutWithExerciseLogs>>
 }
