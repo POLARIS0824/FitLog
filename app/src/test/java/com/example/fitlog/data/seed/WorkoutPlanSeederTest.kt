@@ -73,7 +73,7 @@ class WorkoutPlanSeederTest {
         val version = dataStore.data
             .map { it[intPreferencesKey("plan_seed_version")] ?: 0 }
             .first()
-        assertEquals(1, version)
+        assertEquals(2, version)
     }
 
     /**
@@ -82,8 +82,8 @@ class WorkoutPlanSeederTest {
     @Test
     fun testSeed_skippedWhenVersionUpToDate() = runTest {
         val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("seeder_prefs2.preferences_pb"))
-        // 预置版本号为当前 SEED_VERSION（1）
-        dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 1 }
+        // 预置版本号为当前 SEED_VERSION（2）
+        dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 2 }
         val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
 
         seeder.seedIfNeeded()
@@ -103,6 +103,40 @@ class WorkoutPlanSeederTest {
         seeder.seedIfNeeded()
 
         assertEquals(0, db.workoutPlanDao().getAllPlans().size)
+    }
+
+    /**
+     * 测试整体跳过（一套都没写入）时不标记 seed 版本号，
+     * 下次启动（动作库就绪后）可自动重试——修复"未写入也标记版本"缺陷。
+     */
+    @Test
+    fun testSeed_doesNotMarkVersionWhenNothingWritten() = runTest {
+        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("seeder_prefs4.preferences_pb"))
+        // 动作库为空 → 全部跳过
+        val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
+
+        seeder.seedIfNeeded()
+
+        val version = dataStore.data
+            .map { it[intPreferencesKey("plan_seed_version")] ?: 0 }
+            .first()
+        assertEquals(0, version)
+    }
+
+    /**
+     * 测试已被错误置位旧版本号（v1，计划实际为空）的安装会重新执行导入。
+     */
+    @Test
+    fun testSeed_reSeedsWhenV1FlaggedButPlansMissing() = runTest {
+        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("seeder_prefs5.preferences_pb"))
+        // 模拟被旧缺陷污染的安装：v1 已标记但计划表为空
+        dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 1 }
+        insertPresetReferencedExercises()
+        val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
+
+        seeder.seedIfNeeded()
+
+        assertEquals(PresetPlans.all().size, db.workoutPlanDao().getAllPlans().size)
     }
 
     /**

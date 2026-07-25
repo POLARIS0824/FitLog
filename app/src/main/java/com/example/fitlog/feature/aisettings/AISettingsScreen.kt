@@ -20,30 +20,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Snackbar
-import kotlinx.coroutines.delay
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -59,8 +48,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -69,7 +56,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -102,13 +88,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ProviderType
 import com.example.fitlog.ui.components.SectionLabel
-import com.example.fitlog.ui.components.SettingsCard
+import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.components.StackedSnackbarHost
 import com.example.fitlog.ui.components.SubpageIndicator
 import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.collect
 
 /**
  * 1. 容器层 (Stateful)
@@ -625,7 +610,7 @@ private fun CredentialsCard(
     onApiKeyChange: (String) -> Unit,
     onToggleApiKeyVisibility: () -> Unit,
 ) {
-    SettingsCard {
+    FitLogCard {
         Text(spec.keyLabel, style = MaterialTheme.typography.titleMedium)
         if (spec.helpUrl.isNotEmpty()) {
             HelpLink(url = spec.helpUrl)
@@ -725,7 +710,7 @@ private fun ModelCard(
     onModelChange: (String) -> Unit,
     onFetchModels: () -> Unit,
 ) {
-    SettingsCard {
+    FitLogCard {
         Text("模型选择", style = MaterialTheme.typography.titleMedium)
         Text(
             "为 ${spec.displayName} 选择模型，或手动输入",
@@ -813,7 +798,7 @@ private fun TestCard(
     formReady: Boolean,
     onTest: () -> Unit,
 ) {
-    SettingsCard {
+    FitLogCard {
         Text("连接测试", style = MaterialTheme.typography.titleMedium)
         Text(
             "用当前配置发一条测试消息",

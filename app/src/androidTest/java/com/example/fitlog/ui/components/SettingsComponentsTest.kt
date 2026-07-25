@@ -12,7 +12,7 @@ import org.junit.runner.RunWith
 /**
  * 设置页通用 UI 组件的 Compose 仪器化测试。
  *
- * 验证 [SectionLabel] 与 [SettingsCard] 的基本渲染契约。
+ * 验证 [SectionLabel] 与 [FitLogCard] 的基本渲染契约。
  */
 @RunWith(AndroidJUnit4::class)
 class SettingsComponentsTest {
@@ -41,7 +41,7 @@ class SettingsComponentsTest {
     @Test
     fun settingsCard_displaysSlotContent() {
         composeRule.setContent {
-            SettingsCard {
+            FitLogCard {
                 Text("卡片第一行")
                 Text("卡片第二行")
             }

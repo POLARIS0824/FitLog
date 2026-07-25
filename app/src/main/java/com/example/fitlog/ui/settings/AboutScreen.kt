@@ -45,7 +45,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.BuildConfig
 import com.example.fitlog.ui.components.SectionLabel
-import com.example.fitlog.ui.components.SettingsCard
+import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.components.TonalIcon
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
@@ -203,7 +203,7 @@ fun AboutScreen(
             }
 
             SectionLabel("应用")
-            SettingsCard {
+            FitLogCard {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -229,7 +229,7 @@ fun AboutScreen(
             }
 
             SectionLabel("链接")
-            SettingsCard {
+            FitLogCard {
                 Text(
                     text = "GitHub 仓库",
                     style = MaterialTheme.typography.titleMedium,

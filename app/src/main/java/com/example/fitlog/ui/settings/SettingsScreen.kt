@@ -52,7 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.fitlog.ui.components.SettingsCard
+import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.components.TonalIcon
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
@@ -236,7 +236,7 @@ fun SettingsScreen(
             }
 
             // 分组 1：账号与偏好
-            SettingsCard(
+            FitLogCard(
                 contentPadding = PaddingValues(0.dp),
                 verticalArrangement = Arrangement.Top,
             ) {
@@ -261,7 +261,7 @@ fun SettingsScreen(
             }
 
             // 分组 2：智能引擎
-            SettingsCard(
+            FitLogCard(
                 contentPadding = PaddingValues(0.dp),
                 verticalArrangement = Arrangement.Top,
             ) {
@@ -275,7 +275,7 @@ fun SettingsScreen(
             }
 
             // 分组 3：数据与通知
-            SettingsCard(
+            FitLogCard(
                 contentPadding = PaddingValues(0.dp),
                 verticalArrangement = Arrangement.Top,
             ) {
@@ -300,7 +300,7 @@ fun SettingsScreen(
             }
 
             // 分组 4：系统与关于
-            SettingsCard(
+            FitLogCard(
                 contentPadding = PaddingValues(0.dp),
                 verticalArrangement = Arrangement.Top,
             ) {

@@ -6,10 +6,12 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.fitlog.data.local.AppDatabase
+import com.example.fitlog.data.local.entity.ExerciseEntity
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.data.repository.UserPreferencesRepository
 import com.example.fitlog.data.seed.ExerciseSeeder
 import com.example.fitlog.data.seed.WorkoutPlanSeeder
+import com.example.fitlog.model.Muscle
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -34,7 +37,8 @@ import org.robolectric.RobolectricTestRunner
  * 且偏好修改会驱动 Pair 更新（供 FitLogTheme 响应式应用主题）。
  *
  * 使用 Robolectric 提供 Context 以构造 [ExerciseSeeder]；
- * 预置 seed 版本号使种子导入短路返回，避免测试触碰资源与数据库写入。
+ * 预置 seed 版本号 + 一条动作记录使种子导入短路返回，
+ * 避免每个测试真实解析 1.33MB exercises.json 并重灌全库。
  */
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -58,13 +62,23 @@ class MainViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val context = ApplicationProvider.getApplicationContext<Context>()
         val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("main_prefs.preferences_pb"))
-        // 预置 seed 版本号，使 ExerciseSeeder/WorkoutPlanSeeder.seedIfNeeded() 立即返回
+        // 预置 seed 版本号：ExerciseSeeder 短路还需动作表非空（下方插入一条）；
+        // WorkoutPlanSeeder 仅需版本号 ≥ SEED_VERSION(2)
         dataStore.edit { it[intPreferencesKey("exercise_seed_version")] = 1 }
-        dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 1 }
+        dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 2 }
         preferencesRepository = UserPreferencesRepository(dataStore)
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
+        db.exerciseDao().insertAll(
+            listOf(
+                ExerciseEntity(
+                    id = "barbell-bench-press",
+                    name = "Barbell bench press",
+                    primaryMuscles = listOf(Muscle.CHEST),
+                ),
+            ),
+        )
         val exerciseSeeder = ExerciseSeeder(db.exerciseDao(), dataStore, context)
         val planSeeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
         viewModel = MainViewModel(preferencesRepository, exerciseSeeder, planSeeder)
@@ -98,5 +112,16 @@ class MainViewModelTest {
 
         val state = viewModel.appearance.first { it.first == ThemeMode.LIGHT }
         assertEquals(ThemeMode.LIGHT to true, state)
+    }
+
+    /**
+     * 测试首帧放行条件：外观加载 + 种子完成后 isReady 置位。
+     *
+     * 注意：seeder 内部 `withContext(Dispatchers.IO)` 不受测试调度器控制，
+     * 因此用 `first { it }` 挂起等待终态，而非断言中间态。
+     */
+    @Test
+    fun testIsReady_becomesTrueAfterSeedAndAppearance() = runTest {
+        assertTrue(viewModel.isReady.first { it })
     }
 }

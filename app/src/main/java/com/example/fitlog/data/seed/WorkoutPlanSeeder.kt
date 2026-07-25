@@ -36,6 +36,9 @@ class WorkoutPlanSeeder @Inject constructor(
      *
      * 如果当前 seed 版本已是最新，则跳过；
      * 预置计划被用户删除后不会复活（版本门控），内容更新时递增版本号重灌。
+     *
+     * 注意：**仅在真正写入过计划后才标记版本**——动作库缺失导致整体跳过时
+     * 不标记，下次启动（动作库就绪后）可自动重试，避免版本号被错误置位后卡死。
      */
     suspend fun seedIfNeeded() = withContext(Dispatchers.IO) {
         val currentSeedVersion = dataStore.data
@@ -44,6 +47,7 @@ class WorkoutPlanSeeder @Inject constructor(
 
         if (currentSeedVersion >= SEED_VERSION) return@withContext
 
+        var seeded = false
         PresetPlans.all().forEach { plan ->
             val missingKeys = plan.sessions
                 .flatMap { it.exercises }
@@ -60,14 +64,22 @@ class WorkoutPlanSeeder @Inject constructor(
                 plan = plan.toEntity(),
                 sessions = plan.sessions.map { it.toEntity(plan.id) },
             )
+            seeded = true
         }
 
-        dataStore.edit { it[SEED_VERSION_KEY] = SEED_VERSION }
+        if (seeded) {
+            dataStore.edit { it[SEED_VERSION_KEY] = SEED_VERSION }
+        }
     }
 
     companion object {
-        /** 当前预置计划版本号，更新计划内容时递增。 */
-        private const val SEED_VERSION = 1
+        /**
+         * 当前预置计划版本号，更新计划内容时递增。
+         *
+         * v2：修复"未写入也标记版本"的缺陷；已被错误置位 v1（计划实际为空）的
+         * 安装会因此重新执行导入。
+         */
+        private const val SEED_VERSION = 2
         private const val TAG = "WorkoutPlanSeeder"
         private val SEED_VERSION_KEY = intPreferencesKey("plan_seed_version")
     }
