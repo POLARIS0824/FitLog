@@ -7,6 +7,7 @@ import com.example.fitlog.data.local.relation.ExerciseLogWithSets
 import com.example.fitlog.data.local.relation.WorkoutWithExerciseLogs
 import com.example.fitlog.model.ExerciseLog
 import com.example.fitlog.model.SetLog
+import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -158,5 +159,92 @@ class WorkoutMapperTest {
         assertEquals("累", entity.feelings)
         assertEquals("2026-05-20.md", entity.sourceFileName)
         assertEquals("raw", entity.rawContent)
+    }
+
+    // ── startedAt / endedAt ──
+
+    /**
+     * 测试训练开始/结束时间在 Entity → Model（扁平与级联）与 Model → Entity 三个方向完整透传。
+     */
+    @Test
+    fun testStartedAtEndedAt_passThroughBothDirections() {
+        val entity = WorkoutEntity(
+            id = 5L,
+            date = date,
+            feelings = null,
+            startedAt = 1_777_000_000_000L,
+            endedAt = 1_777_003_600_000L,
+            sourceFileName = null,
+            rawContent = null,
+        )
+
+        val flat = entity.toModel()
+        assertEquals(1_777_000_000_000L, flat.startedAt)
+        assertEquals(1_777_003_600_000L, flat.endedAt)
+
+        val relation = WorkoutWithExerciseLogs(workout = entity, exerciseLogs = emptyList())
+        val cascaded = relation.toModel()
+        assertEquals(1_777_000_000_000L, cascaded.startedAt)
+        assertEquals(1_777_003_600_000L, cascaded.endedAt)
+
+        val backToEntity = flat.toEntity()
+        assertEquals(1_777_000_000_000L, backToEntity.startedAt)
+        assertEquals(1_777_003_600_000L, backToEntity.endedAt)
+    }
+
+    // ── setType ──
+
+    /**
+     * 测试组类型枚举名双向映射："WARMUP" ↔ [SetType.WARMUP]。
+     */
+    @Test
+    fun testSetType_mapsBothDirections() {
+        val relation = ExerciseLogWithSets(
+            exerciseLog = ExerciseLogEntity(
+                id = 100L,
+                workoutId = 10L,
+                exerciseKey = null,
+                name = "杠铃卧推",
+                sortOrder = 1,
+            ),
+            sets = listOf(
+                SetLogEntity(id = 1L, exerciseLogId = 100L, setNumber = 1, weightKg = 40f, reps = 12, setType = "WARMUP"),
+                SetLogEntity(id = 2L, exerciseLogId = 100L, setNumber = 2, weightKg = 80f, reps = 10),
+            ),
+        )
+
+        val model = relation.toModel()
+        assertEquals(SetType.WARMUP, model.sets[0].setType)
+        assertEquals(SetType.WORKING, model.sets[1].setType)
+
+        val warmupEntity = SetLog(weightKg = 40f, reps = 12, setType = SetType.WARMUP)
+            .toEntity(exerciseLogId = 100L, setNumber = 1)
+        assertEquals("WARMUP", warmupEntity.setType)
+
+        val workingEntity = SetLog(weightKg = 80f, reps = 10)
+            .toEntity(exerciseLogId = 100L, setNumber = 2)
+        assertEquals("WORKING", workingEntity.setType)
+    }
+
+    /**
+     * 测试库中非法组类型字符串按正式组容错（不崩溃）。
+     */
+    @Test
+    fun testSetType_invalidStringFallsBackToWorking() {
+        val relation = ExerciseLogWithSets(
+            exerciseLog = ExerciseLogEntity(
+                id = 100L,
+                workoutId = 10L,
+                exerciseKey = null,
+                name = "杠铃卧推",
+                sortOrder = 1,
+            ),
+            sets = listOf(
+                SetLogEntity(id = 1L, exerciseLogId = 100L, setNumber = 1, weightKg = 80f, reps = 10, setType = "DROP"),
+            ),
+        )
+
+        val model = relation.toModel()
+        assertEquals(SetType.WORKING, model.sets[0].setType)
     }
 }

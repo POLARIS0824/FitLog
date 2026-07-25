@@ -37,13 +37,15 @@ Keep package boundaries clean for potential future modularization.
 - Screen Use xxxRoute & xxxScreen pattern.
 
 ## Database
-********
+
 - `user_profiles`: User profile info.
-- `workouts` -> `exercise_logs` -> `set_logs`: 3-level workout log hierarchy (1:N:N) in `entity/workout/`.
-- `workout_plans` -> `planned_sessions` -> `planned_exercises`: 3-level plan hierarchy (1:N:N) in `entity/plan/`.
-- `exercises`: Exercise library (kebab-case IDs e.g. `barbell-bench-press`).
+- `workouts` -> `exercise_logs` -> `set_logs`: 3-level workout log hierarchy (1:N:N) in `entity/workout/`. Workouts carry optional `startedAt`/`endedAt` (epoch millis); sets carry `setType` (WARMUP/WORKING).
+- `workout_plans` -> `planned_sessions`: 2-level plan hierarchy (1:N) in `entity/plan/`; exercise list embedded as JSON column (`PlannedExerciseItem`).
+- `exercises`: Exercise library (kebab-case IDs e.g. `barbell-bench-press`), seeded from `res/raw/exercises.json` via `ExerciseSeeder`.
+- `body_metrics`: Daily body metrics (`date` as PK for per-day upsert; weight only for now).
 - `ai_provider_configs`: AI provider settings (AES-GCM encrypted API key).
-- DataStore: `active_ai_provider_id` for dynamic engine switching.
+- Preset plans seeded via `WorkoutPlanSeeder` (must run after `ExerciseSeeder`).
+- DataStore: `active_ai_provider_id` for dynamic engine switching; `active_plan_id` for the active workout plan; `*_seed_version` keys gate seeders; theme/reminder prefs in `UserPreferencesRepository`.
 - Multi-level queries use `@Relation` + `@Transaction`.
 
 ## Code Style & Guidelines

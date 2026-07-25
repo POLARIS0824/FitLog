@@ -52,7 +52,8 @@ class WorkoutViewModelTest {
         repository = WorkoutRepository(
             workoutDao = db.workoutDao(),
             exerciseLogDao = db.exerciseLogDao(),
-            setLogDao = db.setLogDao()
+            setLogDao = db.setLogDao(),
+            db = db,
         )
 
         viewModel = WorkoutViewModel(repository)
