@@ -147,9 +147,15 @@ fun TodayScreen(
         },
     ) { innerPadding ->
         if (uiState.uiState.isLoading) {
-            // 加载占位：内容区留空，仅保留 Scaffold 底色 + TopBar，
+            // 加载占位：顶部加载条（同 AISettings 的 isLoading 呈现），
             // 杜绝 initialValue 的默认值被当作真实空数据渲染（"Hello" 假问候等）
-            Box(modifier = Modifier.padding(innerPadding).fillMaxSize())
+            Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter),
+                )
+            }
         } else {
             Column(
                 modifier = Modifier

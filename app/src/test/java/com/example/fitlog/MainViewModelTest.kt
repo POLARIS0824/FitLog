@@ -10,6 +10,7 @@ import com.example.fitlog.data.local.entity.ExerciseEntity
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.data.repository.UserPreferencesRepository
 import com.example.fitlog.data.seed.ExerciseSeeder
+import com.example.fitlog.data.seed.SeedOrchestrator
 import com.example.fitlog.data.seed.WorkoutPlanSeeder
 import com.example.fitlog.model.Muscle
 import com.example.fitlog.testing.createTestPreferencesDataStore
@@ -81,7 +82,7 @@ class MainViewModelTest {
         )
         val exerciseSeeder = ExerciseSeeder(db.exerciseDao(), dataStore, context)
         val planSeeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
-        viewModel = MainViewModel(preferencesRepository, exerciseSeeder, planSeeder)
+        viewModel = MainViewModel(preferencesRepository, SeedOrchestrator(exerciseSeeder, planSeeder))
     }
 
     /**
@@ -115,13 +116,11 @@ class MainViewModelTest {
     }
 
     /**
-     * 测试首帧放行条件：外观加载 + 种子完成后 isReady 置位。
-     *
-     * 注意：seeder 内部 `withContext(Dispatchers.IO)` 不受测试调度器控制，
-     * 因此用 `first { it }` 挂起等待终态，而非断言中间态。
+     * 测试首帧放行条件：外观偏好加载后 isReady 置位。
+     * （种子不再阻塞 Splash——isReady 只等外观，见 MainViewModel KDoc。）
      */
     @Test
-    fun testIsReady_becomesTrueAfterSeedAndAppearance() = runTest {
+    fun testIsReady_becomesTrueAfterAppearance() = runTest {
         assertTrue(viewModel.isReady.first { it })
     }
 }

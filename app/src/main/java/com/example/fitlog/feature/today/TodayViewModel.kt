@@ -6,6 +6,7 @@ import com.example.fitlog.data.repository.ExerciseRepository
 import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.data.repository.WorkoutPlanRepository
 import com.example.fitlog.data.repository.WorkoutRepository
+import com.example.fitlog.data.seed.SeedOrchestrator
 import com.example.fitlog.model.Exercise
 import com.example.fitlog.model.PlannedSession
 import com.example.fitlog.model.Workout
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -49,6 +51,10 @@ import javax.inject.Inject
  * 消除"默认值占位 → 真实值"的多段跳变；加载失败经 `catch` 降级（匿名 / 空目录），
  * 不拖垮整条链（否则 uiState 永远停在 isLoading 的 initialValue）。
  *
+ * 另有一道**种子门**：[SeedOrchestrator.completed] 未置位前 uiState 不首发
+ * （停留在加载占位）——Splash 只等外观偏好即放行，首装/升级的种子耗时由
+ * 本页加载条承接，避免种子在收集期间写库导致内容中途翻转。
+ *
  * ## 注意
  *
  * - 动作库由种子填充、基本静态，自定义动作新增后 Today 不实时刷新（v1 取舍）。
@@ -62,6 +68,7 @@ class TodayViewModel @Inject constructor(
     private val workoutPlanRepository: WorkoutPlanRepository,
     private val userProfileRepository: UserProfileRepository,
     private val exerciseRepository: ExerciseRepository,
+    private val seedOrchestrator: SeedOrchestrator,
 ) : ViewModel() {
 
     // ── 本地 UI 事件态 ──
@@ -145,6 +152,9 @@ class TodayViewModel @Inject constructor(
         val catalog: List<Exercise>,
     )
 
+    /** 种子门：种子完成前不发射（只放行一次 true，之后恒透传）。 */
+    private val seedGate: Flow<Boolean> = seedOrchestrator.completed.filter { it }
+
     /** 页面 UI 状态流，由数据层 Flow 与本地事件 Flow 组合而成。 */
     val uiState: StateFlow<TodayUiState> = combine(
         weekWorkouts, todayWorkouts, modeHistory, activePlan, nextSession, ::TodaySnapshot,
@@ -162,6 +172,8 @@ class TodayViewModel @Inject constructor(
         )
     }.combine(uiFlow) { state, ui ->
         state.copy(uiState = ui)
+    }.combine(seedGate) { state, _ ->
+        state
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
