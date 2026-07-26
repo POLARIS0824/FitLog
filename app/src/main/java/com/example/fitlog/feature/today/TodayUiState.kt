@@ -46,6 +46,7 @@ data class ProgressItemState(
     val title: String,        // 例如 "Push (推)", "上肢肌群", "周总容量", "Strength"
     val subtitle: String,     // 例如 "1 session", "24 组", "18.5 吨", "2 sessions"
     val badgeIconType: String? = null, // 可选图标类型
+    val progress: Float? = null,      // 可选填充进度 (0.0f ~ 1.0f)
 )
 
 /** 今日训练计划 */

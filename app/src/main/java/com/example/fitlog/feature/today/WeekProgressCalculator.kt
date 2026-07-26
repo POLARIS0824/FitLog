@@ -64,10 +64,12 @@ object WeekProgressCalculator {
             )
         }
         val weekWorkoutIds = weekWorkouts.map { it.id }.toSet()
+        val progress = (weekWorkouts.size.toFloat() / activePlan.sessionsPerWeek.coerceAtLeast(1)).coerceIn(0f, 1f)
         val head = ProgressItemState(
             id = "week-total",
             title = "本周训练",
             subtitle = "${weekWorkouts.size}/${activePlan.sessionsPerWeek} 次",
+            progress = progress,
         )
         val splits = activePlan.sessions
             .distinctBy { it.name }

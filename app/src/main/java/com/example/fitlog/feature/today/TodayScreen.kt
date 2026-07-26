@@ -651,11 +651,13 @@ private fun WeekProgressDashboard(weekProgress: WeekProgressState) {
     MetricDashboardGrid(
         largeCardLeft = { gridModifier ->
             val head = items[0]
+            val defaultProgress = (weekProgress.completedWorkouts.toFloat() / weekProgress.targetWorkouts.coerceAtLeast(1)).coerceIn(0f, 1f)
             LargeMetricCard(
                 title = head.title,
                 value = head.subtitle,
                 subtitle = weekProgress.statusText,
                 icon = Icons.Default.FitnessCenter,
+                progress = head.progress ?: defaultProgress,
                 modifier = gridModifier,
             )
         },
