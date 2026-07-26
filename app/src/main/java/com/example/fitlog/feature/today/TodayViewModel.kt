@@ -40,7 +40,7 @@ import javax.inject.Inject
  *
  * 页面状态由数据层 Flow（Room/DataStore 响应式）与本地 UI 事件 Flow 组合而成：
  * 五元 `combine` 出数据快照（含 [ModeHistory] 原子对），
- * 再与三元 extras（latestWorkout / profile / catalog）汇合，
+ * 再与四元 extras（prevWeekWorkouts / latestWorkout / profile / catalog）汇合，
  * 最终调用三个纯函数（[CoachInsightBuilder]、[WeekProgressCalculator]、[TodayPlanAssembler]）
  * 组装 [TodayUiState]，自身不含业务计算。
  *
@@ -92,6 +92,7 @@ class TodayViewModel @Inject constructor(
     private val weekStart: LocalDate = today.with(DayOfWeek.MONDAY)
 
     private val weekWorkouts = workoutRepository.getByDateRange(weekStart, today)
+    private val prevWeekWorkouts = workoutRepository.getByDateRange(weekStart.minusDays(7), weekStart.minusDays(1))
     private val todayWorkouts = workoutRepository.getByDate(today)
     private val latestWorkout = workoutRepository.getLatest()
     private val activePlan = workoutPlanRepository.activePlan
@@ -116,9 +117,10 @@ class TodayViewModel @Inject constructor(
         val nextSession: PlannedSession?,
     )
 
-    /** 快照之外的补充材料：最近训练 + 一次性加载的资料与目录。 */
+    /** 快照之外的补充材料：最近训练 + 上周记录（环比基线）+ 一次性加载的资料与目录。 */
     private data class TodayExtras(
         val latestWorkout: Workout?,
+        val prevWeekWorkouts: List<Workout>,
         val profile: UserProfile?,
         val catalog: List<Exercise>,
     )
@@ -126,6 +128,7 @@ class TodayViewModel @Inject constructor(
     /** combine 链的中间态：组装 [TodayUiState] 的全部材料。 */
     private data class TodayMaterials(
         val snapshot: TodaySnapshot,
+        val prevWeekWorkouts: List<Workout>,
         val latestWorkout: Workout?,
         val displayMode: WeekProgressDisplayMode,
         val profile: UserProfile?,
@@ -139,10 +142,11 @@ class TodayViewModel @Inject constructor(
     val uiState: StateFlow<TodayUiState> = combine(
         weekWorkouts, todayWorkouts, allWorkouts, activePlan, nextSession, ::TodaySnapshot,
     ).combine(
-        combine(latestWorkout, profileFlow, catalogFlow, ::TodayExtras),
+        combine(latestWorkout, prevWeekWorkouts, profileFlow, catalogFlow, ::TodayExtras),
     ) { snapshot, extras ->
         TodayMaterials(
             snapshot = snapshot,
+            prevWeekWorkouts = extras.prevWeekWorkouts,
             latestWorkout = extras.latestWorkout,
             displayMode = displayMode.value,
             profile = extras.profile,
@@ -209,8 +213,12 @@ class TodayViewModel @Inject constructor(
             WeekProgressCalculator.calculate(
                 mode = mode,
                 weekWorkouts = snapshot.weekWorkouts,
+                prevWeekWorkouts = materials.prevWeekWorkouts,
                 allWorkouts = snapshot.allWorkouts,
                 activePlan = snapshot.activePlan,
+                nextSession = snapshot.nextSession,
+                latestWorkout = materials.latestWorkout,
+                targetWorkouts = weekTarget,
                 catalog = materials.catalog,
                 weekStart = weekStart,
             )

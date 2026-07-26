@@ -1,5 +1,7 @@
 package com.example.fitlog.feature.today
 
+import com.example.fitlog.ui.components.RingSegment
+
 data class TodayUiState(
     val coachInsight: CoachInsightState,
     val weekProgress: WeekProgressState,
@@ -23,10 +25,11 @@ data class WeekProgressState(
     val targetWorkouts: Int = 4,
     /** 当前选中的展示模式，默认为力量分化日 */
     val displayMode: WeekProgressDisplayMode = WeekProgressDisplayMode.SPLIT,
-    /** 根据 displayMode 动态计算生成的渲染项列表 */
+    /** 当前模式的渲染项列表（固定 4 个：1 大 + 3 小） */
     val items: List<ProgressItemState> = emptyList(),
     /** 预先计算好的全部模式渲染项，供 HorizontalPager 滑动时实现 0ms 零延迟极速切换 */
     val itemsMap: Map<WeekProgressDisplayMode, List<ProgressItemState>> = emptyMap(),
+    /** 状态文案；现仅作旧契约（head 无 valueText）时大卡副标题的兜底 */
     val statusText: String = "Great job!",
 )
 
@@ -38,15 +41,24 @@ enum class WeekProgressDisplayMode(val label: String) {
 }
 
 /**
- * 统一渲染项模型（通用抽象模型）
+ * 统一渲染项模型（通用抽象模型）。
+ *
+ * 契约：每个模式固定输出 4 个渲染项——items[0] 进左侧大卡
+ * （title=标题、valueText=主数值、subtitle=副标题、progress=水波进度、
+ * ringSegments=环形图分段）；items[1..3] 进右侧小卡（title=标题、subtitle=数值行）。
+ * 占位卡是显式 item（如 value="即将上线"），不留空槽。
  * 无论切换到什么模式，UI 只需要循环渲染这个 List，无需写死字段！
  */
 data class ProgressItemState(
     val id: String,
-    val title: String,        // 例如 "Push (推)", "上肢肌群", "周总容量", "Strength"
-    val subtitle: String,     // 例如 "1 session", "24 组", "18.5 吨", "2 sessions"
+    val title: String,        // 例如 "本周训练", "重点肌群", "PR", "力量训练"
+    val subtitle: String,     // 大卡为副标题（如 "目标 4 次"），小卡为数值行（如 "胸部 · 12 组"）
     val badgeIconType: String? = null, // 可选图标类型
-    val progress: Float? = null,      // 可选填充进度 (0.0f ~ 1.0f)
+    val progress: Float? = null,      // 大卡可选填充进度 (0.0f ~ 1.0f)
+    /** 大卡主数值（仅 items[0] 使用；为 null 时大卡沿用 subtitle 作数值，兼容旧契约） */
+    val valueText: String? = null,
+    /** 大卡环形图分段（仅 items[0]；非空时大卡渲染环形图替代水波进度） */
+    val ringSegments: List<RingSegment>? = null,
 )
 
 /** 今日训练计划 */
