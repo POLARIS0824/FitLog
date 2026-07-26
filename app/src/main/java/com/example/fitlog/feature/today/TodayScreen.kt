@@ -173,7 +173,6 @@ fun TodayScreen(
                     onStartWorkoutClick = onNavigateToWorkout,
                 )
 
-                SectionLabel("本周进度")
                 WeekProgressSection(
                     weekProgress = uiState.weekProgress,
                     onDisplayModeSelected = onDisplayModeSelected,
@@ -566,6 +565,7 @@ private fun CoachInsightCard(
 private fun WeekProgressSection(
     weekProgress: WeekProgressState,
     onDisplayModeSelected: (WeekProgressDisplayMode) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val modes = WeekProgressDisplayMode.entries
     val initialPage = remember { modes.indexOf(weekProgress.displayMode).coerceAtLeast(0) }
@@ -584,7 +584,14 @@ private fun WeekProgressSection(
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val currentMode = modes[pagerState.currentPage]
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        SectionLabel(currentMode.label)
+
         // 卡片横向滑动 Pager（使用预计算好的 itemsMap，让每一页数据即刻就位，滑动无延迟）
         HorizontalPager(
             state = pagerState,
@@ -678,6 +685,8 @@ private fun SmallMetricCardSlot(
         icon = icon,
         containerColor = colors.first,
         contentColor = colors.second,
+        badgeContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        badgeContentColor = colors.second,
         modifier = modifier,
     )
 }
