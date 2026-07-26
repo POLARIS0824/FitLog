@@ -42,16 +42,38 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fitlog.ui.theme.FitLogTheme
+import kotlin.math.min
 import kotlin.math.sin
+
+/**
+ * 环形图分段 UI 模型（纯 Kotlin，不含 Compose 类型，可安全放入 UiState）。
+ *
+ * @property label 图例标签（如 "力量"）
+ * @property fraction 占比（0.0f ~ 1.0f）；≤ 0 时分段不绘制但图例仍保留
+ * @property colorKey 语义色键（"strength" / "cardio" / "recovery"），由组件映射为主题色
+ * @property valueText 图例数值文本（如 "60%"、"—"）
+ */
+data class RingSegment(
+    val label: String,
+    val fraction: Float,
+    val colorKey: String,
+    val valueText: String,
+)
 
 /**
  * 大号指标卡片（如 Cardio load）：
@@ -66,6 +88,8 @@ import kotlin.math.sin
  * @param icon 矢量图标
  * @param progress 可选装水进度百分比（0.0f ~ 1.0f），为 null 时展示传统静态背景卡片
  * @param liquidColor 水流波浪颜色，为 null 时默认提取 [contentColor] 的适当透明度
+ * @param ringSegments 环形图分段；非空时进入环形图模式：忽略 [progress]/[liquidColor] 水波，
+ *     中部渲染环形图 + 标题数值，底部渲染分段图例
  * @param containerColor 卡片背景色，默认采用 MaterialTheme.colorScheme.primaryContainer 支持动态色彩
  * @param contentColor 内容文本与图标主要颜色，默认采用 MaterialTheme.colorScheme.onPrimaryContainer
  * @param badgeContainerColor 顶部胶囊图标背景色，默认采用 MaterialTheme.colorScheme.surface
@@ -81,6 +105,7 @@ fun LargeMetricCard(
     icon: ImageVector? = null,
     progress: Float? = null,
     liquidColor: Color? = null,
+    ringSegments: List<RingSegment>? = null,
     containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
     contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
     badgeContainerColor: Color = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -100,7 +125,7 @@ fun LargeMetricCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (progress != null) {
+            if (progress != null && ringSegments == null) {
                 val animatedProgress by animateFloatAsState(
                     targetValue = progress.coerceIn(0f, 1f),
                     animationSpec = tween(durationMillis = 800),
@@ -171,49 +196,217 @@ fun LargeMetricCard(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
-
-                // 底部文字内容
-                Column(
-                    modifier = Modifier.padding(start = 5.dp, bottom = 2.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp,
-                        ),
-                        color = contentColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = value,
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 28.sp,
-                        ),
-                        color = contentColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (!subtitle.isNullOrEmpty()) {
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 13.sp,
-                            ),
-                            color = contentColor.copy(alpha = 0.8f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                if (ringSegments != null) {
+                    // 环形图模式：中部环形图 + 标题数值，底部分段图例
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        MetricRingChart(
+                            segments = ringSegments,
+                            contentColor = contentColor,
+                            modifier = Modifier.size(84.dp),
+                        )
+                        LargeMetricCardTexts(
+                            title = title,
+                            value = value,
+                            subtitle = subtitle,
+                            contentColor = contentColor,
                         )
                     }
+                    RingChartLegend(
+                        segments = ringSegments,
+                        contentColor = contentColor,
+                        modifier = Modifier.padding(start = 5.dp),
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // 底部文字内容
+                    LargeMetricCardTexts(
+                        title = title,
+                        value = value,
+                        subtitle = subtitle,
+                        contentColor = contentColor,
+                        modifier = Modifier.padding(start = 5.dp, bottom = 2.dp),
+                    )
                 }
             }
         }
     }
+}
+
+/** 大卡文字块：标题 + 主数值 + 可选副标题（水波/环形两种模式共用同一套字级样式）。 */
+@Composable
+private fun LargeMetricCardTexts(
+    title: String,
+    value: String,
+    subtitle: String?,
+    contentColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                lineHeight = 18.sp,
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+            ),
+            color = contentColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineLarge.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 34.sp,
+                lineHeight = 38.sp,
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+            ),
+            color = contentColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (!subtitle.isNullOrEmpty()) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    lineHeight = 16.sp,
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                ),
+                color = contentColor.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * 环形占比图：中性轨道圆环 + 按 [RingSegment.fraction] 划分的彩色分段弧。
+ * 分段自正上方（-90°）起顺时针排布，多段之间留 3° 间隔；
+ * 首次进入时带 800ms 顺时针扫入动画（与水波动画时长一致）。
+ *
+ * @param segments 分段列表（fraction ≤ 0 的分段不绘制）
+ * @param contentColor 卡片内容色，用于推导轨道色
+ * @param modifier 修饰符
+ * @param strokeWidth 圆环描边宽度
+ */
+@Composable
+private fun MetricRingChart(
+    segments: List<RingSegment>,
+    contentColor: Color,
+    modifier: Modifier = Modifier,
+    strokeWidth: Dp = 12.dp,
+) {
+    // 颜色解析须在 Canvas 绘制作用域之外完成（draw lambda 非 Composable）
+    val resolved = segments.map { it to ringSegmentColor(it.colorKey) }
+    val trackColor = contentColor.copy(alpha = 0.10f)
+    val animatedSweep by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(durationMillis = 800),
+        label = "ringSweep",
+    )
+
+    Canvas(modifier = modifier) {
+        val stroke = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Butt)
+        val diameter = min(size.width, size.height) - stroke.width
+        if (diameter <= 0f) return@Canvas
+        val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
+        val arcSize = Size(diameter, diameter)
+
+        // 中性轨道底环
+        drawArc(
+            color = trackColor,
+            startAngle = 0f,
+            sweepAngle = 360f,
+            useCenter = false,
+            topLeft = topLeft,
+            size = arcSize,
+            style = stroke,
+        )
+
+        // 分段弧：随 animatedSweep 从 0 顺时针扫入
+        val visible = resolved.filter { it.first.fraction > 0f }
+        val gapDegrees = if (visible.size > 1) 3f else 0f
+        var startAngle = -90f
+        visible.forEach { (segment, color) ->
+            val span = segment.fraction * 360f * animatedSweep
+            val sweep = (span - gapDegrees).coerceAtLeast(0f)
+            if (sweep > 0f) {
+                drawArc(
+                    color = color,
+                    startAngle = startAngle + gapDegrees / 2f,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = stroke,
+                )
+            }
+            startAngle += span
+        }
+    }
+}
+
+/**
+ * 环形图图例：色块 + "标签 数值" 横向排列，展示全部分段（含 0 占比的保留位）。
+ *
+ * @param segments 分段列表
+ * @param contentColor 卡片内容色（文本以其 0.8 透明度呈现）
+ * @param modifier 修饰符
+ */
+@Composable
+private fun RingChartLegend(
+    segments: List<RingSegment>,
+    contentColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        segments.forEach { segment ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(ringSegmentColor(segment.colorKey)),
+                )
+                Text(
+                    text = "${segment.label} ${segment.valueText}",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = contentColor.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/** [RingSegment.colorKey] → 主题色映射（M3 Expressive Dynamic Color 安全）。 */
+@Composable
+private fun ringSegmentColor(colorKey: String): Color = when (colorKey) {
+    "strength" -> MaterialTheme.colorScheme.primary
+    "cardio" -> MaterialTheme.colorScheme.tertiary
+    "recovery" -> MaterialTheme.colorScheme.outlineVariant
+    else -> MaterialTheme.colorScheme.secondary
 }
 
 /**
@@ -559,6 +752,35 @@ fun MetricDashboardDynamicColorPreview() {
                         modifier = modifier,
                     )
                 },
+            )
+        }
+    }
+}
+
+/**
+ * 大卡环形图模式（训练分布）Preview：力量/有氧双色分段 + 恢复保留位图例。
+ */
+@Preview(name = "Large Metric Card - Ring Chart", showBackground = true)
+@Composable
+fun LargeMetricCardRingPreview() {
+    FitLogTheme {
+        Surface(
+            modifier = Modifier.padding(16.dp),
+            color = MaterialTheme.colorScheme.background,
+        ) {
+            LargeMetricCard(
+                title = "训练分布",
+                value = "3 次",
+                subtitle = "力量 2 · 有氧 1",
+                icon = Icons.Default.Favorite,
+                ringSegments = listOf(
+                    RingSegment(label = "力量", fraction = 0.6f, colorKey = "strength", valueText = "60%"),
+                    RingSegment(label = "有氧", fraction = 0.3f, colorKey = "cardio", valueText = "30%"),
+                    RingSegment(label = "恢复", fraction = 0f, colorKey = "recovery", valueText = "—"),
+                ),
+                modifier = Modifier
+                    .width(200.dp)
+                    .height(220.dp),
             )
         }
     }

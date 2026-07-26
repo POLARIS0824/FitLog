@@ -624,9 +624,10 @@ private val smallCardIcons = listOf(
 )
 
 /**
- * 本周进度仪表盘：[WeekProgressState.items] 契约最多 4 个——
- * item[0] 进左侧大卡（value 放副标题数值，大卡底部落 statusText），
- * item[1..3] 进右侧小卡；不足 4 个时小卡槽位填占位。
+ * 本周进度仪表盘：[WeekProgressState.items] 契约固定 4 个——
+ * item[0] 进左侧大卡（title=标题、valueText=主数值、subtitle=副标题，
+ * progress 驱动水波，ringSegments 非空时渲染环形图），
+ * item[1..3] 进右侧小卡；不足 4 个时小卡槽位填占位（防御性兜底）。
  */
 @Composable
 private fun WeekProgressDashboard(weekProgress: WeekProgressState) {
@@ -651,13 +652,13 @@ private fun WeekProgressDashboard(weekProgress: WeekProgressState) {
     MetricDashboardGrid(
         largeCardLeft = { gridModifier ->
             val head = items[0]
-            val defaultProgress = (weekProgress.completedWorkouts.toFloat() / weekProgress.targetWorkouts.coerceAtLeast(1)).coerceIn(0f, 1f)
             LargeMetricCard(
                 title = head.title,
-                value = head.subtitle,
-                subtitle = weekProgress.statusText,
+                value = head.valueText ?: head.subtitle,
+                subtitle = if (head.valueText != null) head.subtitle else weekProgress.statusText,
                 icon = Icons.Default.FitnessCenter,
-                progress = head.progress ?: defaultProgress,
+                progress = head.progress,
+                ringSegments = head.ringSegments,
                 modifier = gridModifier,
             )
         },
@@ -868,10 +869,16 @@ private fun TodayScreenPreview() {
                     targetWorkouts = 3,
                     displayMode = WeekProgressDisplayMode.SPLIT,
                     items = listOf(
-                        ProgressItemState("week-total", "本周训练", "2/3 次"),
-                        ProgressItemState("s1", "推日 · 胸肩三头", "本周已练"),
-                        ProgressItemState("s2", "拉日 · 背二头", "本周已练"),
-                        ProgressItemState("s3", "腿日 · 股四头后侧链", "待训练"),
+                        ProgressItemState(
+                            id = "week-total",
+                            title = "本周训练",
+                            subtitle = "目标 3 次",
+                            progress = 2f / 3f,
+                            valueText = "2 次",
+                        ),
+                        ProgressItemState("next-session", "下一训练", "腿日 · 股四头后侧链"),
+                        ProgressItemState("last-session", "最近训练", "拉日 · 背二头"),
+                        ProgressItemState("supplement", "补剂摄入", "即将上线"),
                     ),
                     statusText = "继续加油！",
                 ),

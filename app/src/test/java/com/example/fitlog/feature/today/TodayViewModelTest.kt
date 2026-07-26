@@ -184,9 +184,11 @@ class TodayViewModelTest {
         }
         assertEquals("课 A · 下肢 + 推", state.todayPlan.title)
         assertEquals("plan-1", state.todayPlan.planId)
-        // SPLIT 模式：item[0] 固定为本周完成度，后续为各分化课
+        // SPLIT 模式：item[0] 为本周完成度大卡，item[1] 为下一训练课次
         assertEquals("本周训练", state.weekProgress.items[0].title)
-        assertTrue(state.weekProgress.items.any { it.title == "课 A · 下肢 + 推" })
+        assertTrue(
+            state.weekProgress.items.any { it.title == "下一训练" && it.subtitle == "课 A · 下肢 + 推" },
+        )
         assertTrue(state.coachInsight.isAvailable)
     }
 
@@ -254,8 +256,9 @@ class TodayViewModelTest {
         val state = viewModel.uiState.first {
             it.weekProgress.displayMode == WeekProgressDisplayMode.MUSCLE_SETS
         }
+        // 1 个正式组 → 重点肌群为胸部（ExerciseEntity bodyPart 默认 CHEST）
         assertTrue(
-            state.weekProgress.items.any { it.title == "胸部" && it.subtitle == "1 组" },
+            state.weekProgress.items.any { it.title == "重点肌群" && it.subtitle == "胸部 · 1 组" },
         )
     }
 
@@ -317,9 +320,48 @@ class TodayViewModelTest {
         val state = viewModel.uiState.first {
             it.weekProgress.displayMode == WeekProgressDisplayMode.VOLUME_PR
         }
+        // PR 卡展示该动作本周实际最佳正式组
         assertTrue(
-            state.weekProgress.items.any { it.subtitle.startsWith("新 PR") },
+            state.weekProgress.items.any { it.title == "PR" && it.subtitle.contains("90kg×10") },
         )
+    }
+
+    /**
+     * 测试上周区间接线：VOLUME_PR 大卡副标题环比上周容量。
+     *
+     * 夹具：7 天前（恒落在上周区间 [weekStart-7, weekStart-1]）卧推 80kg×10（800kg），
+     * 今日 100kg×10（1000kg）→ 环比 +25%，锁死 prevWeekWorkouts 确实被订阅。
+     */
+    @Test
+    fun testVolumePr_comparesWithPrevWeek() = runTest {
+        db.exerciseDao().insertAll(
+            listOf(
+                ExerciseEntity(
+                    id = "barbell-bench-press",
+                    name = "Barbell bench press",
+                    primaryMuscles = listOf(Muscle.CHEST),
+                ),
+            ),
+        )
+        val benchLog = { weight: Float ->
+            ExerciseLog(
+                name = "Barbell bench press",
+                exerciseKey = "barbell-bench-press",
+                sets = listOf(SetLog(weight, 10, SetType.WORKING)),
+            )
+        }
+        workoutRepository.insert(workout(date = today.minusDays(7), exercises = listOf(benchLog(80f))))
+        workoutRepository.insert(workout(date = today, exercises = listOf(benchLog(100f))))
+        val viewModel = createViewModel()
+        viewModel.uiState.first { !it.uiState.isLoading }
+
+        viewModel.onDisplayModeSelected(WeekProgressDisplayMode.VOLUME_PR)
+
+        val state = viewModel.uiState.first {
+            it.weekProgress.displayMode == WeekProgressDisplayMode.VOLUME_PR
+        }
+        assertEquals("训练容量", state.weekProgress.items[0].title)
+        assertTrue(state.weekProgress.items[0].subtitle.startsWith("较上周"))
     }
 
     // ── 辅助方法 ──
