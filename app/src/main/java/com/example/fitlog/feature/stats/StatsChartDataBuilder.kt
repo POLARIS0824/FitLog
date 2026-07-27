@@ -187,7 +187,7 @@ object StatsChartDataBuilder {
     }
 
     /** 头部摘要的容量格式化：≥1000kg 显示吨（一位小数），否则整数千克（沿用 WeekProgressCalculator 口径）。 */
-    private fun formatVolume(volumeKg: Double): String =
+    internal fun formatVolume(volumeKg: Double): String =
         if (volumeKg >= 1000) {
             "%.1f 吨".format(volumeKg / 1000)
         } else {
