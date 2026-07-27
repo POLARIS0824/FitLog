@@ -2,14 +2,20 @@ package com.example.fitlog.feature.today
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,8 +37,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Person
@@ -74,6 +83,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -89,6 +99,7 @@ import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.SmallMetricCard
 import com.example.fitlog.ui.components.TonalIcon
 import com.example.fitlog.ui.theme.FitLogTheme
+import kotlinx.coroutines.delay
 import java.time.LocalDate
 import kotlin.math.cos
 import kotlin.math.max
@@ -137,6 +148,9 @@ fun TodayScreen(
     onDisplayModeSelected: (WeekProgressDisplayMode) -> Unit,
     onPlanSelected: (String) -> Unit,
     onErrorShown: () -> Unit,
+    onLogClick: () -> Unit = onNavigateToWorkout,
+    onStartClick: () -> Unit = onNavigateToWorkout,
+    onEditClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
@@ -176,6 +190,9 @@ fun TodayScreen(
                 WeekProgressSection(
                     weekProgress = uiState.weekProgress,
                     onDisplayModeSelected = onDisplayModeSelected,
+                    onLogClick = onLogClick,
+                    onStartClick = onStartClick,
+                    onEditClick = onEditClick ?: { showPlanSheet = true },
                 )
 
                 SectionLabel("今日训练")
@@ -565,6 +582,9 @@ private fun CoachInsightCard(
 private fun WeekProgressSection(
     weekProgress: WeekProgressState,
     onDisplayModeSelected: (WeekProgressDisplayMode) -> Unit,
+    onLogClick: () -> Unit = {},
+    onStartClick: () -> Unit = {},
+    onEditClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val modes = WeekProgressDisplayMode.entries
@@ -613,6 +633,208 @@ private fun WeekProgressSection(
             pageCount = modes.size,
             currentPage = pagerState.currentPage,
         )
+
+        // 快捷操作按钮组：Log / Start / 编辑
+        MetricActionButtons(
+            onLogClick = onLogClick,
+            onStartClick = onStartClick,
+            onEditClick = onEditClick,
+        )
+    }
+}
+
+/**
+ * 仪表盘下方快捷操作按钮组：[+ Log]、[🏃 Start]、[✏️ 编辑]
+ * 支持点击与按住时细腻的弹性微膨胀及旁侧按钮微挤压 (compress) 物理动效。
+ *
+ * @param onLogClick 点击 Log 按钮回调
+ * @param onStartClick 点击 Start 按钮回调
+ * @param onEditClick 点击编辑按钮回调
+ */
+@Composable
+private fun MetricActionButtons(
+    onLogClick: () -> Unit,
+    onStartClick: () -> Unit,
+    onEditClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val logInteractionSource = remember { MutableInteractionSource() }
+    val isLogPressed by logInteractionSource.collectIsPressedAsState()
+
+    val startInteractionSource = remember { MutableInteractionSource() }
+    val isStartPressed by startInteractionSource.collectIsPressedAsState()
+
+    val editInteractionSource = remember { MutableInteractionSource() }
+    val isEditPressed by editInteractionSource.collectIsPressedAsState()
+
+    // 点击/按住状态延时维持 150ms，确保短促的轻点 (click) 也能完整触发微妙挤压动效
+    var isLogActive by remember { mutableStateOf(false) }
+    var isStartActive by remember { mutableStateOf(false) }
+    var isEditActive by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isLogPressed) {
+        if (isLogPressed) {
+            isLogActive = true
+            delay(150)
+            if (!isLogPressed) isLogActive = false
+        } else {
+            isLogActive = false
+        }
+    }
+
+    LaunchedEffect(isStartPressed) {
+        if (isStartPressed) {
+            isStartActive = true
+            delay(150)
+            if (!isStartPressed) isStartActive = false
+        } else {
+            isStartActive = false
+        }
+    }
+
+    LaunchedEffect(isEditPressed) {
+        if (isEditPressed) {
+            isEditActive = true
+            delay(150)
+            if (!isEditPressed) isEditActive = false
+        } else {
+            isEditActive = false
+        }
+    }
+
+    // 微型挤压比例（轻微变化，极致优雅）
+    val logWeightTarget = when {
+        isLogActive -> 1.08f
+        isStartActive -> 0.92f
+        isEditActive -> 0.96f
+        else -> 1.0f
+    }
+
+    val startWeightTarget = when {
+        isStartActive -> 1.08f
+        isLogActive -> 0.92f
+        isEditActive -> 0.96f
+        else -> 1.0f
+    }
+
+    val editWidthTarget = when {
+        isEditActive -> 48.dp
+        isLogActive || isStartActive -> 41.dp
+        else -> 44.dp
+    }
+
+    val springSpec = spring<Float>(
+        stiffness = Spring.StiffnessMedium,
+        dampingRatio = Spring.DampingRatioLowBouncy,
+    )
+
+    val dpSpringSpec = spring<Dp>(
+        stiffness = Spring.StiffnessMedium,
+        dampingRatio = Spring.DampingRatioLowBouncy,
+    )
+
+    val animatedLogWeight by animateFloatAsState(
+        targetValue = logWeightTarget,
+        animationSpec = springSpec,
+        label = "logWeight",
+    )
+
+    val animatedStartWeight by animateFloatAsState(
+        targetValue = startWeightTarget,
+        animationSpec = springSpec,
+        label = "startWeight",
+    )
+
+    val animatedEditWidth by animateDpAsState(
+        targetValue = editWidthTarget,
+        animationSpec = dpSpringSpec,
+        label = "editWidth",
+    )
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Log 按钮
+        Surface(
+            onClick = onLogClick,
+            interactionSource = logInteractionSource,
+            modifier = Modifier
+                .weight(animatedLogWeight)
+                .height(44.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Log",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+            }
+        }
+
+        // Start 按钮
+        Surface(
+            onClick = onStartClick,
+            interactionSource = startInteractionSource,
+            modifier = Modifier
+                .weight(animatedStartWeight)
+                .height(44.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.DirectionsRun,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Start",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+            }
+        }
+
+        // 编辑图标按钮
+        Surface(
+            onClick = onEditClick,
+            interactionSource = editInteractionSource,
+            modifier = Modifier
+                .height(44.dp)
+                .width(animatedEditWidth),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "编辑",
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
     }
 }
 
