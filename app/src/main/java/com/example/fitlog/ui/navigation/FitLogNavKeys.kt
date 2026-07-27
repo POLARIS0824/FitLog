@@ -20,6 +20,9 @@ data object TodayKey : NavKey
 data object WorkoutKey : NavKey
 
 @Serializable
+data object StatsKey : NavKey
+
+@Serializable
 data object SettingsKey : NavKey
 
 @Serializable
