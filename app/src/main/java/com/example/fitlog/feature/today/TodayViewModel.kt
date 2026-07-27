@@ -2,6 +2,7 @@ package com.example.fitlog.feature.today
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.fitlog.data.repository.CoachInsightRepository
 import com.example.fitlog.data.repository.ExerciseRepository
 import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.data.repository.WorkoutPlanRepository
@@ -11,6 +12,8 @@ import com.example.fitlog.model.Exercise
 import com.example.fitlog.model.PlannedSession
 import com.example.fitlog.model.Workout
 import com.example.fitlog.model.WorkoutPlan
+import com.example.fitlog.model.ai.CoachInsight
+import com.example.fitlog.model.ai.CoachInsightContext
 import com.example.fitlog.model.user.UserProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,11 +23,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -55,6 +61,13 @@ import javax.inject.Inject
  * （停留在加载占位）——Splash 只等外观偏好即放行，首装/升级的种子耗时由
  * 本页加载条承接，避免种子在收集期间写库导致内容中途翻转。
  *
+ * ## AI 增强
+ *
+ * 规则版 Coach Insight 由组装链同步产出（即时上屏）；AI 版走独立的增强链：
+ * 材料流按 [CoachInsightContext.fingerprint] 去重 → 指纹变化才请求 AI
+ * （同一天训练状态未变时命中 DataStore 缓存，零网络）→ 返回后替换卡片的
+ * 观察/建议/动作标签。未配置服务商、无网络、解析失败均**静默回退规则版**。
+ *
  * ## 注意
  *
  * - 动作库由种子填充、基本静态，自定义动作新增后 Today 不实时刷新（v1 取舍）。
@@ -69,6 +82,7 @@ class TodayViewModel @Inject constructor(
     private val userProfileRepository: UserProfileRepository,
     private val exerciseRepository: ExerciseRepository,
     private val seedOrchestrator: SeedOrchestrator,
+    private val coachInsightRepository: CoachInsightRepository,
 ) : ViewModel() {
 
     // ── 本地 UI 事件态 ──
@@ -138,8 +152,11 @@ class TodayViewModel @Inject constructor(
     /** 种子门：种子完成前不发射（只放行一次 true，之后恒透传）。 */
     private val seedGate: Flow<Boolean> = seedOrchestrator.completed.filter { it }
 
-    /** 页面 UI 状态流，由数据层 Flow 与本地事件 Flow 组合而成。 */
-    val uiState: StateFlow<TodayUiState> = combine(
+    /**
+     * 共享材料流：组装链与 AI 增强链的共同上游。
+     * `shareIn` 避免两条订阅链各自触发 Room/DataStore 查询。
+     */
+    private val sharedMaterials = combine(
         weekWorkouts, todayWorkouts, allWorkouts, activePlan, nextSession, ::TodaySnapshot,
     ).combine(
         combine(latestWorkout, prevWeekWorkouts, profileFlow, catalogFlow, ::TodayExtras),
@@ -154,10 +171,57 @@ class TodayViewModel @Inject constructor(
         )
     }.combine(displayMode) { materials, mode ->
         materials.copy(displayMode = mode)
-    }.map { materials ->
-        assemble(materials)
-    }.combine(uiFlow) { state, ui ->
-        state.copy(uiState = ui)
+    }.shareIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        replay = 1,
+    )
+
+    /** AI 增强阶段（Coach Insight 卡片的内容来源状态机）。 */
+    private sealed interface AiPhase {
+        /** 不尝试 AI（无训练数据、无计划或未配置服务商）：保持规则版，无加载态 */
+        data object Hidden : AiPhase
+
+        /** AI 请求/缓存读取进行中：规则版已上屏，label 旁显示加载 */
+        data object Loading : AiPhase
+
+        /** AI 已返回：insight 为 null 表示失败（静默保持规则版） */
+        data class Ready(val insight: CoachInsight?) : AiPhase
+    }
+
+    /**
+     * AI 增强链：材料 → 上下文 → 按指纹去重 → 请求 AI。
+     *
+     * [distinctUntilChangedBy] 以指纹为键：滑动 Pager 等无关材料变化不会触发请求；
+     * [flatMapLatest] 保证指纹再变时取消在途请求。
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val aiPhaseFlow: Flow<AiPhase> = sharedMaterials
+        .map { materials -> materials.toCoachInsightContext() }
+        .distinctUntilChangedBy { context -> context.fingerprint() }
+        .flatMapLatest { context ->
+            flow {
+                val eligible = context.activePlan != null || context.recentWorkouts.isNotEmpty()
+                if (!eligible || !coachInsightRepository.aiAvailable.first()) {
+                    emit(AiPhase.Hidden)
+                    return@flow
+                }
+                emit(AiPhase.Loading)
+                val insight = coachInsightRepository.getAiInsight(context).getOrNull()
+                emit(AiPhase.Ready(insight))
+            }
+        }
+
+    /** 页面 UI 状态流，由数据层 Flow 与本地事件 Flow 组合而成。 */
+    val uiState: StateFlow<TodayUiState> = combine(
+        sharedMaterials.map { materials -> assemble(materials) },
+        aiPhaseFlow,
+        uiFlow,
+    ) { state, aiPhase, ui ->
+        state.copy(
+            coachInsight = mergeAiPhase(state.coachInsight, aiPhase),
+            uiState = ui,
+        )
     }.combine(seedGate) { state, _ ->
         state
     }.stateIn(
@@ -244,6 +308,55 @@ class TodayViewModel @Inject constructor(
             uiState = UiState(),
         )
     }
+
+    // ──────────────────────────────────────
+    // AI 增强（Coach Insight）
+    // ──────────────────────────────────────
+
+    /** 今日训练是否已完成：计划课次完成，或自由训练今日有记录（与规则版口径一致）。 */
+    private fun TodayMaterials.isTodayCompleted(): Boolean {
+        val planCompleted = TodayPlanAssembler.assemble(
+            activePlan = snapshot.activePlan,
+            nextSession = snapshot.nextSession,
+            todayWorkouts = snapshot.todayWorkouts,
+        ).status == PlanStatus.COMPLETED
+        return planCompleted || snapshot.todayWorkouts.isNotEmpty()
+    }
+
+    /** 材料 → AI 上下文（最近训练取全量记录按日期倒序前 3 条，含组详情）。 */
+    private fun TodayMaterials.toCoachInsightContext(): CoachInsightContext =
+        CoachInsightContext(
+            profile = profile,
+            weekCompleted = snapshot.weekWorkouts.size,
+            weekTarget = snapshot.activePlan?.sessionsPerWeek ?: 4,
+            todayCompleted = isTodayCompleted(),
+            activePlan = snapshot.activePlan,
+            nextSession = snapshot.nextSession,
+            recentWorkouts = snapshot.allWorkouts
+                .sortedWith(compareByDescending<Workout> { it.date }.thenByDescending { it.id })
+                .take(3),
+            catalog = catalog,
+            today = today,
+        )
+
+    /**
+     * 把 AI 阶段合并进规则版卡片状态：
+     * AI 内容到达后替换观察/建议/动作标签；失败仅清加载态，规则版原样保留。
+     */
+    private fun mergeAiPhase(base: CoachInsightState, phase: AiPhase): CoachInsightState =
+        when (phase) {
+            AiPhase.Hidden -> base.copy(isAiLoading = false)
+            AiPhase.Loading -> base.copy(isAiLoading = true)
+            is AiPhase.Ready -> phase.insight?.let { ai ->
+                base.copy(
+                    observation = ai.observation,
+                    recommendation = ai.recommendation,
+                    action = ai.action,
+                    isAiGenerated = true,
+                    isAiLoading = false,
+                )
+            } ?: base.copy(isAiLoading = false)
+        }
 
     // ──────────────────────────────────────
     // 事件
