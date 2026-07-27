@@ -10,6 +10,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.local.entity.ExerciseEntity
 import com.example.fitlog.data.local.entity.UserProfileEntity
+import com.example.fitlog.data.repository.AIChatRepository
+import com.example.fitlog.data.repository.AIProviderConfigRepository
+import com.example.fitlog.data.repository.CoachInsightRepository
 import com.example.fitlog.data.repository.ExerciseRepository
 import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.data.repository.WorkoutPlanRepository
@@ -25,6 +28,7 @@ import com.example.fitlog.model.SetLog
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.model.WorkoutPlan
+import com.example.fitlog.testing.FakeAIApi
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -71,6 +75,8 @@ class TodayViewModelTest {
     private lateinit var userProfileRepository: UserProfileRepository
     private lateinit var exerciseRepository: ExerciseRepository
     private lateinit var seedOrchestrator: SeedOrchestrator
+    private lateinit var fakeApi: FakeAIApi
+    private lateinit var coachInsightRepository: CoachInsightRepository
 
     private val today: LocalDate = LocalDate.now()
 
@@ -114,6 +120,14 @@ class TodayViewModelTest {
             ExerciseSeeder(db.exerciseDao(), dataStore, context),
             WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore),
         )
+        // Coach Insight AI 链路：Fake API + 真实配置仓库（默认无激活服务商 → AI 静默隐藏）
+        fakeApi = FakeAIApi()
+        val aiProviderConfigRepository = AIProviderConfigRepository(db.aiProviderConfigDao(), dataStore)
+        coachInsightRepository = CoachInsightRepository(
+            aiChatRepository = AIChatRepository(fakeApi, aiProviderConfigRepository),
+            providerConfigRepo = aiProviderConfigRepository,
+            dataStore = dataStore,
+        )
     }
 
     /**
@@ -136,6 +150,7 @@ class TodayViewModelTest {
             userProfileRepository = userProfileRepository,
             exerciseRepository = exerciseRepository,
             seedOrchestrator = seedOrchestrator,
+            coachInsightRepository = coachInsightRepository,
         )
     }
 

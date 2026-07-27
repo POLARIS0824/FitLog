@@ -1,5 +1,6 @@
 package com.example.fitlog.feature.today
 
+import com.example.fitlog.model.ai.CoachAction
 import com.example.fitlog.ui.components.RingSegment
 
 data class TodayUiState(
@@ -9,12 +10,24 @@ data class TodayUiState(
     val uiState: UiState,
 )
 
-/** 顶部 AI Coach Insight */
+/**
+ * 顶部 Coach Insight 卡片状态。
+ *
+ * 内容来源有两级：规则版（[CoachInsightBuilder]，即时上屏）与 AI 版
+ * （CoachInsightRepository，异步替换）。AI 失败/未配置时静默保持规则版。
+ */
 data class CoachInsightState(
     val userName: String = "",
     val greeting: String = "Hello",
-    val summary: String = "",
+    /** 基于最近训练的观察（规则版为训练摘要，AI 版为教练观察） */
+    val observation: String = "",
     val recommendation: String = "",
+    /** 建议关联的动作标签，驱动按钮槽（仅 [CoachAction.START_WORKOUT] 显示按钮） */
+    val action: CoachAction = CoachAction.NONE,
+    /** 当前内容是否由 AI 生成（区分 label 文案："AI Coach" / "Coach"） */
+    val isAiGenerated: Boolean = false,
+    /** AI 请求进行中（label 旁显示波浪进度；内容区仍展示规则版） */
+    val isAiLoading: Boolean = false,
     // 降级策略
     val isAvailable: Boolean = false,
 )

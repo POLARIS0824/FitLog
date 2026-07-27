@@ -2,6 +2,7 @@ package com.example.fitlog.feature.today
 
 import com.example.fitlog.model.PlannedSession
 import com.example.fitlog.model.Workout
+import com.example.fitlog.model.ai.CoachAction
 import com.example.fitlog.model.user.UserProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,7 +13,8 @@ import java.time.LocalDate
 /**
  * [CoachInsightBuilder] 的单元测试（纯 JVM）。
  *
- * 验证问候语时段边界、summary 模板、recommendation 优先级与降级策略。
+ * 验证问候语时段边界、observation 模板、recommendation 优先级、
+ * 规则版 action 兜底与降级策略。
  */
 class CoachInsightBuilderTest {
 
@@ -44,32 +46,32 @@ class CoachInsightBuilderTest {
         assertEquals("早上好", state.greeting)
     }
 
-    // ── summary ──
+    // ── observation ──
 
     @Test
-    fun `summary without workout history`() {
+    fun `observation without workout history`() {
         val state = buildInsight(latestWorkout = null)
-        assertEquals("还没有训练记录，从第一练开始吧", state.summary)
+        assertEquals("还没有训练记录，从第一练开始吧", state.observation)
     }
 
     @Test
-    fun `summary with workout today shows 今天已练`() {
+    fun `observation with workout today shows 今天已练`() {
         val state = buildInsight(
             weekCompleted = 1,
             weekTarget = 3,
             latestWorkout = workout(date = today),
         )
-        assertEquals("本周已练 1/3 次 · 今天已练", state.summary)
+        assertEquals("本周已练 1/3 次 · 今天已练", state.observation)
     }
 
     @Test
-    fun `summary with workout days ago`() {
+    fun `observation with workout days ago`() {
         val state = buildInsight(
             weekCompleted = 2,
             weekTarget = 4,
             latestWorkout = workout(date = today.minusDays(3)),
         )
-        assertEquals("本周已练 2/4 次 · 距上次训练 3 天", state.summary)
+        assertEquals("本周已练 2/4 次 · 距上次训练 3 天", state.observation)
     }
 
     // ── recommendation 优先级 ──
@@ -99,6 +101,26 @@ class CoachInsightBuilderTest {
     fun `recommendation falls back to light rest suggestion`() {
         val state = buildInsight(hasActivePlan = false, nextSession = null)
         assertEquals("今天适合休息，或做一次轻量恢复训练", state.recommendation)
+    }
+
+    // ── 规则版 action 兜底 ──
+
+    @Test
+    fun `action is START_WORKOUT when next session pending`() {
+        val state = buildInsight(todayCompleted = false, nextSession = session(name = "课 A"))
+        assertEquals(CoachAction.START_WORKOUT, state.action)
+    }
+
+    @Test
+    fun `action is NONE when today completed`() {
+        val state = buildInsight(todayCompleted = true, nextSession = session(name = "课 A"))
+        assertEquals(CoachAction.NONE, state.action)
+    }
+
+    @Test
+    fun `action is NONE without next session`() {
+        val state = buildInsight(todayCompleted = false, nextSession = null)
+        assertEquals(CoachAction.NONE, state.action)
     }
 
     // ── isAvailable 降级策略 ──

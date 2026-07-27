@@ -1,5 +1,6 @@
 package com.example.fitlog.feature.today
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -53,6 +54,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -91,6 +93,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.currentStateAsState
 import com.example.fitlog.model.WorkoutPlan
+import com.example.fitlog.model.ai.CoachAction
 import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.components.LargeMetricCard
 import com.example.fitlog.ui.components.MetricDashboardGrid
@@ -446,18 +449,18 @@ fun GeminiFlowingGradientBackground(
 }
 
 /**
- * Coach Insight 卡片：左侧仅包含 AI Coach 圆形图标，右侧垂直排列 AI Coach 标签、动态问候、训练摘要、针对性建议及开始训练按钮。
+ * Coach Insight 卡片：左侧为 Coach 圆形图标，右侧垂直排列标签、问候、观察、建议与动作按钮槽。
  *
  * 整体布局采用左右双栏模式 (Row)，右侧包含：
- * 1. AI Coach 标签 (小字号加粗主色)
- * 2. 问候语 (紧贴 AI Coach 标签)
- * 3. 本周摘要文案
- * 4. 推荐训练建议 (加粗主色)
- * 5. 开始训练 (CTA 按钮)
+ * 1. Coach 标签行（AI 生成/加载中显示 "AI Coach" + 波浪进度，规则版显示 "Coach"）
+ * 2. 问候语（规则硬编码，按时段 + 用户名）
+ * 3. 观察文案（规则版为训练摘要；AI 版为教练观察，Crossfade 替换）
+ * 4. 训练建议 (加粗主色)
+ * 5. 动作按钮槽：仅 [CoachAction.START_WORKOUT] 显示"开始训练"，其余无按钮
  *
  * 背景基于 [GeminiFlowingGradientBackground] 渲染 Gemini 风格流动渐变。
  *
- * @param insight AI 教练建议状态数据
+ * @param insight Coach 建议状态数据（规则版底版 + AI 替换，见 [CoachInsightState]）
  * @param onStartWorkoutClick 点击“开始训练”按钮时的回调
  * @param modifier 修饰符
  */
@@ -496,15 +499,25 @@ private fun CoachInsightCard(
             Column(
                 modifier = Modifier.weight(1f),
             ) {
-                // 1. AI Coach 标签
-                Text(
-                    text = "AI Coach",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                // 1. Coach 标签行：AI 生成/加载中显示 "AI Coach"，规则版显示 "Coach"；
+                //    AI 请求进行时在标签旁展示小号波浪进度（内容区保持规则版文案）
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (insight.isAiGenerated || insight.isAiLoading) "AI Coach" else "Coach",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    if (insight.isAiLoading) {
+                        CircularWavyProgressIndicator(
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .size(16.dp),
+                        )
+                    }
+                }
 
-                // 2. 问候语 (紧贴 AI Coach 标签，间距 2dp)
+                // 2. 问候语 (紧贴 Coach 标签，间距 2dp)
                 Text(
                     text = "${insight.greeting} 👋",
                     style = MaterialTheme.typography.headlineSmall,
@@ -514,47 +527,56 @@ private fun CoachInsightCard(
                 )
 
                 if (insight.isAvailable) {
-                    // 3. 训练完成情况与状态摘要
-                    Text(
-                        text = insight.summary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = MaterialTheme.typography.bodyMedium.lineHeight,
-                    )
+                    // 3+4. 观察与建议：AI 内容到达时 Crossfade 替换规则版文案
+                    Crossfade(
+                        targetState = insight.observation to insight.recommendation,
+                        label = "coachInsightContent",
+                    ) { (observation, recommendation) ->
+                        Column {
+                            // 3. 基于最近训练的观察
+                            Text(
+                                text = observation,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = MaterialTheme.typography.bodyMedium.lineHeight,
+                            )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                    // 4. 高亮显示的教练针对性建议
-                    Text(
-                        text = insight.recommendation,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                            // 4. 高亮显示的教练针对性建议
+                            Text(
+                                text = recommendation,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // 5. 行动号召 (CTA) 按钮："开始训练"
-                    Button(
-                        onClick = onStartWorkoutClick,
-                        shape = RoundedCornerShape(50),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "开始训练",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
+                    // 5. 动作按钮槽：仅建议训练时显示"开始训练"；建议休息等场景无按钮
+                    if (insight.action == CoachAction.START_WORKOUT) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Button(
+                            onClick = onStartWorkoutClick,
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "开始训练",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                     }
                 } else {
                     Spacer(modifier = Modifier.height(4.dp))
@@ -1082,8 +1104,10 @@ private fun TodayScreenPreview() {
                 coachInsight = CoachInsightState(
                     userName = "Polaris",
                     greeting = "下午好，Polaris",
-                    summary = "本周已练 2/3 次 · 距上次训练 1 天",
+                    observation = "本周已练 2/3 次 · 距上次训练 1 天",
                     recommendation = "下一课：腿日 · 股四头后侧链",
+                    action = CoachAction.START_WORKOUT,
+                    isAiGenerated = true,
                     isAvailable = true,
                 ),
                 weekProgress = WeekProgressState(
@@ -1169,5 +1193,45 @@ private fun TodayScreenLoadingPreview() {
             onPlanSelected = {},
             onErrorShown = {},
         )
+    }
+}
+
+/** Coach 卡 · AI 加载态：规则版文案先上屏，"AI Coach" 标签旁波浪进度提示生成中。 */
+@Preview(showBackground = true)
+@Composable
+private fun CoachInsightCardAiLoadingPreview() {
+    FitLogTheme {
+        Box(modifier = Modifier.padding(16.dp)) {
+            CoachInsightCard(
+                insight = CoachInsightState(
+                    greeting = "下午好，Polaris",
+                    observation = "本周已练 2/3 次 · 距上次训练 1 天",
+                    recommendation = "下一课：腿日 · 股四头后侧链",
+                    action = CoachAction.START_WORKOUT,
+                    isAiLoading = true,
+                    isAvailable = true,
+                ),
+            )
+        }
+    }
+}
+
+/** Coach 卡 · AI 建议休息态：label 为 "AI Coach"，无按钮。 */
+@Preview(showBackground = true)
+@Composable
+private fun CoachInsightCardRestPreview() {
+    FitLogTheme {
+        Box(modifier = Modifier.padding(16.dp)) {
+            CoachInsightCard(
+                insight = CoachInsightState(
+                    greeting = "下午好，Polaris",
+                    observation = "昨天练了腿，今天身体需要恢复",
+                    recommendation = "建议 30 分钟散步 + 10 分钟拉伸放松",
+                    action = CoachAction.REST,
+                    isAiGenerated = true,
+                    isAvailable = true,
+                ),
+            )
+        }
     }
 }
