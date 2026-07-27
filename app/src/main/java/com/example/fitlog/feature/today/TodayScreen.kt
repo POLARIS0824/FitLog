@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FitnessCenter
@@ -97,11 +98,13 @@ import kotlin.math.sin
  *
  * @param onNavigateToSettings 跳转设置回调
  * @param onNavigateToWorkout 跳转训练记录回调
+ * @param onNavigateToStats 跳转统计页回调
  */
 @Composable
 fun TodayRoute(
     onNavigateToSettings: () -> Unit = {},
     onNavigateToWorkout: () -> Unit = {},
+    onNavigateToStats: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
@@ -112,6 +115,7 @@ fun TodayRoute(
         allPlans = allPlans,
         onNavigateToSettings = onNavigateToSettings,
         onNavigateToWorkout = onNavigateToWorkout,
+        onNavigateToStats = onNavigateToStats,
         onDisplayModeSelected = viewModel::onDisplayModeSelected,
         onPlanSelected = viewModel::onPlanSelected,
         onErrorShown = viewModel::onErrorShown,
@@ -131,6 +135,7 @@ fun TodayScreen(
     allPlans: List<WorkoutPlan>,
     onNavigateToSettings: () -> Unit,
     onNavigateToWorkout: () -> Unit,
+    onNavigateToStats: () -> Unit,
     onDisplayModeSelected: (WeekProgressDisplayMode) -> Unit,
     onPlanSelected: (String) -> Unit,
     onErrorShown: () -> Unit,
@@ -143,7 +148,10 @@ fun TodayScreen(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         topBar = {
-            TodayTopBar(onNavigateToSettings = onNavigateToSettings)
+            TodayTopBar(
+                onNavigateToSettings = onNavigateToSettings,
+                onNavigateToStats = onNavigateToStats,
+            )
         },
     ) { innerPadding ->
         if (uiState.uiState.isLoading) {
@@ -222,14 +230,16 @@ fun TodayScreen(
  *
  * 左侧：设备/手表图标
  * 中间：居中 "Today" 标题
- * 右侧：带彩环的个人资料 / 设置入口按钮
+ * 右侧：统计入口 + 带彩环的个人资料 / 设置入口按钮
  *
  * @param onNavigateToSettings 跳转设置回调
+ * @param onNavigateToStats 跳转统计页回调
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TodayTopBar(
     onNavigateToSettings: () -> Unit,
+    onNavigateToStats: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     CenterAlignedTopAppBar(
@@ -251,6 +261,13 @@ private fun TodayTopBar(
             }
         },
         actions = {
+            IconButton(onClick = onNavigateToStats) {
+                Icon(
+                    imageVector = Icons.Default.BarChart,
+                    contentDescription = "统计",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
             IconButton(onClick = onNavigateToSettings) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -860,6 +877,7 @@ private fun TodayScreenPreview() {
             allPlans = emptyList(),
             onNavigateToSettings = {},
             onNavigateToWorkout = {},
+            onNavigateToStats = {},
             onDisplayModeSelected = {},
             onPlanSelected = {},
             onErrorShown = {},
@@ -886,6 +904,7 @@ private fun TodayScreenEmptyPreview() {
             allPlans = emptyList(),
             onNavigateToSettings = {},
             onNavigateToWorkout = {},
+            onNavigateToStats = {},
             onDisplayModeSelected = {},
             onPlanSelected = {},
             onErrorShown = {},
@@ -908,6 +927,7 @@ private fun TodayScreenLoadingPreview() {
             allPlans = emptyList(),
             onNavigateToSettings = {},
             onNavigateToWorkout = {},
+            onNavigateToStats = {},
             onDisplayModeSelected = {},
             onPlanSelected = {},
             onErrorShown = {},
