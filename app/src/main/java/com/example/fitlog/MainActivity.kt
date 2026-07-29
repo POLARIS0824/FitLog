@@ -15,6 +15,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.feature.aisettings.AISettingsRoute
+import com.example.fitlog.feature.stats.StatsRoute
 import com.example.fitlog.feature.today.TodayRoute
 import com.example.fitlog.feature.workout.WorkoutRoute
 import com.example.fitlog.ui.settings.SettingsRoute
@@ -28,6 +29,7 @@ import com.example.fitlog.ui.navigation.DataImportKey
 import com.example.fitlog.ui.navigation.ProfileKey
 import com.example.fitlog.ui.navigation.ReminderKey
 import com.example.fitlog.ui.navigation.SettingsKey
+import com.example.fitlog.ui.navigation.StatsKey
 import com.example.fitlog.ui.navigation.TodayKey
 import com.example.fitlog.ui.navigation.WorkoutKey
 import com.example.fitlog.ui.settings.profile.ProfileRoute
@@ -88,10 +90,14 @@ class MainActivity : ComponentActivity() {
                             TodayRoute(
                                 onNavigateToSettings = { backStack.add(SettingsKey) },
                                 onNavigateToWorkout = { backStack.add(WorkoutKey) },
+                                onNavigateToStats = { backStack.add(StatsKey) },
                             )
                         }
                         entry<WorkoutKey> {
                             WorkoutRoute()
+                        }
+                        entry<StatsKey> {
+                            StatsRoute(onBack = { backStack.removeLastOrNull() })
                         }
                         entry<SettingsKey> {
                             SettingsRoute(
