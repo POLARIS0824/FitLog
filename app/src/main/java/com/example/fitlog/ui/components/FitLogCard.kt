@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 /**
  * 统一的设置页卡片容器：圆角 24dp、无阴影、白卡（比页面背景亮一档）。
  *
- * 设计语言见 `design.md`：层级全靠 surface container 色阶明度差，不用投影。
+ * 层级全靠 surface container 色阶明度差，不用投影。
  *
  * @param modifier 修饰符
  * @param contentPadding 卡片内部边距，默认为 20.dp
@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
  * @param content 卡片内容
  */
 @Composable
-fun SettingsCard(
+fun FitLogCard(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(20.dp),
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(12.dp),

@@ -53,7 +53,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.data.file.MarkdownFileScanner
 import com.example.fitlog.ui.components.SectionLabel
-import com.example.fitlog.ui.components.SettingsCard
+import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.components.StackedSnackbarHost
 import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 import kotlinx.coroutines.CancellationException
@@ -221,7 +221,7 @@ fun DataImportScreen(
             }
 
             SectionLabel("说明")
-            SettingsCard {
+            FitLogCard {
                 Text("从 Markdown 导入训练日志", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "选择存放日志的文件夹，每个文件代表一天训练，" +
@@ -249,7 +249,7 @@ fun DataImportScreen(
 
             if (uiState.successes.isNotEmpty() || uiState.failures.isNotEmpty()) {
                 SectionLabel("扫描结果")
-                SettingsCard {
+                FitLogCard {
                     uiState.successes.forEach { item ->
                         ScanResultRow(
                             fileName = item.fileName,

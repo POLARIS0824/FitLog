@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 深色窗口底色：消除非 Splash 路径的浅色窗口闪底（绘制由 Compose 全面接管） -->
+    <style name="Theme.fitLog" parent="android:Theme.Material.NoActionBar" />
+</resources>

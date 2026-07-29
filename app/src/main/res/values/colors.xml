@@ -7,4 +7,6 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- Splash 底色：对齐 M3 light surface（values-night 中为 dark surface），避免 Splash→首页色块跳变 -->
+    <color name="splash_background">#FFFBFE</color>
 </resources>

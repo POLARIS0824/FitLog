@@ -36,15 +36,16 @@ class ExerciseSeeder @Inject constructor(
     /**
      * 检查并执行种子数据导入。
      *
-     * 如果当前 seed 版本已是最新，则跳过。
-     * 否则解析 JSON、映射实体、批量插入 Room，并更新版本号。
+     * 跳过条件：seed 版本已最新 **且** 动作表非空。
+     * 版本号存在但表为空（如 fallbackToDestructiveMigration 升级清库后，
+     * DataStore 版本号残留）时强制重灌，避免动作库永久缺失。
      */
     suspend fun seedIfNeeded() = withContext(Dispatchers.IO) {
         val currentSeedVersion = dataStore.data
             .map { it[SEED_VERSION_KEY] ?: 0 }
             .first()
 
-        if (currentSeedVersion >= SEED_VERSION) return@withContext
+        if (currentSeedVersion >= SEED_VERSION && exerciseDao.getCount() > 0) return@withContext
 
         val jsonString = context.resources.openRawResource(R.raw.exercises)
             .bufferedReader().use { it.readText() }
