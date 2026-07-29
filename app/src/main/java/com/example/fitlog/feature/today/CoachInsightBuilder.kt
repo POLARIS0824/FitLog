@@ -47,7 +47,7 @@ object CoachInsightBuilder {
         val timeGreeting = when (hour) {
             in 5..10 -> "早上好"
             in 11 .. 12 -> "中午好"
-            in 13..18 -> "下午好"
+            in 13..17 -> "下午好"
             else -> "晚上好"
         }
         val name = profile?.name?.takeIf { it.isNotBlank() }
