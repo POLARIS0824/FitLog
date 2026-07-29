@@ -14,6 +14,12 @@ import kotlinx.serialization.Serializable
  */
 
 @Serializable
+data object TodayKey : NavKey
+
+@Serializable
+data object WorkoutKey : NavKey
+
+@Serializable
 data object SettingsKey : NavKey
 
 @Serializable

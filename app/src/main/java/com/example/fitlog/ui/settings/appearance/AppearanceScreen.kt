@@ -48,7 +48,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.ui.components.SectionLabel
-import com.example.fitlog.ui.components.SettingsCard
+import com.example.fitlog.ui.components.FitLogCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
 
@@ -202,7 +202,7 @@ fun AppearanceScreen(
             }
 
             SectionLabel("主题")
-            SettingsCard {
+            FitLogCard {
                 Text("主题模式", style = MaterialTheme.typography.titleMedium)
                 val options = listOf(
                     ThemeMode.SYSTEM to "跟随系统",
@@ -226,7 +226,7 @@ fun AppearanceScreen(
             }
 
             SectionLabel("颜色")
-            SettingsCard {
+            FitLogCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,

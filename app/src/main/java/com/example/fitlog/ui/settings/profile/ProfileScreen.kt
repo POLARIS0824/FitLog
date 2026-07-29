@@ -57,7 +57,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.model.user.Gender
 import com.example.fitlog.model.user.TrainingGoal
 import com.example.fitlog.ui.components.SectionLabel
-import com.example.fitlog.ui.components.SettingsCard
+import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.components.StackedSnackbarHost
 import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 import kotlinx.coroutines.CancellationException
@@ -234,7 +234,7 @@ fun ProfileScreen(
             }
 
             SectionLabel("基本信息")
-            SettingsCard {
+            FitLogCard {
                 OutlinedTextField(
                     value = uiState.name,
                     onValueChange = onNameChange,
@@ -277,7 +277,7 @@ fun ProfileScreen(
             }
 
             SectionLabel("身体数据")
-            SettingsCard {
+            FitLogCard {
                 OutlinedTextField(
                     value = uiState.height,
                     onValueChange = onHeightChange,
@@ -297,7 +297,7 @@ fun ProfileScreen(
             }
 
             SectionLabel("训练目标")
-            SettingsCard {
+            FitLogCard {
                 val goals = listOf(
                     TrainingGoal.HYPERTROPHY to "增肌",
                     TrainingGoal.FATLOSS to "减脂",

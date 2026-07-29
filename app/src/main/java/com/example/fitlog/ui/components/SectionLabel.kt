@@ -30,7 +30,7 @@ fun SectionLabel(
         text = text,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Medium,
-        color = MaterialTheme.colorScheme.primary,
+        color = MaterialTheme.colorScheme.onSurface,
         modifier = modifier.padding(start = 8.dp, top = 16.dp, bottom = 6.dp),
     )
 }

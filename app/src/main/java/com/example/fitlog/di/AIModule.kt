@@ -1,5 +1,6 @@
 package com.example.fitlog.di
 
+import com.example.fitlog.BuildConfig
 import com.example.fitlog.data.remote.AIApi
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Module
@@ -33,10 +34,14 @@ object AIModule {
     fun provideAIRetrofit(): Retrofit {
         val json = Json { ignoreUnknownKeys = true }
 
-        // OkHttp 拦截器——在开发和调试阶段，把请求和响应的完整内容打印到 Logcat
-        // TODO: 发布时关闭，防止 API KEY 泄露
+        // OkHttp 拦截器——仅调试构建打印完整请求/响应到 Logcat；
+        // Release 关闭：BODY 会泄露 API Key 与 prompt 内容
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
         }
 
         val client = OkHttpClient.Builder()

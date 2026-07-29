@@ -4,6 +4,7 @@ import com.example.fitlog.data.mapper.toDto
 import com.example.fitlog.data.mapper.toModel
 import com.example.fitlog.data.remote.AIApi
 import com.example.fitlog.data.remote.dto.ChatCompletionRequestDto
+import com.example.fitlog.data.remote.dto.ResponseFormatDto
 import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ChatMessage
 import kotlinx.coroutines.flow.first
@@ -51,15 +52,24 @@ class AIChatRepository @Inject constructor(
      *
      * @param messages 完整的对话上下文，包括 system prompt、历史消息和新用户消息。
      *                 调用方负责维护消息列表的顺序和内容。
+     * @param temperature 采样温度；null 由服务商默认（见 [ChatCompletionRequestDto]）
+     * @param maxTokens 最大输出 token 数；null 不限制
+     * @param jsonMode true 时请求 JSON mode（`response_format: json_object`）。
+     *                 仅部分服务商支持，调用方需自行做解析容错
      * @return [Result.success] 包含 AI 的回复消息；[Result.failure] 描述错误原因
      */
-    suspend fun chat(messages: List<ChatMessage>): Result<ChatMessage> {
+    suspend fun chat(
+        messages: List<ChatMessage>,
+        temperature: Double? = null,
+        maxTokens: Int? = null,
+        jsonMode: Boolean = false,
+    ): Result<ChatMessage> {
         // ── 步骤 1: 获取当前激活的 AI 配置 ──
         val config = providerConfigRepo.activeProvider.first()
             ?: return Result.failure(
                 IllegalStateException("未设置 AI 服务商，请先在设置中配置 API Key")
             )
-        return chat(config, messages)
+        return chat(config, messages, temperature, maxTokens, jsonMode)
     }
 
     /**
@@ -70,9 +80,18 @@ class AIChatRepository @Inject constructor(
      *
      * @param config 用于鉴权和寻址的配置
      * @param messages 完整的对话上下文
+     * @param temperature 采样温度；null 由服务商默认
+     * @param maxTokens 最大输出 token 数；null 不限制
+     * @param jsonMode true 时请求 JSON mode（`response_format: json_object`）
      * @return [Result.success] 包含 AI 的回复消息；[Result.failure] 描述错误原因
      */
-    suspend fun chat(config: AIProviderConfig, messages: List<ChatMessage>): Result<ChatMessage> {
+    suspend fun chat(
+        config: AIProviderConfig,
+        messages: List<ChatMessage>,
+        temperature: Double? = null,
+        maxTokens: Int? = null,
+        jsonMode: Boolean = false,
+    ): Result<ChatMessage> {
         return try {
             // ── 步骤 2: 构建请求参数 ──
             val url = config.type.buildUrl(config)
@@ -80,6 +99,9 @@ class AIChatRepository @Inject constructor(
             val body = ChatCompletionRequestDto(
                 model = config.model,
                 messages = messages.map { it.toDto() },
+                temperature = temperature,
+                maxTokens = maxTokens,
+                responseFormat = if (jsonMode) ResponseFormatDto(type = "json_object") else null,
             )
 
             // ── 步骤 3: 发送网络请求 ──
