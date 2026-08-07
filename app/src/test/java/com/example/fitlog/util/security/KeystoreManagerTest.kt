@@ -3,6 +3,7 @@ package com.example.fitlog.util.security
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -160,5 +161,39 @@ class KeystoreManagerTest {
         // 且两个不同密文都能正确解密回同一明文
         assertEquals(originalText, KeystoreManager.decrypt(firstEncryption))
         assertEquals(originalText, KeystoreManager.decrypt(secondEncryption))
+    }
+
+    /**
+     * 测试 Keystore 密钥丢失（如备份恢复到新设备）时容错解密返回 null 而非抛异常。
+     *
+     * 旧密钥加密的密文无法被新密钥解开（GCM 认证失败），
+     * [KeystoreManager.decryptOrNull] 应返回 null，由调用方降级处理。
+     */
+    @Test
+    fun testDecryptOrNull_keystoreKeyLost_returnsNull() {
+        // 用当前密钥加密
+        val encrypted = KeystoreManager.encrypt("sk-secret-123")
+
+        // 模拟换机恢复：清空 Fake KeyStore 中的密钥条目
+        FakeAndroidKeyStoreProvider.entries.clear()
+
+        assertNull(KeystoreManager.decryptOrNull(encrypted))
+    }
+
+    /**
+     * 测试非法 Base64 / 截断密文等损坏输入下容错解密返回 null。
+     */
+    @Test
+    fun testDecryptOrNull_corruptedInput_returnsNull() {
+        // 非法 Base64 字符
+        assertNull(KeystoreManager.decryptOrNull("!!!not-base64!!!"))
+
+        // 合法 Base64 但长度不足（小于 GCM IV 长度），BufferUnderflowException 被吞掉
+        val tooShort = android.util.Base64.encodeToString(byteArrayOf(1, 2, 3), android.util.Base64.DEFAULT)
+        assertNull(KeystoreManager.decryptOrNull(tooShort))
+
+        // 用错误密钥加密的“密文”（同一密钥下加密后密钥仍存在时可解密；
+        // 这里确保失败路径覆盖 GCM 认证失败：先清密钥再构造不匹配场景已由上一用例覆盖）
+        assertEquals("sk-still-valid", KeystoreManager.decrypt(KeystoreManager.encrypt("sk-still-valid")))
     }
 }

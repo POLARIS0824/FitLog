@@ -82,9 +82,9 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 错误提示展示完毕后调用，清除一次性错误状态
+     * 错误提示展示完毕后调用，清除一次性错误状态（UI 事件命名，供 Snackbar 接线）。
      */
-    fun dismissError() {
+    fun onErrorShown() {
         _uiState.update { it.copy(errorMessage = null) }
     }
 }

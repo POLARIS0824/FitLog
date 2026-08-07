@@ -10,10 +10,10 @@ fun UserProfileEntity.toModel() : UserProfile {
         id = id,
         name = name,
         age = age,
-        gender = gender?.let { Gender.valueOf(it) },
+        gender = gender?.let { raw -> Gender.entries.firstOrNull { it.name == raw } },
         height = height,
         weight = weight,
-        trainingGoal = trainingGoal?.let { TrainingGoal.valueOf(it) },
+        trainingGoal = trainingGoal?.let { raw -> TrainingGoal.entries.firstOrNull { it.name == raw } },
     )
 }
 

@@ -151,6 +151,18 @@ class WorkoutPlanMapperTest {
     }
 
     /**
+     * 测试存储了未知 goal 字符串时反序列化降级为 null（而非崩溃）。
+     */
+    @Test
+    fun testPlanEntityToModel_unknownGoal_degradesToNull() {
+        val model = planEntity(goal = "OLD_GOAL_VALUE").toModel()
+
+        assertNull(model.goal)
+        assertEquals("增肌计划", model.name)
+    }
+
+
+    /**
      * 测试 [PlannedSession] 转 [PlannedSessionEntity]：planId 注入，动作清单原样透传。
      */
     @Test

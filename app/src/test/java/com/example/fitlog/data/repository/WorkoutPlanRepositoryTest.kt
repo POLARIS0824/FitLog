@@ -11,7 +11,11 @@ import com.example.fitlog.model.PlannedSession
 import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.model.user.TrainingGoal
 import com.example.fitlog.testing.createTestPreferencesDataStore
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -47,6 +51,16 @@ class WorkoutPlanRepositoryTest {
     private lateinit var repository: WorkoutPlanRepository
 
     /**
+     * 测试调度器：与 DataStore scope 及 `runTest` 共享同一实例。
+     */
+    private val testScheduler = TestCoroutineScheduler()
+
+    /**
+     * DataStore 内部协程的作用域，测试结束时在 [closeDb] 中取消。
+     */
+    private lateinit var dataStoreScope: TestScope
+
+    /**
      * 初始化内存 Room 数据库、测试 DataStore 和 WorkoutPlanRepository 实例。
      */
     @Before
@@ -55,15 +69,20 @@ class WorkoutPlanRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        dataStore = createTestPreferencesDataStore(tmpFolder.newFile("plan_prefs.preferences_pb"))
+        dataStoreScope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("plan_prefs.preferences_pb"),
+            dataStoreScope,
+        )
         repository = WorkoutPlanRepository(db.workoutPlanDao(), dataStore)
     }
 
     /**
-     * 测试后关闭数据库。
+     * 取消 DataStore 作用域并关闭数据库。
      */
     @After
     fun closeDb() {
+        dataStoreScope.cancel()
         db.close()
     }
 
@@ -71,7 +90,7 @@ class WorkoutPlanRepositoryTest {
      * 测试完整的计划保存与获取（含训练日和内嵌动作清单）。
      */
     @Test
-    fun testSaveAndGetPlanWithFullHierarchy() = runTest {
+    fun testSaveAndGetPlanWithFullHierarchy() = runTest(testScheduler) {
         val plan = createPlan(
             id = "ppl-1",
             name = "推拉腿经典计划",
@@ -131,7 +150,7 @@ class WorkoutPlanRepositoryTest {
      * 测试计划列表按创建日期降序返回。
      */
     @Test
-    fun testGetAllPlans() = runTest {
+    fun testGetAllPlans() = runTest(testScheduler) {
         repository.save(createPlan(id = "plan-1", createdAt = LocalDate.of(2026, 5, 1)))
         repository.save(createPlan(id = "plan-2", createdAt = LocalDate.of(2026, 5, 10)))
 
@@ -145,7 +164,7 @@ class WorkoutPlanRepositoryTest {
      * 测试删除计划后级联删除训练日。
      */
     @Test
-    fun testDeletePlan() = runTest {
+    fun testDeletePlan() = runTest(testScheduler) {
         repository.save(
             createPlan(
                 id = "plan-to-delete",
@@ -163,7 +182,7 @@ class WorkoutPlanRepositoryTest {
      * 测试标记与取消训练日完成状态。
      */
     @Test
-    fun testMarkAndUnmarkSessionCompleted() = runTest {
+    fun testMarkAndUnmarkSessionCompleted() = runTest(testScheduler) {
         repository.save(
             createPlan(
                 id = "p1",
@@ -194,7 +213,7 @@ class WorkoutPlanRepositoryTest {
      * 测试激活计划的设置与清除。
      */
     @Test
-    fun testSetAndClearActivePlanId() = runTest {
+    fun testSetAndClearActivePlanId() = runTest(testScheduler) {
         assertNull(repository.activePlanId.first())
 
         repository.setActivePlanId("plan-1")
@@ -208,7 +227,7 @@ class WorkoutPlanRepositoryTest {
      * 测试 activePlan 将激活 ID 解析为完整计划对象。
      */
     @Test
-    fun testActivePlan_resolvesToFullPlan() = runTest {
+    fun testActivePlan_resolvesToFullPlan() = runTest(testScheduler) {
         assertNull(repository.activePlan.first())
 
         repository.save(createPlan(id = "plan-1"))
@@ -224,7 +243,7 @@ class WorkoutPlanRepositoryTest {
      * 测试删除当前激活计划时联动清除激活 ID。
      */
     @Test
-    fun testDeleteActivePlan_clearsActiveId() = runTest {
+    fun testDeleteActivePlan_clearsActiveId() = runTest(testScheduler) {
         repository.save(createPlan(id = "plan-1"))
         repository.setActivePlanId("plan-1")
 
@@ -238,7 +257,7 @@ class WorkoutPlanRepositoryTest {
      * 测试删除非激活计划时保留激活 ID。
      */
     @Test
-    fun testDeleteInactivePlan_keepsActiveId() = runTest {
+    fun testDeleteInactivePlan_keepsActiveId() = runTest(testScheduler) {
         repository.save(createPlan(id = "plan-1"))
         repository.save(createPlan(id = "plan-2"))
         repository.setActivePlanId("plan-1")
@@ -254,7 +273,7 @@ class WorkoutPlanRepositoryTest {
      * 测试 getNextIncompleteSession 跳过已完成训练日、按计划内周/日顺序取第一个。
      */
     @Test
-    fun testGetNextIncompleteSession_skipsCompletedInOrder() = runTest {
+    fun testGetNextIncompleteSession_skipsCompletedInOrder() = runTest(testScheduler) {
         repository.save(
             createPlan(
                 id = "p1",
@@ -289,7 +308,7 @@ class WorkoutPlanRepositoryTest {
      * 测试 getAllPlansFlow 在保存新计划后重新发射。
      */
     @Test
-    fun testGetAllPlansFlow_reEmitsOnSave() = runTest {
+    fun testGetAllPlansFlow_reEmitsOnSave() = runTest(testScheduler) {
         assertTrue(repository.getAllPlansFlow().first().isEmpty())
 
         repository.save(createPlan(id = "plan-1"))

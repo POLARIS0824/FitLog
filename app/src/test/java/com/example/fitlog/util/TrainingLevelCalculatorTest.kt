@@ -2,6 +2,7 @@ package com.example.fitlog.util
 
 import com.example.fitlog.model.ExerciseLog
 import com.example.fitlog.model.SetLog
+import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -35,6 +36,9 @@ class TrainingLevelCalculatorTest {
     ) = ExerciseLog(name = name, exerciseKey = key, sets = sets.toList())
 
     private fun set(weightKg: Float, reps: Int) = SetLog(weightKg = weightKg, reps = reps)
+
+    private fun warmup(weightKg: Float, reps: Int) =
+        SetLog(weightKg = weightKg, reps = reps, setType = SetType.WARMUP)
 
     /**
      * 空历史返回空 Map。
@@ -141,5 +145,49 @@ class TrainingLevelCalculatorTest {
         assertEquals(1, result.exercises.size)
         // 1RM 取全局最佳：75 × (1 + 8/30) = 95 > 70 × (1 + 10/30) ≈ 93.33
         assertEquals(75.0 * (1 + 8 / 30.0), result.exercises.getValue("bench").estimatedOneRMKg!!, 0.001)
+    }
+
+    /**
+     * 口径：热身组不计入 Epley 1RM 与容量，只有正式组参与统计。
+     */
+    @Test
+    fun `warmup sets are excluded from 1RM and volume`() {
+        val workouts = listOf(
+            workout(
+                LocalDate.of(2026, 5, 20),
+                exercise(
+                    "杠铃卧推", "barbell-bench-press",
+                    // 热身组重量/次数更高，但不得污染 1RM 与容量
+                    warmup(140f, 30),
+                    set(80f, 10),   // Epley: 80 × (1 + 10/30) ≈ 106.67
+                    set(85f, 8),    // Epley: 85 × (1 + 8/30) ≈ 107.67  ← 正式组最大
+                ),
+            ),
+        )
+
+        val result = TrainingLevelCalculator.calculate(workouts, bodyWeightKg = null)
+
+        val level = result.exercises.getValue("barbell-bench-press")
+        // 1RM 只取正式组：热身组 140×30 被排除
+        assertEquals(85.0 * (1 + 8 / 30.0), level.estimatedOneRMKg!!, 0.001)
+        // 容量只累加正式组：80×10 + 85×8 = 1480（热身组 140×30 不计）
+        assertEquals(1480.0, level.bestVolumeLoadKg!!, 0.001)
+    }
+
+    /**
+     * 边界：只有热身组、没有任何正式组时，该动作不产生训练水平条目。
+     */
+    @Test
+    fun `only warmup sets yields no level entry`() {
+        val workouts = listOf(
+            workout(
+                LocalDate.of(2026, 5, 20),
+                exercise("杠铃卧推", "barbell-bench-press", warmup(40f, 12)),
+            ),
+        )
+
+        val result = TrainingLevelCalculator.calculate(workouts, bodyWeightKg = null)
+
+        assertTrue(result.exercises.isEmpty())
     }
 }

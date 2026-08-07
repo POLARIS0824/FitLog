@@ -42,6 +42,7 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
@@ -116,12 +117,14 @@ import kotlin.math.sin
  * @param onNavigateToSettings 跳转设置回调
  * @param onNavigateToWorkout 跳转训练记录回调
  * @param onNavigateToStats 跳转统计页回调
+ * @param onNavigateToChat 跳转 AI 教练对话回调
  */
 @Composable
 fun TodayRoute(
     onNavigateToSettings: () -> Unit = {},
     onNavigateToWorkout: () -> Unit = {},
     onNavigateToStats: () -> Unit = {},
+    onNavigateToChat: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
@@ -133,6 +136,7 @@ fun TodayRoute(
         onNavigateToSettings = onNavigateToSettings,
         onNavigateToWorkout = onNavigateToWorkout,
         onNavigateToStats = onNavigateToStats,
+        onNavigateToChat = onNavigateToChat,
         onDisplayModeSelected = viewModel::onDisplayModeSelected,
         onPlanSelected = viewModel::onPlanSelected,
         onErrorShown = viewModel::onErrorShown,
@@ -153,6 +157,7 @@ fun TodayScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToWorkout: () -> Unit,
     onNavigateToStats: () -> Unit,
+    onNavigateToChat: () -> Unit = {},
     onDisplayModeSelected: (WeekProgressDisplayMode) -> Unit,
     onPlanSelected: (String) -> Unit,
     onErrorShown: () -> Unit,
@@ -171,6 +176,7 @@ fun TodayScreen(
             TodayTopBar(
                 onNavigateToSettings = onNavigateToSettings,
                 onNavigateToStats = onNavigateToStats,
+                onNavigateToChat = onNavigateToChat,
             )
         },
     ) { innerPadding ->
@@ -256,12 +262,14 @@ fun TodayScreen(
  *
  * @param onNavigateToSettings 跳转设置回调
  * @param onNavigateToStats 跳转统计页回调
+ * @param onNavigateToChat 跳转 AI 教练对话回调
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TodayTopBar(
     onNavigateToSettings: () -> Unit,
     onNavigateToStats: () -> Unit,
+    onNavigateToChat: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     CenterAlignedTopAppBar(
@@ -287,6 +295,13 @@ private fun TodayTopBar(
                 Icon(
                     imageVector = Icons.Default.BarChart,
                     contentDescription = "统计",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            IconButton(onClick = onNavigateToChat) {
+                Icon(
+                    imageVector = Icons.Default.Chat,
+                    contentDescription = "AI 教练对话",
                     tint = MaterialTheme.colorScheme.onSurface,
                 )
             }

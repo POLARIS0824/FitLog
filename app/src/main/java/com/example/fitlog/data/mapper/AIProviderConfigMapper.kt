@@ -9,18 +9,25 @@ import com.example.fitlog.util.security.KeystoreManager
  * entity → domain model
  *
  * 关键点：[AIProviderConfigEntity.encryptedApiKey] 是密文，
- * 必须通过 [KeystoreManager.decrypt] 还原为明文 [AIProviderConfig.apiKey]。
+ * 必须通过 [KeystoreManager.decryptOrNull] 还原为明文 [AIProviderConfig.apiKey]。
  *
  * 这样外部调用方拿到的永远是可直接使用的明文 key，
  * 不需要知道加密细节。
+ *
+ * 容错降级（防备份恢复崩溃）：
+ * - 换机恢复后 Android Keystore 密钥不存在，[KeystoreManager.decryptOrNull]
+ *   返回 null，此时 [AIProviderConfig.apiKey] 降级为空字符串——
+ *   配置仍可展示（名称/类型/地址/模型），只是不可用于请求，不崩溃；
+ * - [AIProviderConfigEntity.type] 为未知字符串时降级为 [ProviderType.CUSTOM]，
+ *   不抛 [IllegalArgumentException]。
  */
 fun AIProviderConfigEntity.toModel(): AIProviderConfig {
     return AIProviderConfig(
         id = id,
         name = name,
-        type = ProviderType.valueOf(type),
+        type = ProviderType.entries.firstOrNull { it.name == type } ?: ProviderType.CUSTOM,
         baseUrl = baseUrl,
-        apiKey = KeystoreManager.decrypt(encryptedApiKey),
+        apiKey = KeystoreManager.decryptOrNull(encryptedApiKey).orEmpty(),
         model = model,
         customEndpoint = customEndpoint,
         apiVersion = apiVersion,

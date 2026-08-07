@@ -14,6 +14,10 @@ import com.example.fitlog.testing.FakeAIApi
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import com.example.fitlog.util.security.FakeAndroidKeyStoreProvider
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -50,6 +54,16 @@ class AIChatRepositoryTest {
     private lateinit var repository: AIChatRepository
 
     /**
+     * 测试调度器：与 DataStore scope 及 `runTest` 共享同一实例。
+     */
+    private val testScheduler = TestCoroutineScheduler()
+
+    /**
+     * DataStore 内部协程的作用域，测试结束时在 [tearDown] 中取消。
+     */
+    private lateinit var dataStoreScope: TestScope
+
+    /**
      * 初始化内存数据库、临时 DataStore、模拟密钥库、Fake API 与仓库实例。
      */
     @Before
@@ -61,17 +75,22 @@ class AIChatRepositoryTest {
             .allowMainThreadQueries()
             .build()
 
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("chat_prefs_test.preferences_pb"))
+        dataStoreScope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("chat_prefs_test.preferences_pb"),
+            dataStoreScope,
+        )
         providerConfigRepo = AIProviderConfigRepository(db.aiProviderConfigDao(), dataStore)
         fakeApi = FakeAIApi()
         repository = AIChatRepository(fakeApi, providerConfigRepo)
     }
 
     /**
-     * 测试后关闭数据库。
+     * 取消 DataStore 作用域并关闭数据库。
      */
     @After
     fun tearDown() {
+        dataStoreScope.cancel()
         db.close()
     }
 
@@ -104,7 +123,7 @@ class AIChatRepositoryTest {
      * 测试未设置激活服务商时，返回包含引导文案的 failure，且不发网络请求。
      */
     @Test
-    fun testChat_noActiveProvider_returnsGuidanceFailure() = runTest {
+    fun testChat_noActiveProvider_returnsGuidanceFailure() = runTest(testScheduler) {
         val result = repository.chat(messages)
 
         assertTrue(result.isFailure)
@@ -116,7 +135,7 @@ class AIChatRepositoryTest {
      * 测试已设置激活服务商时，chat(messages) 使用该配置发请求。
      */
     @Test
-    fun testChat_withActiveProvider_usesActiveConfig() = runTest {
+    fun testChat_withActiveProvider_usesActiveConfig() = runTest(testScheduler) {
         providerConfigRepo.insert(config(apiKey = "sk-active"))
         providerConfigRepo.setActiveProviderId("OPENAI")
 
@@ -137,7 +156,7 @@ class AIChatRepositoryTest {
      * 测试成功响应：映射为领域模型 ChatMessage 并包装为 success。
      */
     @Test
-    fun testChat_success_mapsReplyToModel() = runTest {
+    fun testChat_success_mapsReplyToModel() = runTest(testScheduler) {
         fakeApi.chatHandler = {
             ChatCompletionResponseDto(
                 choices = listOf(ChoiceDto(message = MessageDto(role = "assistant", content = "加油，坚持训练！"))),
@@ -154,7 +173,7 @@ class AIChatRepositoryTest {
      * 测试请求体装配：model 与 messages 正确序列化进请求 DTO。
      */
     @Test
-    fun testChat_assemblesRequestBody() = runTest {
+    fun testChat_assemblesRequestBody() = runTest(testScheduler) {
         repository.chat(config(model = "deepseek-v4-pro"), messages)
 
         val call = fakeApi.chatCalls[0]
@@ -166,7 +185,7 @@ class AIChatRepositoryTest {
      * 测试 Azure 配置：URL 含 deployments 与 api-version，Header 用 api-key。
      */
     @Test
-    fun testChat_azureConfig_buildsAzureStyleRequest() = runTest {
+    fun testChat_azureConfig_buildsAzureStyleRequest() = runTest(testScheduler) {
         val azureConfig = config(
             type = ProviderType.AZURE,
             baseUrl = "https://my-resource.openai.azure.com",
@@ -195,7 +214,7 @@ class AIChatRepositoryTest {
      * 测试 AI 返回空 choices 时，包装为"AI 未返回任何回复"的 failure。
      */
     @Test
-    fun testChat_emptyChoices_returnsFailure() = runTest {
+    fun testChat_emptyChoices_returnsFailure() = runTest(testScheduler) {
         fakeApi.chatHandler = { ChatCompletionResponseDto(choices = emptyList()) }
 
         val result = repository.chat(config(), messages)
@@ -208,7 +227,7 @@ class AIChatRepositoryTest {
      * 测试网络异常被包装为 Result.failure（而非抛出）。
      */
     @Test
-    fun testChat_networkException_wrappedAsFailure() = runTest {
+    fun testChat_networkException_wrappedAsFailure() = runTest(testScheduler) {
         fakeApi.chatHandler = { throw IOException("连接超时") }
 
         val result = repository.chat(config(), messages)
@@ -222,7 +241,7 @@ class AIChatRepositoryTest {
      * 测试 CancellationException 不被 Result 包装，直接向上传播（结构化并发要求）。
      */
     @Test
-    fun testChat_cancellation_propagates() = runTest {
+    fun testChat_cancellation_propagates() = runTest(testScheduler) {
         fakeApi.chatHandler = { throw CancellationException("协程被取消") }
 
         try {
@@ -241,7 +260,7 @@ class AIChatRepositoryTest {
      * 测试连通性测试：发送最小消息并返回成功。
      */
     @Test
-    fun testTestConnection_sendsMinimalMessage() = runTest {
+    fun testTestConnection_sendsMinimalMessage() = runTest(testScheduler) {
         val result = repository.testConnection(config())
 
         assertTrue(result.isSuccess)
@@ -253,7 +272,7 @@ class AIChatRepositoryTest {
      * 测试拉取模型列表：响应 data 映射为模型 id 列表。
      */
     @Test
-    fun testFetchModels_success_mapsIds() = runTest {
+    fun testFetchModels_success_mapsIds() = runTest(testScheduler) {
         val result = repository.fetchModels(config())
 
         assertTrue(result.isSuccess)
@@ -266,7 +285,7 @@ class AIChatRepositoryTest {
      * 测试拉取模型列表失败时包装为 failure。
      */
     @Test
-    fun testFetchModels_networkException_wrappedAsFailure() = runTest {
+    fun testFetchModels_networkException_wrappedAsFailure() = runTest(testScheduler) {
         fakeApi.modelsHandler = { throw IOException("无网络") }
 
         val result = repository.fetchModels(config())
@@ -279,7 +298,7 @@ class AIChatRepositoryTest {
      * 测试 fetchModels 中 CancellationException 同样向上传播。
      */
     @Test
-    fun testFetchModels_cancellation_propagates() = runTest {
+    fun testFetchModels_cancellation_propagates() = runTest(testScheduler) {
         fakeApi.modelsHandler = { throw CancellationException() }
 
         try {

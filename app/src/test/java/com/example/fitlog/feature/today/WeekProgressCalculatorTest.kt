@@ -354,6 +354,44 @@ class WeekProgressCalculatorTest {
         assertEquals("暂无数据", emptyWeek[1].subtitle)
     }
 
+    /**
+     * 口径：热身组不计入 e1RM，即使本周热身组重量/次数高于历史正式组最佳，
+     * 也不得被误报为新 PR。
+     */
+    @Test
+    fun `VOLUME_PR warmup sets never count as PR breakthrough`() {
+        // 历史最佳（正式组）：卧推 80kg×5（e1RM≈93.3）
+        val history = listOf(
+            workout(
+                id = 1L,
+                date = weekStart.minusDays(7),
+                exercises = listOf(
+                    exerciseLog("barbell-bench-press", "Barbell bench press", working(80f, 5)),
+                ),
+            ),
+        )
+        // 本周只有热身组（重量/次数都更高）——若误计，e1RM≈116.7 会伪报 PR
+        val week = listOf(
+            workout(
+                id = 2L,
+                date = weekStart.plusDays(1),
+                exercises = listOf(
+                    exerciseLog("barbell-bench-press", "Barbell bench press", warmup(95f, 8), warmup(100f, 5)),
+                ),
+            ),
+        )
+
+        val items = calculate(
+            WeekProgressDisplayMode.VOLUME_PR,
+            weekWorkouts = week,
+            prevWeekWorkouts = history,
+            allWorkouts = history + week,
+        )
+
+        assertEquals("PR", items[1].title)
+        assertEquals("暂无突破", items[1].subtitle)
+    }
+
     @Test
     fun `VOLUME_PR growth compares volume per body part`() {
         val prev = listOf(

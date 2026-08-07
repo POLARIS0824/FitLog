@@ -113,4 +113,28 @@ class UserProfileMapperTest {
         assertNull(entity.height)
         assertNull(entity.weight)
     }
+
+    /**
+     * 测试存储了未知的 Gender/TrainingGoal 字符串时反序列化降级为 null（而非崩溃）。
+     */
+    @Test
+    fun testEntityToModel_unknownEnums_degradesToNull() {
+        val entity = UserProfileEntity(
+            id = 5L,
+            name = "旧数据",
+            age = 25,
+            gender = "X",
+            height = 175f,
+            weight = 70f,
+            trainingGoal = "OLYMPIC_LIFTING_OLD",
+        )
+
+        val model = entity.toModel()
+
+        assertNull(model.gender)
+        assertNull(model.trainingGoal)
+        // 其余字段不受影响
+        assertEquals("旧数据", model.name)
+        assertEquals(70f, model.weight)
+    }
 }

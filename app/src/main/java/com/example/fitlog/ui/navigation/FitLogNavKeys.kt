@@ -17,6 +17,9 @@ import kotlinx.serialization.Serializable
 data object TodayKey : NavKey
 
 @Serializable
+data object ChatKey : NavKey
+
+@Serializable
 data object WorkoutKey : NavKey
 
 @Serializable

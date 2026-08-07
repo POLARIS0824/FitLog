@@ -74,6 +74,10 @@ object KeystoreManager {
     /**
      * 解密密文。
      *
+     * 仅适用于密钥仍在 Keystore 中的正常场景；
+     * 若密钥缺失（如备份恢复到新设备）或密文损坏，会抛出异常。
+     * 需要容错的调用方应使用 [decryptOrNull]。
+     *
      * @param encryptedBase64 Base64 编码的密文
      * @return 原始明文
      */
@@ -90,5 +94,30 @@ object KeystoreManager {
         cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_LENGTH, iv))
 
         return String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
+    }
+
+    /**
+     * 容错解密密文：失败时返回 null 而非抛异常。
+     *
+     * 典型失败场景：
+     * - 备份恢复到新设备后 Keystore 密钥不存在，[getOrCreateKey] 新建的密钥
+     *   无法解开旧密文（GCM 认证失败）；
+     * - 密文被截断/篡改，Base64 解码或 GCM tag 校验失败。
+     *
+     * 返回 null 表示“无法还原明文”，调用方（如 mapper）应降级处理
+     * （apiKey 置空、配置仍可展示但不可用），保证不崩溃。
+     * 明文 API Key 只存在于内存，失败时不会泄漏到日志或磁盘。
+     *
+     * @param encryptedBase64 Base64 编码的密文
+     * @return 原始明文；密钥缺失或密文损坏时返回 null
+     */
+    fun decryptOrNull(encryptedBase64: String): String? {
+        return try {
+            decrypt(encryptedBase64)
+        } catch (e: Exception) {
+            // 解密失败统一降级为 null；
+            // 这里无挂起点，捕获普通异常即可，不涉及协程取消传播。
+            null
+        }
     }
 }

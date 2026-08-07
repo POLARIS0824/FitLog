@@ -25,7 +25,14 @@ class ExerciseConverters {
 
     @TypeConverter
     fun toMuscleList(value: String): List<Muscle> =
-        if (value.isEmpty()) emptyList() else value.split(",").map { Muscle.valueOf(it) }
+        if (value.isEmpty()) {
+            emptyList()
+        } else {
+            // 未知肌群名（如旧版本种子数据残留）直接跳过，不抛 valueOf 异常
+            value.split(",").mapNotNull { raw ->
+                Muscle.entries.firstOrNull { it.name == raw }
+            }
+        }
 
     // ── BodyPart ──
 
@@ -33,7 +40,9 @@ class ExerciseConverters {
     fun fromBodyPart(value: BodyPart): String = value.name
 
     @TypeConverter
-    fun toBodyPart(value: String): BodyPart = BodyPart.valueOf(value)
+    fun toBodyPart(value: String): BodyPart =
+        // 未知部位名降级为实体默认值 CHEST（与 ExerciseEntity.bodyPart 默认值一致）
+        BodyPart.entries.firstOrNull { it.name == value } ?: BodyPart.CHEST
 
     // ── Equipment ──
 
@@ -41,7 +50,9 @@ class ExerciseConverters {
     fun fromEquipment(value: Equipment?): String? = value?.name
 
     @TypeConverter
-    fun toEquipment(value: String?): Equipment? = value?.let { Equipment.valueOf(it) }
+    fun toEquipment(value: String?): Equipment? =
+        // 未知器械名降级为 null（Equipment 字段本身可空）
+        value?.let { raw -> Equipment.entries.firstOrNull { it.name == raw } }
 
     // ── String 列表（JSON 序列化） ──
 

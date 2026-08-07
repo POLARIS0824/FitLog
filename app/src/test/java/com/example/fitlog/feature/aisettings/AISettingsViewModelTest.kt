@@ -18,7 +18,10 @@ import com.example.fitlog.testing.createTestPreferencesDataStore
 import com.example.fitlog.util.security.FakeAndroidKeyStoreProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -59,11 +62,21 @@ class AISettingsViewModelTest {
     private lateinit var viewModel: AISettingsViewModel
 
     /**
+     * 测试调度器：与 DataStore scope、Main dispatcher 及 `runTest` 共享同一实例。
+     */
+    private val testScheduler = TestCoroutineScheduler()
+
+    /**
+     * DataStore 内部协程的作用域，测试结束时在 [tearDown] 中取消。
+     */
+    private lateinit var dataStoreScope: TestScope
+
+    /**
      * 设置主调度器，初始化数据库、仓库链与 ViewModel。
      */
     @Before
     fun setUp() {
-        Dispatchers.setMain(UnconfinedTestDispatcher())
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         FakeAndroidKeyStoreProvider.setup()
 
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -71,17 +84,22 @@ class AISettingsViewModelTest {
             .allowMainThreadQueries()
             .build()
 
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("ai_settings_prefs.preferences_pb"))
+        dataStoreScope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("ai_settings_prefs.preferences_pb"),
+            dataStoreScope,
+        )
         providerConfigRepo = AIProviderConfigRepository(db.aiProviderConfigDao(), dataStore)
         fakeApi = FakeAIApi()
         viewModel = AISettingsViewModel(providerConfigRepo, AIChatRepository(fakeApi, providerConfigRepo))
     }
 
     /**
-     * 重置主调度器并关闭数据库。
+     * 取消 DataStore 作用域，重置主调度器并关闭数据库。
      */
     @After
     fun tearDown() {
+        dataStoreScope.cancel()
         Dispatchers.resetMain()
         db.close()
     }
@@ -112,7 +130,7 @@ class AISettingsViewModelTest {
      * 测试默认选中的服务商类型为 DEEPSEEK。
      */
     @Test
-    fun testInitialState_defaultSelectedTypeIsDeepseek() = runTest {
+    fun testInitialState_defaultSelectedTypeIsDeepseek() = runTest(testScheduler) {
         val state = viewModel.uiState.first()
         assertEquals(ProviderType.DEEPSEEK, state.provider.selectedType)
     }
@@ -121,7 +139,7 @@ class AISettingsViewModelTest {
      * 测试选中未保存过的服务商：apiKey 清空，模型与 baseUrl 回填为该服务商默认值。
      */
     @Test
-    fun testOnProviderSelected_noSavedConfig_backfillsDefaults() = runTest {
+    fun testOnProviderSelected_noSavedConfig_backfillsDefaults() = runTest(testScheduler) {
         viewModel.onProviderSelected(ProviderType.OPENAI)
 
         val state = viewModel.uiState.first { it.model.selectedModel == "gpt-5.6-sol" }
@@ -135,7 +153,7 @@ class AISettingsViewModelTest {
      * 测试选中已保存过的服务商：表单回填已保存的凭据、模型与缓存模型列表。
      */
     @Test
-    fun testOnProviderSelected_withSavedConfig_backfillsSavedValues() = runTest {
+    fun testOnProviderSelected_withSavedConfig_backfillsSavedValues() = runTest(testScheduler) {
         providerConfigRepo.insert(
             config(
                 id = "OPENAI",
@@ -158,7 +176,7 @@ class AISettingsViewModelTest {
      * 测试表单输入事件更新对应字段。
      */
     @Test
-    fun testFormInputEvents_updateState() = runTest {
+    fun testFormInputEvents_updateState() = runTest(testScheduler) {
         viewModel.onApiKeyChange("sk-new")
         viewModel.onModelChange("my-model")
         viewModel.onBaseUrlChange("https://custom.example.com")
@@ -176,7 +194,7 @@ class AISettingsViewModelTest {
      * 测试切换 API Key 明文/密文显示。
      */
     @Test
-    fun testOnToggleApiKeyVisibility_flipsFlag() = runTest {
+    fun testOnToggleApiKeyVisibility_flipsFlag() = runTest(testScheduler) {
         assertFalse(viewModel.uiState.first().apiKey.showApiKey)
 
         viewModel.onToggleApiKeyVisibility()
@@ -194,7 +212,7 @@ class AISettingsViewModelTest {
      * 测试保存：配置落库（apiKey 可读回明文）、自动设为激活服务商、弹出成功提示。
      */
     @Test
-    fun testOnSave_persistsActivatesAndShowsSuccess() = runTest {
+    fun testOnSave_persistsActivatesAndShowsSuccess() = runTest(testScheduler) {
         val cfg = config(id = "OPENAI", apiKey = "sk-to-save")
         viewModel.onSave(cfg)
 
@@ -209,7 +227,7 @@ class AISettingsViewModelTest {
      * 测试 onErrorShown / onSuccessShown 清除一次性提示。
      */
     @Test
-    fun testOneShotMessages_cleared() = runTest {
+    fun testOneShotMessages_cleared() = runTest(testScheduler) {
         viewModel.onSave(config(id = "OPENAI"))
         viewModel.uiState.first { it.ui.successMessage != null }
 
@@ -228,7 +246,7 @@ class AISettingsViewModelTest {
      * 测试 apiKey 为空时拉取被守卫拦截：不发网络请求，不产生提示。
      */
     @Test
-    fun testOnFetchModels_blankApiKey_guarded() = runTest {
+    fun testOnFetchModels_blankApiKey_guarded() = runTest(testScheduler) {
         viewModel.onFetchModels("https://api.openai.com", null)
 
         assertTrue(fakeApi.modelsCalls.isEmpty())
@@ -241,7 +259,7 @@ class AISettingsViewModelTest {
      * 测试拉取成功且配置不存在时：新插入配置并缓存模型列表。
      */
     @Test
-    fun testOnFetchModels_successWithoutExistingConfig_insertsConfigWithModels() = runTest {
+    fun testOnFetchModels_successWithoutExistingConfig_insertsConfigWithModels() = runTest(testScheduler) {
         fakeApi.modelsHandler = {
             ModelsResponseDto(data = listOf(ModelItemDto("gpt-5.6-sol"), ModelItemDto("gpt-5.5")))
         }
@@ -266,7 +284,7 @@ class AISettingsViewModelTest {
      * 测试拉取成功且配置已存在时：仅更新缓存模型列表，不覆盖已保存的 apiKey。
      */
     @Test
-    fun testOnFetchModels_successWithExistingConfig_updatesModelsOnly() = runTest {
+    fun testOnFetchModels_successWithExistingConfig_updatesModelsOnly() = runTest(testScheduler) {
         providerConfigRepo.insert(config(id = "DEEPSEEK", type = ProviderType.DEEPSEEK, apiKey = "sk-old"))
 
         // 默认选中 DEEPSEEK；表单里输入了新的 key 但尚未保存
@@ -285,7 +303,7 @@ class AISettingsViewModelTest {
      * 测试拉取失败：提示失败原因，模型列表保持原值不阻塞手动输入。
      */
     @Test
-    fun testOnFetchModels_failure_showsErrorAndKeepsModels() = runTest {
+    fun testOnFetchModels_failure_showsErrorAndKeepsModels() = runTest(testScheduler) {
         fakeApi.modelsHandler = { throw IOException("鉴权失败") }
 
         viewModel.onProviderSelected(ProviderType.OPENAI)
@@ -304,7 +322,7 @@ class AISettingsViewModelTest {
      * 测试 onFetchResultShown 清除拉取结果提示。
      */
     @Test
-    fun testOnFetchResultShown_clearsMessage() = runTest {
+    fun testOnFetchResultShown_clearsMessage() = runTest(testScheduler) {
         viewModel.onProviderSelected(ProviderType.OPENAI)
         viewModel.uiState.first { it.model.selectedModel == "gpt-5.6-sol" }
         viewModel.onApiKeyChange("sk-new")
@@ -323,7 +341,7 @@ class AISettingsViewModelTest {
      * 测试表单字段不完整时连通性测试被守卫拦截。
      */
     @Test
-    fun testOnTestConnection_blankFields_guarded() = runTest {
+    fun testOnTestConnection_blankFields_guarded() = runTest(testScheduler) {
         viewModel.onTestConnection()
 
         assertTrue(fakeApi.chatCalls.isEmpty())
@@ -335,7 +353,7 @@ class AISettingsViewModelTest {
      * 测试连通性测试成功：使用表单中未保存的凭据发最小消息。
      */
     @Test
-    fun testOnTestConnection_success() = runTest {
+    fun testOnTestConnection_success() = runTest(testScheduler) {
         fakeApi.chatHandler = {
             ChatCompletionResponseDto(
                 choices = listOf(ChoiceDto(message = MessageDto("assistant", "Hi!"))),
@@ -362,7 +380,7 @@ class AISettingsViewModelTest {
      * 测试连通性测试失败：提示失败原因。
      */
     @Test
-    fun testOnTestConnection_failure() = runTest {
+    fun testOnTestConnection_failure() = runTest(testScheduler) {
         fakeApi.chatHandler = { throw IOException("HTTP 401") }
 
         viewModel.onProviderSelected(ProviderType.OPENAI)
@@ -379,7 +397,7 @@ class AISettingsViewModelTest {
      * 测试切换服务商后旧的测试结果被清空。
      */
     @Test
-    fun testOnProviderSelected_resetsTestState() = runTest {
+    fun testOnProviderSelected_resetsTestState() = runTest(testScheduler) {
         viewModel.onProviderSelected(ProviderType.OPENAI)
         viewModel.uiState.first { it.model.selectedModel == "gpt-5.6-sol" }
         viewModel.onApiKeyChange("sk-test")
@@ -402,7 +420,7 @@ class AISettingsViewModelTest {
      * 测试已有激活服务商时，ViewModel 初始化后表单定位到该服务商。
      */
     @Test
-    fun testInit_withActiveProvider_formLandsOnActiveType() = runTest {
+    fun testInit_withActiveProvider_formLandsOnActiveType() = runTest(testScheduler) {
         providerConfigRepo.insert(
             config(id = "MOONSHOT", type = ProviderType.MOONSHOT, baseUrl = "https://api.moonshot.cn"),
         )
