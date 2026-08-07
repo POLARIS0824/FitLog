@@ -14,7 +14,10 @@ import com.example.fitlog.util.security.FakeAndroidKeyStoreProvider
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -58,11 +61,21 @@ class ChatViewModelTest {
     private lateinit var viewModel: ChatViewModel
 
     /**
+     * 测试调度器：与 DataStore scope、Main dispatcher 及 `runTest` 共享同一实例。
+     */
+    private val testScheduler = TestCoroutineScheduler()
+
+    /**
+     * DataStore 内部协程的作用域，测试结束时在 [tearDown] 中取消。
+     */
+    private lateinit var dataStoreScope: TestScope
+
+    /**
      * 设置主调度器，初始化数据库、仓库链与 ViewModel。
      */
     @Before
     fun setUp() {
-        Dispatchers.setMain(UnconfinedTestDispatcher())
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         FakeAndroidKeyStoreProvider.setup()
 
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -70,17 +83,22 @@ class ChatViewModelTest {
             .allowMainThreadQueries()
             .build()
 
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("chat_vm_prefs.preferences_pb"))
+        dataStoreScope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("chat_vm_prefs.preferences_pb"),
+            dataStoreScope,
+        )
         providerConfigRepo = AIProviderConfigRepository(db.aiProviderConfigDao(), dataStore)
         fakeApi = FakeAIApi()
         viewModel = ChatViewModel(AIChatRepository(fakeApi, providerConfigRepo))
     }
 
     /**
-     * 重置主调度器并关闭数据库。
+     * 取消 DataStore 作用域，重置主调度器并关闭数据库。
      */
     @After
     fun tearDown() {
+        dataStoreScope.cancel()
         Dispatchers.resetMain()
         db.close()
     }
@@ -107,7 +125,7 @@ class ChatViewModelTest {
      * 测试输入框文本变化事件。
      */
     @Test
-    fun testOnInputChange_updatesInput() = runTest {
+    fun testOnInputChange_updatesInput() = runTest(testScheduler) {
         viewModel.onInputChange("今天练胸")
         assertEquals("今天练胸", viewModel.uiState.value.input)
     }
@@ -116,7 +134,7 @@ class ChatViewModelTest {
      * 测试空白输入不可发送：不产生消息、不发网络请求。
      */
     @Test
-    fun testSend_blankInput_doesNothing() = runTest {
+    fun testSend_blankInput_doesNothing() = runTest(testScheduler) {
         activateProvider()
 
         viewModel.onInputChange("   ")
@@ -133,7 +151,7 @@ class ChatViewModelTest {
      * 用户消息立即上屏、输入框清空、isSending 复位、AI 回复追加。
      */
     @Test
-    fun testSend_success_appendsReplyAndResetsState() = runTest {
+    fun testSend_success_appendsReplyAndResetsState() = runTest(testScheduler) {
         activateProvider()
 
         viewModel.onInputChange("你好")
@@ -153,7 +171,7 @@ class ChatViewModelTest {
      * 测试发送时请求中注入了系统提示词（第一条为 system 角色）。
      */
     @Test
-    fun testSend_success_prependsSystemPrompt() = runTest {
+    fun testSend_success_prependsSystemPrompt() = runTest(testScheduler) {
         activateProvider()
 
         viewModel.onInputChange("你好")
@@ -170,7 +188,7 @@ class ChatViewModelTest {
      * 测试未配置 AI 服务商时发送失败：错误信息引导用户去设置，用户消息保留。
      */
     @Test
-    fun testSend_noActiveProvider_showsGuidanceError() = runTest {
+    fun testSend_noActiveProvider_showsGuidanceError() = runTest(testScheduler) {
         viewModel.onInputChange("你好")
         viewModel.send()
 
@@ -186,7 +204,7 @@ class ChatViewModelTest {
      * 测试网络异常路径：errorMessage 为异常描述，isSending 复位。
      */
     @Test
-    fun testSend_networkFailure_showsErrorMessage() = runTest {
+    fun testSend_networkFailure_showsErrorMessage() = runTest(testScheduler) {
         activateProvider()
         fakeApi.chatHandler = { throw IOException("连接超时") }
 
@@ -199,15 +217,15 @@ class ChatViewModelTest {
     }
 
     /**
-     * 测试 dismissError 清除一次性错误状态。
+     * 测试 onErrorShown 清除一次性错误状态。
      */
     @Test
-    fun testDismissError_clearsErrorMessage() = runTest {
+    fun testOnErrorShown_clearsErrorMessage() = runTest(testScheduler) {
         viewModel.onInputChange("你好")
         viewModel.send()
         viewModel.uiState.first { it.errorMessage != null }
 
-        viewModel.dismissError()
+        viewModel.onErrorShown()
         assertNull(viewModel.uiState.value.errorMessage)
     }
 
@@ -215,7 +233,7 @@ class ChatViewModelTest {
      * 测试发送过程中再次点击发送被忽略（防重复并发请求）。
      */
     @Test
-    fun testSend_whileSending_secondSendIgnored() = runTest {
+    fun testSend_whileSending_secondSendIgnored() = runTest(testScheduler) {
         activateProvider()
 
         // 用闩锁阻塞 Fake API 响应，使第一次发送停留在 isSending 状态；

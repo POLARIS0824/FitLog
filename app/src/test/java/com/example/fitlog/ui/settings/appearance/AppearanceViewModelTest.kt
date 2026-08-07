@@ -5,10 +5,13 @@ import com.example.fitlog.data.repository.UserPreferencesRepository
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -39,21 +42,36 @@ class AppearanceViewModelTest {
     private lateinit var viewModel: AppearanceViewModel
 
     /**
+     * 测试调度器：与 DataStore scope、Main dispatcher 及 `runTest` 共享同一实例。
+     */
+    private val testScheduler = TestCoroutineScheduler()
+
+    /**
+     * DataStore 内部协程的作用域，测试结束时在 [tearDown] 中取消。
+     */
+    private lateinit var dataStoreScope: TestScope
+
+    /**
      * 设置主调度器并初始化仓库与 ViewModel。
      */
     @Before
     fun setUp() {
-        Dispatchers.setMain(UnconfinedTestDispatcher())
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("appearance_prefs.preferences_pb"))
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        dataStoreScope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("appearance_prefs.preferences_pb"),
+            dataStoreScope,
+        )
         preferencesRepository = UserPreferencesRepository(dataStore)
         viewModel = AppearanceViewModel(preferencesRepository)
     }
 
     /**
-     * 重置主调度器。
+     * 取消 DataStore 作用域并重置主调度器。
      */
     @After
     fun tearDown() {
+        dataStoreScope.cancel()
         Dispatchers.resetMain()
     }
 
@@ -61,7 +79,7 @@ class AppearanceViewModelTest {
      * 测试初始状态为默认值：跟随系统 + 动态取色开启。
      */
     @Test
-    fun testInitialState_defaults() = runTest {
+    fun testInitialState_defaults() = runTest(testScheduler) {
         val state = viewModel.uiState.first()
         assertEquals(ThemeMode.SYSTEM, state.themeMode)
         assertEquals(true, state.dynamicColor)
@@ -71,7 +89,7 @@ class AppearanceViewModelTest {
      * 测试切换主题模式：状态从默认 SYSTEM 流转为 DARK。
      */
     @Test
-    fun testOnThemeModeChange_updatesState() = runTest {
+    fun testOnThemeModeChange_updatesState() = runTest(testScheduler) {
         viewModel.onThemeModeChange(ThemeMode.DARK)
 
         val state = viewModel.uiState.first { it.themeMode == ThemeMode.DARK }
@@ -82,7 +100,7 @@ class AppearanceViewModelTest {
      * 测试关闭动态取色：状态流转为 false。
      */
     @Test
-    fun testOnDynamicColorChange_updatesState() = runTest {
+    fun testOnDynamicColorChange_updatesState() = runTest(testScheduler) {
         viewModel.onDynamicColorChange(false)
 
         val state = viewModel.uiState.first { !it.dynamicColor }

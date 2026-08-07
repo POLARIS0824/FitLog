@@ -55,7 +55,10 @@ class WorkoutPlanSeederTest {
      */
     @Test
     fun testSeed_firstRunWritesAllPlansAndUpdatesVersion() = runTest {
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("seeder_prefs.preferences_pb"))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("seeder_prefs.preferences_pb"),
+            backgroundScope,
+        )
         insertPresetReferencedExercises()
         val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
 
@@ -81,7 +84,10 @@ class WorkoutPlanSeederTest {
      */
     @Test
     fun testSeed_skippedWhenVersionUpToDate() = runTest {
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("seeder_prefs2.preferences_pb"))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("seeder_prefs2.preferences_pb"),
+            backgroundScope,
+        )
         // 预置版本号为当前 SEED_VERSION（2）
         dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 2 }
         val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
@@ -96,7 +102,10 @@ class WorkoutPlanSeederTest {
      */
     @Test
     fun testSeed_skipsPlanWhenExerciseKeysMissing() = runTest {
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("seeder_prefs3.preferences_pb"))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("seeder_prefs3.preferences_pb"),
+            backgroundScope,
+        )
         // 动作库为空 → 两套计划都缺少引用动作，应全部跳过
         val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
 
@@ -111,7 +120,10 @@ class WorkoutPlanSeederTest {
      */
     @Test
     fun testSeed_doesNotMarkVersionWhenNothingWritten() = runTest {
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("seeder_prefs4.preferences_pb"))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("seeder_prefs4.preferences_pb"),
+            backgroundScope,
+        )
         // 动作库为空 → 全部跳过
         val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
 
@@ -128,7 +140,10 @@ class WorkoutPlanSeederTest {
      */
     @Test
     fun testSeed_reSeedsWhenV1FlaggedButPlansMissing() = runTest {
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("seeder_prefs5.preferences_pb"))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("seeder_prefs5.preferences_pb"),
+            backgroundScope,
+        )
         // 模拟被旧缺陷污染的安装：v1 已标记但计划表为空
         dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 1 }
         insertPresetReferencedExercises()

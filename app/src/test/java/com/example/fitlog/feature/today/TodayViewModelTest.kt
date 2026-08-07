@@ -32,7 +32,10 @@ import com.example.fitlog.testing.FakeAIApi
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -81,6 +84,16 @@ class TodayViewModelTest {
     private val today: LocalDate = LocalDate.now()
 
     /**
+     * 测试调度器：与 DataStore scope、Main dispatcher 及 `runTest` 共享同一实例。
+     */
+    private val testScheduler = TestCoroutineScheduler()
+
+    /**
+     * DataStore 内部协程的作用域，测试结束时在 [tearDown] 中取消。
+     */
+    private lateinit var dataStoreScope: TestScope
+
+    /**
      * 设置主调度器并初始化数据库与仓库（ViewModel 由各测试按需创建，
      * 以便在创建前插入 profile 等一次性加载的数据）。
      *
@@ -88,13 +101,17 @@ class TodayViewModelTest {
      * 避免每个测试真实解析 1.33MB exercises.json 并写入预置计划。
      */
     @Before
-    fun setUp() = runTest {
-        Dispatchers.setMain(UnconfinedTestDispatcher())
+    fun setUp() = runTest(testScheduler) {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        dataStore = createTestPreferencesDataStore(tmpFolder.newFile("today_prefs.preferences_pb"))
+        dataStoreScope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("today_prefs.preferences_pb"),
+            dataStoreScope,
+        )
         // ExerciseSeeder 短路需"版本号 ≥ SEED_VERSION 且动作表非空"；WorkoutPlanSeeder 仅需版本号
         dataStore.edit { it[intPreferencesKey("exercise_seed_version")] = 1 }
         dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 2 }
@@ -131,10 +148,11 @@ class TodayViewModelTest {
     }
 
     /**
-     * 重置主调度器并关闭数据库。
+     * 取消 DataStore 作用域，重置主调度器并关闭数据库。
      */
     @After
     fun tearDown() {
+        dataStoreScope.cancel()
         db.close()
         Dispatchers.resetMain()
     }
@@ -158,7 +176,7 @@ class TodayViewModelTest {
      * 测试初始暴露的状态为加载中（stateIn initialValue）。
      */
     @Test
-    fun testInitialState_isLoading() = runTest {
+    fun testInitialState_isLoading() = runTest(testScheduler) {
         val viewModel = createViewModel()
         assertTrue(viewModel.uiState.value.uiState.isLoading)
     }
@@ -167,7 +185,7 @@ class TodayViewModelTest {
      * 测试空库：今日计划为 NO_PLAN，Coach Insight 降级。
      */
     @Test
-    fun testEmptyDatabase_showsNoPlanAndUnavailableInsight() = runTest {
+    fun testEmptyDatabase_showsNoPlanAndUnavailableInsight() = runTest(testScheduler) {
         val viewModel = createViewModel()
 
         val state = viewModel.uiState.first { !it.uiState.isLoading }
@@ -180,7 +198,7 @@ class TodayViewModelTest {
      * 测试激活计划后：今日计划变为 NOT_STARTED，标题为下一课，SPLIT 渲染项生成。
      */
     @Test
-    fun testSelectPlan_showsNextSessionAsTodayPlan() = runTest {
+    fun testSelectPlan_showsNextSessionAsTodayPlan() = runTest(testScheduler) {
         workoutPlanRepository.save(
             plan(
                 sessions = listOf(
@@ -211,7 +229,7 @@ class TodayViewModelTest {
      * 测试今日完成训练并关联训练日后：卡片变为 COMPLETED，本周计数为 1。
      */
     @Test
-    fun testCompleteTodaySession_updatesCardAndWeekProgress() = runTest {
+    fun testCompleteTodaySession_updatesCardAndWeekProgress() = runTest(testScheduler) {
         // 两个训练日：完成第一课后仍有下一课（nextSession 非空），
         // 命中"今日已关联完成"分支（workoutId 透传）；单课计划会走"全部完成"分支
         workoutPlanRepository.save(
@@ -241,7 +259,7 @@ class TodayViewModelTest {
      * 测试切换展示模式：渲染项切换为肌肉组数聚合。
      */
     @Test
-    fun testDisplayModeSwitch_recomputesItems() = runTest {
+    fun testDisplayModeSwitch_recomputesItems() = runTest(testScheduler) {
         db.exerciseDao().insertAll(
             listOf(
                 ExerciseEntity(
@@ -284,7 +302,7 @@ class TodayViewModelTest {
      * 就必须已含真实资料——不允许"先匿名问候、后补名字"的两段跳变。
      */
     @Test
-    fun testProfile_greetingIncludesName() = runTest {
+    fun testProfile_greetingIncludesName() = runTest(testScheduler) {
         db.userProfileDao().insert(UserProfileEntity(name = "Polaris", age = null, gender = null, height = null, weight = null, trainingGoal = null))
         val viewModel = createViewModel()
 
@@ -305,7 +323,7 @@ class TodayViewModelTest {
      * (mode, history) 原子对无"模式先切、历史后到"的中间帧（否则首帧为"本周暂无突破"）。
      */
     @Test
-    fun testVolumePrMode_subscribesHistoryAndDetectsPr() = runTest {
+    fun testVolumePrMode_subscribesHistoryAndDetectsPr() = runTest(testScheduler) {
         // exercise_logs.exerciseKey 外键指向 exercises.id，须先灌动作目录
         db.exerciseDao().insertAll(
             listOf(
@@ -348,7 +366,7 @@ class TodayViewModelTest {
      * 今日 100kg×10（1000kg）→ 环比 +25%，锁死 prevWeekWorkouts 确实被订阅。
      */
     @Test
-    fun testVolumePr_comparesWithPrevWeek() = runTest {
+    fun testVolumePr_comparesWithPrevWeek() = runTest(testScheduler) {
         db.exerciseDao().insertAll(
             listOf(
                 ExerciseEntity(

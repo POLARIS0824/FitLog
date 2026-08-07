@@ -1,19 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+   Data Extraction Rules (API 31+) 备份规则。
+
+   AI 服务商 API Key 以 AES-GCM 密文存于 Room 数据库与 DataStore，
+   解密密钥由 Android Keystore 持有且**不会随备份迁移**。若把密文文件
+   备份/迁移到新设备，恢复后密钥不存在、密文无法解密，读取配置即崩溃。
+
+   因此云备份与设备间迁移都排除包含密文的文件：
+   - databases/fitlog.db（含 ai_provider_configs 表的加密 API Key）
+   - files/datastore/fitLog_prefs.preferences_pb（含 active_ai_provider_id）
+   这些文件在新设备上按"未备份"处理（首次启动重建），避免换机恢复崩溃。
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="database" path="fitlog.db"/>
+        <exclude domain="database" path="fitlog.db-wal"/>
+        <exclude domain="database" path="fitlog.db-shm"/>
+        <exclude domain="file" path="datastore/fitLog_prefs.preferences_pb"/>
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="database" path="fitlog.db"/>
+        <exclude domain="database" path="fitlog.db-wal"/>
+        <exclude domain="database" path="fitlog.db-shm"/>
+        <exclude domain="file" path="datastore/fitLog_prefs.preferences_pb"/>
     </device-transfer>
-    -->
 </data-extraction-rules>

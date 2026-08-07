@@ -1,5 +1,6 @@
 package com.example.fitlog.util
 
+import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.model.user.ExerciseTrainingLevel
 import com.example.fitlog.model.user.TrainingLevel
@@ -13,6 +14,10 @@ import com.example.fitlog.model.user.TrainingLevel
  *
  * 纯函数设计，无 Android 依赖，便于单元测试；
  * 调用方（如 AI 教练 ViewModel）可在内存中缓存结果（stateIn），避免重复扫描。
+ *
+ * 口径约定：与全局一致，**只统计 [SetType.WORKING] 正式组**，
+ * 热身组 [SetType.WARMUP] 不计入 Epley 1RM 与容量，
+ * 避免热身组被误报为新 PR。
  */
 object TrainingLevelCalculator {
 
@@ -32,7 +37,9 @@ object TrainingLevelCalculator {
         for (workout in workouts) {
             for (exercise in workout.exercises) {
                 val key = exercise.exerciseKey ?: exercise.name
-                for (set in exercise.sets) {
+                // 口径：只统计正式组，热身组不计入 1RM/容量
+                val workingSets = exercise.sets.filter { it.setType == SetType.WORKING }
+                for (set in workingSets) {
                     // Epley 公式：1RM ≈ weight × (1 + reps / 30)
                     val epleyOneRM = set.weightKg * (1 + set.reps / 30.0)
                     bestOneRM.merge(key, epleyOneRM, ::maxOf)

@@ -15,6 +15,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.feature.aisettings.AISettingsRoute
+import com.example.fitlog.feature.chat.ChatRoute
 import com.example.fitlog.feature.stats.StatsRoute
 import com.example.fitlog.feature.today.TodayRoute
 import com.example.fitlog.feature.workout.WorkoutRoute
@@ -25,6 +26,7 @@ import com.example.fitlog.ui.settings.dataimport.DataImportRoute
 import com.example.fitlog.ui.navigation.AboutKey
 import com.example.fitlog.ui.navigation.AISettingsKey
 import com.example.fitlog.ui.navigation.AppearanceKey
+import com.example.fitlog.ui.navigation.ChatKey
 import com.example.fitlog.ui.navigation.DataImportKey
 import com.example.fitlog.ui.navigation.ProfileKey
 import com.example.fitlog.ui.navigation.ReminderKey
@@ -91,7 +93,11 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToSettings = { backStack.add(SettingsKey) },
                                 onNavigateToWorkout = { backStack.add(WorkoutKey) },
                                 onNavigateToStats = { backStack.add(StatsKey) },
+                                onNavigateToChat = { backStack.add(ChatKey) },
                             )
+                        }
+                        entry<ChatKey> {
+                            ChatRoute(onBack = { backStack.removeLastOrNull() })
                         }
                         entry<WorkoutKey> {
                             WorkoutRoute()

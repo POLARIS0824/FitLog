@@ -52,3 +52,4 @@ Keep package boundaries clean for potential future modularization.
 
 - Always use Javadoc-style comments for all public classes, interfaces, methods, and significant fields.
 - Form state lives in ViewModel (`MutableStateFlow` + `combine`), UI holds transient state (sheets/dropdowns).
+- Never run `./gradlew` directly inside WSL

@@ -18,7 +18,11 @@ import com.example.fitlog.model.ai.ProviderType
 import com.example.fitlog.testing.FakeAIApi
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import com.example.fitlog.util.security.FakeAndroidKeyStoreProvider
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -50,6 +54,16 @@ class CoachInsightRepositoryTest {
     private lateinit var providerConfigRepo: AIProviderConfigRepository
     private lateinit var repository: CoachInsightRepository
 
+    /**
+     * 测试调度器：与 DataStore scope 及 `runTest` 共享同一实例。
+     */
+    private val testScheduler = TestCoroutineScheduler()
+
+    /**
+     * DataStore 内部协程的作用域，测试结束时在 [tearDown] 中取消。
+     */
+    private lateinit var dataStoreScope: TestScope
+
     private val today = LocalDate.of(2026, 7, 27)
 
     @Before
@@ -61,7 +75,11 @@ class CoachInsightRepositoryTest {
             .allowMainThreadQueries()
             .build()
 
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("insight_prefs.preferences_pb"))
+        dataStoreScope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("insight_prefs.preferences_pb"),
+            dataStoreScope,
+        )
         providerConfigRepo = AIProviderConfigRepository(db.aiProviderConfigDao(), dataStore)
         fakeApi = FakeAIApi()
         repository = CoachInsightRepository(
@@ -73,6 +91,7 @@ class CoachInsightRepositoryTest {
 
     @After
     fun tearDown() {
+        dataStoreScope.cancel()
         db.close()
     }
 
@@ -143,7 +162,7 @@ class CoachInsightRepositoryTest {
     // ── aiAvailable ──
 
     @Test
-    fun testAiAvailable_reflectsActiveProvider() = runTest {
+    fun testAiAvailable_reflectsActiveProvider() = runTest(testScheduler) {
         assertEquals(false, repository.aiAvailable.first())
         activateProvider()
         assertEquals(true, repository.aiAvailable.first())
@@ -152,7 +171,7 @@ class CoachInsightRepositoryTest {
     // ── 无服务商 ──
 
     @Test
-    fun testGetAiInsight_noProvider_returnsFailureWithoutNetwork() = runTest {
+    fun testGetAiInsight_noProvider_returnsFailureWithoutNetwork() = runTest(testScheduler) {
         val result = repository.getAiInsight(insightContext())
 
         assertTrue(result.isFailure)
@@ -162,7 +181,7 @@ class CoachInsightRepositoryTest {
     // ── 成功链路 ──
 
     @Test
-    fun testGetAiInsight_success_parsesInsight() = runTest {
+    fun testGetAiInsight_success_parsesInsight() = runTest(testScheduler) {
         activateProvider()
         respondInsight(action = "REST")
 
@@ -177,7 +196,7 @@ class CoachInsightRepositoryTest {
     }
 
     @Test
-    fun testGetAiInsight_assemblesJsonModeRequest() = runTest {
+    fun testGetAiInsight_assemblesJsonModeRequest() = runTest(testScheduler) {
         activateProvider()
         respondInsight()
 
@@ -196,7 +215,7 @@ class CoachInsightRepositoryTest {
     // ── 指纹缓存 ──
 
     @Test
-    fun testGetAiInsight_cacheHit_avoidsNetwork() = runTest {
+    fun testGetAiInsight_cacheHit_avoidsNetwork() = runTest(testScheduler) {
         activateProvider()
         respondInsight()
 
@@ -207,7 +226,7 @@ class CoachInsightRepositoryTest {
     }
 
     @Test
-    fun testGetAiInsight_fingerprintChange_triggersNewRequest() = runTest {
+    fun testGetAiInsight_fingerprintChange_triggersNewRequest() = runTest(testScheduler) {
         activateProvider()
         respondInsight()
 
@@ -220,7 +239,7 @@ class CoachInsightRepositoryTest {
     // ── 错误兜底 ──
 
     @Test
-    fun testGetAiInsight_unparseableResponse_returnsFailureAndDoesNotCache() = runTest {
+    fun testGetAiInsight_unparseableResponse_returnsFailureAndDoesNotCache() = runTest(testScheduler) {
         activateProvider()
         fakeApi.chatHandler = {
             ChatCompletionResponseDto(

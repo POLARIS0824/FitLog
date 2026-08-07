@@ -16,7 +16,10 @@ import com.example.fitlog.model.Muscle
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -56,13 +59,28 @@ class MainViewModelTest {
     private lateinit var viewModel: MainViewModel
 
     /**
+     * 测试调度器：与 DataStore scope、Main dispatcher、`runTest` 共享同一实例，
+     * 保证 DataStore 写协程与测试协程在同一虚拟时间线上推进。
+     */
+    private val testScheduler = TestCoroutineScheduler()
+
+    /**
+     * DataStore 内部协程的作用域，测试结束时在 [tearDown] 中取消。
+     */
+    private lateinit var dataStoreScope: TestScope
+
+    /**
      * 设置主调度器并初始化仓库与 ViewModel。
      */
     @Before
-    fun setUp() = runTest {
-        Dispatchers.setMain(UnconfinedTestDispatcher())
+    fun setUp() = runTest(testScheduler) {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("main_prefs.preferences_pb"))
+        dataStoreScope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("main_prefs.preferences_pb"),
+            dataStoreScope,
+        )
         // 预置 seed 版本号：ExerciseSeeder 短路还需动作表非空（下方插入一条）；
         // WorkoutPlanSeeder 仅需版本号 ≥ SEED_VERSION(2)
         dataStore.edit { it[intPreferencesKey("exercise_seed_version")] = 1 }
@@ -86,10 +104,11 @@ class MainViewModelTest {
     }
 
     /**
-     * 重置主调度器并关闭数据库。
+     * 取消 DataStore 作用域，重置主调度器并关闭数据库。
      */
     @After
     fun tearDown() {
+        dataStoreScope.cancel()
         db.close()
         Dispatchers.resetMain()
     }
@@ -98,7 +117,7 @@ class MainViewModelTest {
      * 测试初始暴露的主题偏好为默认值：跟随系统 + 动态取色开启。
      */
     @Test
-    fun testInitialAppearance_defaults() = runTest {
+    fun testInitialAppearance_defaults() = runTest(testScheduler) {
         val (mode, dynamicColor) = viewModel.appearance.first()
         assertEquals(ThemeMode.SYSTEM, mode)
         assertEquals(true, dynamicColor)
@@ -108,7 +127,7 @@ class MainViewModelTest {
      * 测试偏好修改后，暴露的 Pair 随之更新。
      */
     @Test
-    fun testAppearance_updatesOnPreferenceChange() = runTest {
+    fun testAppearance_updatesOnPreferenceChange() = runTest(testScheduler) {
         preferencesRepository.setThemeMode(ThemeMode.LIGHT)
 
         val state = viewModel.appearance.first { it.first == ThemeMode.LIGHT }
@@ -120,7 +139,7 @@ class MainViewModelTest {
      * （种子不再阻塞 Splash——isReady 只等外观，见 MainViewModel KDoc。）
      */
     @Test
-    fun testIsReady_becomesTrueAfterAppearance() = runTest {
+    fun testIsReady_becomesTrueAfterAppearance() = runTest(testScheduler) {
         assertTrue(viewModel.isReady.first { it })
     }
 }

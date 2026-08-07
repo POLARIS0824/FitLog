@@ -8,7 +8,11 @@ import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ProviderType
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import com.example.fitlog.util.security.FakeAndroidKeyStoreProvider
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -42,6 +46,16 @@ class AIProviderConfigRepositoryTest {
     private lateinit var repository: AIProviderConfigRepository
 
     /**
+     * 测试调度器：与 DataStore scope 及 `runTest` 共享同一实例。
+     */
+    private val testScheduler = TestCoroutineScheduler()
+
+    /**
+     * DataStore 内部协程的作用域，测试结束时在 [tearDown] 中取消。
+     */
+    private lateinit var dataStoreScope: TestScope
+
+    /**
      * 初始化内存数据库、临时 DataStore、模拟密钥库与仓库实例。
      */
     @Before
@@ -53,15 +67,20 @@ class AIProviderConfigRepositoryTest {
             .allowMainThreadQueries()
             .build()
 
-        val dataStore = createTestPreferencesDataStore(tmpFolder.newFile("ai_prefs_test.preferences_pb"))
+        dataStoreScope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("ai_prefs_test.preferences_pb"),
+            dataStoreScope,
+        )
         repository = AIProviderConfigRepository(db.aiProviderConfigDao(), dataStore)
     }
 
     /**
-     * 测试后关闭数据库。
+     * 取消 DataStore 作用域并关闭数据库。
      */
     @After
     fun tearDown() {
+        dataStoreScope.cancel()
         db.close()
     }
 
@@ -90,7 +109,7 @@ class AIProviderConfigRepositoryTest {
      * 测试插入配置后可按 ID 读回，且 apiKey 已解密为明文。
      */
     @Test
-    fun testInsertAndGetById_apiKeyDecrypted() = runTest {
+    fun testInsertAndGetById_apiKeyDecrypted() = runTest(testScheduler) {
         repository.insert(config(apiKey = "sk-secret-001"))
 
         val fetched = repository.getById("OPENAI")
@@ -104,7 +123,7 @@ class AIProviderConfigRepositoryTest {
      * 测试数据库中实际存储的是密文（不经过 Repository 直接读 DAO 验证）。
      */
     @Test
-    fun testInsert_storesCiphertextInDatabase() = runTest {
+    fun testInsert_storesCiphertextInDatabase() = runTest(testScheduler) {
         repository.insert(config(apiKey = "sk-secret-001"))
 
         val entity = db.aiProviderConfigDao().getById("OPENAI")
@@ -116,7 +135,7 @@ class AIProviderConfigRepositoryTest {
      * 测试更新已有配置。
      */
     @Test
-    fun testUpdate() = runTest {
+    fun testUpdate() = runTest(testScheduler) {
         repository.insert(config())
         repository.update(config().copy(model = "gpt-5.5", baseUrl = "https://proxy.example.com"))
 
@@ -129,7 +148,7 @@ class AIProviderConfigRepositoryTest {
      * 测试 getAIProviders 返回全部配置（apiKey 均已解密）。
      */
     @Test
-    fun testGetAIProviders_returnsAll() = runTest {
+    fun testGetAIProviders_returnsAll() = runTest(testScheduler) {
         repository.insert(config(id = "OPENAI"))
         repository.insert(config(id = "DEEPSEEK", apiKey = "sk-deepseek"))
 
@@ -143,7 +162,7 @@ class AIProviderConfigRepositoryTest {
      * 测试更新缓存模型列表：序列化为逗号分隔字符串存入数据库。
      */
     @Test
-    fun testUpdateCachedModels() = runTest {
+    fun testUpdateCachedModels() = runTest(testScheduler) {
         repository.insert(config())
         repository.updateCachedModels("OPENAI", listOf("gpt-5.6-sol", "gpt-5.5"))
 
@@ -157,7 +176,7 @@ class AIProviderConfigRepositoryTest {
      * 测试将缓存模型列表更新为空列表时存为 null。
      */
     @Test
-    fun testUpdateCachedModels_emptyList_storedAsNull() = runTest {
+    fun testUpdateCachedModels_emptyList_storedAsNull() = runTest(testScheduler) {
         repository.insert(config(cachedModels = listOf("gpt-5.6-sol")))
         repository.updateCachedModels("OPENAI", emptyList())
 
@@ -173,7 +192,7 @@ class AIProviderConfigRepositoryTest {
      * 测试初始状态下激活 ID 与激活配置均为 null。
      */
     @Test
-    fun testActiveProvider_initiallyNull() = runTest {
+    fun testActiveProvider_initiallyNull() = runTest(testScheduler) {
         assertNull(repository.activeProviderId.first())
         assertNull(repository.activeProvider.first())
     }
@@ -182,7 +201,7 @@ class AIProviderConfigRepositoryTest {
      * 测试设置激活 ID 后，activeProvider 自动解析为完整配置（含解密 apiKey）。
      */
     @Test
-    fun testSetActiveProviderId_activeProviderResolves() = runTest {
+    fun testSetActiveProviderId_activeProviderResolves() = runTest(testScheduler) {
         repository.insert(config(apiKey = "sk-active"))
         repository.setActiveProviderId("OPENAI")
 
@@ -198,7 +217,7 @@ class AIProviderConfigRepositoryTest {
      * 测试激活 ID 指向不存在的配置时，activeProvider 返回 null（悬空引用容错）。
      */
     @Test
-    fun testActiveProvider_danglingId_returnsNull() = runTest {
+    fun testActiveProvider_danglingId_returnsNull() = runTest(testScheduler) {
         repository.setActiveProviderId("GHOST")
 
         assertEquals("GHOST", repository.activeProviderId.first())
@@ -209,7 +228,7 @@ class AIProviderConfigRepositoryTest {
      * 测试清除激活 ID。
      */
     @Test
-    fun testClearActiveProviderId() = runTest {
+    fun testClearActiveProviderId() = runTest(testScheduler) {
         repository.setActiveProviderId("OPENAI")
         repository.clearActiveProviderId()
 
@@ -220,7 +239,7 @@ class AIProviderConfigRepositoryTest {
      * 测试删除"当前激活"的配置时，激活 ID 被一并清除。
      */
     @Test
-    fun testDelete_activeConfig_clearsActiveId() = runTest {
+    fun testDelete_activeConfig_clearsActiveId() = runTest(testScheduler) {
         repository.insert(config())
         repository.setActiveProviderId("OPENAI")
 
@@ -234,7 +253,7 @@ class AIProviderConfigRepositoryTest {
      * 测试删除"非激活"的配置时，激活 ID 保持不变。
      */
     @Test
-    fun testDelete_inactiveConfig_keepsActiveId() = runTest {
+    fun testDelete_inactiveConfig_keepsActiveId() = runTest(testScheduler) {
         repository.insert(config(id = "OPENAI"))
         repository.insert(config(id = "DEEPSEEK", apiKey = "sk-deepseek"))
         repository.setActiveProviderId("OPENAI")
@@ -249,7 +268,7 @@ class AIProviderConfigRepositoryTest {
      * 测试删除不存在的激活配置后，getAIProviders 不再包含该配置。
      */
     @Test
-    fun testDelete_removesFromProvidersFlow() = runTest {
+    fun testDelete_removesFromProvidersFlow() = runTest(testScheduler) {
         repository.insert(config())
         assertEquals(1, repository.getAIProviders().first().size)
 

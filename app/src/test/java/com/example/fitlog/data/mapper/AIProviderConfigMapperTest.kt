@@ -80,6 +80,50 @@ class AIProviderConfigMapperTest {
     }
 
     /**
+     * 测试 type 为未知字符串时降级为 [ProviderType.CUSTOM]（不崩溃）。
+     */
+    @Test
+    fun testToModel_unknownType_fallsBackToCustom() {
+        val entity = AIProviderConfigEntity(
+            id = "LEGACY",
+            name = "Legacy",
+            type = "SOME_OLD_PLATFORM",
+            baseUrl = "https://example.com",
+            encryptedApiKey = model().toEntity().encryptedApiKey,
+            model = "m",
+            customEndpoint = null,
+            apiVersion = null,
+            isPreset = false,
+        )
+
+        val restored = entity.toModel()
+
+        assertEquals(ProviderType.CUSTOM, restored.type)
+        assertEquals("Legacy", restored.name)
+    }
+
+    /**
+     * 测试 Keystore 密钥丢失（如备份恢复到新设备）时读取配置不崩溃，
+     * apiKey 降级为空字符串，其余字段（名称/类型/地址/模型）仍可展示。
+     */
+    @Test
+    fun testToModel_keystoreKeyLost_degradesToEmptyApiKey() {
+        // 先用当前密钥加密，得到一条“旧设备”上的密文记录
+        val entity = model(apiKey = "sk-secret").toEntity()
+
+        // 模拟换机恢复：清空 Fake KeyStore 中的密钥条目
+        FakeAndroidKeyStoreProvider.entries.clear()
+
+        // 读取不再崩溃，apiKey 降级为空，配置仍可展示
+        val restored = entity.toModel()
+        assertEquals("", restored.apiKey)
+        assertEquals(ProviderType.OPENAI, restored.type)
+        assertEquals("OpenAI", restored.name)
+        assertEquals("https://api.openai.com", restored.baseUrl)
+        assertEquals("gpt-5.6-sol", restored.model)
+    }
+
+    /**
      * 测试 cachedModels 列表序列化为逗号分隔字符串。
      */
     @Test

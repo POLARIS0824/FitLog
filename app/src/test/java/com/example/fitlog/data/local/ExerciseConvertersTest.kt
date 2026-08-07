@@ -47,6 +47,32 @@ class ExerciseConvertersTest {
         assertEquals(original, restored)
     }
 
+    /**
+     * 未知肌群名（旧版本种子数据残留等）被安全跳过，不抛异常。
+     */
+    @Test
+    fun `unknown muscle names are skipped`() {
+        val restored = converters.toMuscleList("CHEST,OLD_MUSCLE,UPPER_BACK")
+
+        assertEquals(listOf(Muscle.CHEST, Muscle.UPPER_BACK), restored)
+    }
+
+    /**
+     * 未知身体部位名降级为实体默认值 CHEST，不抛异常。
+     */
+    @Test
+    fun `unknown body part falls back to chest`() {
+        assertEquals(BodyPart.CHEST, converters.toBodyPart("STRETCHING"))
+    }
+
+    /**
+     * 未知器械名降级为 null，不抛异常。
+     */
+    @Test
+    fun `unknown equipment falls back to null`() {
+        org.junit.Assert.assertNull(converters.toEquipment("OLD_EQUIPMENT"))
+    }
+
     // ── BodyPart ──
 
     @Test
