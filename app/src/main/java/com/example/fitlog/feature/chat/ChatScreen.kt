@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -83,12 +84,22 @@ fun ChatScreen(
     modifier: Modifier = Modifier,
 ) {
     val stackedSnackbarHostState = rememberStackedSnackbarHostState()
+    val listState = rememberLazyListState()
 
     // 错误提示：errorMessage 出现时弹出 StackedSnackbar，展示完毕后清除一次性错误状态
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
             stackedSnackbarHostState.showSnackbar(it)
             onErrorShown()
+        }
+    }
+
+    // 新消息/发送中指示出现时自动滚动到底部，保证 AI 回复对用户可见
+    // （否则用户向上翻过历史后，回复与"AI 正在思考…"都渲染在屏幕外）
+    LaunchedEffect(uiState.messages.size, uiState.isSending) {
+        val lastIndex = uiState.messages.size - 1 + if (uiState.isSending) 1 else 0
+        if (lastIndex >= 0) {
+            listState.animateScrollToItem(lastIndex)
         }
     }
 
@@ -119,8 +130,8 @@ fun ChatScreen(
             )
 
             // ── 字段 1: messages → 消息列表 ──
-            LazyColumn(Modifier.weight(1f)) {
-                items(uiState.messages) { msg ->
+            LazyColumn(Modifier.weight(1f), state = listState) {
+                items(uiState.messages, key = { it.id }) { msg ->
                     if (msg.role == "user") {
                         UserMessageBubble(msg)
                     } else {

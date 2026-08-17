@@ -127,15 +127,37 @@ class WorkoutPlanDaoTest {
     }
 
     /**
-     * 测试相同 ID 重复插入计划时替换（REPLACE）原记录。
+     * 测试相同 ID 重复插入计划时被忽略（IGNORE），原记录保留。
      */
     @Test
-    fun insertPlan_duplicateId_replaces() = runTest {
-        planDao.insertPlan(plan("p1", name = "旧名字"))
-        planDao.insertPlan(plan("p1", name = "新名字"))
+    fun insertPlan_duplicateId_ignored() = runTest {
+        planDao.insertPlanIgnore(plan("p1", name = "旧名字"))
+        planDao.insertPlanIgnore(plan("p1", name = "新名字"))
 
+        assertEquals("旧名字", planDao.getPlanById("p1")?.name)
+        assertEquals(1, planDao.getAllPlans().size)
+    }
+
+    /**
+     * 测试更新已存在的计划：返回受影响行数 1，字段更新、不产生新行。
+     */
+    @Test
+    fun updatePlan_updatesExistingRow() = runTest {
+        planDao.insertPlanIgnore(plan("p1", name = "旧名字"))
+
+        val rows = planDao.updatePlan(plan("p1", name = "新名字"))
+
+        assertEquals(1, rows)
         assertEquals("新名字", planDao.getPlanById("p1")?.name)
         assertEquals(1, planDao.getAllPlans().size)
+    }
+
+    /**
+     * 测试更新不存在的计划：返回 0 行受影响（调用方据此走 insert 分支）。
+     */
+    @Test
+    fun updatePlan_missingRow_returnsZero() = runTest {
+        assertEquals(0, planDao.updatePlan(plan("p-missing")))
     }
 
     /**
@@ -143,9 +165,9 @@ class WorkoutPlanDaoTest {
      */
     @Test
     fun getAllPlans_orderedByCreatedAtDesc() = runTest {
-        planDao.insertPlan(plan("p-old", createdAt = LocalDate.of(2026, 4, 1)))
-        planDao.insertPlan(plan("p-new", createdAt = LocalDate.of(2026, 6, 1)))
-        planDao.insertPlan(plan("p-mid", createdAt = LocalDate.of(2026, 5, 1)))
+        planDao.insertPlanIgnore(plan("p-old", createdAt = LocalDate.of(2026, 4, 1)))
+        planDao.insertPlanIgnore(plan("p-new", createdAt = LocalDate.of(2026, 6, 1)))
+        planDao.insertPlanIgnore(plan("p-mid", createdAt = LocalDate.of(2026, 5, 1)))
 
         assertEquals(
             listOf("p-new", "p-mid", "p-old"),
@@ -158,7 +180,7 @@ class WorkoutPlanDaoTest {
      */
     @Test
     fun getSessionsByPlanId_orderedByWeekThenDay() = runTest {
-        planDao.insertPlan(plan("p1"))
+        planDao.insertPlanIgnore(plan("p1"))
         planDao.insertSessions(
             listOf(
                 session("s-w2d1", "p1", week = 2, day = 1),

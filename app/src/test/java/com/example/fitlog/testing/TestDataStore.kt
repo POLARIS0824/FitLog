@@ -1,9 +1,13 @@
 package com.example.fitlog.testing
 
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.okio.OkioStorage
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.PreferencesSerializer
 import kotlinx.coroutines.CoroutineScope
+import okio.FileSystem
+import okio.Path.Companion.toOkioPath
 import java.io.File
 
 /**
@@ -24,10 +28,18 @@ import java.io.File
  *   产生 "Unable to rename ... multiple instances of DataStore for this file"
  *   与 [kotlinx.coroutines.test.UncompletedCoroutinesError]。
  *
- * 注意：同一个文件在 JVM 进程内只能有一个活跃 DataStore 实例，
- * 因此调用方必须保证每个测试方法传入不同的文件（如用 TemporaryFolder 规则）。
+ * 注意：
+ * - 同一个文件在 JVM 进程内只能有一个活跃 DataStore 实例，
+ *   因此调用方必须保证每个测试方法传入不同的文件（如用 TemporaryFolder 规则）。
+ * - **存储后端使用 [OkioStorage] 而非默认的 FileStorage**：DataStore 默认的
+ *   [androidx.datastore.core.FileStorage] 每次写盘用 Java `File.renameTo` 原子替换
+ *   目标文件——Windows 上 `renameTo` 无法覆盖已存在文件，同一 DataStore 的
+ *   第二次写盘必然抛 "Unable to rename ... .tmp to ..." IOException
+ *   （POSIX 上 rename 覆盖合法，故 Linux/macOS 开发机不受影响）。
+ *   [OkioStorage] 用 okio 的 `FileSystem.atomicMove`（NIO `Files.move(ATOMIC_MOVE)`），
+ *   实测在 Windows 上可覆盖已存在文件，测试可跨平台运行。
  *
- * @param file 存储偏好数据的临时文件
+ * @param file 存储偏好数据的临时文件路径（无需预先创建，已存在也会被清空）
  * @param scope DataStore 内部协程的作用域（与测试共享调度器，测试结束时取消）
  * @return 测试用 DataStore 实例
  */
@@ -35,5 +47,19 @@ fun createTestPreferencesDataStore(
     file: File,
     scope: CoroutineScope,
 ): DataStore<Preferences> {
-    return PreferenceDataStoreFactory.create(scope = scope) { file }
+    // 见类 KDoc：OkioStorage 的写盘（atomicMove）可覆盖已存在文件，
+    // 但仍删除 TemporaryFolder.newFile() 预创建的空文件，保证语义干净
+    // （文件创建完全交还给 DataStore）。
+    if (file.exists()) {
+        file.delete()
+    }
+    val storage = OkioStorage(
+        fileSystem = FileSystem.SYSTEM,
+        serializer = PreferencesSerializer,
+        producePath = { file.toOkioPath() },
+    )
+    return PreferenceDataStoreFactory.create(
+        storage = storage,
+        scope = scope,
+    )
 }

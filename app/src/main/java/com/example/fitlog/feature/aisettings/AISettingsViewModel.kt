@@ -38,6 +38,9 @@ class AISettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val selectedTypeState = MutableStateFlow(ProviderType.DEEPSEEK)
+
+    /** 用户是否已手动交互（输入表单/切换 provider）；true 时 init 不再回填，避免清空用户输入或强切回激活 provider。 */
+    private var userInteracted = false
     private val apiKeyState = MutableStateFlow(ApiKeyState())
     private val modelState = MutableStateFlow(ModelState(selectedModel = ""))
     private val endpointState = MutableStateFlow(EndpointState())
@@ -45,9 +48,13 @@ class AISettingsViewModel @Inject constructor(
     private val uiFlow = MutableStateFlow(UiState())
 
     init {
-        // 首帧定位：表单落在当前激活的 provider 上；没有激活项则保持默认
+        // 首帧定位：表单落在当前激活的 provider 上；没有激活项则保持默认。
+        // 竞态守卫：DataStore+Room 首读期间用户可能已手动交互（输入/切换 provider），
+        // 此时放弃回填，避免清空用户输入或强切回 init 读到的 provider（见 userInteracted）。
         viewModelScope.launch {
+            if (userInteracted) return@launch
             val active = aiProviderConfigRepository.activeProvider.first()
+            if (userInteracted) return@launch
             active?.let { onProviderSelected(it.type) }
         }
     }
@@ -106,10 +113,14 @@ class AISettingsViewModel @Inject constructor(
      * init 阶段读到的还是 initialValue（空列表），会导致重启后回填失败（时序竞态）。
      */
     fun onProviderSelected(type: ProviderType) {
+        userInteracted = true
         viewModelScope.launch {
             selectedTypeState.update { type }
             val spec = ProviderSpecs.of(type)
             val saved = aiProviderConfigRepository.getById(type.name)
+            // 竞态守卫：挂起查询期间用户又切换了 provider，丢弃本次回填结果，
+            // 避免快速连点 A→B 时旧协程（A）覆写已选中 B 的表单。
+            if (selectedTypeState.value != type) return@launch
             apiKeyState.update { ApiKeyState(apiKey = saved?.apiKey.orEmpty()) }
             modelState.update {
                 ModelState(
@@ -134,22 +145,40 @@ class AISettingsViewModel @Inject constructor(
     // ──────────────────────────────────────
 
     /** API Key 输入框内容变化。 */
-    fun onApiKeyChange(value: String) = apiKeyState.update { it.copy(apiKey = value) }
+    fun onApiKeyChange(value: String) {
+        userInteracted = true
+        apiKeyState.update { it.copy(apiKey = value) }
+    }
 
     /** 切换 API Key 明文/密文显示。 */
-    fun onToggleApiKeyVisibility() = apiKeyState.update { it.copy(showApiKey = !it.showApiKey) }
+    fun onToggleApiKeyVisibility() {
+        userInteracted = true
+        apiKeyState.update { it.copy(showApiKey = !it.showApiKey) }
+    }
 
     /** 模型输入框内容变化 / 点击推荐 chip。 */
-    fun onModelChange(value: String) = modelState.update { it.copy(selectedModel = value) }
+    fun onModelChange(value: String) {
+        userInteracted = true
+        modelState.update { it.copy(selectedModel = value) }
+    }
 
     /** Base URL 输入框内容变化。 */
-    fun onBaseUrlChange(value: String) = endpointState.update { it.copy(baseUrl = value) }
+    fun onBaseUrlChange(value: String) {
+        userInteracted = true
+        endpointState.update { it.copy(baseUrl = value) }
+    }
 
     /** 自定义 Endpoint 输入框内容变化。 */
-    fun onCustomEndpointChange(value: String) = endpointState.update { it.copy(customEndpoint = value) }
+    fun onCustomEndpointChange(value: String) {
+        userInteracted = true
+        endpointState.update { it.copy(customEndpoint = value) }
+    }
 
     /** API Version 输入框内容变化。 */
-    fun onApiVersionChange(value: String) = endpointState.update { it.copy(apiVersion = value) }
+    fun onApiVersionChange(value: String) {
+        userInteracted = true
+        endpointState.update { it.copy(apiVersion = value) }
+    }
 
     // ──────────────────────────────────────
     // 拉取模型列表
@@ -180,7 +209,11 @@ class AISettingsViewModel @Inject constructor(
                 customEndpoint = customEndpoint,
                 isPreset = true,
             )
-            aiChatRepository.fetchModels(tempConfig)
+            val result = aiChatRepository.fetchModels(tempConfig)
+            // 串台守卫：请求在途期间用户切换了 provider，丢弃过期结果，
+            // 避免 A 的模型列表渲染进 B 的表单（用户误把 A 的模型保存到 B）。
+            if (selectedTypeState.value != type) return@launch
+            result
                 .onSuccess { models ->
                     modelState.update {
                         it.copy(
@@ -241,7 +274,10 @@ class AISettingsViewModel @Inject constructor(
                 apiVersion = endpoint.apiVersion.trim().ifBlank { null },
                 isPreset = true,
             )
-            aiChatRepository.testConnection(tempConfig)
+            val result = aiChatRepository.testConnection(tempConfig)
+            // 串台守卫：请求在途期间用户切换了 provider，丢弃过期结果。
+            if (selectedTypeState.value != type) return@launch
+            result
                 .onSuccess {
                     testState.update {
                         TestState(isTesting = false, lastResult = "✅ 连接成功")

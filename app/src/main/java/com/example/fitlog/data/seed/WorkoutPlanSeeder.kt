@@ -18,8 +18,9 @@ import javax.inject.Singleton
 /**
  * 预置训练计划种子导入器。
  *
- * 将 [PresetPlans] 写入 Room（REPLACE 语义，仅作用于预置 id，幂等），
- * 通过 DataStore 记录 seed 版本号，确保仅在首次启动或计划内容更新时执行。
+ * 将 [PresetPlans] 写入 Room（update-or-insert 语义，仅作用于预置 id，幂等），
+ * 通过 DataStore 记录 seed 版本号，仅在首次启动、计划内容更新或
+ * **计划表被清空（如 destructive 迁移后版本号残留）**时执行。
  *
  * 必须在 [ExerciseSeeder] 之后执行：计划动作引用动作库 key，
  * 写入前逐一校验，缺失则跳过该计划（不写脏数据）。
@@ -34,8 +35,10 @@ class WorkoutPlanSeeder @Inject constructor(
     /**
      * 检查并执行预置计划导入。
      *
-     * 如果当前 seed 版本已是最新，则跳过；
-     * 预置计划被用户删除后不会复活（版本门控），内容更新时递增版本号重灌。
+     * 跳过条件：seed 版本已最新 **且** 计划表非空。
+     * 版本号存在但计划表为空（如 fallbackToDestructiveMigration 升级清库后，
+     * DataStore 版本号残留）时强制重灌，避免预置计划永久缺失——
+     * 与 [ExerciseSeeder] 的"版本最新且动作表非空"短路条件保持一致。
      *
      * 注意：**仅在真正写入过计划后才标记版本**——动作库缺失导致整体跳过时
      * 不标记，下次启动（动作库就绪后）可自动重试，避免版本号被错误置位后卡死。
@@ -45,7 +48,7 @@ class WorkoutPlanSeeder @Inject constructor(
             .map { it[SEED_VERSION_KEY] ?: 0 }
             .first()
 
-        if (currentSeedVersion >= SEED_VERSION) return@withContext
+        if (currentSeedVersion >= SEED_VERSION && workoutPlanDao.getPlanCount() > 0) return@withContext
 
         var seeded = false
         PresetPlans.all().forEach { plan ->
