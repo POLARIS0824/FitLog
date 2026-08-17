@@ -7,6 +7,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.local.entity.ExerciseEntity
+import com.example.fitlog.data.mapper.toEntity
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -80,21 +81,45 @@ class WorkoutPlanSeederTest {
     }
 
     /**
-     * 测试版本门控：seed 版本已是最新时不写入任何数据。
+     * 测试版本门控：seed 版本已最新且计划表非空时不写入任何数据（不重灌）。
      */
     @Test
-    fun testSeed_skippedWhenVersionUpToDate() = runTest {
+    fun testSeed_skippedWhenVersionUpToDateAndPlansExist() = runTest {
         val dataStore = createTestPreferencesDataStore(
             tmpFolder.newFile("seeder_prefs2.preferences_pb"),
             backgroundScope,
         )
-        // 预置版本号为当前 SEED_VERSION（2）
+        // 预置版本号为当前 SEED_VERSION（2），并先写入一套计划模拟已种子过的安装
         dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 2 }
+        insertPresetReferencedExercises()
+        db.workoutPlanDao().insertPlanIgnore(PresetPlans.all().first().toEntity())
         val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
 
         seeder.seedIfNeeded()
 
-        assertEquals(0, db.workoutPlanDao().getAllPlans().size)
+        // 版本最新且计划表非空 → 短路，不重灌：计划数维持 1
+        assertEquals(1, db.workoutPlanDao().getAllPlans().size)
+    }
+
+    /**
+     * 测试清库重灌保护：seed 版本已最新但计划表为空
+     * （fallbackToDestructiveMigration 清库后 DataStore 版本号残留）时重新导入预置计划。
+     */
+    @Test
+    fun testSeed_reSeedsWhenVersionUpToDateButPlansMissing() = runTest {
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("seeder_prefs6.preferences_pb"),
+            backgroundScope,
+        )
+        // 版本已最新，但计划表为空（模拟清库后残留）
+        dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 2 }
+        insertPresetReferencedExercises()
+        val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
+
+        seeder.seedIfNeeded()
+
+        // 计划表为空 → 强制重灌全部预置计划
+        assertEquals(PresetPlans.all().size, db.workoutPlanDao().getAllPlans().size)
     }
 
     /**

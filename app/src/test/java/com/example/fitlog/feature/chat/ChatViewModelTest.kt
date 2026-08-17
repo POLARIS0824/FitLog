@@ -165,6 +165,8 @@ class ChatViewModelTest {
 
         assertEquals("assistant", state.messages[1].role)
         assertEquals("默认回复", state.messages[1].content)
+        // 每条消息有稳定且唯一的展示 id（LazyColumn key）
+        assertTrue(state.messages[0].id != state.messages[1].id)
     }
 
     /**

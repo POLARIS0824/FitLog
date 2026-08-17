@@ -17,9 +17,10 @@ interface UserProfileDao {
      * 插入一条用户资料，若主键冲突则替换。
      *
      * @param userProfileEntity 待插入的实体
+     * @return 新行的主键（自增 id），供调用方回填内存状态
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(userProfileEntity: UserProfileEntity)
+    suspend fun insert(userProfileEntity: UserProfileEntity): Long
 
     /**
      * 更新已有用户资料。

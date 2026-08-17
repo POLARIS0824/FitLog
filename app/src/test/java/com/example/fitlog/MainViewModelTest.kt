@@ -82,7 +82,8 @@ class MainViewModelTest {
             dataStoreScope,
         )
         // 预置 seed 版本号：ExerciseSeeder 短路还需动作表非空（下方插入一条）；
-        // WorkoutPlanSeeder 仅需版本号 ≥ SEED_VERSION(2)
+        // WorkoutPlanSeeder 短路需版本号 ≥ SEED_VERSION(2) 且计划表非空——
+        // 计划表为空时会走重灌路径，但因动作缺失全部计划被跳过，行为不变。
         dataStore.edit { it[intPreferencesKey("exercise_seed_version")] = 1 }
         dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 2 }
         preferencesRepository = UserPreferencesRepository(dataStore)

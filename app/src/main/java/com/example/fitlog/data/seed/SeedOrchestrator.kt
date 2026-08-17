@@ -1,11 +1,13 @@
 package com.example.fitlog.data.seed
 
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * 应用级种子导入编排器（进程单例）。
@@ -35,7 +37,9 @@ class SeedOrchestrator @Inject constructor(
 
     /**
      * 触发种子导入：先动作库、后预置计划（计划动作引用动作库 key）。
-     * 进程内幂等；异常经 finally 放行——宁可内容中途变，不能永久卡加载。
+     * 进程内幂等；异常不向调用方（MainViewModel）上抛——种子失败只影响内容完整
+     * （Today 首屏加载条正常放行，动作库/计划可能缺失或下次启动重试），
+     * 绝不导致应用启动崩溃（fail-open）。
      */
     suspend fun seedIfNeeded() {
         if (ran) return
@@ -44,10 +48,18 @@ class SeedOrchestrator @Inject constructor(
             try {
                 exerciseSeeder.seedIfNeeded()
                 workoutPlanSeeder.seedIfNeeded()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "seedIfNeeded 失败（内容可能缺失，已放行启动）", e)
             } finally {
                 ran = true
                 _completed.value = true
             }
         }
+    }
+
+    private companion object {
+        private const val TAG = "SeedOrchestrator"
     }
 }

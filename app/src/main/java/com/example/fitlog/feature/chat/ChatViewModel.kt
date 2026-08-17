@@ -28,6 +28,9 @@ class ChatViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    /** 消息展示用自增 id（LazyColumn key 的唯一事实源；进程内单调递增）。 */
+    private var nextMessageId = 1L
+
     /**
      * 输入框文本变化事件
      */
@@ -45,7 +48,7 @@ class ChatViewModel @Inject constructor(
         if (_uiState.value.isSending) return
 
         // 消息立刻上屏，同时清除上一次的错误提示
-        val userMessage = ChatMessage(role = "user", content = input)
+        val userMessage = ChatMessage(role = "user", content = input, id = nextMessageId++)
         val messagesBeforeSend = _uiState.value.messages + userMessage
         _uiState.update {
             it.copy(
@@ -65,7 +68,7 @@ class ChatViewModel @Inject constructor(
                 .onSuccess { reply ->
                     _uiState.update {
                         it.copy(
-                            messages = it.messages + reply,
+                            messages = it.messages + reply.copy(id = nextMessageId++),
                             isSending = false,
                         )
                     }

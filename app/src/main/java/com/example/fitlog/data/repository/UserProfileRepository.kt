@@ -13,7 +13,12 @@ import javax.inject.Inject
 class UserProfileRepository @Inject constructor(
     private val userProfileDao: UserProfileDao
 ) {
-    suspend fun insert(userProfile: UserProfile) = userProfileDao.insert(userProfile.toEntity())
+    /**
+     * 插入用户资料。
+     *
+     * @return 新行的主键，调用方应回填以避免后续保存误走 insert 产生重复记录
+     */
+    suspend fun insert(userProfile: UserProfile): Long = userProfileDao.insert(userProfile.toEntity())
 
     suspend fun update(userProfile: UserProfile) = userProfileDao.update(userProfile.toEntity())
 

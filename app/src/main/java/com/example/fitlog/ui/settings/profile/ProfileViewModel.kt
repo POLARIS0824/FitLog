@@ -79,7 +79,9 @@ class ProfileViewModel @Inject constructor(
                 if (existingId != null) {
                     userProfileRepository.update(profile)
                 } else {
-                    userProfileRepository.insert(profile)
+                    // 回填自增主键：否则 existingId 保持 null，下次保存会再次
+                    // insert 产生重复记录，而 getFirst() 只读第一行，修改"看似丢失"。
+                    existingId = userProfileRepository.insert(profile)
                 }
                 _uiState.update { it.copy(isSaving = false, successMessage = "个人资料已保存") }
             } catch (e: CancellationException) {

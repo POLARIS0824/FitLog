@@ -16,6 +16,7 @@ import com.example.fitlog.model.ai.ProviderType
 import com.example.fitlog.testing.FakeAIApi
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import com.example.fitlog.util.security.FakeAndroidKeyStoreProvider
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -431,5 +432,94 @@ class AISettingsViewModelTest {
         val state = vm.uiState.first { it.provider.selectedType == ProviderType.MOONSHOT }
         assertEquals("sk-saved", state.apiKey.apiKey)
         assertEquals("https://api.moonshot.cn", state.endpoint.baseUrl)
+    }
+
+    /**
+     * 测试 init 竞态守卫：激活服务商回填解析完成前用户已手动输入，
+     * 则放弃回填——用户输入保留、选中类型不被强切回激活 provider。
+     */
+    @Test
+    fun testInit_doesNotOverwriteUserInputAfterInteraction() = runTest(testScheduler) {
+        providerConfigRepo.insert(
+            config(id = "MOONSHOT", type = ProviderType.MOONSHOT, baseUrl = "https://api.moonshot.cn"),
+        )
+        providerConfigRepo.setActiveProviderId("MOONSHOT")
+
+        val vm = AISettingsViewModel(providerConfigRepo, AIChatRepository(fakeApi, providerConfigRepo))
+        // 用户在 init 回填解析完成前立即输入
+        vm.onApiKeyChange("sk-typed")
+        vm.onModelChange("my-model")
+
+        val state = vm.uiState.first { it.apiKey.apiKey == "sk-typed" }
+        assertEquals("sk-typed", state.apiKey.apiKey)
+        assertEquals("my-model", state.model.selectedModel)
+        // 未被回填强切回 MOONSHOT
+        assertEquals(ProviderType.DEEPSEEK, state.provider.selectedType)
+    }
+
+    /**
+     * 测试拉取模型串台守卫：请求在途时切换 provider，过期结果不写入新表单。
+     */
+    @Test
+    fun testOnFetchModels_staleResponseIgnoredAfterProviderSwitch() = runTest(testScheduler) {
+        val called = CompletableDeferred<Unit>()
+        val latch = CompletableDeferred<Unit>()
+        fakeApi.modelsHandler = {
+            called.complete(Unit)
+            latch.await()
+            ModelsResponseDto(data = listOf(ModelItemDto("stale-model")))
+        }
+
+        viewModel.onProviderSelected(ProviderType.OPENAI)
+        viewModel.uiState.first { it.model.selectedModel == "gpt-5.6-sol" }
+        viewModel.onApiKeyChange("sk-new")
+        viewModel.onFetchModels("https://api.openai.com", null)
+
+        // 等待请求到达 Fake 网络层，然后切走 provider
+        called.await()
+        viewModel.onProviderSelected(ProviderType.MOONSHOT)
+        viewModel.uiState.first { it.provider.selectedType == ProviderType.MOONSHOT }
+
+        // 放行旧请求
+        latch.complete(Unit)
+
+        val state = viewModel.uiState.first { !it.model.isLoading }
+        assertEquals(ProviderType.MOONSHOT, state.provider.selectedType)
+        // 过期结果被丢弃：新 provider 表单无模型列表、无提示
+        assertEquals("", state.model.fetchResult)
+        assertEquals(emptyList<String>(), state.model.availableModels)
+    }
+
+    /**
+     * 测试连通性测试串台守卫：请求在途时切换 provider，过期结果不写入新表单。
+     */
+    @Test
+    fun testOnTestConnection_staleResultIgnoredAfterProviderSwitch() = runTest(testScheduler) {
+        val called = CompletableDeferred<Unit>()
+        val latch = CompletableDeferred<Unit>()
+        fakeApi.chatHandler = {
+            called.complete(Unit)
+            latch.await()
+            ChatCompletionResponseDto(
+                choices = listOf(ChoiceDto(message = MessageDto("assistant", "Hi"))),
+            )
+        }
+
+        viewModel.onProviderSelected(ProviderType.OPENAI)
+        viewModel.uiState.first { it.model.selectedModel == "gpt-5.6-sol" }
+        viewModel.onApiKeyChange("sk-test")
+        viewModel.onTestConnection()
+
+        called.await()
+        viewModel.onProviderSelected(ProviderType.MOONSHOT)
+        viewModel.uiState.first { it.provider.selectedType == ProviderType.MOONSHOT }
+
+        latch.complete(Unit)
+
+        val state = viewModel.uiState.first {
+            it.provider.selectedType == ProviderType.MOONSHOT && !it.test.isTesting
+        }
+        // 过期测试结果被丢弃
+        assertEquals("", state.test.lastResult)
     }
 }
