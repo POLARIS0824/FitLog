@@ -16,6 +16,8 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.local.Migrations
+import com.example.fitlog.data.repository.AppearanceSource
+import com.example.fitlog.data.repository.UserPreferencesRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -91,4 +93,11 @@ object DatabaseModule {
             context.preferencesDataStoreFile("fitLog_prefs")
         }
     }
+
+    /** 外观偏好只读源：MainViewModel 面向该接口，测试可注入替身。 */
+    @Provides
+    @Singleton
+    fun provideAppearanceSource(
+        repository: UserPreferencesRepository,
+    ): AppearanceSource = repository
 }

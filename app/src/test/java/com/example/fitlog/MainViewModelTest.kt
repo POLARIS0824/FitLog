@@ -33,6 +33,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.IOException
 
 /**
  * [MainViewModel] 的单元测试。
@@ -142,5 +143,37 @@ class MainViewModelTest {
     @Test
     fun testIsReady_becomesTrueAfterAppearance() = runTest(testScheduler) {
         assertTrue(viewModel.isReady.first { it })
+    }
+
+    /**
+     * 回归测试：上游偏好流抛异常时不击穿 appearance 链（启动崩溃路径）。
+     *
+     * MainViewModel.appearance 已加 .catch { }——异常被吞掉后 stateIn 停留在
+     * 默认值，isReady 仍能经 onCompletion 放行。若无 catch，stateIn(Eagerly)
+     * 的共享协程将以未捕获协程异常使测试进程崩溃。
+     */
+    @Test
+    fun testAppearance_upstreamException_doesNotCrashAndReleasesSplash() = runTest(testScheduler) {
+        val crashingSource = object : com.example.fitlog.data.repository.AppearanceSource {
+            override val themeMode =
+                kotlinx.coroutines.flow.flow<ThemeMode> { throw IOException("DataStore 损坏") }
+            override val dynamicColor =
+                kotlinx.coroutines.flow.flow<Boolean> { throw IOException("DataStore 损坏") }
+        }
+        val vm2 = MainViewModel(
+            crashingSource,
+            SeedOrchestrator(
+                ExerciseSeeder(db.exerciseDao(), createTestPreferencesDataStore(tmpFolder.newFile("seed2.preferences_pb"), dataStoreScope), ApplicationProvider.getApplicationContext()),
+                WorkoutPlanSeeder(
+                    db.workoutPlanDao(),
+                    db.exerciseDao(),
+                    createTestPreferencesDataStore(tmpFolder.newFile("seed3.preferences_pb"), dataStoreScope),
+                ),
+            ),
+        )
+
+        // 异常被 catch 吞掉：不崩溃、isReady 放行、appearance 停留默认值
+        assertTrue(vm2.isReady.first { it })
+        assertEquals(ThemeMode.SYSTEM to true, vm2.appearance.value)
     }
 }

@@ -27,7 +27,9 @@ object StatsOverviewBuilder {
      */
     fun build(workouts: List<Workout>, period: StatsPeriod, today: LocalDate): StatsOverviewState {
         val range = StatsChartDataBuilder.rangeOf(period, today)
-        val inWindow = workouts.filter { it.date in range }
+        // 空动作记录（Markdown 导入的表头存档）不计入次数与均值：
+        // 它没有可聚合的组数据，计入只会摊薄"平均单次容量"并虚增次数
+        val inWindow = workouts.filter { it.date in range && it.exercises.isNotEmpty() }
 
         val sessionCount = inWindow.size
         var totalVolume = 0.0

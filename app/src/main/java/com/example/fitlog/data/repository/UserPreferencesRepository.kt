@@ -16,14 +16,31 @@ import javax.inject.Inject
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /**
+ * 外观偏好的只读源（MainViewModel 依赖的最小接口）。
+ *
+ * 把"主题"从偏好仓库的具体实现中解耦：MainViewModel 面向本接口，
+ * 测试可注入抛异常的替身验证启动兜底路径。
+ */
+interface AppearanceSource {
+    /** 主题模式，默认跟随系统。 */
+    val themeMode: Flow<ThemeMode>
+
+    /** 是否启用动态取色（Material You），默认开启。 */
+    val dynamicColor: Flow<Boolean>
+}
+
+/**
  * 应用级 UI 偏好仓库。
  *
  * 管理主题模式、动态取色、训练提醒等轻量偏好，
  * 与 [AIProviderConfigRepository] 共用同一个 DataStore（`fitLog_prefs`）。
+ *
+ * 实现 [AppearanceSource]：MainViewModel 只依赖外观相关的两个 Flow
+ * （可注入测试替身，异常路径测试无需真实 DataStore）。
  */
 class UserPreferencesRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>,
-) {
+) : AppearanceSource {
 
     private companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
@@ -33,14 +50,14 @@ class UserPreferencesRepository @Inject constructor(
     }
 
     /** 主题模式，默认跟随系统。 */
-    val themeMode: Flow<ThemeMode> = dataStore.data.map { prefs ->
+    override val themeMode: Flow<ThemeMode> = dataStore.data.map { prefs ->
         prefs[THEME_MODE]
             ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
             ?: ThemeMode.SYSTEM
     }
 
     /** 是否启用动态取色（Material You），默认开启。 */
-    val dynamicColor: Flow<Boolean> = dataStore.data.map { it[DYNAMIC_COLOR] ?: true }
+    override val dynamicColor: Flow<Boolean> = dataStore.data.map { it[DYNAMIC_COLOR] ?: true }
 
     /** 训练提醒开关，默认关闭。 */
     val reminderEnabled: Flow<Boolean> = dataStore.data.map { it[REMINDER_ENABLED] ?: false }

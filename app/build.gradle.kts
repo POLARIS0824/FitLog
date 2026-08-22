@@ -27,8 +27,15 @@ android {
     buildTypes {
         release {
             optimization {
-                enable = false
+                // R8：混淆/收缩/资源裁剪（此前关闭，release 包无任何优化）
+                enable = true
             }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
     compileOptions {
@@ -75,7 +82,6 @@ dependencies {
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.ui)
-    implementation(libs.material)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
 
@@ -90,12 +96,14 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.datastore.preferences)
 
-    implementation(libs.google.adk.core.android)
+    implementation(libs.google.adk.core.android) {
+        // Android 平台已内置 XmlPullParser 实现；ADK 传递的 kxml2 会在 R8
+        // 阶段与 android.content.res.XmlResourceParser 冲突（重复类 ERROR）
+        exclude(group = "net.sf.kxml", module = "kxml2")
+        exclude(group = "xmlpull", module = "xmlpull")
+    }
     // ADK @Tool 注解处理器：KSP 生成 XxxTool 包装类（implementation 下形同虚设）
     ksp(libs.google.adk.processor)
-
-    implementation(libs.coil.compose)
-    implementation(libs.coil.gif)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
