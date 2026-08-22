@@ -43,6 +43,12 @@ class FakeAgentEngine : AgentEngine {
     /** respondToConfirmation 的可编程响应；未设置时返回空事件流。 */
     var confirmHandler: (suspend (String, String, Boolean) -> Result<Flow<Event>>)? = null
 
+    /** clearSession 收到的会话 id（按调用顺序）。 */
+    val clearedSessions = mutableListOf<String>()
+
+    /** replayHistory 的可编程返回值；未设置时返回空列表（无历史）。 */
+    var history: List<com.example.fitlog.model.ai.ChatMessage> = emptyList()
+
     override suspend fun sendMessage(sessionId: String, text: String): Result<Flow<Event>> {
         sentTexts += text
         return sendHandler?.invoke(text)
@@ -58,6 +64,14 @@ class FakeAgentEngine : AgentEngine {
         return confirmHandler?.invoke(sessionId, confirmationCallId, confirmed)
             ?: Result.success(flow {})
     }
+
+    override suspend fun clearSession(sessionId: String): Result<Unit> {
+        clearedSessions += sessionId
+        return Result.success(Unit)
+    }
+
+    override suspend fun replayHistory(sessionId: String): List<com.example.fitlog.model.ai.ChatMessage> =
+        history
 }
 
 /**
@@ -280,5 +294,49 @@ class ChatViewModelTest {
 
         viewModel.onErrorShown()
         assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    /** init 时回放持久化历史：消息按序上屏、展示 id 从 1 起唯一递增。 */
+    @Test
+    fun testInit_replaysPersistedHistory() = runTest(testScheduler) {
+        fakeEngine.history = listOf(
+            com.example.fitlog.model.ai.ChatMessage(role = "user", content = "查体重"),
+            com.example.fitlog.model.ai.ChatMessage(role = "assistant", content = "72.5kg"),
+        )
+        val vm = ChatViewModel(fakeEngine)
+
+        val state = vm.uiState.value
+        assertEquals(2, state.messages.size)
+        assertEquals("查体重", state.messages[0].content)
+        assertEquals("72.5kg", state.messages[1].content)
+        assertTrue(state.messages[0].id != state.messages[1].id)
+        // 回放后新消息的 id 续接，不得与历史消息撞 key
+        fakeEngine.sendHandler = {
+            Result.success(flow { emit(finalTextEvent("还有问题吗")) })
+        }
+        vm.onInputChange("谢谢")
+        vm.send()
+        val after = vm.uiState.value
+        assertEquals(4, after.messages.size)
+        // 全部展示 id 两两不同（LazyColumn key 唯一性）
+        assertEquals(4, after.messages.map { it.id }.toSet().size)
+    }
+
+    /** 清空对话：删除会话历史、重置全部 UI 状态。 */
+    @Test
+    fun testOnClearChat_clearsMessagesAndSession() = runTest(testScheduler) {
+        fakeEngine.sendHandler = { Result.success(flow { emit(finalTextEvent("你好呀")) }) }
+        viewModel.onInputChange("你好")
+        viewModel.send()
+        assertEquals(2, viewModel.uiState.value.messages.size)
+
+        viewModel.onClearChat()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.messages.isEmpty())
+        assertNull(state.errorMessage)
+        assertNull(state.pendingConfirmation)
+        assertEquals("", state.input)
+        assertEquals(listOf("main_chat"), fakeEngine.clearedSessions)
     }
 }

@@ -10,12 +10,14 @@ import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.feature.agent.tools.FitnessTools
 import com.example.fitlog.feature.agent.tools.generatedTools
 import com.example.fitlog.model.ai.AIProviderConfig
+import com.example.fitlog.model.ai.ChatMessage
 import com.google.adk.kt.agents.Instruction
 import com.google.adk.kt.agents.LlmAgent
 import com.google.adk.kt.apps.App
 import com.google.adk.kt.events.Event
 import com.google.adk.kt.events.ToolConfirmation
 import com.google.adk.kt.runners.InMemoryRunner
+import com.google.adk.kt.sessions.SessionKey
 import com.google.adk.kt.sessions.room.RoomSessionService
 import com.google.adk.kt.types.Content
 import com.google.adk.kt.types.FunctionCall
@@ -23,6 +25,7 @@ import com.google.adk.kt.types.FunctionResponse
 import com.google.adk.kt.types.Part
 import com.google.adk.kt.types.Role
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.security.MessageDigest
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -36,7 +39,8 @@ import kotlinx.coroutines.sync.withLock
  *
  * - **惰性构建**：首次发消息时才按当前激活配置创建 [LlmAgent] + [InMemoryRunner]
  *   （模型工厂 [AgentModelFactory]：Gemini 端点走内置模型，其余走 OpenAI 兼容适配层）
- * - **配置切换重建**：以 `config.id + model` 为重建键，检测到变化即废弃旧 runner 重建。
+ * - **配置切换重建**：以 `id + model + baseUrl + apiKey 哈希 + customEndpoint + apiVersion`
+ *   为重建键，检测到变化即废弃旧 runner 重建。
  *   由于 ADK 会话与 agent 解耦（会话在 SessionService，agent 只是执行器），
  *   重建不影响既有会话历史。
  * - **会话持久化**：[RoomSessionService] 独立 SQLite（`adk_sessions.db`），
@@ -146,8 +150,61 @@ class AgentEngineImpl @Inject constructor(
         )
     }
 
-    /** 配置键 = id + model；任一变化都触发重建（baseUrl/apiKey 变化由用户改配置引起，一并重建）。 */
-    private fun configKey(config: AIProviderConfig): String = "${config.id}|${config.model}|${config.baseUrl}"
+    /** {@inheritDoc} */
+    override suspend fun clearSession(sessionId: String): Result<Unit> = runCatching {
+        sessionService.deleteSession(SessionKey(APP_NAME, USER_ID, sessionId))
+    }
+
+    /** {@inheritDoc} */
+    override suspend fun replayHistory(sessionId: String): List<ChatMessage> {
+        val session = runCatching {
+            sessionService.getSession(SessionKey(APP_NAME, USER_ID, sessionId))
+        }.getOrNull() ?: return emptyList()
+
+        return session.events.mapNotNull { event ->
+            val content = event.content
+            when {
+                // 用户消息 → user 消息
+                event.author == "user" && content?.parts?.any { !it.text.isNullOrEmpty() } == true ->
+                    ChatMessage(
+                        role = "user",
+                        content = content.parts.mapNotNull { it.text }.joinToString(""),
+                        id = 0L,
+                    )
+
+                // 模型最终文本回复（跳过工具调用轮次的中间事件与 partial）
+                event.author != "user" && event.isFinalResponse && !event.partial -> {
+                    val text = content?.parts?.mapNotNull { it.text }
+                        ?.joinToString("") ?: ""
+                    if (text.isNotBlank()) {
+                        ChatMessage(role = "assistant", content = text, id = 0L)
+                    } else {
+                        null
+                    }
+                }
+
+                else -> null
+            }
+        }
+    }
+
+    /**
+     * 配置键 = id + model + baseUrl + apiKey 哈希 + customEndpoint + apiVersion。
+     * 任一变化都触发重建：runner 闭包捕获的是构建时的配置快照，漏掉任一字段
+     * 都会出现"改了 key 但请求仍带旧值"（如只改 API Key 时一直用旧 key 直到 401）。
+     * apiKey 只进哈希不进明文，避免泄漏到日志/toString。
+     */
+    private fun configKey(config: AIProviderConfig): String =
+        "${config.id}|${config.model}|${config.baseUrl}" +
+            "|${config.apiKey.sha256Prefix()}" +
+            "|${config.customEndpoint ?: ""}|${config.apiVersion ?: ""}"
+
+    /** SHA-256 取前 12 个十六进制字符，用于配置键中的 apiKey 指纹。 */
+    private fun String?.sha256Prefix(): String {
+        if (this.isNullOrEmpty()) return "none"
+        val digest = MessageDigest.getInstance("SHA-256").digest(toByteArray(Charsets.UTF_8))
+        return digest.take(6).joinToString("") { "%02x".format(it) }
+    }
 
     private suspend fun getOrCreateRunner(config: AIProviderConfig): InMemoryRunner? =
         rebuildLock.withLock {

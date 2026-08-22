@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,6 +32,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -60,6 +64,7 @@ fun ChatRoute(
         onSend = viewModel::send,
         onErrorShown = viewModel::onErrorShown,
         onConfirm = viewModel::respondToConfirmation,
+        onClearChat = viewModel::onClearChat,
         modifier = modifier,
     )
 }
@@ -77,6 +82,7 @@ fun ChatRoute(
  * @param onSend 发送按钮点击事件
  * @param onErrorShown 错误提示展示完毕回调
  * @param onConfirm 工具确认请求回调（参数为是否同意；同意才真正执行写操作）
+ * @param onClearChat 清空对话事件（删除持久化历史并重置 UI）
  * @param modifier 修饰符
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,10 +94,13 @@ fun ChatScreen(
     onSend: () -> Unit,
     onErrorShown: () -> Unit = {},
     onConfirm: (Boolean) -> Unit = {},
+    onClearChat: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val stackedSnackbarHostState = rememberStackedSnackbarHostState()
     val listState = rememberLazyListState()
+    // 清空对话需二次确认：操作不可逆，会连同 AI 的上下文记忆一起删除
+    var showClearDialog by remember { mutableStateOf(false) }
 
     // 错误提示：errorMessage 出现时弹出 StackedSnackbar，展示完毕后清除一次性错误状态
     LaunchedEffect(uiState.errorMessage) {
@@ -126,6 +135,18 @@ fun ChatScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { showClearDialog = true },
+                        enabled = uiState.messages.isNotEmpty() && !uiState.isSending,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.DeleteOutline,
+                            contentDescription = "清空对话",
                             tint = MaterialTheme.colorScheme.onSurface,
                         )
                     }
@@ -193,6 +214,32 @@ fun ChatScreen(
             pending = pending,
             onConfirm = { onConfirm(true) },
             onDismiss = { onConfirm(false) },
+        )
+    }
+
+    // ── 清空对话二次确认 ──
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("清空对话？") },
+            text = {
+                Text("将删除全部聊天记录，AI 对你的历史记忆也会一并清除，操作不可恢复。")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearDialog = false
+                        onClearChat()
+                    },
+                ) {
+                    Text("清空", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) {
+                    Text("取消")
+                }
+            },
         )
     }
 }

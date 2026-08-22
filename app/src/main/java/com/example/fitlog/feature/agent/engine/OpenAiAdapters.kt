@@ -55,6 +55,15 @@ import kotlinx.serialization.json.put
  * [FunctionResponse.id] 正常情况下等于对应 functionCall 的 id（框架自动填充），
  * 本对象仍维护"最近一次 assistant 消息发出的 tool_call id 映射"（按函数名）兜底；
  * 仍缺失则退化为 user 文本消息，避免请求被服务商 400 拒绝。
+ *
+ * ## 两类协议剥离（关键坑）
+ *
+ * - **ADK 确认协议的合成对**：`adk_request_confirmation` 合成调用及其响应
+ *   在会话中插在原始调用与其结果之间，直接翻译会破坏 "tool 消息紧跟其
+ *   tool_calls" 的顺序契约——两者均剥离，保留原始对的相邻配对
+ * - **role="model" 的函数响应**：[toAdkContent] 对非法 arguments 的兜底产物，
+ *   会话中没有携带该 id 的 assistant tool_calls——降级为 user 文本，
+ *   避免悬空 tool_call_id 持久化毒化会话
  */
 object OpenAiAdapters {
 
@@ -95,19 +104,38 @@ object OpenAiAdapters {
             val functionResponses = content.parts.mapNotNull { it.functionResponse }
             if (functionResponses.isNotEmpty()) {
                 functionResponses.forEach { fr ->
-                    val id = fr.id ?: lastToolCallIdsByName[fr.name]
-                    if (id != null) {
-                        messages += MessageDto(
-                            role = "tool",
-                            content = responseMapToJsonString(fr.response),
-                            toolCallId = id,
-                        )
-                    } else {
-                        // 无法关联到任何 tool_call：退化为 user 文本，避免协议 400
-                        messages += MessageDto(
+                    when {
+                        // ADK 确认协议的合成响应（respondToConfirmation 写入）：会话中不存在
+                        // 携带该 id 的真实工具调用，进入 tool 通道必然违反协议，直接剥离
+                        // （原始调用与其结果由其余消息自然配对）
+                        fr.name == FunctionCall.REQUEST_CONFIRMATION_FUNCTION_CALL_NAME -> Unit
+
+                        // role="model" 的函数响应是 [toAdkContent] 对非法 arguments 的兜底产物：
+                        // 原始 tool_call 已被丢弃，会话中没有携带该 id 的 assistant tool_calls，
+                        // 翻成 role="tool" 会造成悬空 tool_call_id（严格服务商 400，且坏历史
+                        // 持久化后每轮必 400）——降级为 user 文本保留自我纠正信号
+                        content.role == "model" -> messages += MessageDto(
                             role = "user",
-                            content = "[工具 ${fr.name} 结果] ${responseMapToJsonString(fr.response)}",
+                            content = "（工具 ${fr.name} 参数解析失败：" +
+                                "${fr.response["error"] ?: "请重新生成合法参数"}）",
                         )
+
+                        else -> {
+                            val id = fr.id ?: lastToolCallIdsByName[fr.name]
+                            if (id != null) {
+                                messages += MessageDto(
+                                    role = "tool",
+                                    content = responseMapToJsonString(fr.response),
+                                    toolCallId = id,
+                                )
+                            } else {
+                                // 无法关联到任何 tool_call：退化为 user 文本，避免协议 400
+                                messages += MessageDto(
+                                    role = "user",
+                                    content = "[工具 ${fr.name} 结果] ${responseMapToJsonString(fr.response)}",
+                                )
+                            }
+                        }
                     }
                 }
                 return@forEach
@@ -116,22 +144,30 @@ object OpenAiAdapters {
             // ── 分派 2：函数调用（assistant 产出）→ assistant + tool_calls ──
             val functionCalls = content.parts.mapNotNull { it.functionCall }
             if (functionCalls.isNotEmpty()) {
-                val text = content.parts.mapNotNull { it.text }
-                    .joinToString("\n").trim().ifEmpty { null }
-                val dtos = functionCalls.map { fc ->
-                    val id = fc.id ?: "call_${fc.name}"
-                    lastToolCallIdsByName[fc.name] = id
-                    ToolCallDto(
-                        id = id,
-                        // 显式传 type：encodeDefaults=false 下默认值会被跳过，缺 "type" 服务商 400
-                        type = "function",
-                        function = FunctionCallDto(
-                            name = fc.name,
-                            arguments = argsMapToJsonString(fc.args),
-                        ),
-                    )
+                // 剥离 ADK 确认协议的合成调用（其响应在分派 1 同步剥离）：
+                // 若保留，翻译结果为 assistant(原始X)→assistant(合成Y)→…→tool(Y)→tool(X)，
+                // 原始调用的 tool 消息不再紧跟其 tool_calls，严格服务商 400
+                val realCalls = functionCalls.filter {
+                    it.name != FunctionCall.REQUEST_CONFIRMATION_FUNCTION_CALL_NAME
                 }
-                messages += MessageDto(role = "assistant", content = text, toolCalls = dtos)
+                if (realCalls.isNotEmpty()) {
+                    val text = content.parts.mapNotNull { it.text }
+                        .joinToString("\n").trim().ifEmpty { null }
+                    val dtos = realCalls.map { fc ->
+                        val id = fc.id ?: "call_${fc.name}"
+                        lastToolCallIdsByName[fc.name] = id
+                        ToolCallDto(
+                            id = id,
+                            // 显式传 type：encodeDefaults=false 下默认值会被跳过，缺 "type" 服务商 400
+                            type = "function",
+                            function = FunctionCallDto(
+                                name = fc.name,
+                                arguments = argsMapToJsonString(fc.args),
+                            ),
+                        )
+                    }
+                    messages += MessageDto(role = "assistant", content = text, toolCalls = dtos)
+                }
                 return@forEach
             }
 
