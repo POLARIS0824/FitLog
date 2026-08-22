@@ -85,7 +85,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.google.adk.core.android)
-    implementation(libs.google.adk.processor)
+    // ADK @Tool 注解处理器：KSP 生成 XxxTool 包装类（implementation 下形同虚设）
+    ksp(libs.google.adk.processor)
 
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)

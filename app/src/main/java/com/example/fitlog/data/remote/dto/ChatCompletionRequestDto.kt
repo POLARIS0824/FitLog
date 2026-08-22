@@ -15,6 +15,7 @@ import kotlinx.serialization.Serializable
  * @param temperature 采样温度（0~2），越低越稳定；null 由服务商默认
  * @param maxTokens 最大输出 token 数，用于控制成本；null 不限制
  * @param responseFormat 结构化输出约束（JSON mode）；null 纯文本
+ * @param tools 可用工具定义列表（function calling）；null 不提供工具
  */
 @Serializable
 data class ChatCompletionRequestDto(
@@ -23,6 +24,7 @@ data class ChatCompletionRequestDto(
     val temperature: Double? = null,
     @SerialName("max_tokens") val maxTokens: Int? = null,
     @SerialName("response_format") val responseFormat: ResponseFormatDto? = null,
+    val tools: List<ToolDefinitionDto>? = null,
 )
 
 /**

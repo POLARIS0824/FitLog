@@ -2,27 +2,44 @@ package com.example.fitlog.feature.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.fitlog.data.repository.AIChatRepository
+import com.example.fitlog.feature.agent.engine.AgentEngine
 import com.example.fitlog.model.ai.ChatMessage
-import com.example.fitlog.model.ai.SystemPrompt.SYSTEM_PROMPT
+import com.google.adk.kt.events.Event
+import com.google.adk.kt.types.FunctionCall
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * AI 对话界面的 ViewModel。
+ * AI 教练对话页的 ViewModel，驱动 ADK Agent（[AgentEngine]）。
  *
- * 对话数据没有上游 Flow（不存 Room），由用户事件驱动，
- * 因此自行持有 [MutableStateFlow] 作为唯一状态源，
- * 每个公开函数对应一种 UI 事件，负责推进状态。
+ * ## 与旧版（纯文本聊天）的区别
+ *
+ * 消息不再直接发给 AI 服务商，而是进入 ADK agent 管线：模型可以调用
+ * [com.example.fitlog.feature.agent.tools.FitnessTools] 查询用户真实数据再作答；
+ * 涉及写操作的工具（记体重 / 切计划）会先暂停等待用户确认（见 [PendingConfirmation]）。
+ *
+ * ## 会话模型
+ *
+ * 单页面模式：固定 sessionId，历史由 ADK 的 RoomSessionService 持久化，
+ * 进程重启后回到同一会话；AgentEngine 会在配置变化时自动重建 runner，历史不受影响。
+ *
+ * ## 事件流消费
+ *
+ * [collectAgentEvents] 逐条消费 ADK [Event]：
+ * 1. 含 `adk_request_confirmation` 调用的事件 → 提取原始工具信息，置 [PendingConfirmation] 弹框；
+ * 2. `errorMessage` → 统一错误提示；
+ * 3. 最终回复（[Event.isFinalResponse] 且非 partial）→ 文本上屏。
  */
 @HiltViewModel
 class ChatViewModel @Inject constructor(
-    private val aiChatRepository: AIChatRepository
+    private val agentEngine: AgentEngine,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -30,6 +47,9 @@ class ChatViewModel @Inject constructor(
 
     /** 消息展示用自增 id（LazyColumn key 的唯一事实源；进程内单调递增）。 */
     private var nextMessageId = 1L
+
+    /** 单页面模式：固定会话 id，历史经 ADK RoomSessionService 持久化，重启后延续。 */
+    private val sessionId = "main_chat"
 
     /**
      * 输入框文本变化事件
@@ -39,7 +59,7 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 发送按钮点击事件
+     * 发送按钮点击事件：进入 ADK agent 管线。
      */
     fun send() {
         // 空白或者正在发送中不可发送
@@ -47,40 +67,115 @@ class ChatViewModel @Inject constructor(
         if (input.isEmpty()) return
         if (_uiState.value.isSending) return
 
-        // 消息立刻上屏，同时清除上一次的错误提示
+        // 消息立刻上屏，同时清除上一次的错误与残留确认框
         val userMessage = ChatMessage(role = "user", content = input, id = nextMessageId++)
-        val messagesBeforeSend = _uiState.value.messages + userMessage
         _uiState.update {
             it.copy(
-                messages = messagesBeforeSend,
+                messages = it.messages + userMessage,
                 input = "",
                 isSending = true,
                 errorMessage = null,
+                pendingConfirmation = null,
             )
         }
 
-        // 协程发送网络请求
         viewModelScope.launch {
-            val apiMessages: List<ChatMessage> = listOf(SYSTEM_PROMPT) + messagesBeforeSend
-            val result = aiChatRepository.chat(apiMessages)
+            agentEngine.sendMessage(sessionId, input)
+                .onSuccess { collectAgentEvents(it) }
+                .onFailure { onEngineError(it) }
+        }
+    }
 
-            result
-                .onSuccess { reply ->
+    /**
+     * 用户对确认框的选择（同意/拒绝）。
+     *
+     * @param confirmed true=允许执行工具；false=拒绝（模型会向用户解释）
+     */
+    fun respondToConfirmation(confirmed: Boolean) {
+        val pending = _uiState.value.pendingConfirmation ?: return
+        _uiState.update { it.copy(pendingConfirmation = null, isSending = true) }
+
+        viewModelScope.launch {
+            agentEngine.respondToConfirmation(sessionId, pending.callId, confirmed)
+                .onSuccess { collectAgentEvents(it) }
+                .onFailure { onEngineError(it) }
+        }
+    }
+
+    /**
+     * 消费一轮 ADK 事件流：确认请求 → 弹框暂停；最终文本 → 上屏；错误 → 提示。
+     *
+     * ADK 的事件流本身可能抛异常（工具执行失败、服务商中途断流、会话库 IO 错误等），
+     * 因此整个收集过程包在 try/catch 中：异常转为 UI 错误提示而非未捕获协程异常
+     * （后者会直接闪退）。[CancellationException] 按协程取消语义原样上抛。
+     */
+    private suspend fun collectAgentEvents(events: Flow<Event>) {
+        var sawConfirmation = false
+        try {
+            events.collect { event ->
+                // 1) 确认请求：ADK 已暂停本轮，UI 弹确认框
+                val confirmationCall = event.functionCalls()
+                    .firstOrNull { it.name == FunctionCall.REQUEST_CONFIRMATION_FUNCTION_CALL_NAME }
+                if (confirmationCall != null) {
+                    sawConfirmation = true
+                    val original = confirmationCall.args[FunctionCall.ORIGINAL_FUNCTION_CALL_KEY]
+                        as? Map<*, *>
+                    val toolName = original?.get(FunctionCall.NAME_KEY) as? String
+                        ?: confirmationCall.name
+                    val toolArgs = original?.get(FunctionCall.ARGS_KEY) as? Map<String, Any?>
+                        ?: emptyMap()
                     _uiState.update {
                         it.copy(
-                            messages = it.messages + reply.copy(id = nextMessageId++),
                             isSending = false,
+                            pendingConfirmation = PendingConfirmation(
+                                callId = confirmationCall.id ?: "",
+                                toolName = toolName,
+                                args = toolArgs,
+                            ),
                         )
                     }
+                    return@collect
                 }
-                .onFailure { error ->
-                    _uiState.update {
-                        it.copy(
-                            isSending = false,
-                            errorMessage = error.message ?: "Send Failed",
-                        )
+
+                // 2) 引擎/服务商错误
+                event.errorMessage?.let { msg ->
+                    _uiState.update { it.copy(errorMessage = msg, isSending = false) }
+                    return@collect
+                }
+
+                // 3) 最终回复文本上屏
+                if (event.isFinalResponse && !event.partial) {
+                    val text = event.content?.parts?.mapNotNull { it.text }
+                        ?.joinToString("") ?: ""
+                    if (text.isNotBlank()) {
+                        _uiState.update {
+                            it.copy(
+                                messages = it.messages + ChatMessage(
+                                    role = "assistant",
+                                    content = text,
+                                    id = nextMessageId++,
+                                ),
+                            )
+                        }
                     }
                 }
+            }
+
+            // 事件流正常结束且没有弹确认框 → 本轮完成
+            if (!sawConfirmation) {
+                _uiState.update { it.copy(isSending = false) }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            onEngineError(e)
+        }
+    }
+
+    /** 引擎初始化/发送失败（未配置服务商等）。 */
+    private fun onEngineError(error: Throwable) {
+        _uiState.update {
+            it.copy(isSending = false, errorMessage = error.message ?: "Agent 请求失败")
         }
     }
 
