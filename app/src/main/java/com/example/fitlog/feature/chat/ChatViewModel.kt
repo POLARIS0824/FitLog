@@ -51,6 +51,19 @@ class ChatViewModel @Inject constructor(
     /** 单页面模式：固定会话 id，历史经 ADK RoomSessionService 持久化，重启后延续。 */
     private val sessionId = "main_chat"
 
+    init {
+        // 进程重启后回放持久化历史：模型上下文在会话库里延续，UI 也必须恢复一致视图，
+        // 否则用户看到"对话凭空消失"而模型仍记得旧对话
+        viewModelScope.launch {
+            val history = agentEngine.replayHistory(sessionId)
+            _uiState.update { state ->
+                if (state.messages.isNotEmpty()) return@update state
+                val messages = history.map { it.copy(id = nextMessageId++) }
+                state.copy(messages = messages)
+            }
+        }
+    }
+
     /**
      * 输入框文本变化事件
      */
@@ -177,6 +190,25 @@ class ChatViewModel @Inject constructor(
         _uiState.update {
             it.copy(isSending = false, errorMessage = error.message ?: "Agent 请求失败")
         }
+    }
+
+    /**
+     * 清空对话：删除会话库中的持久化历史并重置 UI。
+     *
+     * 也是协议坏历史（悬空 tool_call 等）的唯一自愈入口——用户遇到持续报错时
+     * 可借此恢复可用状态。
+     */
+    fun onClearChat() {
+        if (_uiState.value.isSending) return
+        _uiState.update {
+            it.copy(
+                messages = emptyList(),
+                errorMessage = null,
+                pendingConfirmation = null,
+                input = "",
+            )
+        }
+        viewModelScope.launch { agentEngine.clearSession(sessionId) }
     }
 
     /**
