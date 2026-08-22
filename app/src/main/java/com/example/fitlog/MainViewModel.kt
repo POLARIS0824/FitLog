@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
@@ -55,8 +56,11 @@ class MainViewModel @Inject constructor(
         userPreferencesRepository.dynamicColor,
         ::Pair,
     )
+        // DataStore 读取异常兜底：吞掉异常并放行默认外观。
+        // 不加 catch 时异常会击穿 stateIn(Eagerly) 的共享协程成为未捕获异常，启动即崩溃。
+        .catch { }
         .onEach { appearanceLoaded.value = true }
-        // DataStore 读取异常兜底：放行默认外观，不卡启动
+        // 双保险：即使上游异常完成，也放行 Splash（onCompletion 对异常完成同样回调）
         .onCompletion { appearanceLoaded.value = true }
         .stateIn(
             scope = viewModelScope,

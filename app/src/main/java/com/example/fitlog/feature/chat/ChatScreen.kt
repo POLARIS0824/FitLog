@@ -4,8 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +17,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -22,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -55,6 +59,7 @@ fun ChatRoute(
         onInputChange = viewModel::onInputChange,
         onSend = viewModel::send,
         onErrorShown = viewModel::onErrorShown,
+        onConfirm = viewModel::respondToConfirmation,
         modifier = modifier,
     )
 }
@@ -71,6 +76,7 @@ fun ChatRoute(
  * @param onInputChange 输入框文本变化事件
  * @param onSend 发送按钮点击事件
  * @param onErrorShown 错误提示展示完毕回调
+ * @param onConfirm 工具确认请求回调（参数为是否同意；同意才真正执行写操作）
  * @param modifier 修饰符
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,6 +87,7 @@ fun ChatScreen(
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onErrorShown: () -> Unit = {},
+    onConfirm: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val stackedSnackbarHostState = rememberStackedSnackbarHostState()
@@ -179,6 +186,73 @@ fun ChatScreen(
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
+
+    // ── 字段 5: pendingConfirmation → 工具写操作确认对话框 ──
+    uiState.pendingConfirmation?.let { pending ->
+        ToolConfirmationDialog(
+            pending = pending,
+            onConfirm = { onConfirm(true) },
+            onDismiss = { onConfirm(false) },
+        )
+    }
+}
+
+/**
+ * 工具写操作确认对话框。
+ *
+ * agent 想执行需要确认的工具（记体重 / 切计划）时展示；同意才真正执行，
+ * 拒绝则向模型回传拒绝结果（模型会向用户解释）。参数展示尽量可读：
+ * 已知字段中文化（体重/计划），未知字段原样展示。
+ *
+ * @param pending 待确认的工具调用信息
+ * @param onConfirm 点击"允许"回调
+ * @param onDismiss 点击"拒绝"或对话框外关闭回调
+ */
+@Composable
+private fun ToolConfirmationDialog(
+    pending: PendingConfirmation,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("允许 AI 执行此操作？") },
+        text = {
+            Column {
+                Text(
+                    text = "工具：" + pending.toolName,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Spacer(Modifier.height(8.dp))
+                // 参数摘要：已知字段中文化，其余原样展示
+                val argLines = pending.args.entries.map { (k, v) ->
+                    val label = when (k) {
+                        "weightKg" -> "体重（kg）"
+                        "planId" -> "计划 ID"
+                        else -> k
+                    }
+                    "$label：$v"
+                }
+                if (argLines.isNotEmpty()) {
+                    Text(
+                        text = argLines.joinToString("\n"),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("允许")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("拒绝")
+            }
+        },
+    )
 }
 
 /**
