@@ -48,6 +48,12 @@ android {
     }
 }
 
+ksp {
+    // Room schema 历史导出：变更 schema 必须递增 AppDatabase.version 并补 Migration，
+    // 以导出文件为准绳做 diff（禁止再依赖破坏性迁移清库）
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

@@ -128,6 +128,57 @@ class WorkoutMapperTest {
     }
 
     /**
+     * 测试乱序 relation 映射：动作按 sortOrder、组按 setNumber 显式排序输出。
+     *
+     * Room @Relation 不保证返回顺序，mapper 是排序契约的唯一执行点
+     * （WorkoutRepository.update 按列表位置重写编号，读出乱序会永久错位）。
+     */
+    @Test
+    fun testRelationToModel_sortsBySortOrderAndSetNumber() {
+        val relation = WorkoutWithExerciseLogs(
+            workout = WorkoutEntity(
+                id = 20L,
+                userId = 0L,
+                date = date,
+                feelings = null,
+                sourceFileName = null,
+                rawContent = null,
+            ),
+            exerciseLogs = listOf(
+                ExerciseLogWithSets(
+                    exerciseLog = ExerciseLogEntity(
+                        id = 201L,
+                        workoutId = 20L,
+                        exerciseKey = null,
+                        name = "第二个动作",
+                        sortOrder = 1,
+                    ),
+                    sets = listOf(
+                        SetLogEntity(id = 5L, exerciseLogId = 201L, setNumber = 2, weightKg = 60f, reps = 8),
+                        SetLogEntity(id = 4L, exerciseLogId = 201L, setNumber = 1, weightKg = 50f, reps = 10),
+                    ),
+                ),
+                ExerciseLogWithSets(
+                    exerciseLog = ExerciseLogEntity(
+                        id = 200L,
+                        workoutId = 20L,
+                        exerciseKey = null,
+                        name = "第一个动作",
+                        sortOrder = 0,
+                    ),
+                    sets = emptyList(),
+                ),
+            ),
+        )
+
+        val model = relation.toModel()
+
+        assertEquals(listOf("第一个动作", "第二个动作"), model.exercises.map { it.name })
+        val sets = model.exercises[1].sets
+        assertEquals(listOf(50f to 10, 60f to 8), sets.map { it.weightKg to it.reps })
+    }
+
+    /**
      * 测试领域模型转 Entity：扁平字段完整透传。
      *
      * 注意：当前 [Workout.toEntity] 不携带 exercises（分层插入由 DAO 分别完成），

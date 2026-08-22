@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.example.fitlog.data.local.entity.ExerciseEntity
 
@@ -33,12 +34,39 @@ interface ExerciseDao {
     suspend fun insertAll(exercises: List<ExerciseEntity>)
 
     /**
+     * 种子重灌专用的批量 upsert：已存在的行用 UPDATE 覆盖内容（保持主键行存活），
+     * 不存在的行 INSERT（冲突忽略）。
+     *
+     * 不能用 [insertAll]（REPLACE 在 SQLite 中是 DELETE+INSERT）：父行被 DELETE
+     * 会触发 exercise_logs.exerciseKey 外键 SET_NULL，把历史训练日志与动作库的
+     * 关联静默断开。UPDATE 不触发外键动作，历史关联得以保留。
+     *
+     * @param exercises 待写入的动作实体列表（主键即业务 id）
+     */
+    @Transaction
+    suspend fun upsertAllPreservingRows(exercises: List<ExerciseEntity>) {
+        exercises.forEach { exercise ->
+            val updated = update(exercise)
+            if (updated == 0) {
+                insertIgnore(exercise)
+            }
+        }
+    }
+
+    /**
+     * 插入动作，ID 冲突时忽略（upsert 的 INSERT 支路）。
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnore(exercise: ExerciseEntity)
+
+    /**
      * 更新已有动作记录。
      *
      * @param exercise 待更新的动作实体
+     * @return 受影响行数（0 = 该主键不存在）
      */
     @Update
-    suspend fun update(exercise: ExerciseEntity)
+    suspend fun update(exercise: ExerciseEntity): Int
 
     /**
      * 删除指定动作记录。

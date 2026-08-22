@@ -29,7 +29,11 @@ fun WorkoutWithExerciseLogs.toModel(): Workout {
         id = workout.id,
         userId = workout.userId,
         date = workout.date,
-        exercises = exerciseLogs.map { it.toModel() },
+        // @Relation 不支持 orderBy，Room 内部查询序非 API 契约：
+        // 映射时按持久化的 sortOrder/setNumber 显式排序，保证读出顺序稳定
+        exercises = exerciseLogs
+            .sortedBy { it.exerciseLog.sortOrder }
+            .map { it.toModel() },
         feelings = workout.feelings,
         startedAt = workout.startedAt,
         endedAt = workout.endedAt,
@@ -42,7 +46,7 @@ fun ExerciseLogWithSets.toModel(): ExerciseLog {
     return ExerciseLog(
         name = exerciseLog.name,
         exerciseKey = exerciseLog.exerciseKey,
-        sets = sets.map {
+        sets = sets.sortedBy { it.setNumber }.map {
             SetLog(
                 weightKg = it.weightKg,
                 reps = it.reps,

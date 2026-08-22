@@ -41,7 +41,7 @@ import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
         BodyMetricEntity::class,
     ],
     version = 6,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
 

@@ -15,6 +15,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import com.example.fitlog.data.local.AppDatabase
+import com.example.fitlog.data.local.Migrations
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -36,7 +37,10 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "fitlog.db",
-        ).fallbackToDestructiveMigration()
+        )
+            // 训练历史是不可再生的用户资产：只走显式 Migration，缺迁移直接抛异常
+            // （失败显性化），绝不允许破坏性迁移静默清库
+            .addMigrations(*Migrations.ALL_MIGRATIONS)
             .build()
     }
 

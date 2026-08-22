@@ -143,6 +143,38 @@ class ExerciseSeederTest {
         )
     }
 
+    // ── ID 唯一性（种子数据守护） ──
+
+    /** 同名条目消歧：后出现的并入数据集 id 后缀，保证 ID 全局唯一。 */
+    @Test
+    fun `duplicate names are disambiguated with dataset id suffix`() {
+        val entities = ExerciseSeedMapper.toEntities(
+            listOf(
+                createSeedData(id = "0088", name = "barbell seated calf raise"),
+                createSeedData(id = "1371", name = "barbell seated calf raise"),
+            ),
+        )
+        assertEquals(2, entities.size)
+        assertEquals("barbell-seated-calf-raise", entities[0].id)
+        assertEquals("barbell-seated-calf-raise-1371", entities[1].id)
+        assertEquals(2, entities.map { it.id }.toSet().size)
+    }
+
+    /** 全量种子映射后 ID 无重复（防数据集更新引入静默覆盖）。 */
+    @Test
+    fun `all seed entities have unique ids`() {
+        val jsonText = java.io.File("src/main/res/raw/exercises.json").readText()
+        val seedList = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            .decodeFromString<List<ExerciseSeedData>>(jsonText)
+        val entities = ExerciseSeedMapper.toEntities(seedList)
+        assertEquals(seedList.size, entities.size)
+        assertEquals(
+            "种子映射后存在重复 ID",
+            entities.size,
+            entities.map { it.id }.toSet().size,
+        )
+    }
+
     // ── 辅助方法 ──
 
     private fun createSeedData(
