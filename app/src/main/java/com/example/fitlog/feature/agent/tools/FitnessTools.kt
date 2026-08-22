@@ -75,9 +75,7 @@ class FitnessTools @Inject constructor(
     suspend fun getWorkoutDetail(
         @Param("训练记录 id") workoutId: Int,
     ): WorkoutDetailDto? =
-        workoutRepository.getWorkouts().first()
-            .firstOrNull { it.id == workoutId.toLong() }
-            ?.toDetailDto()
+        workoutRepository.getById(workoutId.toLong())?.toDetailDto()
 
     /**
      * 获取当前激活训练计划（进度 + 下一未完成课次详情）。
@@ -194,15 +192,17 @@ class FitnessTools @Inject constructor(
      */
     @Tool(requireConfirmation = true)
     suspend fun logBodyWeight(
-        @Param("体重公斤数，如 72.5") weightKg: Double,
+        @Param("体重公斤数，如 72.5（有效范围 20~300）") weightKg: Double,
     ): WriteResultDto {
+        // 边界钳制：模型幻觉出负数/0/天文数字时不落脏数据（同日 upsert 会覆盖真实值）
+        val sanitized = weightKg.coerceIn(20.0, 300.0)
         val date = LocalDate.now()
         bodyMetricRepository.upsert(
-            com.example.fitlog.model.BodyMetric(date = date, weightKg = weightKg.toFloat()),
+            com.example.fitlog.model.BodyMetric(date = date, weightKg = sanitized.toFloat()),
         )
         return WriteResultDto(
             success = true,
-            message = "已记录 ${date} 体重 ${weightKg} kg",
+            message = "已记录 ${date} 体重 ${sanitized} kg",
         )
     }
 

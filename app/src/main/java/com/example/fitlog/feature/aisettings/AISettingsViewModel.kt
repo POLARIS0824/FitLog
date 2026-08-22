@@ -189,7 +189,8 @@ class AISettingsViewModel @Inject constructor(
      *
      * [baseUrl] / [customEndpoint] 由 Screen 传入（它们是 Screen 本地表单状态）；
      * 失败后模型列表保持推荐值，用户仍可手动输入，不被阻塞。
-     * 成功拉取后会将模型列表持久化保存到 Room 数据库中。
+     * 成功拉取且该配置已有保存记录时，将模型列表并入其 cachedModels；
+     * 配置从未保存时不落库（表单中的 apiKey 只用于本次请求）。
      */
     fun onFetchModels(baseUrl: String, customEndpoint: String?) {
         val type = selectedTypeState.value
@@ -222,13 +223,11 @@ class AISettingsViewModel @Inject constructor(
                             fetchResult = "✅ 成功拉取 ${models.size} 个模型",
                         )
                     }
-                    val existing = aiProviderConfigRepository.getById(type.name)
-                    if (existing != null) {
+                    // 仅当该配置已保存过（存在行）才把拉取结果并入其 cachedModels；
+                    // 配置从未保存时绝不 insert——否则表单里尚未确认的 apiKey
+                    // 会随 tempConfig 被静默落库，与"保存"按钮语义冲突
+                    if (aiProviderConfigRepository.getById(type.name) != null) {
                         aiProviderConfigRepository.updateCachedModels(type.name, models)
-                    } else {
-                        aiProviderConfigRepository.insert(
-                            tempConfig.copy(cachedModels = models)
-                        )
                     }
                 }
                 .onFailure { e ->

@@ -8,8 +8,11 @@ import com.example.fitlog.data.local.dao.AIProviderConfigDao
 import com.example.fitlog.data.mapper.toEntity
 import com.example.fitlog.data.mapper.toModel
 import com.example.fitlog.model.ai.AIProviderConfig
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
@@ -177,9 +180,17 @@ class AIProviderConfigRepository @Inject constructor(
      * - ID 对应的配置已被删除
      * → 最终返回 `null`
      *
-     * 注意：[Flow.map] 的 transform 是 `suspend` 的，所以可以直接调用挂起函数 [getById]。
+     * 对两个源头都响应式：DataStore 的激活 ID 切换、Room 侧配置行的字段修改
+     * （baseUrl/apiKey 等）都会重发——引擎重建依赖后者。
      */
-    val activeProvider: Flow<AIProviderConfig?> = activeProviderId.map { id ->
-        if (id != null) getById(id) else null
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activeProvider: Flow<AIProviderConfig?> = activeProviderId.flatMapLatest { id ->
+        if (id == null) {
+            flowOf(null)
+        } else {
+            // 挂到 Room 的响应式查询上：配置字段（baseUrl/apiKey 等）被修改时
+            // 重发，下游（AgentEngine 重建）才能感知；getById 一次性查询做不到
+            aiProviderConfigDao.getByIdFlow(id).map { it?.toModel() }
+        }
     }
 }

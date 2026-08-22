@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -257,10 +258,11 @@ class AISettingsViewModelTest {
     }
 
     /**
-     * 测试拉取成功且配置不存在时：新插入配置并缓存模型列表。
+     * 测试拉取成功且配置不存在时：模型列表回填 UI，但**不落库**
+     * （表单中的 apiKey 尚未确认保存，不得随拉取静默写入数据库）。
      */
     @Test
-    fun testOnFetchModels_successWithoutExistingConfig_insertsConfigWithModels() = runTest(testScheduler) {
+    fun testOnFetchModels_successWithoutExistingConfig_updatesUiWithoutPersisting() = runTest(testScheduler) {
         fakeApi.modelsHandler = {
             ModelsResponseDto(data = listOf(ModelItemDto("gpt-5.6-sol"), ModelItemDto("gpt-5.5")))
         }
@@ -276,9 +278,8 @@ class AISettingsViewModelTest {
         assertEquals(listOf("gpt-5.6-sol", "gpt-5.5"), state.model.availableModels)
         assertFalse(state.model.isLoading)
 
-        val saved = providerConfigRepo.getById("OPENAI")
-        assertEquals(listOf("gpt-5.6-sol", "gpt-5.5"), saved?.cachedModels)
-        assertEquals("sk-new", saved?.apiKey)
+        // 配置从未保存：拉取不得产生任何落库（apiKey 也不落）
+        assertNull(providerConfigRepo.getById("OPENAI"))
     }
 
     /**
@@ -422,14 +423,20 @@ class AISettingsViewModelTest {
      */
     @Test
     fun testInit_withActiveProvider_formLandsOnActiveType() = runTest(testScheduler) {
+        // 先落库、后激活、再建 VM：与真实启动时序一致
+        // （activeProvider 对 DataStore ID 首值立即重发，Room 行此时已存在）
         providerConfigRepo.insert(
             config(id = "MOONSHOT", type = ProviderType.MOONSHOT, baseUrl = "https://api.moonshot.cn"),
         )
         providerConfigRepo.setActiveProviderId("MOONSHOT")
+        advanceUntilIdle()
 
         val vm = AISettingsViewModel(providerConfigRepo, AIChatRepository(fakeApi, providerConfigRepo))
 
-        val state = vm.uiState.first { it.provider.selectedType == ProviderType.MOONSHOT }
+        // 等回填全部完成（apiKey 仅在回填链路写入，以其出现为完成信号）
+        val state = vm.uiState.first {
+            it.provider.selectedType == ProviderType.MOONSHOT && it.apiKey.apiKey.isNotEmpty()
+        }
         assertEquals("sk-saved", state.apiKey.apiKey)
         assertEquals("https://api.moonshot.cn", state.endpoint.baseUrl)
     }

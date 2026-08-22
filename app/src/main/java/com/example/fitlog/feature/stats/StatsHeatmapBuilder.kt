@@ -60,6 +60,7 @@ object StatsHeatmapBuilder {
             values = values,
             trainedDays = values.size,
             longestStreak = longestStreak(values.keys),
+            endDate = today,
         )
     }
 

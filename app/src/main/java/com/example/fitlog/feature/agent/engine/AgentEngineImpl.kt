@@ -3,10 +3,8 @@ package com.example.fitlog.feature.agent.engine
 import android.content.Context
 import com.example.fitlog.data.remote.AIApi
 import com.example.fitlog.data.repository.AIProviderConfigRepository
-import com.example.fitlog.data.repository.ExerciseRepository
 import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.data.repository.WorkoutPlanRepository
-import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.feature.agent.tools.FitnessTools
 import com.example.fitlog.feature.agent.tools.generatedTools
 import com.example.fitlog.model.ai.AIProviderConfig
@@ -61,9 +59,7 @@ class AgentEngineImpl @Inject constructor(
     private val aiApi: AIApi,
     private val fitnessTools: FitnessTools,
     private val userProfileRepository: UserProfileRepository,
-    private val workoutRepository: WorkoutRepository,
     private val workoutPlanRepository: WorkoutPlanRepository,
-    private val exerciseRepository: ExerciseRepository,
 ) : AgentEngine {
 
     /** ADK 应用名（会话命名空间；Room 库按此 + userId + sessionId 寻址）。 */
@@ -74,6 +70,7 @@ class AgentEngineImpl @Inject constructor(
         const val COACH_AGENT_NAME = "fitness_coach"
         /** 单轮工具调用步数上限，防模型在工具间死循环。 */
         const val MAX_STEPS = 8
+        private const val TAG = "AgentEngine"
     }
 
     private val rebuildLock = Mutex()
@@ -221,7 +218,11 @@ class AgentEngineImpl @Inject constructor(
         // KSP 处理器为 FitnessTools 的每个 @Tool 方法生成 XxxTool 包装类，
         // 并生成扩展函数 FitnessTools.generatedTools() 聚合全部工具实例。
         val tools = fitnessTools.generatedTools()
-        if (tools.isEmpty()) return null
+        if (tools.isEmpty()) {
+            // KSP 产物为空几乎必然是构建配置问题（processor 未生效），必须留痕定位
+            android.util.Log.w(TAG, "generatedTools() 为空：检查 ksp(google-adk-processor) 配置")
+            return null
+        }
 
         val agent = LlmAgent(
             name = COACH_AGENT_NAME,
@@ -253,18 +254,22 @@ class AgentEngineImpl @Inject constructor(
         appendLine("【当前上下文】")
         appendLine("今天是 ${java.time.LocalDate.now()}")
 
-        runCatching { userProfileRepository.getFirst() }.getOrNull()?.let { p ->
-            val parts = buildList {
-                p.name?.takeIf { it.isNotBlank() }?.let { add("名字:$it") }
-                p.trainingGoal?.let { add("目标:${it.displayName()}") }
-                p.age?.let { add("年龄:$it") }
+        runCatching { userProfileRepository.getFirst() }
+            .onFailure { android.util.Log.w(TAG, "读取用户资料失败，指令缺少用户上下文", it) }
+            .getOrNull()?.let { p ->
+                val parts = buildList {
+                    p.name?.takeIf { it.isNotBlank() }?.let { add("名字:$it") }
+                    p.trainingGoal?.let { add("目标:${it.displayName()}") }
+                    p.age?.let { add("年龄:$it") }
+                }
+                if (parts.isNotEmpty()) appendLine("用户资料：${parts.joinToString("，")}")
             }
-            if (parts.isNotEmpty()) appendLine("用户资料：${parts.joinToString("，")}")
-        }
 
-        runCatching { workoutPlanRepository.activePlan.first() }.getOrNull()?.let { plan ->
-            appendLine("当前激活计划：「${plan.name}」（每周 ${plan.sessionsPerWeek} 次，共 ${plan.durationWeeks} 周）")
-        }
+        runCatching { workoutPlanRepository.activePlan.first() }
+            .onFailure { android.util.Log.w(TAG, "读取激活计划失败，指令缺少计划上下文", it) }
+            .getOrNull()?.let { plan ->
+                appendLine("当前激活计划：「${plan.name}」（每周 ${plan.sessionsPerWeek} 次，共 ${plan.durationWeeks} 周）")
+            }
     }
 
     private fun com.example.fitlog.model.user.TrainingGoal.displayName(): String = when (this) {

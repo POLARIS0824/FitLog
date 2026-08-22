@@ -96,8 +96,10 @@ object OpenAiAdapters {
             }
         }
 
-        // 最近一次 assistant 消息发出的 tool_call id（按函数名），供 FunctionResponse 缺 id 时回填
-        val lastToolCallIdsByName = mutableMapOf<String, String>()
+        // 最近一次 assistant 消息发出的 tool_call id（按函数名聚合出现顺序），
+        // 供 FunctionResponse 缺 id 时回填；用队列而非单值：模型一轮并行调用
+        // 同名函数两次时，两条响应按出现顺序各取各的 id，不会撞车
+        val toolCallIdsByName = mutableMapOf<String, ArrayDeque<String>>()
 
         contents.forEach { content ->
             // ── 分派 1：函数响应（ADK 存为 role="user"，必须按 part 判定）→ role="tool" ──
@@ -121,7 +123,8 @@ object OpenAiAdapters {
                         )
 
                         else -> {
-                            val id = fr.id ?: lastToolCallIdsByName[fr.name]
+                            val fallbackId = toolCallIdsByName[fr.name]?.removeFirstOrNull()
+                            val id = fr.id ?: fallbackId
                             if (id != null) {
                                 messages += MessageDto(
                                     role = "tool",
@@ -155,7 +158,7 @@ object OpenAiAdapters {
                         .joinToString("\n").trim().ifEmpty { null }
                     val dtos = realCalls.map { fc ->
                         val id = fc.id ?: "call_${fc.name}"
-                        lastToolCallIdsByName[fc.name] = id
+                        toolCallIdsByName.getOrPut(fc.name) { ArrayDeque() }.addLast(id)
                         ToolCallDto(
                             id = id,
                             // 显式传 type：encodeDefaults=false 下默认值会被跳过，缺 "type" 服务商 400

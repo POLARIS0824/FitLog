@@ -67,11 +67,14 @@ data class StatsOverviewState(
  *   （窗口外离群值会压平 HeatmapLevels 的全图归一，见 StatsHeatmapBuilder）
  * @property trainedDays 窗口内有训练的天数
  * @property longestStreak 窗口内最长连续训练天数（自然日链，跨周不断）
+ * @property endDate 数据窗口锚点（即 build 时的 today）；UI 网格必须以此为准，
+ *   用实时 LocalDate.now() 会在跨零点后与数据窗口发散（旧一周从图上静默消失）
  */
 data class StatsHeatmapState(
     val values: Map<LocalDate, Float> = emptyMap(),
     val trainedDays: Int = 0,
     val longestStreak: Int = 0,
+    val endDate: LocalDate = LocalDate.now(),
 )
 
 /**
