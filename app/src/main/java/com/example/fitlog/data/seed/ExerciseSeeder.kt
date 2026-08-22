@@ -51,8 +51,8 @@ class ExerciseSeeder @Inject constructor(
             .bufferedReader().use { it.readText() }
 
         val seedList = json.decodeFromString<List<ExerciseSeedData>>(jsonString)
-        val entities = seedList.mapNotNull { ExerciseSeedMapper.toEntity(it) }
-        exerciseDao.insertAll(entities)
+        val entities = ExerciseSeedMapper.toEntities(seedList)
+        exerciseDao.upsertAllPreservingRows(entities)
 
         dataStore.edit { it[SEED_VERSION_KEY] = SEED_VERSION }
     }
@@ -74,6 +74,30 @@ class ExerciseSeeder @Inject constructor(
  * 独立为 object 以便单元测试。
  */
 internal object ExerciseSeedMapper {
+
+    /**
+     * 批量映射种子数据为 Room 实体，保证 ID 全局唯一。
+     *
+     * 数据集存在同名动作（实测 8 组），单纯由 name 派生的 kebab-case ID 会冲突；
+     * 冲突时并入数据集数字 id 后缀消歧，避免 REPLACE 覆盖静默丢条目。
+     *
+     * @return 映射成功的实体列表（ID 已消歧，无重复）
+     */
+    fun toEntities(list: List<ExerciseSeedData>): List<ExerciseEntity> {
+        val seenIds = mutableSetOf<String>()
+        return list.mapNotNull { data ->
+            val entity = toEntity(data) ?: return@mapNotNull null
+            val uniqueId = if (seenIds.add(entity.id)) {
+                entity.id
+            } else {
+                // 同名冲突：并入数据集 id 消歧（如 barbell-seated-calf-raise-0088）
+                val disambiguated = "${entity.id}-${data.id}"
+                seenIds.add(disambiguated)
+                disambiguated
+            }
+            if (uniqueId == entity.id) entity else entity.copy(id = uniqueId)
+        }
+    }
 
     /**
      * 将种子数据 DTO 映射为 Room 实体。

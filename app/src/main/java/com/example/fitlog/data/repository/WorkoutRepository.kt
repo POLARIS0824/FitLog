@@ -34,10 +34,12 @@ class WorkoutRepository @Inject constructor(
      * 任一环节失败则整体回滚。
      *
      * @param workout 完整训练日志（含动作与组）
-     * @return 新插入训练日的数据库主键（冲突被 IGNORE 时为 -1）
+     * @return 新插入训练日的数据库主键；头行冲突被 IGNORE 时返回 -1
+     *     （此时子行一律不写，避免以 -1 为外键触发约束异常）
      */
     suspend fun insert(workout: Workout): Long = db.withTransaction {
         val workoutId = workoutDao.insert(workout.toEntity())
+        if (workoutId == -1L) return@withTransaction -1L
         insertChildren(workoutId, workout)
         workoutId
     }

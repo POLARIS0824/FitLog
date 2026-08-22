@@ -1,18 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?><!--
+<?xml version="1.0" encoding="utf-8"?>
+<!--
    Auto Backup (API <= 30) 备份规则。
 
-   AI 服务商 API Key 以 AES-GCM 密文存于 Room 数据库与 DataStore，
-   解密密钥由 Android Keystore 持有且**不会随备份迁移**。若把密文文件
-   备份到新设备，恢复后密钥不存在、密文无法解密，读取配置即崩溃。
+   训练历史（workouts / exercise_logs / set_logs）、体重、用户资料是核心用户资产，
+   全部纳入备份，换机/重装后可恢复。
 
-   因此排除包含密文的文件：
-   - databases/fitlog.db（含 ai_provider_configs 表的加密 API Key）
-   - files/datastore/fitLog_prefs.preferences_pb（含 active_ai_provider_id）
-   这些文件在新设备上按"未备份"处理（首次启动重建），避免换机恢复崩溃。
+   AI 服务商 API Key 以 AES-GCM 密文存于 Room：备份迁移到新设备后 Keystore 密钥
+   不存在，但 AIProviderConfigMapper 经 KeystoreManager.decryptOrNull 将密文降级为
+   空字符串（配置仍可展示，仅不可用于请求），不会崩溃——因此无需排除数据库。
 -->
-<full-backup-content>
-    <exclude domain="database" path="fitlog.db"/>
-    <exclude domain="database" path="fitlog.db-wal"/>
-    <exclude domain="database" path="fitlog.db-shm"/>
-    <exclude domain="file" path="datastore/fitLog_prefs.preferences_pb"/>
-</full-backup-content>
+<full-backup-content/>
