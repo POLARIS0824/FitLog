@@ -2,8 +2,8 @@ package com.example.fitlog
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.fitlog.data.repository.AppearanceSource
 import com.example.fitlog.data.repository.ThemeMode
-import com.example.fitlog.data.repository.UserPreferencesRepository
 import com.example.fitlog.data.seed.SeedOrchestrator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,7 +37,7 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    userPreferencesRepository: UserPreferencesRepository,
+    appearanceSource: AppearanceSource,
     private val seedOrchestrator: SeedOrchestrator,
 ) : ViewModel() {
 
@@ -52,8 +52,8 @@ class MainViewModel @Inject constructor(
 
     /** （主题模式, 动态取色开关） */
     val appearance: StateFlow<Pair<ThemeMode, Boolean>> = combine(
-        userPreferencesRepository.themeMode,
-        userPreferencesRepository.dynamicColor,
+        appearanceSource.themeMode,
+        appearanceSource.dynamicColor,
         ::Pair,
     )
         // DataStore 读取异常兜底：吞掉异常并放行默认外观。

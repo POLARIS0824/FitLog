@@ -104,7 +104,7 @@ class MainActivity : ComponentActivity() {
                             ChatRoute(onBack = { backStack.removeLastOrNull() })
                         }
                         entry<WorkoutKey> {
-                            WorkoutRoute()
+                            WorkoutRoute(onBack = { backStack.removeLastOrNull() })
                         }
                         entry<StatsKey> {
                             StatsRoute(onBack = { backStack.removeLastOrNull() })

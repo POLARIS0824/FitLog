@@ -114,24 +114,23 @@ class MarkdownFileScanner @Inject constructor() {
                     failures.add(Failure(fileName, "文件名日期解析失败"))
                 } catch (e: Exception) {
                     failures.add(Failure(fileName, "读取失败: ${e.message}"))
-                }
-            }
+                }            }
         }
 
         return ScanResult(successes, failures)
     }
 
     /**
-     * 从文件名解析日期。
+     * 从文件名解析日期（纯函数，独立可见以便 JVM 单测）。
      *
-     * 期望文件名格式：`yyyy-MM-dd.md`
+     * 期望文件名格式：`yyyy-MM-dd.md`（后缀大小写不敏感）
      *
      * @param fileName 文件名（含后缀）
      * @return 解析后的 [LocalDate]
-     * @throws DateTimeParseException 如果文件名不符合日期格式
+     * @throws DateTimeParseException 如果文件名不符合 ISO 日期格式
      */
     @RequiresApi(Build.VERSION_CODES.O)
-    private fun parseDateFromFileName(fileName: String): LocalDate {
+    fun parseDateFromFileName(fileName: String): LocalDate {
         val nameWithoutExtension = fileName
             .removeSuffix(".md")
             .removeSuffix(".MD")

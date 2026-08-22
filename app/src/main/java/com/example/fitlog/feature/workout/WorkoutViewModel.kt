@@ -1,116 +1,74 @@
 package com.example.fitlog.feature.workout
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.model.Workout
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
-//data class WorkoutUiState(
-//    val workoutLists: List<Workout> = emptyList(),
-//    val isLoading: Boolean = false,
-//    val errorMessage: String? = null,
-//)
-
+/**
+ * 训练记录列表页的 ViewModel。
+ *
+ * 列表经 stateIn 直接订阅 Room Flow（库变更自动刷新）；
+ * 增删属一次性事件，失败记录日志（页面无错误通道，列表以 Room 为唯一事实源）。
+ */
 @HiltViewModel
 class WorkoutViewModel @Inject constructor(
-    private val workoutRepository: WorkoutRepository
+    private val workoutRepository: WorkoutRepository,
 ) : ViewModel() {
 
-//    private val _uiState = MutableStateFlow(WorkoutUiState())
-//    val uiState: StateFlow<WorkoutUiState> = _uiState.asStateFlow()
-//
-//    init {
-//        // 页面打开自动加载全部记录
-//        // TODO: 优化逻辑，使用 stateIn
-//        observeWorkouts()
-//    }
-//
-//    // 手动订阅、手动更新、手动处理生命周期
-//    private fun observeWorkouts() {
-//        workoutRepository.getWorkouts()
-//            .onStart { _uiState.update { it.copy(isLoading = true) } }
-//            .catch { e ->
-//                _uiState.update {
-//                    it.copy(isLoading = false, errorMessage = e.message)
-//                }
-//            }
-//            .onEach { workouts ->
-//                _uiState.update {
-//                    it.copy(workoutLists = workouts, isLoading = false)
-//                }
-//            }
-//            .launchIn(viewModelScope)
-//    }
-//
-//    fun loadByDate(date: LocalDate) {
-//        workoutRepository.getByDate(date)
-//            .onStart { _uiState.update { it.copy(isLoading = true) } }
-//            .catch { e ->
-//                _uiState.update {
-//                    it.copy(isLoading = false, errorMessage = e.message)
-//                }
-//            }
-//            .onEach { workouts ->
-//                _uiState.update {
-//                    it.copy(workoutLists = workouts, isLoading = false)
-//                }
-//            }
-//            .launchIn(viewModelScope)
-//    }
-//
-//    fun clearError() {
-//        _uiState.update { it.copy(errorMessage = null) }
-//    }
-
-    // 使用 StateIn 配合 sealed interface
+    /** 页面 UI 状态流：Room 变更驱动，加载/错误/数据三态。 */
     val uiState: StateFlow<WorkoutUiState> = workoutRepository
-        // 上游冷 Flow
         .getWorkouts()
-        // 转为 UI 状态
         .map<List<Workout>, WorkoutUiState> { workouts ->
             WorkoutUiState.Success(workouts)
         }
         .catch { e ->
             emit(WorkoutUiState.Error(e.message ?: "Unknown"))
         }
-        // 转为热 StateFlow
         .stateIn(
             scope = viewModelScope,
-
-            /**
-             * 关键参数 WhileSubscribed(5000) 的含义
-             *
-             * started = SharingStarted.WhileSubscribed(5000)
-             *
-             * - 有人订阅（Screen 在前台收集）：Room 的 Flow 启动，数据库有变化就刷新。
-             * - 没人订阅（用户按 Home、跳转到别的页面、旋转屏幕重建中）：等 5000ms 后，Room Flow 被取消，不再监听数据库。
-             * - 重新订阅（用户回到页面）：自动重新启动 Room Flow。
-             *
-             * 这能省内存和电量。如果你用 SharingStarted.Eagerly，会一直监听；如果用 Lazily，第一个订阅者来之后永远不停。
-             * WhileSubscribed(5000) 是配置变更场景的最佳实践。
-             */
+            // 前台订阅期间 Room 变更即刷新；无人订阅 5s 后停止监听（配置变更最佳实践）
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = WorkoutUiState.Loading,
         )
 
-    // UI 事件处理方法
+    /** 新增训练记录（失败仅记录日志，列表由 Room Flow 驱动，无需手动刷新）。 */
     fun insertWorkout(workout: Workout) {
         viewModelScope.launch {
-            workoutRepository.insert(workout)
+            try {
+                workoutRepository.insert(workout)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "新增训练记录失败：${workout.date}", e)
+            }
         }
     }
 
+    /** 删除训练记录（失败仅记录日志，同上）。 */
     fun deleteWorkout(workout: Workout) {
         viewModelScope.launch {
-            workoutRepository.delete(workout)
+            try {
+                workoutRepository.delete(workout)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "删除训练记录失败：${workout.date}", e)
+            }
         }
+    }
+
+    private companion object {
+        const val TAG = "WorkoutViewModel"
     }
 }

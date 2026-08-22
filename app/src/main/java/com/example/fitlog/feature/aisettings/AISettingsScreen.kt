@@ -120,7 +120,7 @@ fun AISettingsRoute(
         onFetchResultShown = viewModel::onFetchResultShown,
         onTestConnection = viewModel::onTestConnection,
         onTestResultShown = viewModel::onTestResultShown,
-        onSave = viewModel::onSave,
+        onSaveClick = viewModel::onSaveClick,
         onErrorShown = viewModel::onErrorShown,
         onSuccessShown = viewModel::onSuccessShown,
         modifier = modifier,
@@ -154,7 +154,7 @@ fun AISettingsScreen(
     onFetchResultShown: () -> Unit,
     onTestConnection: () -> Unit,
     onTestResultShown: () -> Unit,
-    onSave: (AIProviderConfig) -> Unit,
+    onSaveClick: () -> Unit,
     onErrorShown: () -> Unit,
     onSuccessShown: () -> Unit,
     modifier: Modifier = Modifier,
@@ -350,22 +350,7 @@ fun AISettingsScreen(
 
             // 保存按钮在页面底部：provider + 凭据 + 模型是同一条记录，一次保存原子完成
             Button(
-                onClick = {
-                    onSave(
-                        AIProviderConfig(
-                            id = selectedType.name,
-                            name = spec.displayName,
-                            type = selectedType,
-                            baseUrl = uiState.endpoint.baseUrl.trim(),
-                            apiKey = uiState.apiKey.apiKey.trim(),
-                            model = uiState.model.selectedModel.trim(),
-                            customEndpoint = uiState.endpoint.customEndpoint.trim().ifBlank { null },
-                            apiVersion = uiState.endpoint.apiVersion.trim().ifBlank { null },
-                            isPreset = true, // 每类型一条的内置槽位配置
-                            cachedModels = uiState.model.availableModels,
-                        )
-                    )
-                },
+                onClick = onSaveClick,
                 enabled = uiState.apiKey.apiKey.isNotBlank() &&
                     uiState.model.selectedModel.isNotBlank() &&
                     uiState.endpoint.baseUrl.isNotBlank(),
@@ -861,7 +846,7 @@ private fun AISettingsScreenPreview() {
         onFetchResultShown = {},
         onTestConnection = {},
         onTestResultShown = {},
-        onSave = {},
+        onSaveClick = {},
         onErrorShown = {},
         onSuccessShown = {},
     )

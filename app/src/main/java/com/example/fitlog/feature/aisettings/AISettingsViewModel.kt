@@ -298,9 +298,38 @@ class AISettingsViewModel @Inject constructor(
     // ──────────────────────────────────────
 
     /**
+     * 保存按钮点击：从表单状态组装配置并保存。
+     *
+     * 领域对象组装（trim/判空/默认值）收敛在 ViewModel——
+     * Screen 只上报点击事件，不感知 [AIProviderConfig] 的构造细节。
+     */
+    fun onSaveClick() {
+        val type = selectedTypeState.value
+        val spec = ProviderSpecs.of(type)
+        val apiKey = apiKeyState.value.apiKey.trim()
+        val model = modelState.value.selectedModel.trim()
+        val baseUrl = endpointState.value.baseUrl.trim()
+        if (apiKey.isBlank() || model.isBlank() || baseUrl.isBlank()) return
+
+        onSave(
+            AIProviderConfig(
+                id = type.name,
+                name = spec.displayName,
+                type = type,
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                model = model,
+                customEndpoint = endpointState.value.customEndpoint.trim().ifBlank { null },
+                apiVersion = endpointState.value.apiVersion.trim().ifBlank { null },
+                isPreset = true, // 每类型一条的内置槽位配置
+                cachedModels = modelState.value.availableModels,
+            ),
+        )
+    }
+
+    /**
      * 保存当前服务商配置。
      *
-     * [config] 由 Screen 组装（id = type.name，REPLACE 即 upsert）。
      * 保存成功后自动设为当前激活的服务商——保存即启用，
      * 并写入一次性 [UiState.successMessage] 供 Screen 弹出 Snackbar。
      */

@@ -263,7 +263,9 @@ class TodayViewModel @Inject constructor(
     private fun assemble(materials: TodayMaterials): TodayUiState {
         val snapshot = materials.snapshot
         val weekTarget = snapshot.activePlan?.sessionsPerWeek ?: 4
-        val weekCompleted = snapshot.weekWorkouts.size
+        // 导入的表头记录（无动作明细）不计入完成数：它是"那天练过"的存档证明，
+        // 不是一次可计数的结构化训练（否则导入历史会让本周次数/今日完成虚增）
+        val weekCompleted = snapshot.weekWorkouts.count { it.exercises.isNotEmpty() }
 
         val todayPlan = TodayPlanAssembler.assemble(
             activePlan = snapshot.activePlan,
@@ -277,9 +279,9 @@ class TodayViewModel @Inject constructor(
             weekTarget = weekTarget,
             latestWorkout = materials.latestWorkout,
             nextSession = snapshot.nextSession,
-            // 自由训练（无计划）今日有记录同样视为已完成
+            // 自由训练（无计划）今日有记录同样视为已完成（同样要求有动作明细）
             todayCompleted = todayPlan.status == PlanStatus.COMPLETED ||
-                snapshot.todayWorkouts.isNotEmpty(),
+                snapshot.todayWorkouts.any { it.exercises.isNotEmpty() },
             hasActivePlan = snapshot.activePlan != null,
             today = today,
             hour = LocalTime.now().hour,

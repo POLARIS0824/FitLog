@@ -78,6 +78,23 @@ class FitnessTools @Inject constructor(
         workoutRepository.getById(workoutId.toLong())?.toDetailDto()
 
     /**
+     * 读取 Markdown 导入的训练日原文（未结构化的训练笔记）。
+     *
+     * 历史导入的训练记录只存了表头与原文（动作未结构化），
+     * AI 结合原文才能理解当天的实际训练内容。
+     *
+     * @param workoutId 训练记录 id（来自 getRecentWorkouts）
+     */
+    @Tool
+    suspend fun getImportedWorkoutContent(
+        @Param("训练记录 id") workoutId: Int,
+    ): String? {
+        val workout = workoutRepository.getById(workoutId.toLong()) ?: return null
+        // 结构化记录没有原文可读，返回空让模型直接走 getWorkoutDetail
+        return workout.rawContent?.takeIf { it.isNotBlank() }
+    }
+
+    /**
      * 获取当前激活训练计划（进度 + 下一未完成课次详情）。
      */
     @Tool

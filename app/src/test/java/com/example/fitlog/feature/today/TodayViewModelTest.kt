@@ -246,7 +246,18 @@ class TodayViewModelTest {
             !it.uiState.isLoading && it.todayPlan.status == PlanStatus.NOT_STARTED
         }
 
-        val workoutId = workoutRepository.insert(workout(date = today))
+        val workoutId = workoutRepository.insert(
+            // 空动作表头记录不计入完成数（导入存档口径），补一个动作构成有效训练
+            workout(
+                date = today,
+                exercises = listOf(
+                    ExerciseLog(
+                        name = "Bench press",
+                        sets = listOf(SetLog(80f, 10, SetType.WORKING)),
+                    ),
+                ),
+            ),
+        )
         workoutPlanRepository.markSessionCompleted("w1d1", workoutId)
 
         val state = viewModel.uiState.first { it.todayPlan.status == PlanStatus.COMPLETED }
