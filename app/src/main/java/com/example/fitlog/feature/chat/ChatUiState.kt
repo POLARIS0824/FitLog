@@ -25,7 +25,6 @@ data class PendingConfirmation(
  */
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
-    val isLoading: Boolean = false,
     val input: String = "",
     val isSending: Boolean = false,
     val errorMessage: String? = null,

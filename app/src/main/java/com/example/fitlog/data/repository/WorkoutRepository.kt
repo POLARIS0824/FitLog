@@ -73,6 +73,14 @@ class WorkoutRepository @Inject constructor(
     }
 
     /**
+     * 按主键取单条完整训练日志（Agent 定点查询入口）。
+     *
+     * @param id 训练日数据库主键
+     */
+    suspend fun getById(id: Long): Workout? =
+        workoutDao.getByIdWithDetails(id)?.toModel()
+
+    /**
      * 判断指定来源文件名的训练记录是否已存在（导入去重用）。
      */
     suspend fun existsBySourceFileName(fileName: String) =

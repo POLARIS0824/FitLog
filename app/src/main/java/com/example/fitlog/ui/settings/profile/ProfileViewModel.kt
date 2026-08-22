@@ -60,6 +60,7 @@ class ProfileViewModel @Inject constructor(
     /** 保存资料：姓名为必填，其余字段留空则存 null。 */
     fun onSave() {
         val state = _uiState.value
+        if (state.isSaving) return // 防重入：同帧双击不再各起一个 launch 双 insert
         if (state.name.isBlank()) {
             _uiState.update { it.copy(errorMessage = "请填写姓名") }
             return

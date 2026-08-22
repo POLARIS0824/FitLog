@@ -7,6 +7,7 @@ import com.example.fitlog.data.remote.dto.ChatCompletionRequestDto
 import com.example.fitlog.data.remote.dto.ResponseFormatDto
 import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ChatMessage
+import com.example.fitlog.util.AiErrorMessages
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
@@ -124,8 +125,9 @@ class AIChatRepository @Inject constructor(
             // 取消不是"请求失败"，必须向上传播，不包装进 Result
             throw e
         } catch (e: Exception) {
-            // 网络异常、超时、JSON 解析失败等，统一包装
-            Result.failure(e)
+            // 网络异常、超时、JSON 解析失败等，统一映射为用户可读信息
+            // （HttpException 提取服务商 error.message，与 Agent 路径行为一致）
+            Result.failure(IllegalStateException(AiErrorMessages.toUserFacingMessage(e), e))
         }
     }
 

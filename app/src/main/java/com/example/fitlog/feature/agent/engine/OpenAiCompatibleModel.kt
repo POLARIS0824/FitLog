@@ -4,6 +4,7 @@ import com.example.fitlog.data.remote.AIApi
 import com.example.fitlog.data.remote.dto.ChatCompletionRequestDto
 import com.example.fitlog.data.remote.dto.UsageDto
 import com.example.fitlog.model.ai.AIProviderConfig
+import com.example.fitlog.util.AiErrorMessages
 import com.google.adk.kt.models.LlmRequest
 import com.google.adk.kt.models.LlmResponse
 import com.google.adk.kt.models.Model
@@ -105,36 +106,11 @@ class OpenAiCompatibleModel(
             // 网络层/解析异常：以 errorMessage 交给 LlmAgentTurn 包装成模型事件
             emit(
                 LlmResponse(
-                    errorMessage = e.toUserFacingMessage(),
+                    errorMessage = AiErrorMessages.toUserFacingMessage(e),
                     errorCode = "HTTP_ERROR",
                 ),
             )
         }
-    }
-
-    /**
-     * 把异常转成用户可读的错误信息。
-     *
-     * HTTP 错误（[retrofit2.HttpException]）优先提取服务商响应体里的 `error.message`
-     * （如 "Invalid value for 'tools[0].type'"），比笼统的 "HTTP 400 Bad Request"
-     * 更能定位问题；解析失败则退回原始 body 文本。
-     */
-    private fun Throwable.toUserFacingMessage(): String {
-        if (this is retrofit2.HttpException) {
-            val body = response()?.errorBody()?.string()
-            if (!body.isNullOrBlank()) {
-                val providerMessage = runCatching {
-                    Json.parseToJsonElement(body)
-                        .jsonObject["error"]?.jsonObject?.get("message")
-                        ?.jsonPrimitive?.contentOrNull
-                }.getOrNull()
-                if (!providerMessage.isNullOrBlank()) {
-                    return "${message ?: "HTTP ${code()}"}：$providerMessage"
-                }
-                return "${message ?: "HTTP ${code()}"}（$body）"
-            }
-        }
-        return message ?: "AI 请求失败"
     }
 
     private fun String.toAdkFinishReason(): FinishReason? = when (lowercase()) {

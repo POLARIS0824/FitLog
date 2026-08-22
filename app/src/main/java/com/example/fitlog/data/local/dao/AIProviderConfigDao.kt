@@ -49,6 +49,17 @@ interface AIProviderConfigDao {
     suspend fun getById(id: String): AIProviderConfigEntity?
 
     /**
+     * 按 ID 观察配置行（响应式：配置字段被修改时重发）。
+     *
+     * [getById] 是一次性查询，activeProvider 只有挂到本 Flow 上才能感知
+     * baseUrl/apiKey 等字段的更新（引擎重建依赖此重发）。
+     *
+     * @param id 配置唯一标识
+     */
+    @Query("SELECT * FROM ai_provider_configs WHERE id = :id")
+    fun getByIdFlow(id: String): Flow<AIProviderConfigEntity?>
+
+    /**
      * 查询所有配置。
      *
      * @return 配置列表

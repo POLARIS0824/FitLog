@@ -142,6 +142,8 @@ class StatsViewModel @Inject constructor(
                     _weightSheetState.update {
                         it.copy(input = "", error = null, savedTick = it.savedTick + 1)
                     }
+                } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     _weightSheetState.update { it.copy(error = "保存失败，请重试") }
                 }

@@ -310,6 +310,9 @@ private fun HeatmapCard(
         )
         ContributionHeatmap(
             values = heatmap.values,
+            // 显式锚定网格末端：组件默认 LocalDate.now() 实时求值，与数据窗口
+            // （VM 创建时固定的 today）跨零点后发散，旧一周数据会从图上静默消失
+            endDate = heatmap.endDate,
             weekdayLabels = listOf("一", "二", "三", "四", "五", "六", "日"),
             contentDescription = "过去一年训练热力图，${heatmap.trainedDays} 天有训练，" +
                 "最长连续 ${heatmap.longestStreak} 天",

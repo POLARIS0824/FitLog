@@ -124,6 +124,7 @@ class ChatViewModel @Inject constructor(
      */
     private suspend fun collectAgentEvents(events: Flow<Event>) {
         var sawConfirmation = false
+        var sawAssistantOutput = false // 见流结束时兜底判断
         try {
             events.collect { event ->
                 // 1) 确认请求：ADK 已暂停本轮，UI 弹确认框
@@ -131,6 +132,7 @@ class ChatViewModel @Inject constructor(
                     .firstOrNull { it.name == FunctionCall.REQUEST_CONFIRMATION_FUNCTION_CALL_NAME }
                 if (confirmationCall != null) {
                     sawConfirmation = true
+                    sawAssistantOutput = true
                     val original = confirmationCall.args[FunctionCall.ORIGINAL_FUNCTION_CALL_KEY]
                         as? Map<*, *>
                     val toolName = original?.get(FunctionCall.NAME_KEY) as? String
@@ -152,29 +154,50 @@ class ChatViewModel @Inject constructor(
 
                 // 2) 引擎/服务商错误
                 event.errorMessage?.let { msg ->
+                    sawAssistantOutput = true
                     _uiState.update { it.copy(errorMessage = msg, isSending = false) }
                     return@collect
                 }
 
-                // 3) 最终回复文本上屏
-                if (event.isFinalResponse && !event.partial) {
-                    val text = event.content?.parts?.mapNotNull { it.text }
-                        ?.joinToString("") ?: ""
-                    if (text.isNotBlank()) {
-                        _uiState.update {
-                            it.copy(
-                                messages = it.messages + ChatMessage(
-                                    role = "assistant",
-                                    content = text,
-                                    id = nextMessageId++,
-                                ),
-                            )
-                        }
+                // 3) 模型输出上屏
+                val text = event.content?.parts?.mapNotNull { it.text }
+                    ?.joinToString("") ?: ""
+                val toolCalls = event.functionCalls()
+                if (text.isNotBlank()) {
+                    sawAssistantOutput = true
+                    // 非最终轮的文本（如"我帮你查一下记录"+工具调用）也上屏：
+                    // 只展示 isFinalResponse 会把中间说明整轮吞掉
+                    _uiState.update {
+                        it.copy(
+                            messages = it.messages + ChatMessage(
+                                role = "assistant",
+                                content = text,
+                                id = nextMessageId++,
+                            ),
+                        )
+                    }
+                }
+                if (text.isBlank() && toolCalls.isNotEmpty() && !event.partial) {
+                    // 纯工具调用轮：折叠为一条"调用了什么"的提示，让 agent 行为可感知
+                    sawAssistantOutput = true
+                    _uiState.update {
+                        it.copy(
+                            messages = it.messages + ChatMessage(
+                                role = "assistant",
+                                content = "（调用工具：" + toolCalls.joinToString("、") { it.name } + "）",
+                                id = nextMessageId++,
+                            ),
+                        )
                     }
                 }
             }
 
-            // 事件流正常结束且没有弹确认框 → 本轮完成
+            // 流结束：确认中 → 等用户决定；无任何输出 → maxSteps 耗尽等静默场景，兜底提示
+            if (!sawConfirmation && !sawAssistantOutput) {
+                _uiState.update {
+                    it.copy(errorMessage = "本轮对话未产生回复（可能已达到工具调用步数上限），请重试或换个问法")
+                }
+            }
             if (!sawConfirmation) {
                 _uiState.update { it.copy(isSending = false) }
             }

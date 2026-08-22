@@ -79,8 +79,24 @@ class MarkdownFileScanner @Inject constructor() {
             null,
             null,
         )?.use { cursor ->
-            val idColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-            val nameColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            // 游标列读取也纳入单文件容错：个别 provider 返回缺列时跳过该 provider
+            // 的本次枚举，而不是把整个扫描炸掉（调用方只看到一个失败而非全部文件）
+            val idColumn = try {
+                cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            } catch (e: IllegalArgumentException) {
+                return ScanResult(
+                    successes = emptyList(),
+                    failures = listOf(Failure(treeUri.lastPathSegment ?: "", "目录不支持枚举：缺少文档 ID 列")),
+                )
+            }
+            val nameColumn = try {
+                cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            } catch (e: IllegalArgumentException) {
+                return ScanResult(
+                    successes = emptyList(),
+                    failures = listOf(Failure(treeUri.lastPathSegment ?: "", "目录不支持枚举：缺少文件名列")),
+                )
+            }
 
             while (cursor.moveToNext()) {
                 val docId = cursor.getString(idColumn)

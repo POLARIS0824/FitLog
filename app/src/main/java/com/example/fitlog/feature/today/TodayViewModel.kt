@@ -224,16 +224,29 @@ class TodayViewModel @Inject constructor(
         )
     }.combine(seedGate) { state, _ ->
         state
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = TodayUiState(
-            coachInsight = CoachInsightState(),
-            weekProgress = WeekProgressState(),
-            todayPlan = TodayPlanState(),
-            uiState = UiState(isLoading = true),
-        ),
-    )
+    }
+        // 任一 Room 流异常不能击穿整条链：否则 stateIn 停在 initialValue（isLoading=true），
+        // 页面永久卡加载。降级为错误态，errorMessage 通道由 TodayScreen 的 AlertDialog 消费
+        .catch { e ->
+            emit(
+                TodayUiState(
+                    coachInsight = CoachInsightState(),
+                    weekProgress = WeekProgressState(),
+                    todayPlan = TodayPlanState(),
+                    uiState = UiState(errorMessage = e.message ?: "数据加载失败，请重试"),
+                ),
+            )
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = TodayUiState(
+                coachInsight = CoachInsightState(),
+                weekProgress = WeekProgressState(),
+                todayPlan = TodayPlanState(),
+                uiState = UiState(isLoading = true),
+            ),
+        )
 
     /** 计划选择弹层的数据源（与 uiState 平级暴露）。 */
     val allPlans: StateFlow<List<WorkoutPlan>> = workoutPlanRepository.getAllPlansFlow()

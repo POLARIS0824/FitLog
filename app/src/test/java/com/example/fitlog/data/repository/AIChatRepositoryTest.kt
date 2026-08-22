@@ -224,7 +224,7 @@ class AIChatRepositoryTest {
     }
 
     /**
-     * 测试网络异常被包装为 Result.failure（而非抛出）。
+     * 测试网络异常被包装为 Result.failure（而非抛出），且错误信息经用户可读映射。
      */
     @Test
     fun testChat_networkException_wrappedAsFailure() = runTest(testScheduler) {
@@ -233,7 +233,8 @@ class AIChatRepositoryTest {
         val result = repository.chat(config(), messages)
 
         assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull() is IOException)
+        // 原始异常作为 cause 保留（H14：不吞链路信息）
+        assertTrue(result.exceptionOrNull()?.cause is IOException)
         assertEquals("连接超时", result.exceptionOrNull()?.message)
     }
 

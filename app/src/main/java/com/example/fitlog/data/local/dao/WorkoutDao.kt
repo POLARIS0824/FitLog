@@ -56,6 +56,18 @@ interface WorkoutDao {
     suspend fun getBySourceFileName(fileName: String): WorkoutEntity?
 
     /**
+     * 按主键查询单条训练（含动作与组）。
+     *
+     * Agent 工具（getWorkoutDetail 等）的定点取数入口，
+     * 替代"全表三级加载后按 id 过滤"的 O(n) 写法。
+     *
+     * @param id 训练日数据库主键
+     */
+    @Transaction
+    @Query("SELECT * FROM workouts WHERE id = :id")
+    suspend fun getByIdWithDetails(id: Long): WorkoutWithExerciseLogs?
+
+    /**
      * 查询所有训练日记录及其关联的练习日志，按日期降序排列。
      * 使用 @Transaction 注解确保查询和关联数据的原子性
      */

@@ -86,7 +86,11 @@ class MainActivity : ComponentActivity() {
 
                 NavDisplay(
                     backStack = backStack,
-                    onBack = { backStack.removeLastOrNull() },
+                    // 根页（栈仅剩一个 entry）时没有可弹的页面：
+                    // 让位给系统默认行为 finish()，否则系统返回键按下后白屏
+                    onBack = {
+                        if (backStack.size > 1) backStack.removeLastOrNull() else finish()
+                    },
                     entryProvider = entryProvider {
                         entry<TodayKey> {
                             TodayRoute(
