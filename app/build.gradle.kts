@@ -53,6 +53,15 @@ android {
             excludes += "META-INF/DEPENDENCIES"
         }
     }
+
+    testOptions {
+        unitTests {
+            // 纯 JVM 单测放行 android.jar 桩（SystemClock/Log 等返回默认值而非抛
+            // "not mocked"）：ChatViewModel 的计时链路依赖 SystemClock.elapsedRealtime。
+            // 仅影响本地单测，不影响生产构建
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 ksp {
