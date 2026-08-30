@@ -24,51 +24,6 @@ class WorkoutMapperTest {
     private val date = LocalDate.of(2026, 5, 20)
 
     /**
-     * 测试扁平 [WorkoutEntity] 转领域模型：字段透传，exercises 为空列表。
-     */
-    @Test
-    fun testWorkoutEntityToModel_flatFieldsMapped_exercisesEmpty() {
-        val entity = WorkoutEntity(
-            id = 7L,
-            userId = 3L,
-            date = date,
-            feelings = "状态不错",
-            sourceFileName = "2026-05-20.md",
-            rawContent = "原始内容",
-        )
-
-        val model = entity.toModel()
-
-        assertEquals(7L, model.id)
-        assertEquals(3L, model.userId)
-        assertEquals(date, model.date)
-        assertEquals("状态不错", model.feelings)
-        assertEquals("2026-05-20.md", model.sourceFileName)
-        assertEquals("原始内容", model.rawContent)
-        assertTrue(model.exercises.isEmpty())
-    }
-
-    /**
-     * 测试可空字段为 null 时透传为 null。
-     */
-    @Test
-    fun testWorkoutEntityToModel_nullableFieldsPassThrough() {
-        val entity = WorkoutEntity(
-            id = 1L,
-            date = date,
-            feelings = null,
-            sourceFileName = null,
-            rawContent = null,
-        )
-
-        val model = entity.toModel()
-
-        assertNull(model.feelings)
-        assertNull(model.sourceFileName)
-        assertNull(model.rawContent)
-    }
-
-    /**
      * 测试级联关系 [WorkoutWithExerciseLogs] 转领域模型：3 层结构完整保留且顺序一致。
      */
     @Test
@@ -215,7 +170,7 @@ class WorkoutMapperTest {
     // ── startedAt / endedAt ──
 
     /**
-     * 测试训练开始/结束时间在 Entity → Model（扁平与级联）与 Model → Entity 三个方向完整透传。
+     * 测试训练开始/结束时间在 Relation → Model 与 Model → Entity 方向完整透传。
      */
     @Test
     fun testStartedAtEndedAt_passThroughBothDirections() {
@@ -229,16 +184,12 @@ class WorkoutMapperTest {
             rawContent = null,
         )
 
-        val flat = entity.toModel()
-        assertEquals(1_777_000_000_000L, flat.startedAt)
-        assertEquals(1_777_003_600_000L, flat.endedAt)
-
         val relation = WorkoutWithExerciseLogs(workout = entity, exerciseLogs = emptyList())
         val cascaded = relation.toModel()
         assertEquals(1_777_000_000_000L, cascaded.startedAt)
         assertEquals(1_777_003_600_000L, cascaded.endedAt)
 
-        val backToEntity = flat.toEntity()
+        val backToEntity = cascaded.toEntity()
         assertEquals(1_777_000_000_000L, backToEntity.startedAt)
         assertEquals(1_777_003_600_000L, backToEntity.endedAt)
     }

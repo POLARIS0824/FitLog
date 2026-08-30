@@ -111,7 +111,13 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             agentEngine.respondToConfirmation(sessionId, pending.callId, confirmed)
                 .onSuccess { collectAgentEvents(it) }
-                .onFailure { onEngineError(it) }
+                .onFailure { error ->
+                    onEngineError(error)
+                    // 引擎失败时确认响应未写入会话，必须恢复确认框让用户重试——
+                    // 若就此丢弃，原始 tool_call 将悬空（其后每轮请求 400，
+                    // 会话毒化且只能手动清空）
+                    _uiState.update { it.copy(pendingConfirmation = pending) }
+                }
         }
     }
 
@@ -220,9 +226,13 @@ class ChatViewModel @Inject constructor(
      *
      * 也是协议坏历史（悬空 tool_call 等）的唯一自愈入口——用户遇到持续报错时
      * 可借此恢复可用状态。
+     *
+     * 删除失败时回滚 UI：否则界面已清空而模型上下文仍在，下一条消息
+     * AI 仍"记得"被"清空"的对话，界面与模型状态分叉。
      */
     fun onClearChat() {
         if (_uiState.value.isSending) return
+        val previous = _uiState.value
         _uiState.update {
             it.copy(
                 messages = emptyList(),
@@ -231,7 +241,19 @@ class ChatViewModel @Inject constructor(
                 input = "",
             )
         }
-        viewModelScope.launch { agentEngine.clearSession(sessionId) }
+        viewModelScope.launch {
+            agentEngine.clearSession(sessionId)
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            messages = previous.messages,
+                            pendingConfirmation = previous.pendingConfirmation,
+                            input = previous.input,
+                            errorMessage = error.message ?: "清空会话失败，请重试",
+                        )
+                    }
+                }
+        }
     }
 
     /**

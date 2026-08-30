@@ -25,6 +25,7 @@ import com.google.adk.kt.types.Role
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.MessageDigest
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -150,13 +151,25 @@ class AgentEngineImpl @Inject constructor(
     /** {@inheritDoc} */
     override suspend fun clearSession(sessionId: String): Result<Unit> = runCatching {
         sessionService.deleteSession(SessionKey(APP_NAME, USER_ID, sessionId))
+    }.let { result ->
+        // runCatching 会把取消当成失败吞掉，破坏协程取消传播，须原样上抛
+        if (result.isFailure && result.exceptionOrNull() is CancellationException) {
+            throw result.exceptionOrNull()!!
+        }
+        result
     }
 
     /** {@inheritDoc} */
     override suspend fun replayHistory(sessionId: String): List<ChatMessage> {
+        // 同 clearSession：取消不被 runCatching 吞成"空历史"
         val session = runCatching {
             sessionService.getSession(SessionKey(APP_NAME, USER_ID, sessionId))
-        }.getOrNull() ?: return emptyList()
+        }.let { result ->
+            if (result.isFailure && result.exceptionOrNull() is CancellationException) {
+                throw result.exceptionOrNull()!!
+            }
+            result.getOrNull()
+        } ?: return emptyList()
 
         return session.events.mapNotNull { event ->
             val content = event.content

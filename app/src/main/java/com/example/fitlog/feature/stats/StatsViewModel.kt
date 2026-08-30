@@ -8,10 +8,12 @@ import com.example.fitlog.model.BodyMetric
 import com.example.fitlog.model.Workout
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -52,6 +54,19 @@ class StatsViewModel @Inject constructor(
     /** 本地 UI 事件态：当前选中的周期档位。 */
     private val period = MutableStateFlow(StatsPeriod.WEEK)
 
+    /**
+     * 数据层异常通道：guard 捕获后写入，组装进 [StatsUiState.errorMessage]，
+     * 弹窗关闭即清除。与 TodayViewModel.dataError 同模式——错误必须走独立通道，
+     * 在流末端 catch 后发射错误态会终结整条流，弹窗将永远关不掉。
+     */
+    private val dataError = MutableStateFlow<String?>(null)
+
+    /** 数据流降级包装：上游异常时写入 [dataError] 并发射 [fallback]，保证 combine 链存活。 */
+    private fun <T> Flow<T>.guard(fallback: T): Flow<T> = catch { e ->
+        dataError.value = e.message ?: "数据加载失败，请重试"
+        emit(fallback)
+    }
+
     private val today: LocalDate = LocalDate.now()
 
     /** 档位与其区间查询结果的原子对（防"档先切数后到"错帧）。 */
@@ -62,27 +77,28 @@ class StatsViewModel @Inject constructor(
 
     private val periodWorkouts = period.flatMapLatest { p ->
         val range = StatsChartDataBuilder.rangeOf(p, today)
-        workoutRepository.getByDateRange(range.start, range.endInclusive).map { workouts ->
-            PeriodWorkouts(p, workouts)
-        }
+        workoutRepository.getByDateRange(range.start, range.endInclusive)
+            .map { workouts -> PeriodWorkouts(p, workouts) }
+            .guard(PeriodWorkouts(p, emptyList()))
     }
 
     private val yearWorkouts = workoutRepository.getByDateRange(
         StatsHeatmapBuilder.windowStart(today),
         today,
-    )
+    ).guard(emptyList())
 
     private val weightMetrics = bodyMetricRepository.getByDateRange(
         StatsWeightBuilder.windowStart(today),
         today,
-    )
+    ).guard(emptyList())
 
-    /** 页面 UI 状态流：三流组合 → 纯函数装配。 */
+    /** 页面 UI 状态流：三流组合 + 错误通道 → 纯函数装配。 */
     val uiState: StateFlow<StatsUiState> = combine(
         periodWorkouts,
         yearWorkouts,
         weightMetrics,
-    ) { periodData, yearData, metrics ->
+        dataError,
+    ) { periodData, yearData, metrics, error ->
         StatsUiState(
             isLoading = false,
             period = periodData.period,
@@ -90,12 +106,18 @@ class StatsViewModel @Inject constructor(
             overview = StatsOverviewBuilder.build(periodData.workouts, periodData.period, today),
             heatmap = StatsHeatmapBuilder.build(yearData, today),
             weight = StatsWeightBuilder.build(metrics, today),
+            errorMessage = error,
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = StatsUiState(),
     )
+
+    /** 错误提示已展示，清除错误信息（独立通道，链路始终存活）。 */
+    fun onErrorShown() {
+        dataError.value = null
+    }
 
     // ── 体重录入弹层（表单状态在 ViewModel；弹层显隐是 Screen 的 UI transient） ──
 

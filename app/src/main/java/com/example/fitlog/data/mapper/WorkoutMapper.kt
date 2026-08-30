@@ -10,19 +10,9 @@ import com.example.fitlog.model.SetLog
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 
-fun WorkoutEntity.toModel(): Workout {
-    return Workout(
-        id = id,
-        userId = userId,
-        date = date,
-        exercises = emptyList(),
-        feelings = feelings,
-        startedAt = startedAt,
-        endedAt = endedAt,
-        sourceFileName = sourceFileName,
-        rawContent = rawContent,
-    )
-}
+// 注意：刻意不提供 WorkoutEntity → Workout 的单实体映射——它会静默丢弃
+// exercises（信息损失在类型上不可见），曾被 getLatest 误用导致「最近训练」
+// 部位推导永久失效。单实体数据一律经 WorkoutWithExerciseLogs（可空列表）映射。
 
 fun WorkoutWithExerciseLogs.toModel(): Workout {
     return Workout(

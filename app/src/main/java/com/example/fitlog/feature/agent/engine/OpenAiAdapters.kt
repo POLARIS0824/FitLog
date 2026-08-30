@@ -49,12 +49,18 @@ import kotlinx.serialization.json.put
  * 其余才按 role 映射纯文本。若按 role 分派，函数响应会被误当普通用户文本，
  * assistant 的 tool_calls 之后没有对应 tool 结果，OpenAI 协议直接断裂（服务商 400）。
  *
+ * 分派之间**不互斥**：并行调用中某个 arguments 非法时，[toAdkContent] 会把
+ * 合法调用与 error 响应存进同一 Content——若响应对独占该 Content，合法调用会被
+ * 静默丢弃。同一 Content 内响应先于调用翻译，保证 tool 消息紧跟其 tool_calls。
+ *
  * ## tool_call_id 容错
  *
  * OpenAI 协议要求 tool 消息携带与 assistant tool_calls 一致的 id。ADK 的
  * [FunctionResponse.id] 正常情况下等于对应 functionCall 的 id（框架自动填充），
- * 本对象仍维护"最近一次 assistant 消息发出的 tool_call id 映射"（按函数名）兜底；
- * 仍缺失则退化为 user 文本消息，避免请求被服务商 400 拒绝。
+ * 本对象维护三层容错：
+ * 1. id 必须命中历史已发出的 tool_call 集合才可信任（会话截断/分支会产生悬空引用）；
+ * 2. id 缺失时按"最近一次 assistant 消息同名调用"队列回填（并行同名调用按序取用）；
+ * 3. 均不可得则退化为 user 文本消息，避免请求被服务商 400 拒绝。
  *
  * ## 两类协议剥离（关键坑）
  *
@@ -101,51 +107,71 @@ object OpenAiAdapters {
         // 同名函数两次时，两条响应按出现顺序各取各的 id，不会撞车
         val toolCallIdsByName = mutableMapOf<String, ArrayDeque<String>>()
 
+        // 历史中已发出的全部 tool_call id（分派 2 写入）：
+        // FunctionResponse 自带的 id 必须命中本集合才可信任，否则是悬空引用
+        val emittedToolCallIds = mutableSetOf<String>()
+
         contents.forEach { content ->
-            // ── 分派 1：函数响应（ADK 存为 role="user"，必须按 part 判定）→ role="tool" ──
             val functionResponses = content.parts.mapNotNull { it.functionResponse }
-            if (functionResponses.isNotEmpty()) {
-                functionResponses.forEach { fr ->
-                    when {
-                        // ADK 确认协议的合成响应（respondToConfirmation 写入）：会话中不存在
-                        // 携带该 id 的真实工具调用，进入 tool 通道必然违反协议，直接剥离
-                        // （原始调用与其结果由其余消息自然配对）
-                        fr.name == FunctionCall.REQUEST_CONFIRMATION_FUNCTION_CALL_NAME -> Unit
+            val functionCalls = content.parts.mapNotNull { it.functionCall }
 
-                        // role="model" 的函数响应是 [toAdkContent] 对非法 arguments 的兜底产物：
-                        // 原始 tool_call 已被丢弃，会话中没有携带该 id 的 assistant tool_calls，
-                        // 翻成 role="tool" 会造成悬空 tool_call_id（严格服务商 400，且坏历史
-                        // 持久化后每轮必 400）——降级为 user 文本保留自我纠正信号
-                        content.role == "model" -> messages += MessageDto(
-                            role = "user",
-                            content = "（工具 ${fr.name} 参数解析失败：" +
-                                "${fr.response["error"] ?: "请重新生成合法参数"}）",
-                        )
+            // ── 分派 1：函数响应（ADK 存为 role="user"，必须按 part 判定）→ role="tool" ──
+            // 注意分派不互斥（见分派 2 注释），但响应必须先于调用翻译，
+            // 保证 tool 消息紧跟其 assistant tool_calls
+            functionResponses.forEach { fr ->
+                when {
+                    // ADK 确认协议的合成响应（respondToConfirmation 写入）：会话中不存在
+                    // 携带该 id 的真实工具调用，进入 tool 通道必然违反协议，直接剥离
+                    // （原始调用与其结果由其余消息自然配对）
+                    fr.name == FunctionCall.REQUEST_CONFIRMATION_FUNCTION_CALL_NAME -> Unit
 
-                        else -> {
-                            val fallbackId = toolCallIdsByName[fr.name]?.removeFirstOrNull()
-                            val id = fr.id ?: fallbackId
-                            if (id != null) {
+                    // role="model" 的函数响应是 [toAdkContent] 对非法 arguments 的兜底产物：
+                    // 原始 tool_call 已被丢弃，会话中没有携带该 id 的 assistant tool_calls，
+                    // 翻成 role="tool" 会造成悬空 tool_call_id（严格服务商 400，且坏历史
+                    // 持久化后每轮必 400）——降级为 user 文本保留自我纠正信号
+                    content.role == "model" -> messages += MessageDto(
+                        role = "user",
+                        content = "（工具 ${fr.name} 参数解析失败：" +
+                            "${fr.response["error"] ?: "请重新生成合法参数"}）",
+                    )
+
+                    else -> {
+                        // fr.id 必须命中历史已发出的 tool_call 才可信任：会话截断/分支
+                        // 会产生悬空 id（同 role="model" 响应的危险）；未命中则按同名
+                        // 队列回填，仍无则降级为 user 文本，避免协议 400
+                        val queue = toolCallIdsByName[fr.name]
+                        val knownId = fr.id?.takeIf(emittedToolCallIds::contains)
+                        if (knownId != null) {
+                            queue?.remove(knownId)
+                            messages += MessageDto(
+                                role = "tool",
+                                content = responseMapToJsonString(fr.response),
+                                toolCallId = knownId,
+                            )
+                        } else {
+                            val fallbackId = queue?.removeFirstOrNull()
+                            if (fallbackId != null) {
                                 messages += MessageDto(
                                     role = "tool",
                                     content = responseMapToJsonString(fr.response),
-                                    toolCallId = id,
+                                    toolCallId = fallbackId,
                                 )
                             } else {
-                                // 无法关联到任何 tool_call：退化为 user 文本，避免协议 400
                                 messages += MessageDto(
                                     role = "user",
-                                    content = "[工具 ${fr.name} 结果] ${responseMapToJsonString(fr.response)}",
+                                    content = "[工具 ${fr.name} 结果] " +
+                                        responseMapToJsonString(fr.response),
                                 )
                             }
                         }
                     }
                 }
-                return@forEach
             }
 
             // ── 分派 2：函数调用（assistant 产出）→ assistant + tool_calls ──
-            val functionCalls = content.parts.mapNotNull { it.functionCall }
+            // 分派 1 不因存在 functionCall 而 return：并行调用中某个 arguments 非法时，
+            // [toAdkContent] 会把合法调用与 error 响应存进同一 Content——分派互斥会
+            // 静默丢弃合法调用，其后 ADK 执行产生的 tool 消息沦为悬空 tool_call_id
             if (functionCalls.isNotEmpty()) {
                 // 剥离 ADK 确认协议的合成调用（其响应在分派 1 同步剥离）：
                 // 若保留，翻译结果为 assistant(原始X)→assistant(合成Y)→…→tool(Y)→tool(X)，
@@ -156,8 +182,10 @@ object OpenAiAdapters {
                 if (realCalls.isNotEmpty()) {
                     val text = content.parts.mapNotNull { it.text }
                         .joinToString("\n").trim().ifEmpty { null }
-                    val dtos = realCalls.map { fc ->
-                        val id = fc.id ?: "call_${fc.name}"
+                    val dtos = realCalls.mapIndexed { index, fc ->
+                        // id 缺失时用带序号的兜底：并行同名调用必须有可区分的唯一 id
+                        val id = fc.id ?: "call_${fc.name}_$index"
+                        emittedToolCallIds.add(id)
                         toolCallIdsByName.getOrPut(fc.name) { ArrayDeque() }.addLast(id)
                         ToolCallDto(
                             id = id,
@@ -171,14 +199,16 @@ object OpenAiAdapters {
                     }
                     messages += MessageDto(role = "assistant", content = text, toolCalls = dtos)
                 }
-                return@forEach
             }
 
             // ── 分派 3：纯文本 → 按 role 映射（model → assistant，其余原样） ──
-            val text = content.parts.mapNotNull { it.text }
-                .joinToString("\n").trim()
-            if (text.isNotEmpty()) {
-                messages += MessageDto(role = normalizeRole(content.role), content = text)
+            // 含函数 part 的 Content 不走此分派：文本已随分派 2 的 assistant 消息携带
+            if (functionResponses.isEmpty() && functionCalls.isEmpty()) {
+                val text = content.parts.mapNotNull { it.text }
+                    .joinToString("\n").trim()
+                if (text.isNotEmpty()) {
+                    messages += MessageDto(role = normalizeRole(content.role), content = text)
+                }
             }
         }
         return messages

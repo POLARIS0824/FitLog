@@ -25,9 +25,12 @@ interface WorkoutDao {
 
     /**
      * 更新已有训练日记录。
+     *
+     * @return 受影响行数；0 表示该 id 不存在（调用方必须检查，
+     *   否则级联子行写入将以悬空外键触发 SQLiteConstraintException）
      */
     @Update
-    suspend fun update(workoutEntity: WorkoutEntity)
+    suspend fun update(workoutEntity: WorkoutEntity): Int
 
     /**
      * 删除指定训练日记录。
@@ -84,14 +87,11 @@ interface WorkoutDao {
     fun getByDateWithDetails(date: LocalDate): Flow<List<WorkoutWithExerciseLogs>>
 
     /**
-     * 查询最近一次训练（Today「最近训练」与「身体状态」卡片）。
-     */
-    @Query("SELECT * FROM workouts ORDER BY date DESC, id DESC LIMIT 1")
-    fun getLatest(): Flow<WorkoutEntity?>
-
-    /**
      * 查询最近 N 条训练（含动作与组），按日期降序排列。
      * 使用 @Transaction 注解确保查询和关联数据的原子性。
+     *
+     * 注意：Do NOT 为"取最近一条"新增单实体查询——单实体映射会静默丢弃
+     * exercises，下游"最近训练"的部位推导会失效；统一用本查询 LIMIT 1。
      *
      * @param limit 返回条数上限
      */
