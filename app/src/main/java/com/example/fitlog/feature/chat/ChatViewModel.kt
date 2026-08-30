@@ -56,10 +56,11 @@ class ChatViewModel @Inject constructor(
         // 否则用户看到"对话凭空消失"而模型仍记得旧对话
         viewModelScope.launch {
             val history = agentEngine.replayHistory(sessionId)
+            // id 自增放在 update 外：update 的 lambda 在 CAS 竞争下会重跑，内部自增会跳号
+            val replayed = history.map { it.copy(id = nextMessageId++) }
             _uiState.update { state ->
                 if (state.messages.isNotEmpty()) return@update state
-                val messages = history.map { it.copy(id = nextMessageId++) }
-                state.copy(messages = messages)
+                state.copy(messages = replayed)
             }
         }
     }

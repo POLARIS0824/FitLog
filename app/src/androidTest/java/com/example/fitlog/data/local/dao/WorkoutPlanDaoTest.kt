@@ -248,22 +248,6 @@ class WorkoutPlanDaoTest {
     }
 
     /**
-     * 测试删除计划下所有训练日，计划本身保留。
-     */
-    @Test
-    fun deleteSessionsByPlanId_keepsPlan() = runTest {
-        planDao.savePlanWithSessions(
-            plan = plan("p1"),
-            sessions = listOf(session("s1", "p1", week = 1, day = 1)),
-        )
-
-        planDao.deleteSessionsByPlanId("p1")
-
-        assertNotNull(planDao.getPlanById("p1"))
-        assertTrue(planDao.getSessionsByPlanId("p1").isEmpty())
-    }
-
-    /**
      * 测试标记与取消训练日完成状态。
      */
     @Test

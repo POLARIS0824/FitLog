@@ -80,33 +80,6 @@ class WorkoutViewModelTest {
     }
 
     /**
-     * 测试插入一条训练日志时，UI 状态能够自动更新并捕获到成功状态。
-     */
-    @Test
-    fun testInsertWorkout_updatesUiStateToSuccess() = runTest {
-        val workout = Workout(
-            id = 100L,
-            userId = 0L,
-            date = LocalDate.of(2026, 5, 20),
-            exercises = emptyList(),
-            feelings = "好极了",
-            sourceFileName = "2026-05-20.md"
-        )
-
-        viewModel.insertWorkout(workout)
-
-        // 使用 first { ... } 等待状态流转至包含 1 条记录的 Success 状态
-        val state = viewModel.uiState.first {
-            it is WorkoutUiState.Success && it.workouts.size == 1
-        } as WorkoutUiState.Success
-
-        val list = state.workouts
-        assertEquals(1, list.size)
-        assertEquals(100L, list[0].id)
-        assertEquals("好极了", list[0].feelings)
-    }
-
-    /**
      * 测试删除日志时，UI 状态能够即时同步更新。
      */
     @Test
@@ -120,8 +93,8 @@ class WorkoutViewModelTest {
             sourceFileName = "2026-05-20.md"
         )
 
-        // 先插入并等待其成功同步
-        viewModel.insertWorkout(workout)
+        // 先经仓库直接插入作夹具（页面只暴露删除，ViewModel 无 insert 入口）
+        repository.insert(workout)
         val stateAfterInsert = viewModel.uiState.first {
             it is WorkoutUiState.Success && it.workouts.size == 1
         } as WorkoutUiState.Success

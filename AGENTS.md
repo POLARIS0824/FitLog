@@ -24,10 +24,10 @@ Single `app` module, organized by package:
 - `data/local/relation/`: `@Relation` wrappers for 3-level eager-loading (`WorkoutWithExerciseLogs`, `WorkoutPlanWithSessions`)
 - `data/file/`: `MarkdownFileScanner` and `MarkdownParser` for importing workout logs
 - `model/`: Domain models (repos map DAOs/DTOs directly to domain models)
-- `feature/`: Feature modules (`aisettings`, `chat`, `workout`)
-- `ui/`: Global UI components, Theme, Navigation3 routes (`appearance`, `dataimport`, `profile`, `reminder`, `SettingsScreen`)
-- `di/`: Hilt modules (`DatabaseModule`, `AIModule`)
-- `util/`: Utilities (e.g. `KeystoreManager` for AES-GCM API key encryption)
+- `feature/`: Feature modules (`agent` AI engine + tools, `aisettings`, `chat`, `stats`, `today`, `workout`)
+- `ui/`: Global UI components, Theme, Navigation3 routes; settings subpages (`appearance`, `dataimport`, `profile`, `reminder`, `SettingsScreen`, `AboutScreen`)
+- `di/`: Hilt modules (`DatabaseModule`, `AIModule`, `AgentEngineModule`)
+- `util/`: Utilities (e.g. `KeystoreManager` for AES-GCM API key encryption, `VolumeFormatter`/`VolumeAggregator` for shared workout-metric conventions)
 
 Keep package boundaries clean for potential future modularization.
 
@@ -35,16 +35,18 @@ Keep package boundaries clean for potential future modularization.
 
 - Follow Google Material Expressive design system.
 - Screen Use xxxRoute & xxxScreen pattern.
+- Settings-style pages share the collapsing dual-title behavior via `ui/components/CollapsingTitleScaffold`.
 
 ## Database
 
 - `user_profiles`: User profile info.
 - `workouts` -> `exercise_logs` -> `set_logs`: 3-level workout log hierarchy (1:N:N) in `entity/workout/`.
-- `workout_plans` -> `planned_sessions` -> `planned_exercises`: 3-level plan hierarchy (1:N:N) in `entity/plan/`.
+- `workout_plans` -> `planned_sessions`: plan hierarchy (1:N) in `entity/plan/`; the former `planned_exercises` table was dropped — each session embeds its exercise list as a JSON column.
 - `exercises`: Exercise library (kebab-case IDs e.g. `barbell-bench-press`).
 - `ai_provider_configs`: AI provider settings (AES-GCM encrypted API key).
 - DataStore: `active_ai_provider_id` for dynamic engine switching.
 - Multi-level queries use `@Relation` + `@Transaction`.
+- Schema changes MUST bump `AppDatabase.version`, add a `Migration` in `data/local/Migrations.kt`, and commit the exported schema JSON (`app/schemas/`). No destructive migrations.
 
 ## Code Style & Guidelines
 

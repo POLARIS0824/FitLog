@@ -30,8 +30,13 @@ object KeystoreManager {
     /**
      * 获取或创建 Keystore 密钥。
      *
+     * 加 @Synchronized：并发首次调用可能各自生成同别名密钥、后者覆盖前者，
+     * 先前用旧密钥写的密文将永久不可解（数据丢失）；Keystore 操作本身有
+     * 进程内串行化需求，同步代价可忽略。
+     *
      * @return [SecretKey]
      */
+    @Synchronized
     private fun getOrCreateKey(): SecretKey {
         keyStore.getEntry(KEY_ALIAS, null)?.let {
             return (it as KeyStore.SecretKeyEntry).secretKey

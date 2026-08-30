@@ -185,31 +185,49 @@ class AISettingsViewModel @Inject constructor(
     // ──────────────────────────────────────
 
     /**
+     * 表单状态 → [AIProviderConfig] 的唯一组装点。
+     *
+     * trim / 空串归一为 null / 默认值规则此前散落在 fetch/test/save 三处且
+     * 互不一致（如 fetch 未 trim customEndpoint），本函数是消除漂移的唯一事实源；
+     * 各调用方按自身语义做必填校验（apiKey/baseUrl 或 model）与字段补充。
+     *
+     * @return apiKey 或 baseUrl 为空（未填写）时返回 null
+     */
+    private fun buildConfigFromForm(): AIProviderConfig? {
+        val type = selectedTypeState.value
+        val spec = ProviderSpecs.of(type)
+        val apiKey = apiKeyState.value.apiKey.trim()
+        val baseUrl = endpointState.value.baseUrl.trim()
+        if (apiKey.isBlank() || baseUrl.isBlank()) return null
+        return AIProviderConfig(
+            id = type.name,
+            name = spec.displayName,
+            type = type,
+            baseUrl = baseUrl,
+            apiKey = apiKey,
+            model = modelState.value.selectedModel.trim(),
+            customEndpoint = endpointState.value.customEndpoint.trim().ifBlank { null },
+            apiVersion = endpointState.value.apiVersion.trim().ifBlank { null },
+            isPreset = true, // 每类型一条的内置槽位配置
+        )
+    }
+
+    /**
      * 用当前表单里的凭据拉取可用模型列表。
      *
-     * [baseUrl] / [customEndpoint] 由 Screen 传入（它们是 Screen 本地表单状态）；
-     * 失败后模型列表保持推荐值，用户仍可手动输入，不被阻塞。
-     * 成功拉取且该配置已有保存记录时，将模型列表并入其 cachedModels；
-     * 配置从未保存时不落库（表单中的 apiKey 只用于本次请求）。
+     * 模型名留空时回落到该服务商的推荐默认模型；失败后模型列表保持推荐值，
+     * 用户仍可手动输入，不被阻塞。成功拉取且该配置已有保存记录时，将模型列表
+     * 并入其 cachedModels；配置从未保存时不落库（表单中的 apiKey 只用于本次请求）。
      */
-    fun onFetchModels(baseUrl: String, customEndpoint: String?) {
+    fun onFetchModels() {
         val type = selectedTypeState.value
-        val apiKey = apiKeyState.value.apiKey
         val spec = ProviderSpecs.of(type)
-        if (apiKey.isBlank() || baseUrl.isBlank()) return
+        val tempConfig = buildConfigFromForm()
+            ?.let { if (it.model.isBlank()) it.copy(model = spec.defaultModel) else it }
+            ?: return
 
         viewModelScope.launch {
             modelState.update { it.copy(isLoading = true, fetchResult = "") }
-            val tempConfig = AIProviderConfig(
-                id = type.name,
-                name = spec.displayName,
-                type = type,
-                baseUrl = baseUrl.trim(),
-                apiKey = apiKey.trim(),
-                model = modelState.value.selectedModel.ifBlank { spec.defaultModel },
-                customEndpoint = customEndpoint,
-                isPreset = true,
-            )
             val result = aiChatRepository.fetchModels(tempConfig)
             // 串台守卫：请求在途期间用户切换了 provider，丢弃过期结果，
             // 避免 A 的模型列表渲染进 B 的表单（用户误把 A 的模型保存到 B）。
@@ -254,25 +272,12 @@ class AISettingsViewModel @Inject constructor(
      * 结果写入 [TestState]：测试中 → 成功（附带 AI 回复摘要）/ 失败（错误描述）。
      */
     fun onTestConnection() {
-        val type = selectedTypeState.value
-        val apiKey = apiKeyState.value.apiKey
         val model = modelState.value.selectedModel
-        val endpoint = endpointState.value
-        if (apiKey.isBlank() || model.isBlank() || endpoint.baseUrl.isBlank()) return
+        val tempConfig = buildConfigFromForm()?.takeIf { model.isNotBlank() } ?: return
 
         viewModelScope.launch {
             testState.update { TestState(isTesting = true) }
-            val tempConfig = AIProviderConfig(
-                id = type.name,
-                name = "",
-                type = type,
-                baseUrl = endpoint.baseUrl.trim(),
-                apiKey = apiKey.trim(),
-                model = model.trim(),
-                customEndpoint = endpoint.customEndpoint.trim().ifBlank { null },
-                apiVersion = endpoint.apiVersion.trim().ifBlank { null },
-                isPreset = true,
-            )
+            val type = tempConfig.type
             val result = aiChatRepository.testConnection(tempConfig)
             // 串台守卫：请求在途期间用户切换了 provider，丢弃过期结果。
             if (selectedTypeState.value != type) return@launch
@@ -300,30 +305,14 @@ class AISettingsViewModel @Inject constructor(
     /**
      * 保存按钮点击：从表单状态组装配置并保存。
      *
-     * 领域对象组装（trim/判空/默认值）收敛在 ViewModel——
+     * 领域对象组装（trim/判空/默认值）统一走 [buildConfigFromForm]——
      * Screen 只上报点击事件，不感知 [AIProviderConfig] 的构造细节。
      */
     fun onSaveClick() {
-        val type = selectedTypeState.value
-        val spec = ProviderSpecs.of(type)
-        val apiKey = apiKeyState.value.apiKey.trim()
-        val model = modelState.value.selectedModel.trim()
-        val baseUrl = endpointState.value.baseUrl.trim()
-        if (apiKey.isBlank() || model.isBlank() || baseUrl.isBlank()) return
+        val config = buildConfigFromForm()?.takeIf { it.model.isNotBlank() } ?: return
 
         onSave(
-            AIProviderConfig(
-                id = type.name,
-                name = spec.displayName,
-                type = type,
-                baseUrl = baseUrl,
-                apiKey = apiKey,
-                model = model,
-                customEndpoint = endpointState.value.customEndpoint.trim().ifBlank { null },
-                apiVersion = endpointState.value.apiVersion.trim().ifBlank { null },
-                isPreset = true, // 每类型一条的内置槽位配置
-                cachedModels = modelState.value.availableModels,
-            ),
+            config.copy(cachedModels = modelState.value.availableModels),
         )
     }
 
