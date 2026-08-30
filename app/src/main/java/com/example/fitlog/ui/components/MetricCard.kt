@@ -1,6 +1,5 @@
 package com.example.fitlog.ui.components
 
-import android.content.res.Configuration
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -595,119 +594,9 @@ fun MetricPageIndicator(
     }
 }
 
-/**
- * 带有底部分页指示器的完整仪表盘指标卡片区域组件。
- *
- * @param modifier 修饰符
- * @param onCardClick 点击卡片触发的回调
- */
-@Composable
-fun MetricDashboardSection(
-    modifier: Modifier = Modifier,
-    onCardClick: ((String) -> Unit)? = null,
-) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        MetricDashboardGrid(
-            largeCardLeft = { gridModifier ->
-                LargeMetricCard(
-                    title = "Cardio load",
-                    value = "0%",
-                    subtitle = "Calibrating",
-                    icon = Icons.Default.Favorite,
-                    containerColor = Color(0xFFD6E4FF),
-                    contentColor = Color(0xFF003067),
-                    badgeContainerColor = Color.White,
-                    badgeContentColor = Color(0xFF0056B3),
-                    modifier = gridModifier,
-                    onClick = { onCardClick?.invoke("Cardio load") },
-                )
-            },
-            smallCardTop = { gridModifier ->
-                SmallMetricCard(
-                    title = "Steps",
-                    value = "162",
-                    icon = Icons.AutoMirrored.Filled.DirectionsRun,
-                    containerColor = Color(0xFFB2F5EA),
-                    contentColor = Color(0xFF004D40),
-                    badgeContainerColor = Color.White,
-                    badgeContentColor = Color(0xFF004D40),
-                    modifier = gridModifier,
-                    onClick = { onCardClick?.invoke("Steps") },
-                )
-            },
-            smallCardMiddle = { gridModifier ->
-                SmallMetricCard(
-                    title = "Readiness",
-                    value = "Calibrating",
-                    icon = Icons.Default.SelfImprovement,
-                    containerColor = Color(0xFFE2E8F0),
-                    contentColor = Color(0xFF2D3748),
-                    badgeContainerColor = Color.White,
-                    badgeContentColor = Color(0xFF2D3748),
-                    modifier = gridModifier,
-                    onClick = { onCardClick?.invoke("Readiness") },
-                )
-            },
-            smallCardBottom = { gridModifier ->
-                SmallMetricCard(
-                    title = "Sleep duration",
-                    value = "No data",
-                    icon = Icons.Default.NightsStay,
-                    containerColor = Color(0xFFF3E8FF),
-                    contentColor = Color(0xFF4A154B),
-                    badgeContainerColor = Color.White,
-                    badgeContentColor = Color(0xFF4A154B),
-                    modifier = gridModifier,
-                    onClick = { onCardClick?.invoke("Sleep duration") },
-                )
-            },
-        )
-
-        MetricPageIndicator(
-            pageCount = 3,
-            currentPage = 0,
-        )
-    }
-}
-
 // ==========================================
 // Previews
 // ==========================================
-
-/**
- * 亮色模式与精确定制色彩下仪表盘指标卡片区域组件 Preview
- */
-@Preview(name = "Metric Dashboard Section - Light", showBackground = true)
-@Composable
-fun MetricDashboardSectionPreview() {
-    FitLogTheme(darkTheme = false) {
-        Surface(
-            modifier = Modifier.padding(16.dp),
-            color = MaterialTheme.colorScheme.background,
-        ) {
-            MetricDashboardSection()
-        }
-    }
-}
-
-/**
- * 暗色模式（Dark Theme）与 Dynamic Color 下仪表盘指标卡片区域组件 Preview
- */
-@Preview(name = "Metric Dashboard Section - Dark", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-fun MetricDashboardSectionDarkPreview() {
-    FitLogTheme(darkTheme = true) {
-        Surface(
-            modifier = Modifier.padding(16.dp),
-            color = MaterialTheme.colorScheme.background,
-        ) {
-            MetricDashboardSection()
-        }
-    }
-}
 
 /**
  * Dynamic Color（直接提取 Theme 的色彩）下卡片排布 Preview

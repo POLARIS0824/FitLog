@@ -42,8 +42,6 @@ data class WeekProgressState(
     val items: List<ProgressItemState> = emptyList(),
     /** 预先计算好的全部模式渲染项，供 HorizontalPager 滑动时实现 0ms 零延迟极速切换 */
     val itemsMap: Map<WeekProgressDisplayMode, List<ProgressItemState>> = emptyMap(),
-    /** 状态文案；现仅作旧契约（head 无 valueText）时大卡副标题的兜底 */
-    val statusText: String = "Great job!",
 )
 
 enum class WeekProgressDisplayMode(val label: String) {
@@ -66,7 +64,6 @@ data class ProgressItemState(
     val id: String,
     val title: String,        // 例如 "本周训练", "重点肌群", "PR", "力量训练"
     val subtitle: String,     // 大卡为副标题（如 "目标 4 次"），小卡为数值行（如 "胸部 · 12 组"）
-    val badgeIconType: String? = null, // 可选图标类型
     val progress: Float? = null,      // 大卡可选填充进度 (0.0f ~ 1.0f)
     /** 大卡主数值（仅 items[0] 使用；为 null 时大卡沿用 subtitle 作数值，兼容旧契约） */
     val valueText: String? = null,

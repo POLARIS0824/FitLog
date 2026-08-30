@@ -93,12 +93,6 @@ interface WorkoutPlanDao {
     suspend fun unmarkSessionCompleted(sessionId: String)
 
     /**
-     * 删除某计划下的所有训练日。
-     */
-    @Query("DELETE FROM planned_sessions WHERE planId = :planId")
-    suspend fun deleteSessionsByPlanId(planId: String)
-
-    /**
      * 按 ID 删除单个训练日（编辑计划时清理被移除的训练日）。
      */
     @Query("DELETE FROM planned_sessions WHERE id = :sessionId")

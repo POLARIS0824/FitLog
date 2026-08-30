@@ -331,11 +331,6 @@ class TodayViewModel @Inject constructor(
             displayMode = materials.displayMode,
             items = itemsMap[materials.displayMode] ?: emptyList(),
             itemsMap = itemsMap,
-            statusText = when {
-                weekCompleted >= weekTarget -> "Great job!"
-                weekCompleted == 0 -> "这周还没开始"
-                else -> "继续加油！"
-            },
         )
 
         return TodayUiState(

@@ -22,8 +22,6 @@ class UserProfileRepository @Inject constructor(
 
     suspend fun update(userProfile: UserProfile) = userProfileDao.update(userProfile.toEntity())
 
-    suspend fun delete(userProfile: UserProfile) = userProfileDao.delete(userProfile.toEntity())
-
     suspend fun getById(id: Long) = userProfileDao.getById(id)?.toModel()
 
     /**

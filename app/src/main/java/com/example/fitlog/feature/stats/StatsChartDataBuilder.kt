@@ -1,9 +1,9 @@
 package com.example.fitlog.feature.stats
 
-import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.ui.components.chart.ChartData
 import com.example.fitlog.ui.components.chart.ChartEntry
+import com.example.fitlog.util.VolumeAggregator
 import com.example.fitlog.util.VolumeFormatter
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -23,8 +23,8 @@ import kotlin.math.pow
  * - **分桶**：WEEK = 7 日桶 / MONTH = 30 日桶 / THREE_MONTHS = 13 周桶（周一始，
  *   同 TodayViewModel 的周界约定）/ YEAR = 12 个自然月桶；窗口均截至 [today]，
  *   最末桶为不完整桶
- * - **口径**：只累加 [SetType.WORKING] 正式组的 重量kg × 次数
- *   （同 WeekProgressCalculator 的容量口径，热身组不计）
+ * - **口径**：只累加 `SetType.WORKING` 正式组的 重量kg × 次数
+ *   （统一委托 [VolumeAggregator]，热身组不计）
  * - **桶 id 命名空间按档分级**：日桶 = ISO 日期、周桶 = 周一 ISO 日期、月桶 = YearMonth。
  *   W↔M 同为日 id，重叠日期的柱子在 AnimatedBarChart 中滑移变形；
  *   跨命名空间（如 M→Y）零重叠，原地消散 + 错峰入场；
@@ -51,17 +51,7 @@ object StatsChartDataBuilder {
         val buckets = bucketsOf(period, today)
 
         // 一次性聚合：日 → 当日容量；各桶再按覆盖日期累加（避免 workouts × buckets 嵌套扫描）
-        val volumeByDate = mutableMapOf<LocalDate, Double>()
-        workouts.forEach { workout ->
-            val volume = workout.exercises.sumOf { log ->
-                log.sets
-                    .filter { it.setType == SetType.WORKING }
-                    .sumOf { (it.weightKg * it.reps).toDouble() }
-            }
-            if (volume > 0.0) {
-                volumeByDate.merge(workout.date, volume, Double::plus)
-            }
-        }
+        val volumeByDate = VolumeAggregator.volumeByDate(workouts)
 
         val values = buckets.map { bucket ->
             var sum = 0.0

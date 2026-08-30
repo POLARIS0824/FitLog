@@ -10,6 +10,7 @@ import com.example.fitlog.model.Workout
 import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.ui.components.RingSegment
 import com.example.fitlog.util.TrainingLevelCalculator
+import com.example.fitlog.util.VolumeAggregator
 import com.example.fitlog.util.VolumeFormatter
 import java.time.LocalDate
 import kotlin.math.roundToInt
@@ -216,8 +217,8 @@ object WeekProgressCalculator {
         weekStart: LocalDate,
         catalog: List<Exercise>,
     ): List<ProgressItemState> {
-        val weekVolume = workingVolume(weekWorkouts)
-        val prevVolume = workingVolume(prevWeekWorkouts)
+        val weekVolume = VolumeAggregator.workingVolume(weekWorkouts)
+        val prevVolume = VolumeAggregator.workingVolume(prevWeekWorkouts)
         val head = ProgressItemState(
             id = "week-volume",
             title = "训练容量",
@@ -309,7 +310,7 @@ object WeekProgressCalculator {
         prevWeekWorkouts: List<Workout>,
         catalog: List<Exercise>,
     ): String {
-        if (workingVolume(prevWeekWorkouts) <= 0.0) return "暂无基线"
+        if (VolumeAggregator.workingVolume(prevWeekWorkouts) <= 0.0) return "暂无基线"
         val lookup = ExerciseLookup(catalog)
         val weekVolumes = volumeByBodyPart(weekWorkouts, lookup)
         val prevVolumes = volumeByBodyPart(prevWeekWorkouts, lookup)
@@ -407,16 +408,6 @@ object WeekProgressCalculator {
         bodyPart == BodyPart.CARDIO ||
             Muscle.CARDIO in primaryMuscles ||
             equipment == Equipment.CARDIO_MACHINE
-
-    /** 正式组总容量（kg）：Σ weight × reps。 */
-    private fun workingVolume(workouts: List<Workout>): Double =
-        workouts.sumOf { workout ->
-            workout.exercises.sumOf { log ->
-                log.sets
-                    .filter { it.setType == SetType.WORKING }
-                    .sumOf { (it.weightKg * it.reps).toDouble() }
-            }
-        }
 
     /** 各身体部位的正式组容量聚合（动作目录解析失败的跳过）。 */
     private fun volumeByBodyPart(

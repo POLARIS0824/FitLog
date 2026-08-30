@@ -5,13 +5,7 @@ import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.model.user.Gender
 import com.example.fitlog.model.user.TrainingGoal
-
-object SystemPrompt {
-    val SYSTEM_PROMPT = ChatMessage(
-        role = "system",
-        content = "You are a professional fitness coach"
-    )
-}
+import com.example.fitlog.util.VolumeFormatter
 
 /**
  * Coach Insight 卡片的 AI Prompt 构建器。
@@ -138,10 +132,9 @@ object CoachInsightPrompt {
             .joinToString("、") { it.key }
             .takeIf { it.isNotEmpty() }
             ?.let { "$it 为主，" } ?: ""
-        val volumePart = if (volumeKg >= 1000) {
-            "，容量 %.1f 吨".format(volumeKg / 1000)
-        } else if (volumeKg > 0) {
-            "，容量 ${volumeKg.toInt()} kg"
+        // 容量文案走统一口径 VolumeFormatter（此前为第四份本地实现，截断与四舍五入漂移）
+        val volumePart = if (volumeKg > 0) {
+            "，容量 ${VolumeFormatter.formatVolume(volumeKg)}"
         } else {
             ""
         }

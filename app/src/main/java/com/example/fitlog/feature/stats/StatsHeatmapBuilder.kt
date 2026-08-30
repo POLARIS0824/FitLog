@@ -1,7 +1,7 @@
 package com.example.fitlog.feature.stats
 
-import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
+import com.example.fitlog.util.VolumeAggregator
 import java.time.DayOfWeek
 import java.time.LocalDate
 
@@ -42,20 +42,11 @@ object StatsHeatmapBuilder {
     fun build(workouts: List<Workout>, today: LocalDate): StatsHeatmapState {
         val start = windowStart(today)
 
-        val volumeByDate = mutableMapOf<LocalDate, Double>()
-        workouts.forEach { workout ->
-            if (workout.date < start || workout.date > today) return@forEach
-            val volume = workout.exercises.sumOf { log ->
-                log.sets
-                    .filter { it.setType == SetType.WORKING }
-                    .sumOf { (it.weightKg * it.reps).toDouble() }
-            }
-            if (volume > 0.0) {
-                volumeByDate.merge(workout.date, volume, Double::plus)
-            }
-        }
-
-        val values = volumeByDate.mapValues { (_, v) -> v.toFloat() }
+        // 窗口外日期一律剔除——HeatmapLevels.levelsOf 的归一 max 取整份 map 最大值，
+        // 窗口外离群高容量日会压平所有可见格的颜色等级
+        val values = VolumeAggregator.volumeByDate(workouts)
+            .filterKeys { it >= start && it <= today }
+            .mapValues { (_, v) -> v.toFloat() }
         return StatsHeatmapState(
             values = values,
             trainedDays = values.size,

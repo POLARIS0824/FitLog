@@ -249,7 +249,7 @@ class AISettingsViewModelTest {
      */
     @Test
     fun testOnFetchModels_blankApiKey_guarded() = runTest(testScheduler) {
-        viewModel.onFetchModels("https://api.openai.com", null)
+        viewModel.onFetchModels()
 
         assertTrue(fakeApi.modelsCalls.isEmpty())
         val state = viewModel.uiState.first()
@@ -271,7 +271,7 @@ class AISettingsViewModelTest {
         // 等待回填完成（onProviderSelected 内部要挂起查询 Room，是异步的）
         viewModel.uiState.first { it.model.selectedModel == "gpt-5.6-sol" }
         viewModel.onApiKeyChange("sk-new")
-        viewModel.onFetchModels("https://api.openai.com", null)
+        viewModel.onFetchModels()
 
         val state = viewModel.uiState.first { it.model.fetchResult.isNotEmpty() }
         assertEquals("✅ 成功拉取 2 个模型", state.model.fetchResult)
@@ -291,7 +291,9 @@ class AISettingsViewModelTest {
 
         // 默认选中 DEEPSEEK；表单里输入了新的 key 但尚未保存
         viewModel.onApiKeyChange("sk-unsaved")
-        viewModel.onFetchModels("https://api.deepseek.com", null)
+        // 配置组装统一走表单状态（endpointState），需显式填写 baseUrl
+        viewModel.onBaseUrlChange("https://api.deepseek.com")
+        viewModel.onFetchModels()
 
         viewModel.uiState.first { it.model.fetchResult.isNotEmpty() }
 
@@ -311,7 +313,7 @@ class AISettingsViewModelTest {
         viewModel.onProviderSelected(ProviderType.OPENAI)
         viewModel.uiState.first { it.model.selectedModel == "gpt-5.6-sol" }
         viewModel.onApiKeyChange("sk-bad")
-        viewModel.onFetchModels("https://api.openai.com", null)
+        viewModel.onFetchModels()
 
         val state = viewModel.uiState.first { it.model.fetchResult.isNotEmpty() }
         assertEquals("❌ 拉取模型失败：鉴权失败", state.model.fetchResult)
@@ -328,7 +330,7 @@ class AISettingsViewModelTest {
         viewModel.onProviderSelected(ProviderType.OPENAI)
         viewModel.uiState.first { it.model.selectedModel == "gpt-5.6-sol" }
         viewModel.onApiKeyChange("sk-new")
-        viewModel.onFetchModels("https://api.openai.com", null)
+        viewModel.onFetchModels()
         viewModel.uiState.first { it.model.fetchResult.isNotEmpty() }
 
         viewModel.onFetchResultShown()
@@ -480,7 +482,7 @@ class AISettingsViewModelTest {
         viewModel.onProviderSelected(ProviderType.OPENAI)
         viewModel.uiState.first { it.model.selectedModel == "gpt-5.6-sol" }
         viewModel.onApiKeyChange("sk-new")
-        viewModel.onFetchModels("https://api.openai.com", null)
+        viewModel.onFetchModels()
 
         // 等待请求到达 Fake 网络层，然后切走 provider
         called.await()

@@ -42,20 +42,7 @@ class WorkoutViewModel @Inject constructor(
             initialValue = WorkoutUiState.Loading,
         )
 
-    /** 新增训练记录（失败仅记录日志，列表由 Room Flow 驱动，无需手动刷新）。 */
-    fun insertWorkout(workout: Workout) {
-        viewModelScope.launch {
-            try {
-                workoutRepository.insert(workout)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "新增训练记录失败：${workout.date}", e)
-            }
-        }
-    }
-
-    /** 删除训练记录（失败仅记录日志，同上）。 */
+    /** 删除训练记录（失败仅记录日志，列表由 Room Flow 驱动，无需手动刷新）。 */
     fun deleteWorkout(workout: Workout) {
         viewModelScope.launch {
             try {

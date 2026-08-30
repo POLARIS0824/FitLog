@@ -99,26 +99,4 @@ class UserProfileRepositoryTest {
         assertEquals(72f, fetched?.weight)
         assertEquals(TrainingGoal.HYPERTROPHY, fetched?.trainingGoal)
     }
-
-    /**
-     * 测试用户资料的删除。
-     */
-    @Test
-    fun testDelete() = runTest {
-        val profile = UserProfile(
-            id = 1L,
-            name = "张三",
-            age = 25,
-            gender = Gender.MALE,
-            height = 175f,
-            weight = 70f,
-            trainingGoal = TrainingGoal.STRENGTH
-        )
-        repository.insert(profile)
-
-        repository.delete(profile)
-
-        val fetched = repository.getById(1L)
-        assertNull(fetched)
-    }
 }

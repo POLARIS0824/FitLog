@@ -217,9 +217,15 @@ class FitnessTools @Inject constructor(
         bodyMetricRepository.upsert(
             com.example.fitlog.model.BodyMetric(date = date, weightKg = sanitized.toFloat()),
         )
+        // 钳制发生时必须在结果里告知，否则模型拿到 success 会向用户复述被无声扭曲的数值
+        val clampNote = if (sanitized != weightKg) {
+            "（原值 $weightKg kg 超出有效范围，已按上下限钳制）"
+        } else {
+            ""
+        }
         return WriteResultDto(
             success = true,
-            message = "已记录 ${date} 体重 ${sanitized} kg",
+            message = "已记录 ${date} 体重 ${sanitized} kg$clampNote",
         )
     }
 

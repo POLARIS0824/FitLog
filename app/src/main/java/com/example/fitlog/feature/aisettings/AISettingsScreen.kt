@@ -150,7 +150,7 @@ fun AISettingsScreen(
     onBaseUrlChange: (String) -> Unit,
     onCustomEndpointChange: (String) -> Unit,
     onApiVersionChange: (String) -> Unit,
-    onFetchModels: (baseUrl: String, customEndpoint: String?) -> Unit,
+    onFetchModels: () -> Unit,
     onFetchResultShown: () -> Unit,
     onTestConnection: () -> Unit,
     onTestResultShown: () -> Unit,
@@ -331,12 +331,7 @@ fun AISettingsScreen(
                 model = uiState.model,
                 apiKeyReady = uiState.apiKey.apiKey.isNotBlank(),
                 onModelChange = onModelChange,
-                onFetchModels = {
-                    onFetchModels(
-                        uiState.endpoint.baseUrl,
-                        uiState.endpoint.customEndpoint.ifBlank { null },
-                    )
-                },
+                onFetchModels = onFetchModels,
             )
 
             SectionLabel("Test")
@@ -843,7 +838,7 @@ private fun AISettingsScreenPreview() {
         onBaseUrlChange = {},
         onCustomEndpointChange = {},
         onApiVersionChange = {},
-        onFetchModels = { _, _ -> },
+        onFetchModels = {},
         onFetchResultShown = {},
         onTestConnection = {},
         onTestResultShown = {},
