@@ -42,6 +42,9 @@ interface AgentEngine {
      * 协议层一旦落进坏历史（如悬空 tool_call），后续每条消息都会被服务商拒绝，
      * 这是唯一的自愈手段；也用于用户主动"清空对话"。
      *
+     * 删除前先把整段会话归档进长期记忆（ADK MemoryService，检索由 PreloadMemoryTool
+     * 在后续会话自动触发）——清空对话后教练仍可引用历史要点；归档失败不阻断删除。
+     *
      * @param sessionId 会话 id
      * @return 成功；会话不存在或删除失败时 [Result.failure]
      */

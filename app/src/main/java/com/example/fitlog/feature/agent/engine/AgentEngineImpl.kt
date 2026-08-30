@@ -14,9 +14,11 @@ import com.google.adk.kt.agents.LlmAgent
 import com.google.adk.kt.apps.App
 import com.google.adk.kt.events.Event
 import com.google.adk.kt.events.ToolConfirmation
+import com.google.adk.kt.memory.MemoryService
 import com.google.adk.kt.runners.InMemoryRunner
 import com.google.adk.kt.sessions.SessionKey
 import com.google.adk.kt.sessions.room.RoomSessionService
+import com.google.adk.kt.tools.PreloadMemoryTool
 import com.google.adk.kt.types.Content
 import com.google.adk.kt.types.FunctionCall
 import com.google.adk.kt.types.FunctionResponse
@@ -50,6 +52,12 @@ import kotlinx.coroutines.sync.withLock
  * 使用 [Instruction.Provider]：每一轮 turn 都重新拉取用户资料与激活计划，
  * 保证跨天/跨配置的上下文新鲜；静态教练人设走 [LlmAgent.instruction]。
  *
+ * ## 长期记忆
+ *
+ * [PreloadMemoryTool] 在每轮请求前以当前用户输入检索 ADK 记忆库
+ * （AppSearch 持久化，数据不出设备），命中即以 `<PAST_CONVERSATIONS>` 块并入系统指令；
+ * [clearSession] 删除会话前先把整段会话归档进记忆库——清空对话后教练仍记得长期要点。
+ *
  * ## 未配置服务商
  *
  * [sendMessage] 返回 [Result.failure]，UI 据此展示引导卡而非发请求。
@@ -61,6 +69,7 @@ class AgentEngineImpl @Inject constructor(
     private val fitnessTools: FitnessTools,
     private val userProfileRepository: UserProfileRepository,
     private val workoutPlanRepository: WorkoutPlanRepository,
+    private val memoryService: MemoryService,
 ) : AgentEngine {
 
     /** ADK 应用名（会话命名空间；Room 库按此 + userId + sessionId 寻址）。 */
@@ -148,9 +157,22 @@ class AgentEngineImpl @Inject constructor(
         )
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * 删除前先归档进长期记忆；归档链路（含 AppSearch 惰性初始化）失败仅记日志，
+     * 不阻断删除——清空的主语义是自愈坏历史，不能因记忆库故障而失败。
+     */
     override suspend fun clearSession(sessionId: String): Result<Unit> = runCatching {
-        sessionService.deleteSession(SessionKey(APP_NAME, USER_ID, sessionId))
+        val key = SessionKey(APP_NAME, USER_ID, sessionId)
+        val session = runCatching { sessionService.getSession(key) }
+            .onFailure { android.util.Log.w(TAG, "归档前读取会话失败，跳过记忆归档", it) }
+            .getOrNull()
+        if (session != null && session.events.isNotEmpty()) {
+            runCatching { memoryService.addSessionToMemory(session) }
+                .onFailure { android.util.Log.w(TAG, "会话归档进长期记忆失败", it) }
+        }
+        sessionService.deleteSession(key)
     }.let { result ->
         // runCatching 会把取消当成失败吞掉，破坏协程取消传播，须原样上抛
         if (result.isFailure && result.exceptionOrNull() is CancellationException) {
@@ -241,7 +263,10 @@ class AgentEngineImpl @Inject constructor(
             name = COACH_AGENT_NAME,
             model = AgentModelFactory.create(config, aiApi),
             description = "FitLog 私人健身教练：结合用户全部训练数据提供个性化建议",
-            tools = tools,
+            // PreloadMemoryTool：每轮请求前以当前用户输入检索长期记忆库，命中即并入系统
+            // 指令（<PAST_CONVERSATIONS> 块）。declaration 为 null——不暴露给模型、不占
+            // maxSteps 预算；落点是 systemInstruction，经 OpenAI 适配层合并进单条 system 消息
+            tools = tools + PreloadMemoryTool(),
             instruction = Instruction { _ ->
                 Content.fromText("user", buildCoachInstruction())
             },
@@ -251,6 +276,7 @@ class AgentEngineImpl @Inject constructor(
         return InMemoryRunner(
             app = App(appName = APP_NAME, rootAgent = agent),
             sessionService = sessionService,
+            memoryService = memoryService,
         )
     }
 
@@ -263,6 +289,7 @@ class AgentEngineImpl @Inject constructor(
         appendLine("- 中文回答，语气温和专业，像了解用户的私教；不使用 emoji；不提供医疗建议")
         appendLine("- 涉及修改数据的操作（记体重、切换计划）会弹确认，用户拒绝则不要执行")
         appendLine("- 计划优先：用户有今日计划课次时，建议围绕该课次展开")
+        appendLine("- 指令附带 <PAST_CONVERSATIONS> 记忆块时，将其视为与该用户过往对话的存档：自然参考其中的偏好与约定作答，不要提及记忆或存档等技术来源")
         appendLine("")
         appendLine("【当前上下文】")
         appendLine("今天是 ${java.time.LocalDate.now()}")

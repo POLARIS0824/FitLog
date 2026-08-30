@@ -111,6 +111,35 @@ class OpenAiAdaptersTest {
         assertEquals("assistant", messages[2].role)
     }
 
+    /**
+     * system 指令含多个 text part 时（ADK PreloadMemoryTool 经 appendInstructions
+     * 追加记忆块后的形态）合并为单条 system 消息，且各 part 文本全部保留——
+     * 锁定长期记忆注入路径的协议正确性。
+     */
+    @Test
+    fun `system instruction with memory block merges into single system message`() {
+        val messages = OpenAiAdapters.toOpenAiMessages(
+            systemInstruction = Content(
+                role = "user",
+                parts = listOf(
+                    Part(text = "你是 FitLog 的私人健身教练"),
+                    Part(
+                        text = "The following content is from your previous conversations with the user.\n" +
+                            "<PAST_CONVERSATIONS>\n用户：左膝有旧伤，深蹲要减重\n</PAST_CONVERSATIONS>",
+                    ),
+                ),
+            ),
+            contents = listOf(userText("今天练什么")),
+        )
+        assertEquals(2, messages.size)
+        assertEquals("system", messages[0].role)
+        val systemText = messages[0].content.orEmpty()
+        assertTrue(systemText.contains("你是 FitLog 的私人健身教练"))
+        assertTrue(systemText.contains("<PAST_CONVERSATIONS>"))
+        assertTrue(systemText.contains("左膝有旧伤"))
+        assertEquals("user", messages[1].role)
+    }
+
     /** ADK 的函数响应（role="user"）必须按 part 分派为 role="tool"，而非 user 文本。 */
     @Test
     fun `function response with user role maps to tool message`() {
