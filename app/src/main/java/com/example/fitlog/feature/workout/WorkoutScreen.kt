@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -17,10 +18,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -66,6 +71,9 @@ fun WorkoutScreen(
     onDeleteWorkout: (Workout) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // 待删除确认的记录（瞬时 UI 状态）：删除会级联清空动作与组数明细，必须二次确认
+    var pendingDelete by remember { mutableStateOf<Workout?>(null) }
+
     Column(modifier = modifier.fillMaxSize()) {
         TopAppBar(
             title = {
@@ -108,7 +116,7 @@ fun WorkoutScreen(
                                         Text(text = "感受: ${workout.feelings ?: "无"}")
                                     },
                                     trailingContent = {
-                                        IconButton(onClick = { onDeleteWorkout(workout) }) {
+                                        IconButton(onClick = { pendingDelete = workout }) {
                                             Icon(
                                                 imageVector = Icons.Filled.DeleteOutline,
                                                 contentDescription = "删除该训练记录",
@@ -124,6 +132,32 @@ fun WorkoutScreen(
                 is WorkoutUiState.Error -> Text(text = "加载出错: ${uiState.message}")
             }
         }
+    }
+
+    // 删除确认对话框
+    pendingDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("删除训练记录") },
+            text = {
+                Text("将删除 ${target.date} 的训练记录及其全部动作与组数明细，此操作无法恢复。")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingDelete = null
+                        onDeleteWorkout(target)
+                    },
+                ) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text("取消")
+                }
+            },
+        )
     }
 }
 
