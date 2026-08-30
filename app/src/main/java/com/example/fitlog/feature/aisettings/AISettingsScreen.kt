@@ -92,6 +92,7 @@ import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.components.StackedSnackbarHost
 import com.example.fitlog.ui.components.SubpageIndicator
 import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
+import com.example.fitlog.ui.theme.fitLogColors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
 
@@ -212,16 +213,16 @@ fun AISettingsScreen(
     // 该类型已保存的配置（用于 ProviderCard 展示配置状态）
     val savedConfig = uiState.provider.providers.firstOrNull { it.id == selectedType.name }
 
-    // 顶栏背景色随滚动进度在 surfaceContainerLow (展开) 与 surfaceContainer (折叠) 之间平滑过渡
+    // 顶栏背景色随滚动进度在页面背景 (展开) 与折叠色 (折叠) 之间平滑过渡
     val topAppBarContainerColor = androidx.compose.ui.graphics.lerp(
-        MaterialTheme.colorScheme.surfaceContainerLow,
-        MaterialTheme.colorScheme.surfaceContainer,
+        MaterialTheme.fitLogColors.pageBackground,
+        MaterialTheme.fitLogColors.topBarScrolled,
         titleFraction
     )
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.fitLogColors.pageBackground,
         snackbarHost = { StackedSnackbarHost(hostState = stackedSnackbarHostState) },
         topBar = {
             TopAppBar(
@@ -480,7 +481,7 @@ private fun ProviderCard(
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            containerColor = MaterialTheme.fitLogColors.card,
         ),
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier.fillMaxWidth(),

@@ -15,8 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -48,6 +46,7 @@ import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.model.ai.CoachAction
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.fitLogColors
 
 /**
  * 1. 容器层 (Stateful)
@@ -55,15 +54,11 @@ import com.example.fitlog.ui.theme.FitLogTheme
  *
  * @param onNavigateToSettings 跳转设置回调
  * @param onNavigateToWorkout 跳转训练记录回调
- * @param onNavigateToStats 跳转统计页回调
- * @param onNavigateToChat 跳转 AI 教练对话回调
  */
 @Composable
 fun TodayRoute(
     onNavigateToSettings: () -> Unit = {},
     onNavigateToWorkout: () -> Unit = {},
-    onNavigateToStats: () -> Unit = {},
-    onNavigateToChat: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
@@ -74,8 +69,6 @@ fun TodayRoute(
         allPlans = allPlans,
         onNavigateToSettings = onNavigateToSettings,
         onNavigateToWorkout = onNavigateToWorkout,
-        onNavigateToStats = onNavigateToStats,
-        onNavigateToChat = onNavigateToChat,
         onDisplayModeSelected = viewModel::onDisplayModeSelected,
         onPlanSelected = viewModel::onPlanSelected,
         onErrorShown = viewModel::onErrorShown,
@@ -97,8 +90,6 @@ fun TodayScreen(
     allPlans: List<WorkoutPlan>,
     onNavigateToSettings: () -> Unit,
     onNavigateToWorkout: () -> Unit,
-    onNavigateToStats: () -> Unit,
-    onNavigateToChat: () -> Unit = {},
     onDisplayModeSelected: (WeekProgressDisplayMode) -> Unit,
     onPlanSelected: (String) -> Unit,
     onErrorShown: () -> Unit,
@@ -112,13 +103,9 @@ fun TodayScreen(
 
     Scaffold(
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.fitLogColors.pageBackground,
         topBar = {
-            TodayTopBar(
-                onNavigateToStats = onNavigateToStats,
-                onNavigateToChat = onNavigateToChat,
-                onNavigateToSettings = onNavigateToSettings,
-            )
+            TodayTopBar(onNavigateToSettings = onNavigateToSettings)
         },
     ) { innerPadding ->
         if (uiState.uiState.isLoading) {
@@ -198,17 +185,13 @@ fun TodayScreen(
  * 自动适配系统状态栏安全边距 (Status Bar Insets)。
  *
  * 中间：居中 "Today" 标题
- * 右侧：统计入口 + AI 教练入口 + 带彩环的个人资料 / 设置入口按钮
+ * 右侧：带彩环的个人资料 / 设置入口按钮（统计与 AI 教练入口已移至底部导航栏）
  *
- * @param onNavigateToStats 跳转统计页回调
- * @param onNavigateToChat 跳转 AI 教练对话回调
  * @param onNavigateToSettings 跳转设置回调（个人中心彩环按钮）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TodayTopBar(
-    onNavigateToStats: () -> Unit,
-    onNavigateToChat: () -> Unit,
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -222,20 +205,6 @@ private fun TodayTopBar(
             )
         },
         actions = {
-            IconButton(onClick = onNavigateToStats) {
-                Icon(
-                    imageVector = Icons.Default.BarChart,
-                    contentDescription = "统计",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            IconButton(onClick = onNavigateToChat) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Chat,
-                    contentDescription = "AI 教练对话",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
             IconButton(onClick = onNavigateToSettings) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -268,8 +237,8 @@ private fun TodayTopBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            containerColor = MaterialTheme.fitLogColors.pageBackground,
+            scrolledContainerColor = MaterialTheme.fitLogColors.pageBackground,
         ),
     )
 }
@@ -324,7 +293,6 @@ private fun TodayScreenPreview() {
             allPlans = emptyList(),
             onNavigateToSettings = {},
             onNavigateToWorkout = {},
-            onNavigateToStats = {},
             onDisplayModeSelected = {},
             onPlanSelected = {},
             onErrorShown = {},
@@ -351,7 +319,6 @@ private fun TodayScreenEmptyPreview() {
             allPlans = emptyList(),
             onNavigateToSettings = {},
             onNavigateToWorkout = {},
-            onNavigateToStats = {},
             onDisplayModeSelected = {},
             onPlanSelected = {},
             onErrorShown = {},
@@ -374,7 +341,6 @@ private fun TodayScreenLoadingPreview() {
             allPlans = emptyList(),
             onNavigateToSettings = {},
             onNavigateToWorkout = {},
-            onNavigateToStats = {},
             onDisplayModeSelected = {},
             onPlanSelected = {},
             onErrorShown = {},

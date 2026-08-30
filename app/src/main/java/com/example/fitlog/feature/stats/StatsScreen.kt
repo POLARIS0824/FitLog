@@ -11,13 +11,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -59,17 +55,15 @@ import com.example.fitlog.ui.components.chart.AnimatedBarChart
 import com.example.fitlog.ui.components.chart.ContributionHeatmap
 import com.example.fitlog.ui.components.chart.MiniLineStyle
 import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.fitLogColors
 import java.time.LocalDate
 
 /**
  * 1. 容器层 (Stateful)
  * 绑定 Hilt ViewModel，处理生命周期感知的状态收集。
- *
- * @param onBack 返回上一页
  */
 @Composable
 fun StatsRoute(
-    onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: StatsViewModel = hiltViewModel(),
 ) {
@@ -84,7 +78,6 @@ fun StatsRoute(
         onWeightSubmit = viewModel::onWeightSubmit,
         onWeightSheetDismissed = viewModel::onWeightSheetDismissed,
         onErrorShown = viewModel::onErrorShown,
-        onBack = onBack,
         modifier = modifier,
     )
 }
@@ -110,7 +103,6 @@ fun StatsScreen(
     onWeightSubmit: () -> Unit,
     onWeightSheetDismissed: () -> Unit,
     onErrorShown: () -> Unit = {},
-    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -123,23 +115,15 @@ fun StatsScreen(
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.fitLogColors.pageBackground,
         topBar = {
             TopAppBar(
                 title = {
                     Text(text = "统计", style = MaterialTheme.typography.titleLarge)
                 },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                        )
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    containerColor = MaterialTheme.fitLogColors.pageBackground,
+                    scrolledContainerColor = MaterialTheme.fitLogColors.topBarScrolled,
                 ),
                 scrollBehavior = scrollBehavior,
             )
@@ -497,7 +481,6 @@ private fun StatsScreenWeekPreview() {
             onWeightInputChange = {},
             onWeightSubmit = {},
             onWeightSheetDismissed = {},
-            onBack = {},
         )
     }
 }
@@ -516,7 +499,6 @@ private fun StatsScreenYearPreview() {
             onWeightInputChange = {},
             onWeightSubmit = {},
             onWeightSheetDismissed = {},
-            onBack = {},
         )
     }
 }
@@ -541,7 +523,6 @@ private fun StatsScreenEmptyPreview() {
             onWeightInputChange = {},
             onWeightSubmit = {},
             onWeightSheetDismissed = {},
-            onBack = {},
         )
     }
 }
@@ -559,7 +540,6 @@ private fun StatsScreenLoadingPreview() {
             onWeightInputChange = {},
             onWeightSubmit = {},
             onWeightSheetDismissed = {},
-            onBack = {},
         )
     }
 }

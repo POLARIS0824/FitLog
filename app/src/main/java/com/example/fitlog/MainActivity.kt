@@ -6,7 +6,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -28,12 +33,14 @@ import com.example.fitlog.ui.navigation.AISettingsKey
 import com.example.fitlog.ui.navigation.AppearanceKey
 import com.example.fitlog.ui.navigation.ChatKey
 import com.example.fitlog.ui.navigation.DataImportKey
+import com.example.fitlog.ui.navigation.FitLogBottomBar
 import com.example.fitlog.ui.navigation.ProfileKey
 import com.example.fitlog.ui.navigation.ReminderKey
 import com.example.fitlog.ui.navigation.SettingsKey
 import com.example.fitlog.ui.navigation.StatsKey
 import com.example.fitlog.ui.navigation.TodayKey
 import com.example.fitlog.ui.navigation.WorkoutKey
+import com.example.fitlog.ui.navigation.isTabDestination
 import com.example.fitlog.ui.settings.profile.ProfileRoute
 import com.example.fitlog.ui.settings.reminder.ReminderRoute
 import com.example.fitlog.ui.theme.FitLogTheme
@@ -81,65 +88,87 @@ class MainActivity : ComponentActivity() {
 
             FitLogTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
                 // 回退栈：rememberNavBackStack 跨配置更改/进程死亡持久化（key 需 @Serializable）
-                // 启动页为 Today 主页；设置族页面经 Today 顶栏设置图标进入
+                // 启动页为 Today 主页；4 个 tab（Today/Chat/Stats/Settings）经底部导航栏切换，
+                // 设置族子页自 Settings 进入
                 val backStack = rememberNavBackStack(TodayKey)
+                val currentKey = backStack.lastOrNull()
 
-                NavDisplay(
-                    backStack = backStack,
-                    // 根页（栈仅剩一个 entry）时没有可弹的页面：
-                    // 让位给系统默认行为 finish()，否则系统返回键按下后白屏
-                    onBack = {
-                        if (backStack.size > 1) backStack.removeLastOrNull() else finish()
-                    },
-                    entryProvider = entryProvider {
-                        entry<TodayKey> {
-                            TodayRoute(
-                                onNavigateToSettings = { backStack.add(SettingsKey) },
-                                onNavigateToWorkout = { backStack.add(WorkoutKey) },
-                                onNavigateToStats = { backStack.add(StatsKey) },
-                                onNavigateToChat = { backStack.add(ChatKey) },
+                Scaffold(
+                    // insets 全部下放给各页自行处理（与引入底栏前一致）；底栏占位经
+                    // innerPadding + consumeWindowInsets 下传，避免与页内 Scaffold 叠加
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                    bottomBar = {
+                        if (currentKey.isTabDestination()) {
+                            FitLogBottomBar(
+                                selectedTab = currentKey,
+                                onTabSelected = { key ->
+                                    // 切 tab = 回到该 tab 根部：清栈只留目标 tab，不保留其下二级页
+                                    if (backStack.lastOrNull() != key) {
+                                        backStack.clear()
+                                        backStack.add(key)
+                                    }
+                                },
                             )
                         }
-                        entry<ChatKey> {
-                            ChatRoute(onBack = { backStack.removeLastOrNull() })
-                        }
-                        entry<WorkoutKey> {
-                            WorkoutRoute(onBack = { backStack.removeLastOrNull() })
-                        }
-                        entry<StatsKey> {
-                            StatsRoute(onBack = { backStack.removeLastOrNull() })
-                        }
-                        entry<SettingsKey> {
-                            SettingsRoute(
-                                onBack = { backStack.removeLastOrNull() },
-                                onNavigateToProfile = { backStack.add(ProfileKey) },
-                                onNavigateToAppearance = { backStack.add(AppearanceKey) },
-                                onNavigateToAISettings = { backStack.add(AISettingsKey) },
-                                onNavigateToDataImport = { backStack.add(DataImportKey) },
-                                onNavigateToReminder = { backStack.add(ReminderKey) },
-                                onNavigateToAbout = { backStack.add(AboutKey) },
-                            )
-                        }
-                        entry<AISettingsKey> {
-                            AISettingsRoute(onBack = { backStack.removeLastOrNull() })
-                        }
-                        entry<ProfileKey> {
-                            ProfileRoute(onBack = { backStack.removeLastOrNull() })
-                        }
-                        entry<AppearanceKey> {
-                            AppearanceRoute(onBack = { backStack.removeLastOrNull() })
-                        }
-                        entry<DataImportKey> {
-                            DataImportRoute(onBack = { backStack.removeLastOrNull() })
-                        }
-                        entry<ReminderKey> {
-                            ReminderRoute(onBack = { backStack.removeLastOrNull() })
-                        }
-                        entry<AboutKey> {
-                            AboutRoute(onBack = { backStack.removeLastOrNull() })
-                        }
                     },
-                )
+                ) { innerPadding ->
+                    NavDisplay(
+                        modifier = Modifier
+                            .padding(innerPadding)
+                            .consumeWindowInsets(innerPadding),
+                        backStack = backStack,
+                        // 根页（栈仅剩一个 entry）时没有可弹的页面：
+                        // 让位给系统默认行为 finish()，否则系统返回键按下后白屏
+                        onBack = {
+                            if (backStack.size > 1) backStack.removeLastOrNull() else finish()
+                        },
+                        entryProvider = entryProvider {
+                            entry<TodayKey> {
+                                TodayRoute(
+                                    onNavigateToSettings = { backStack.add(SettingsKey) },
+                                    onNavigateToWorkout = { backStack.add(WorkoutKey) },
+                                )
+                            }
+                            entry<ChatKey> {
+                                ChatRoute()
+                            }
+                            entry<WorkoutKey> {
+                                WorkoutRoute(onBack = { backStack.removeLastOrNull() })
+                            }
+                            entry<StatsKey> {
+                                StatsRoute()
+                            }
+                            entry<SettingsKey> {
+                                SettingsRoute(
+                                    onNavigateToProfile = { backStack.add(ProfileKey) },
+                                    onNavigateToAppearance = { backStack.add(AppearanceKey) },
+                                    onNavigateToAISettings = { backStack.add(AISettingsKey) },
+                                    onNavigateToDataImport = { backStack.add(DataImportKey) },
+                                    onNavigateToReminder = { backStack.add(ReminderKey) },
+                                    onNavigateToAbout = { backStack.add(AboutKey) },
+                                )
+                            }
+                            entry<AISettingsKey> {
+                                AISettingsRoute(onBack = { backStack.removeLastOrNull() })
+                            }
+                            entry<ProfileKey> {
+                                ProfileRoute(onBack = { backStack.removeLastOrNull() })
+                            }
+                            entry<AppearanceKey> {
+                                AppearanceRoute(onBack = { backStack.removeLastOrNull() })
+                            }
+                            entry<DataImportKey> {
+                                DataImportRoute(onBack = { backStack.removeLastOrNull() })
+                            }
+                            entry<ReminderKey> {
+                                ReminderRoute(onBack = { backStack.removeLastOrNull() })
+                            }
+                            entry<AboutKey> {
+                                AboutRoute(onBack = { backStack.removeLastOrNull() })
+                            }
+                        },
+                    )
+                }
             }
         }
     }

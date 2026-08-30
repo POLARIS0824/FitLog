@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.fitlog.ui.theme.fitLogColors
 
 /**
  * 统一的设置页卡片容器：圆角 24dp、无阴影、白卡（比页面背景亮一档）。
@@ -33,7 +34,7 @@ fun FitLogCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            containerColor = MaterialTheme.fitLogColors.card,
         ),
         shape = RoundedCornerShape(24.dp),
         modifier = modifier.fillMaxWidth(),

@@ -32,6 +32,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.model.Workout
+import com.example.fitlog.ui.theme.fitLogColors
 import java.time.LocalDate
 
 /**
@@ -95,8 +96,8 @@ fun WorkoutScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    containerColor = MaterialTheme.fitLogColors.pageBackground,
+                    scrolledContainerColor = MaterialTheme.fitLogColors.pageBackground,
                 ),
             )
         },
