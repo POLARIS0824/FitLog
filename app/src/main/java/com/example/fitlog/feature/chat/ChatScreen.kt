@@ -94,7 +94,7 @@ fun ChatScreen(
 ) {
     val stackedSnackbarHostState = rememberStackedSnackbarHostState()
     val listState = rememberLazyListState()
-    // 清空对话需二次确认：操作不可逆，会连同 AI 的上下文记忆一起删除
+    // 清空对话需二次确认：操作不可逆；会话历史删除前会归档为长期记忆，教练仍可引用历史要点
     var showClearDialog by remember { mutableStateOf(false) }
 
     // 错误提示：errorMessage 出现时弹出 StackedSnackbar，展示完毕后清除一次性错误状态
@@ -231,7 +231,7 @@ fun ChatScreen(
             onDismissRequest = { showClearDialog = false },
             title = { Text("清空对话？") },
             text = {
-                Text("将删除全部聊天记录，AI 对你的历史记忆也会一并清除，操作不可恢复。")
+                Text("将删除全部聊天记录与当前会话上下文；此前对话的要点会归档为长期记忆，供教练后续参考。操作不可恢复。")
             },
             confirmButton = {
                 TextButton(
