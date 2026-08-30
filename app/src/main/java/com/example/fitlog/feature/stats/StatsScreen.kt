@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -26,6 +27,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -81,6 +83,7 @@ fun StatsRoute(
         onWeightInputChange = viewModel::onWeightInputChange,
         onWeightSubmit = viewModel::onWeightSubmit,
         onWeightSheetDismissed = viewModel::onWeightSheetDismissed,
+        onErrorShown = viewModel::onErrorShown,
         onBack = onBack,
         modifier = modifier,
     )
@@ -106,6 +109,7 @@ fun StatsScreen(
     onWeightInputChange: (String) -> Unit,
     onWeightSubmit: () -> Unit,
     onWeightSheetDismissed: () -> Unit,
+    onErrorShown: () -> Unit = {},
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -189,6 +193,16 @@ fun StatsScreen(
                 showWeightSheet = false
                 onWeightSheetDismissed()
             },
+        )
+    }
+
+    // 错误提示（数据层异常经独立通道上屏，关闭即清除）
+    uiState.errorMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = onErrorShown,
+            confirmButton = { TextButton(onClick = onErrorShown) { Text("知道了") } },
+            title = { Text("出错了") },
+            text = { Text(message) },
         )
     }
 }

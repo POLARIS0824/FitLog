@@ -15,10 +15,21 @@ import javax.inject.Inject
 class ExerciseRepository @Inject constructor(
     private val exerciseDao: ExerciseDao
 ) {
-    suspend fun insert(exercise: Exercise) = exerciseDao.insert(exercise.toEntity())
+    /**
+     * 写入单条动作（已存在则更新内容）。
+     *
+     * 必须走保行 upsert：SQLite REPLACE 是 DELETE+INSERT，对已存在 id 执行会
+     * 先 DELETE 父行，触发 exercise_logs.exerciseKey 外键 SET_NULL，把历史
+     * 训练日志与动作库的关联静默断开。
+     */
+    suspend fun insert(exercise: Exercise) =
+        exerciseDao.upsertAllPreservingRows(listOf(exercise.toEntity()))
 
+    /**
+     * 批量写入动作（已存在则更新内容），同样保行——见 [insert] 的 REPLACE 警示。
+     */
     suspend fun insertAll(exercises: List<Exercise>) =
-        exerciseDao.insertAll(exercises.map { it.toEntity() })
+        exerciseDao.upsertAllPreservingRows(exercises.map { it.toEntity() })
 
     suspend fun update(exercise: Exercise) = exerciseDao.update(exercise.toEntity())
 

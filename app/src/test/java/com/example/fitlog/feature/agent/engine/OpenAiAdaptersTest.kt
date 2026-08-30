@@ -49,29 +49,42 @@ class OpenAiAdaptersTest {
         )
 
     /**
-     * 断言消息序列满足 OpenAI 协议：每条 role="tool" 消息的 toolCallId
-     * 必须出现在其前方最近的 assistant tool_calls 消息中，且二者之间
-     * 不允许插入其他 assistant/tool 消息（紧跟配对）。
+     * 断言消息序列满足 OpenAI 协议：
+     * - 每条 role="tool" 消息的 toolCallId 必须属于其前方最近一条 assistant 消息的
+     *   tool_calls id 集合（并行调用合法形态：一条 assistant 后跟多条 tool 消息）；
+     * - assistant tool_calls 的 id 集合消费完之前，不得插入新的 assistant 消息
+     *   （否则 tool 响应不再紧跟其调用，严格服务商 400）。
      */
     private fun assertToolMessagesFollowTheirCalls(messages: List<com.example.fitlog.data.remote.dto.MessageDto>) {
-        var lastCallIds: Set<String>? = null // 最近一条 assistant tool_calls 的 id 集合
+        var pendingCallIds: MutableSet<String>? = null // 最近一条 assistant 尚未消费的 tool_call id
         messages.forEach { msg ->
-            when {
-                msg.role == "assistant" && msg.toolCalls != null -> {
-                    lastCallIds = msg.toolCalls!!.map { it.id }.toSet()
+            when (msg.role) {
+                "assistant" -> {
+                    val pending = pendingCallIds
+                    assertTrueMsg(
+                        "assistant 消息出现在未消费完的 tool_calls（$pending）之后",
+                        pending == null || pending.isEmpty(),
+                    )
+                    if (msg.toolCalls != null) {
+                        pendingCallIds = msg.toolCalls.map { it.id }.toMutableSet()
+                    }
                 }
 
-                msg.role == "tool" -> {
-                    val ids = lastCallIds
+                "tool" -> {
+                    val ids = pendingCallIds
                         ?: error("tool 消息（id=${msg.toolCallId}）之前没有任何 assistant tool_calls")
                     assertTrueMsg(
-                        "tool 消息（id=${msg.toolCallId}）未紧跟其 assistant tool_calls（$ids）",
+                        "tool 消息（id=${msg.toolCallId}）不属于其前方 assistant tool_calls（$ids）",
                         msg.toolCallId in ids,
                     )
-                    lastCallIds = null // 配对完成，下一条 tool 必须有新的 tool_calls 在前
+                    ids.remove(msg.toolCallId)
                 }
+
+                else -> Unit
             }
         }
+        val remaining = pendingCallIds
+        assertTrueMsg("assistant tool_calls（$remaining）缺少对应的 tool 响应", remaining == null || remaining.isEmpty())
     }
 
     /** 带失败消息断言条件为真。 */
@@ -167,6 +180,119 @@ class OpenAiAdaptersTest {
         )
         assertEquals(1, messages.count { it.role == "tool" })
         assertToolMessagesFollowTheirCalls(messages)
+    }
+
+    // ──────────────────────────────────────
+    // 并行调用与混合 Content（分派不互斥）
+    // ──────────────────────────────────────
+
+    /**
+     * 并行调用的合法协议形态：一条 assistant 携带多个 tool_calls，
+     * 后跟多条 tool 消息（旧版断言契约把第二条 tool 误判为违规）。
+     */
+    @Test
+    fun `parallel tool calls each get their own tool message`() {
+        val messages = OpenAiAdapters.toOpenAiMessages(
+            systemInstruction = null,
+            contents = listOf(
+                userText("查两次体重"),
+                Content(
+                    role = "model",
+                    parts = listOf(
+                        Part(functionCall = FunctionCall(name = "getBodyMetrics", id = "call-1")),
+                        Part(functionCall = FunctionCall(name = "getBodyMetrics", id = "call-2")),
+                    ),
+                ),
+                toolResponse("getBodyMetrics", "call-1", mapOf("weightKg" to 70.0)),
+                toolResponse("getBodyMetrics", "call-2", mapOf("weightKg" to 71.0)),
+            ),
+        )
+        assertEquals(1, messages.count { it.role == "assistant" })
+        assertEquals(
+            listOf("call-1", "call-2"),
+            messages.first { it.role == "assistant" }.toolCalls!!.map { it.id },
+        )
+        assertEquals(
+            listOf("call-1", "call-2"),
+            messages.filter { it.role == "tool" }.map { it.toolCallId },
+        )
+        assertToolMessagesFollowTheirCalls(messages)
+    }
+
+    /**
+     * 混合 Content：toAdkContent 对并行调用（一个合法一个非法 arguments）的兜底
+     * 会把合法调用与 error 响应存进同一 role="model" Content。合法调用必须保留
+     * （分派互斥会静默丢弃它，其后真正的 tool 结果沦为悬空 tool_call_id），
+     * 非法响应降级为 user 文本。
+     */
+    @Test
+    fun `mixed content keeps call and degrades model-role response`() {
+        val mixed = Content(
+            role = "model",
+            parts = listOf(
+                Part(text = "我来查一下"),
+                Part(
+                    functionCall = FunctionCall(
+                        name = "getBodyMetrics",
+                        args = mapOf("count" to 5),
+                        id = "call-a",
+                    ),
+                ),
+                Part(
+                    functionResponse = FunctionResponse(
+                        name = "getBodyMetrics",
+                        id = "call-b",
+                        response = mapOf("error" to "arguments JSON 解析失败"),
+                    ),
+                ),
+            ),
+        )
+        val messages = OpenAiAdapters.toOpenAiMessages(
+            systemInstruction = null,
+            contents = listOf(
+                userText("查两次体重"),
+                mixed,
+                toolResponse("getBodyMetrics", "call-a", mapOf("weightKg" to 72.5)),
+            ),
+        )
+
+        // 合法调用保留（文本随 assistant 消息携带）
+        val assistant = messages.first { it.role == "assistant" && it.toolCalls != null }
+        assertEquals(listOf("call-a"), assistant.toolCalls!!.map { it.id })
+        assertEquals("我来查一下", assistant.content)
+        // 非法响应降级为 user 文本，不产生 role="tool"
+        assertTrueMsg(
+            "非法参数响应必须降级为 user 文本：$messages",
+            messages.any { it.role == "user" && it.content?.contains("参数解析失败") == true },
+        )
+        // 后续真实工具结果正确配对，且整体满足协议顺序
+        assertEquals("call-a", messages.last().toolCallId)
+        assertEquals(1, messages.count { it.role == "tool" })
+        assertToolMessagesFollowTheirCalls(messages)
+    }
+
+    /**
+     * tool_call_id 配对校验：响应自带的 id 未命中历史已发出的 tool_call
+     * （会话截断/分支场景）时，不得生成悬空 role="tool" 消息，降级为 user 文本。
+     */
+    @Test
+    fun `tool response with unknown id degrades to user text`() {
+        val messages = OpenAiAdapters.toOpenAiMessages(
+            systemInstruction = null,
+            contents = listOf(
+                userText("查体重"),
+                // 没有任何 modelCall：call-ghost 无从配对
+                toolResponse("getBodyMetrics", "call-ghost", mapOf("weightKg" to 72.5)),
+            ),
+        )
+        assertFalseMsg(
+            "未知 id 的响应不得生成 role=tool：$messages",
+            messages.any { it.role == "tool" },
+        )
+        assertTrueMsg(
+            "应降级为 user 文本保留工具结果",
+            messages.any { it.role == "user" && it.content?.contains("[工具 getBodyMetrics 结果]") == true },
+        )
     }
 
     // ──────────────────────────────────────

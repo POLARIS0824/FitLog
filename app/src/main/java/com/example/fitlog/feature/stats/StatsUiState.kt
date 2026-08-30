@@ -118,6 +118,8 @@ data class WeightSheetState(
  * @property overview 概览网格区状态
  * @property heatmap 坚持度热力图区状态（固定 53 周窗口，不随档位变化）
  * @property weight 体重卡区状态（固定 90 天窗口，不随档位变化）
+ * @property errorMessage 数据层异常提示（非 null 时弹对话框，关闭即清除；
+ *   与 TodayViewModel.dataError 同模式——独立错误通道，不终结数据流）
  */
 data class StatsUiState(
     val isLoading: Boolean = true,
@@ -126,4 +128,5 @@ data class StatsUiState(
     val overview: StatsOverviewState = StatsOverviewState(),
     val heatmap: StatsHeatmapState = StatsHeatmapState(),
     val weight: StatsWeightState = StatsWeightState(),
+    val errorMessage: String? = null,
 )

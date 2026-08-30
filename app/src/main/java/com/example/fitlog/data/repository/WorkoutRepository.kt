@@ -50,9 +50,12 @@ class WorkoutRepository @Inject constructor(
      * set_logs 由 exercise_logs 的外键 CASCADE 连带删除，无需显式清理。
      *
      * @param workout 完整训练日志（id 必须已存在）
+     * @throws IllegalStateException 当 [Workout.id] 在库中不存在时抛出——
+     *   此时若继续写子行会以悬空外键触发 SQLiteConstraintException
      */
     suspend fun update(workout: Workout) = db.withTransaction {
-        workoutDao.update(workout.toEntity())
+        val updatedRows = workoutDao.update(workout.toEntity())
+        check(updatedRows > 0) { "Workout id=${workout.id} 不存在，无法更新" }
         exerciseLogDao.deleteByWorkoutId(workout.id)
         insertChildren(workout.id, workout)
     }
@@ -99,9 +102,15 @@ class WorkoutRepository @Inject constructor(
     }
 
     /**
-     * 观察最近一次训练（Today「身体状态」卡片）。
+     * 观察最近一次训练（Today「最近训练」卡片）。
+     *
+     * 必须走级联查询：单实体映射会静默丢弃 exercises，导致
+     * WeekProgressCalculator.resolveLastSessionName 的主导部位推导不可达，
+     * 最近训练永远显示"自由训练"。
      */
-    fun getLatest(): Flow<Workout?> = workoutDao.getLatest().map { it?.toModel() }
+    fun getLatest(): Flow<Workout?> = workoutDao.getRecentWithDetails(1).map { list ->
+        list.firstOrNull()?.toModel()
+    }
 
     /**
      * 观察最近 N 条完整训练日志（Today「最近训练」列表）。

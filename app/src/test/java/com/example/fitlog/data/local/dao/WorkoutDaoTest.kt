@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,17 +45,21 @@ class WorkoutDaoTest {
     }
 
     /**
-     * 测试 getLatest 返回日期最新的一条；空表返回 null。
+     * 测试"取最近一条"走 getRecentWithDetails(1)：空表返回空，非空返回日期最新一条
+     * （单实体 getLatest 查询已移除——其映射会静默丢弃 exercises，禁止回退）。
      */
     @Test
     fun testGetLatest() = runTest {
-        assertNull(dao.getLatest().first())
+        assertTrue(dao.getRecentWithDetails(1).first().isEmpty())
 
         insertWorkout(date = LocalDate.of(2026, 7, 18))
         insertWorkout(date = LocalDate.of(2026, 7, 22))
         insertWorkout(date = LocalDate.of(2026, 7, 20))
 
-        assertEquals(LocalDate.of(2026, 7, 22), dao.getLatest().first()?.date)
+        assertEquals(
+            LocalDate.of(2026, 7, 22),
+            dao.getRecentWithDetails(1).first().singleOrNull()?.workout?.date,
+        )
     }
 
     /**

@@ -15,3 +15,12 @@
 local.properties
 .qoder/
 .workbuddy/
+.kotlin/
+.claude/
+.orca/
+
+# 构建产物与临时日志（历史上多次误提交，统一忽略）
+*.log
+hs_err_pid*.log
+build_adk_list.txt
+appdb_hist_tmp.txt
