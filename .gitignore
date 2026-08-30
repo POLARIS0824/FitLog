@@ -18,6 +18,7 @@ local.properties
 .kotlin/
 .claude/
 .orca/
+.zcode/
 
 # 构建产物与临时日志（历史上多次误提交，统一忽略）
 *.log
