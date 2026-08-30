@@ -41,6 +41,7 @@ import kotlin.coroutines.coroutineContext
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.graphics.lerp
+import com.example.fitlog.ui.theme.fitLogColors
 
 /**
  * Material Expressive 动态双标题 Scaffold（设置页群共享，此前在 6 个屏幕逐字复制）。
@@ -59,7 +60,7 @@ import androidx.compose.ui.graphics.lerp
  * 传入父级标题（如 "Settings"）时滚动过程从父级标题交叉淡入本页标题（子页）。
  *
  * @param title 页面标题（同时用于顶栏小标题与内容区大标题）
- * @param onBack 返回上一页回调
+ * @param onBack 返回上一页回调；null 表示不渲染返回箭头（如底部导航 tab 根页）
  * @param parentTitle 父级页面标题；滚动时顶栏从该标题交叉淡入 [title]，null 表示无父级
  * @param modifier 修饰符
  * @param actions 顶栏右侧动作槽（可选）
@@ -72,7 +73,7 @@ import androidx.compose.ui.graphics.lerp
 @Composable
 fun CollapsingTitleScaffold(
     title: String,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     modifier: Modifier = Modifier,
     parentTitle: String? = null,
     actions: @Composable RowScope.() -> Unit = {},
@@ -124,16 +125,16 @@ fun CollapsingTitleScaffold(
             }
     }
 
-    // 顶栏背景色随滚动进度在 surfaceContainerLow (展开) 与 surfaceContainer (折叠) 之间平滑过渡
+    // 顶栏背景色随滚动进度在页面背景 (展开) 与折叠色 (折叠) 之间平滑过渡
     val topAppBarContainerColor = lerp(
-        MaterialTheme.colorScheme.surfaceContainerLow,
-        MaterialTheme.colorScheme.surfaceContainer,
+        MaterialTheme.fitLogColors.pageBackground,
+        MaterialTheme.fitLogColors.topBarScrolled,
         titleFraction,
     )
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.fitLogColors.pageBackground,
         snackbarHost = snackbarHost,
         topBar = {
             TopAppBar(
@@ -176,11 +177,13 @@ fun CollapsingTitleScaffold(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                        )
+                    onBack?.let { back ->
+                        IconButton(onClick = back) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "返回",
+                            )
+                        }
                     }
                 },
                 actions = actions,

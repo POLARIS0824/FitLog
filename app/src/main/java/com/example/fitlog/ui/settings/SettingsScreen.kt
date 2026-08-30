@@ -36,8 +36,8 @@ import com.example.fitlog.ui.components.TonalIcon
  *
  * Settings 主页是纯导航页（只做分组入口，不含表单），暂无页面状态，
  * 因此不需要 ViewModel。导航回调由上层（NavDisplay）注入。
+ * 主页为底部导航 tab 根页，无返回箭头。
  *
- * @param onBack 返回回调
  * @param onNavigateToProfile 跳转个人资料回调
  * @param onNavigateToAppearance 跳转外观回调
  * @param onNavigateToAISettings 跳转 AI 配置回调
@@ -48,7 +48,6 @@ import com.example.fitlog.ui.components.TonalIcon
  */
 @Composable
 fun SettingsRoute(
-    onBack: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToAppearance: () -> Unit = {},
     onNavigateToAISettings: () -> Unit = {},
@@ -58,7 +57,6 @@ fun SettingsRoute(
     modifier: Modifier = Modifier,
 ) {
     SettingsScreen(
-        onBack = onBack,
         onNavigateToProfile = onNavigateToProfile,
         onNavigateToAppearance = onNavigateToAppearance,
         onNavigateToAISettings = onNavigateToAISettings,
@@ -75,7 +73,6 @@ fun SettingsRoute(
  * 采用与设置页群统一的 Material Expressive 动态双标题模式
  * （交互契约见 [CollapsingTitleScaffold]）。
  *
- * @param onBack 返回上一页
  * @param onNavigateToProfile 导航至个人资料
  * @param onNavigateToAppearance 导航至外观
  * @param onNavigateToAISettings 导航至 AI 配置
@@ -86,7 +83,6 @@ fun SettingsRoute(
  */
 @Composable
 fun SettingsScreen(
-    onBack: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToAppearance: () -> Unit,
     onNavigateToAISettings: () -> Unit,
@@ -97,7 +93,7 @@ fun SettingsScreen(
 ) {
     CollapsingTitleScaffold(
         title = "Settings",
-        onBack = onBack,
+        onBack = null,
         modifier = modifier,
     ) {
         // 分组 1：账号与偏好
@@ -245,7 +241,6 @@ private fun SettingsEntryRow(
 @Composable
 private fun SettingsScreenPreview() {
     SettingsScreen(
-        onBack = {},
         onNavigateToProfile = {},
         onNavigateToAppearance = {},
         onNavigateToAISettings = {},
