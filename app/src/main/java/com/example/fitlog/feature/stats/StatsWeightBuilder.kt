@@ -4,6 +4,7 @@ import com.example.fitlog.model.BodyMetric
 import com.example.fitlog.ui.components.chart.ChartData
 import com.example.fitlog.ui.components.chart.ChartEntry
 import java.time.LocalDate
+import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -60,7 +61,7 @@ object StatsWeightBuilder {
         val latest = sorted.last()
         val deltaText = if (sorted.size >= 2) {
             val delta = latest.weightKg - sorted[sorted.size - 2].weightKg
-            "较上次 %+.1f kg".format(delta)
+            String.format(Locale.US, "较上次 %+.1f kg", delta)
         } else {
             null
         }
@@ -72,7 +73,7 @@ object StatsWeightBuilder {
 
         return StatsWeightState(
             hasData = true,
-            valueText = "%.1f kg".format(latest.weightKg),
+            valueText = String.format(Locale.US, "%.1f kg", latest.weightKg),
             deltaText = deltaText,
             chartData = ChartData(
                 entries = sorted.map { metric ->

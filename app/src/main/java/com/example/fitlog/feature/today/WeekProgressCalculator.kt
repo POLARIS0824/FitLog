@@ -10,6 +10,7 @@ import com.example.fitlog.model.Workout
 import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.ui.components.RingSegment
 import com.example.fitlog.util.TrainingLevelCalculator
+import com.example.fitlog.util.VolumeFormatter
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
@@ -237,7 +238,7 @@ object WeekProgressCalculator {
             } else {
                 null
             },
-            valueText = formatVolume(weekVolume),
+            valueText = VolumeFormatter.formatVolume(weekVolume),
         )
         val pr = ProgressItemState(
             id = "pr",
@@ -317,7 +318,7 @@ object WeekProgressCalculator {
             .maxByOrNull { it.second }
             ?.takeIf { it.second > 0.0 }
             ?: return "暂无增长"
-        return "${growth.first.displayName()} +${formatVolume(growth.second)}"
+        return "${growth.first.displayName()} +${VolumeFormatter.formatVolume(growth.second)}"
     }
 
     // ──────────────────────────────────────
@@ -437,20 +438,12 @@ object WeekProgressCalculator {
         return volumes
     }
 
-    /** 容量格式化：≥1000kg 显示吨（保留一位小数），否则显示 kg。 */
-    private fun formatVolume(volumeKg: Double): String =
-        if (volumeKg >= 1000) {
-            "%.1f 吨".format(volumeKg / 1000)
-        } else {
-            "%.0f kg".format(volumeKg)
-        }
-
     /** 正式组简写：如 "85kg×5"；重量为整数时不带小数点。 */
     private fun formatSetBrief(weightKg: Float, reps: Int): String {
         val weight = if (weightKg % 1.0f == 0.0f) {
             "${weightKg.toInt()}"
         } else {
-            "%.1f".format(weightKg)
+            String.format(java.util.Locale.US, "%.1f", weightKg)
         }
         return "${weight}kg×$reps"
     }

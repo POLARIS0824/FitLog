@@ -76,7 +76,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -648,11 +650,15 @@ private fun WeekProgressSection(
         pageCount = { modes.size },
     )
 
-    // 仅在拖拽释放、动画结束停稳后 (settledPage) 才通知 ViewModel 切换显示模式，彻底解决滑动卡顿
+    // 仅在拖拽释放、动画结束停稳后 (settledPage) 才通知 ViewModel 切换显示模式，彻底解决滑动卡顿。
+    // 守卫用的 displayMode 必须经 rememberUpdatedState 取最新值：本 LaunchedEffect 不随重组
+    // 重启，直接捕获 weekProgress 会拿到首次组合的旧值——滑走再滑回时判等守卫误短路，
+    // VM 的 displayMode 与 Pager 实际页脱钩
+    val guardDisplayMode by rememberUpdatedState(weekProgress.displayMode)
     LaunchedEffect(pagerState) {
-        androidx.compose.runtime.snapshotFlow { pagerState.settledPage }.collect { page ->
+        snapshotFlow { pagerState.settledPage }.collect { page ->
             val selectedMode = modes[page]
-            if (selectedMode != weekProgress.displayMode) {
+            if (selectedMode != guardDisplayMode) {
                 onDisplayModeSelected(selectedMode)
             }
         }

@@ -52,9 +52,11 @@ object AIModule {
 
         val client = OkHttpClient.Builder()
             .addInterceptor(logging)
-            // LLM 非流式响应经常需要几十秒，默认 10s 读超时会误杀正常请求
+            // LLM 非流式响应经常需要几十秒，且 agent 路径带多轮工具调用大 prompt：
+            // 60s 会误杀正常长回复（SocketTimeoutException 只会给用户笼统报错），
+            // 放宽到 180s，长期方案是实现真流式（OpenAiCompatibleModel 已预留方向）
             .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
 

@@ -55,7 +55,8 @@ enum class MiniLineStyle {
  * 新点错峰生长、旧点原地消散。差异仅在绘制层：
  *
  * - **y 轴区间**：[ChartData.yMin]/[ChartData.yMax] 自动裁剪（体重 70-80kg 类数据不必从 0 起）；
- *   区间取动画中的 yMin/yMax 与当前点值、目标线的并集，过渡中途不裁剪
+ *   区间取动画中的 yMin/yMax 与**已入场点**值、目标线的并集，过渡中途不裁剪
+ *   （入场点不计入缩放，见绘制处的注释——否则非零基线数据每次更新整条线被压扁）
  * - **退化区间兜底**：span ≈ 0（全等值 / 空态占位）时所有点画在垂直居中——
  *   配合 [MiniLineStyle.Dotted] 即 Samsung 风格的「无数据」点状平线
  * - **路径透明度 = 所有在场点 alpha 的最小值**：错峰入场期间折线整体淡入，
@@ -133,12 +134,17 @@ fun MiniLineChart(
             .partition { it.isExiting }
         val active = activePoints.sortedBy { it.centerFraction.value }
 
-        // 区间 = 动画中的 yMin/yMax 与当前点值、目标线的并集（过渡中途不裁剪）
+        // 区间 = 动画中的 yMin/yMax 与**已入场点**（alpha≈1）值、目标线的并集。
+        // 入场点从 0 值升起、alpha 同步淡入，若计入缩放区间，会把非零基线
+        // （体重 72-76kg）的 span 拉到 0-76，全部既有点在入场期间被压扁再弹回；
+        // 不计入则入场点画在绘图区下缘之外、由卡片裁剪——呈现为下文所述
+        // 「从底边升起」的既定形态。退场点本就不在此列（仅画孤点）。
         val goal = data.goalLine?.takeIf { it > 0f }
-        val activeMax = active.maxOfOrNull { it.value.value } ?: Float.NEGATIVE_INFINITY
-        val activeMin = active.minOfOrNull { it.value.value } ?: Float.POSITIVE_INFINITY
-        val effectiveMax = max(state.animatedYMax.value, max(activeMax, goal ?: Float.NEGATIVE_INFINITY))
-        val effectiveMin = min(state.animatedYMin.value, min(activeMin, goal ?: Float.POSITIVE_INFINITY))
+        val settled = active.filter { it.alpha.value >= 0.999f }
+        val settledMax = settled.maxOfOrNull { it.value.value } ?: Float.NEGATIVE_INFINITY
+        val settledMin = settled.minOfOrNull { it.value.value } ?: Float.POSITIVE_INFINITY
+        val effectiveMax = max(state.animatedYMax.value, max(settledMax, goal ?: Float.NEGATIVE_INFINITY))
+        val effectiveMin = min(state.animatedYMin.value, min(settledMin, goal ?: Float.POSITIVE_INFINITY))
         val span = effectiveMax - effectiveMin
 
         // 退化区间（全等值/空态）：垂直居中——空态点状平线的几何来源

@@ -721,8 +721,9 @@ private fun ModelCard(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    // SecondaryEditable：点输入区正常聚焦弹键盘；点右侧箭头只展开列表，不弹键盘
-                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                    // PrimaryEditable 是 M3 可编辑下拉的文本框锚点：点击正常聚焦定位光标、
+                    // 弹键盘并可编辑（PrimaryNotEditable 是只读锚点，点击只展开菜单不聚焦）
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),
             )
             if (options.isNotEmpty()) {
                 ExposedDropdownMenu(

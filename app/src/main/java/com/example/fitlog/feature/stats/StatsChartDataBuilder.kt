@@ -4,6 +4,7 @@ import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.ui.components.chart.ChartData
 import com.example.fitlog.ui.components.chart.ChartEntry
+import com.example.fitlog.util.VolumeFormatter
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -118,7 +119,7 @@ object StatsChartDataBuilder {
         volumeKg >= 10_000f -> "${(volumeKg / 1000).toInt()}t"
         volumeKg >= 1_000f -> {
             val tonnes = volumeKg / 1000
-            if (tonnes % 1f == 0f) "${tonnes.toInt()}t" else "%.1ft".format(tonnes)
+            if (tonnes % 1f == 0f) "${tonnes.toInt()}t" else String.format(Locale.US, "%.1ft", tonnes)
         }
         else -> "${volumeKg.toInt()}"
     }
@@ -186,13 +187,11 @@ object StatsChartDataBuilder {
         return (nice * magnitude).toFloat()
     }
 
-    /** 头部摘要的容量格式化：≥1000kg 显示吨（一位小数），否则整数千克（沿用 WeekProgressCalculator 口径）。 */
-    internal fun formatVolume(volumeKg: Double): String =
-        if (volumeKg >= 1000) {
-            "%.1f 吨".format(volumeKg / 1000)
-        } else {
-            "${volumeKg.toInt()} kg"
-        }
+    /**
+     * 头部摘要的容量格式化：统一口径委托 [VolumeFormatter]——此前本处用截断
+     * （toInt）而 Today 用四舍五入，同一容量两页显示不一致（850.9 → 850/851）。
+     */
+    internal fun formatVolume(volumeKg: Double): String = VolumeFormatter.formatVolume(volumeKg)
 
     /** 区间文案：同年省略起点年份（"7月19日 – 7月25日"），跨年两端都带年份。 */
     private fun formatRange(from: LocalDate, to: LocalDate): String {

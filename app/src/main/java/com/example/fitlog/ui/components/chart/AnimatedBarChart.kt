@@ -25,9 +25,18 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.ui.theme.FitLogTheme
+import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+
+/**
+ * 默认 y 轴数值格式化（整数；Locale.US 固定小数点，避免本地化把数字变形）。
+ *
+ * 具名单例而非参数默认 lambda：默认表达式每次求值都是新实例（lambda 相等性为
+ * 身份比较），会使 y 刻度/目标线预测量的 remember 逐帧失效。
+ */
+private val defaultAxisValueFormatter: (Float) -> String = { String.format(Locale.US, "%.0f", it) }
 
 /**
  * 通用动画柱状图（自定义 Canvas 绘制）。
@@ -69,7 +78,7 @@ import kotlin.math.min
 fun AnimatedBarChart(
     data: ChartData,
     modifier: Modifier = Modifier,
-    valueFormatter: (Float) -> String = { "%.0f".format(it) },
+    valueFormatter: (Float) -> String = defaultAxisValueFormatter,
     state: AnimatedChartState = rememberAnimatedChartState(
         // Preview 不执行 LaunchedEffect，播种定形态避免空图；运行时传 null 生长入场
         if (LocalInspectionMode.current) data else null,

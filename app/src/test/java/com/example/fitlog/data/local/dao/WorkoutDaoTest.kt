@@ -63,6 +63,29 @@ class WorkoutDaoTest {
     }
 
     /**
+     * 测试 sourceFileName 唯一索引：同源文件重复插入被 IGNORE 拒绝（返回 -1），
+     * NULL sourceFileName 不参与唯一约束（手工记录可多条并存）。
+     */
+    @Test
+    fun testInsertDuplicateSourceFileName_ignored() = runTest {
+        val first = dao.insert(
+            WorkoutEntity(date = LocalDate.of(2026, 7, 20), sourceFileName = "2026-07-20.md", rawContent = null),
+        )
+        val duplicate = dao.insert(
+            WorkoutEntity(date = LocalDate.of(2026, 7, 20), sourceFileName = "2026-07-20.md", rawContent = null),
+        )
+        assertTrue(first > 0)
+        assertEquals(-1L, duplicate)
+
+        assertTrue(
+            dao.insert(WorkoutEntity(date = LocalDate.of(2026, 7, 21), sourceFileName = null, rawContent = null)) > 0,
+        )
+        assertTrue(
+            dao.insert(WorkoutEntity(date = LocalDate.of(2026, 7, 22), sourceFileName = null, rawContent = null)) > 0,
+        )
+    }
+
+    /**
      * 测试 getRecentWithDetails 按日期降序截断到 limit。
      */
     @Test

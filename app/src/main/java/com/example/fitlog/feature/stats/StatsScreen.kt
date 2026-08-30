@@ -261,12 +261,15 @@ private fun VolumeChartCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (chart.hasData) {
+            // 具象化进 remember：方法引用虽通常被编译器缓存为单例，显式固化
+            // 保证 AnimatedBarChart 的 y 刻度/目标线预测量缓存不因 key 变化逐帧重算
+            val axisFormatter = remember { StatsChartDataBuilder::formatAxisValue }
             AnimatedBarChart(
                 data = chart.chartData,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(240.dp),
-                valueFormatter = StatsChartDataBuilder::formatAxisValue,
+                valueFormatter = axisFormatter,
                 contentDescription = "训练容量柱状图，${chart.rangeText}，日均 ${chart.averageVolumeText}",
             )
         } else {

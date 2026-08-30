@@ -8,12 +8,14 @@ import com.example.fitlog.data.local.dao.AIProviderConfigDao
 import com.example.fitlog.data.mapper.toEntity
 import com.example.fitlog.data.mapper.toModel
 import com.example.fitlog.model.ai.AIProviderConfig
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -67,18 +69,23 @@ class AIProviderConfigRepository @Inject constructor(
     /**
      * 新增 AI 服务商配置。
      *
-     * [config.apiKey] 是明文，在 [toEntity] 转换时自动加密。
+     * [config.apiKey] 是明文，在 [toEntity] 转换时自动加密——Keystore 是跨进程
+     * IPC + AES 运算，加密须在 IO 线程执行（主线程调用会造成卡顿/ANR 风险）。
      * 若 ID 已存在则替换（由 DAO 的 [OnConflictStrategy.REPLACE] 保证）。
      */
     suspend fun insert(config: AIProviderConfig) {
-        aiProviderConfigDao.insert(config.toEntity())
+        withContext(Dispatchers.IO) {
+            aiProviderConfigDao.insert(config.toEntity())
+        }
     }
 
     /**
-     * 更新已有 AI 服务商配置。
+     * 更新已有 AI 服务商配置（apiKey 经 [toEntity] 加密，见 [insert] 的线程说明）。
      */
     suspend fun update(config: AIProviderConfig) {
-        aiProviderConfigDao.update(config.toEntity())
+        withContext(Dispatchers.IO) {
+            aiProviderConfigDao.update(config.toEntity())
+        }
     }
 
     /**
@@ -96,11 +103,14 @@ class AIProviderConfigRepository @Inject constructor(
     /**
      * 删除 AI 服务商配置。
      *
+     * 走按 id 的 SQL 删除：@Delete 需要构造完整 entity，会让删除被迫先做一次
+     * 无意义的 Keystore 加密（Keystore 异常时连删除都会失败）。
+     *
      * 注意：不检查 [AIProviderConfig.isPreset]，
      * 是否允许删除预设配置由 UI 层控制（预设配置不显示删除按钮）。
      */
     suspend fun delete(config: AIProviderConfig) {
-        aiProviderConfigDao.delete(config.toEntity())
+        aiProviderConfigDao.deleteById(config.id)
         if (activeProviderId.first() == config.id) {
             clearActiveProviderId()
         }
@@ -109,11 +119,14 @@ class AIProviderConfigRepository @Inject constructor(
     /**
      * 获取所有已保存的 AI 服务商配置。
      *
-     * 返回时 [AIProviderConfig.apiKey] 已解密为明文，可直接使用。
+     * 返回时 [AIProviderConfig.apiKey] 已解密为明文（解密在 IO 线程执行，
+     * 见 [insert] 的线程说明）。
      */
     fun getAIProviders(): Flow<List<AIProviderConfig>> {
         return aiProviderConfigDao.getAll().map { list ->
-            list.map { it.toModel() }
+            withContext(Dispatchers.IO) {
+                list.map { it.toModel() }
+            }
         }
     }
 
@@ -123,7 +136,9 @@ class AIProviderConfigRepository @Inject constructor(
      * @return 配置（含已解密的 API Key），若不存在则返回 `null`
      */
     suspend fun getById(id: String): AIProviderConfig? {
-        return aiProviderConfigDao.getById(id)?.toModel()
+        return withContext(Dispatchers.IO) {
+            aiProviderConfigDao.getById(id)?.toModel()
+        }
     }
 
     /**
@@ -189,8 +204,11 @@ class AIProviderConfigRepository @Inject constructor(
             flowOf(null)
         } else {
             // 挂到 Room 的响应式查询上：配置字段（baseUrl/apiKey 等）被修改时
-            // 重发，下游（AgentEngine 重建）才能感知；getById 一次性查询做不到
-            aiProviderConfigDao.getByIdFlow(id).map { it?.toModel() }
+            // 重发，下游（AgentEngine 重建）才能感知；getById 一次性查询做不到。
+            // 解密在 IO 线程执行（每次重发都会触发一次 Keystore 运算）
+            aiProviderConfigDao.getByIdFlow(id).map { entity ->
+                withContext(Dispatchers.IO) { entity?.toModel() }
+            }
         }
     }
 }

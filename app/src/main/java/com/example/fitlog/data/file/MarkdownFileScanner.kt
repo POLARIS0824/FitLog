@@ -69,7 +69,9 @@ class MarkdownFileScanner @Inject constructor() {
         val treeDocId = DocumentsContract.getTreeDocumentId(treeUri)
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, treeDocId)
 
-        contentResolver.query(
+        // query 返回 null 表示 provider 拒绝枚举（非法 Uri/权限被回收等）——
+        // 必须以失败条目呈现，而非静默空结果让调用方误判为"空文件夹"
+        val cursor = contentResolver.query(
             childrenUri,
             arrayOf(
                 DocumentsContract.Document.COLUMN_DOCUMENT_ID,
@@ -78,7 +80,17 @@ class MarkdownFileScanner @Inject constructor() {
             null,
             null,
             null,
-        )?.use { cursor ->
+        )
+        if (cursor == null) {
+            return ScanResult(
+                successes = emptyList(),
+                failures = listOf(
+                    Failure(treeUri.lastPathSegment ?: "", "无法枚举目录（内容提供方拒绝了查询）"),
+                ),
+            )
+        }
+
+        cursor.use { cursor ->
             // 游标列读取也纳入单文件容错：个别 provider 返回缺列时跳过该 provider
             // 的本次枚举，而不是把整个扫描炸掉（调用方只看到一个失败而非全部文件）
             val idColumn = try {
@@ -114,7 +126,8 @@ class MarkdownFileScanner @Inject constructor() {
                     failures.add(Failure(fileName, "文件名日期解析失败"))
                 } catch (e: Exception) {
                     failures.add(Failure(fileName, "读取失败: ${e.message}"))
-                }            }
+                }
+            }
         }
 
         return ScanResult(successes, failures)
