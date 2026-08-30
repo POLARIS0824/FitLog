@@ -22,7 +22,8 @@ import org.junit.runner.RunWith
 /**
  * [ChatScreen] 的 Compose UI 仪器化测试。
  *
- * 验证输入框事件转发、发送按钮的启用/禁用与"AI 正在思考"提示的可见性。
+ * 验证输入框事件转发、发送按钮的启用/禁用、进行中时间线的可见性，
+ * 以及 assistant 消息时间线的折叠/展开。
  *
  * 消息渲染路径（[UserMessageBubble] / AI 纯文本）待后续补充覆盖。
  */
@@ -77,24 +78,27 @@ class ChatScreenTest {
     }
 
     /**
-     * 测试发送中状态：发送按钮被禁用，且显示"AI 正在思考"提示。
+     * 测试发送中状态：发送按钮被禁用，且列表尾部显示进行中的执行过程时间线。
      */
     @Test
     fun sendingState_disablesButtonAndShowsThinkingIndicator() {
         composeRule.setContent {
             ChatScreen(
-                uiState = ChatUiState(isSending = true),
+                uiState = ChatUiState(
+                    isSending = true,
+                    activeRun = ActiveRun(runId = "test-run"),
+                ),
                 onInputChange = {},
                 onSend = {},
             )
         }
 
         composeRule.onNodeWithContentDescription("发送").assertIsNotEnabled()
-        composeRule.onNodeWithText("AI 正在思考…").assertIsDisplayed()
+        composeRule.onNodeWithText("正在思考", substring = true).assertIsDisplayed()
     }
 
     /**
-     * 测试非发送中状态：发送按钮可用，且不显示"AI 正在思考"提示。
+     * 测试非发送中状态：发送按钮可用，且不显示进行中的时间线。
      */
     @Test
     fun idleState_enablesButtonAndHidesThinkingIndicator() {
@@ -107,6 +111,50 @@ class ChatScreenTest {
         }
 
         composeRule.onNodeWithContentDescription("发送").assertIsEnabled()
-        composeRule.onNodeWithText("AI 正在思考…").assertDoesNotExist()
+        composeRule.onNodeWithText("正在思考", substring = true).assertDoesNotExist()
+    }
+
+    /**
+     * 测试含步骤的 assistant 消息：默认渲染折叠的时间线（"已思考 Xs"），
+     * 点击后展开可见步骤行。
+     */
+    @Test
+    fun assistantMessageWithSteps_rendersCollapsibleTimeline() {
+        val steps = listOf(
+            AgentStepUi(id = 1, type = AgentStepType.THINKING, label = "我先查一下训练记录", elapsedMs = 1_000),
+            AgentStepUi(
+                id = 2,
+                type = AgentStepType.TOOL_CALL,
+                toolKey = "getRecentWorkouts",
+                label = "查询最近训练",
+                detail = "最近 5 次",
+                elapsedMs = 2_000,
+            ),
+        )
+        composeRule.setContent {
+            ChatScreen(
+                uiState = ChatUiState(
+                    messages = listOf(
+                        ChatUiMessage(
+                            id = 10,
+                            role = "assistant",
+                            content = "基于你的训练数据，建议……",
+                            steps = steps,
+                            durationMs = 45_000,
+                        ),
+                    ),
+                ),
+                onInputChange = {},
+                onSend = {},
+            )
+        }
+
+        composeRule.onNodeWithText("已思考 45s").assertIsDisplayed()
+        composeRule.onNodeWithText("查询最近训练").assertDoesNotExist()
+
+        composeRule.onNodeWithText("已思考 45s").performClick()
+
+        composeRule.onNodeWithText("查询最近训练").assertIsDisplayed()
+        composeRule.onNodeWithText("最近 5 次").assertIsDisplayed()
     }
 }

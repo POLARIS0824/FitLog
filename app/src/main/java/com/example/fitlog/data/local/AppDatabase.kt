@@ -3,8 +3,10 @@ package com.example.fitlog.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.example.fitlog.data.local.dao.AgentStepDao
 import com.example.fitlog.data.local.dao.AIProviderConfigDao
 import com.example.fitlog.data.local.dao.BodyMetricDao
+import com.example.fitlog.data.local.dao.ChatMessageDao
 import com.example.fitlog.data.local.dao.ExerciseDao
 import com.example.fitlog.data.local.dao.ExerciseLogDao
 import com.example.fitlog.data.local.dao.SetLogDao
@@ -14,6 +16,8 @@ import com.example.fitlog.data.local.dao.WorkoutPlanDao
 import com.example.fitlog.data.local.entity.AIProviderConfigEntity
 import com.example.fitlog.data.local.entity.BodyMetricEntity
 import com.example.fitlog.data.local.entity.ExerciseEntity
+import com.example.fitlog.data.local.entity.chat.AgentStepEntity
+import com.example.fitlog.data.local.entity.chat.ChatMessageEntity
 import com.example.fitlog.data.local.entity.workout.ExerciseLogEntity
 import com.example.fitlog.data.local.entity.plan.PlannedSessionEntity
 import com.example.fitlog.data.local.entity.workout.SetLogEntity
@@ -25,7 +29,7 @@ import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
  * Room 数据库入口，管理以下表：
  * [UserProfileEntity]、[WorkoutEntity]、[ExerciseLogEntity]、[SetLogEntity]、
  * [AIProviderConfigEntity]、[WorkoutPlanEntity]、[PlannedSessionEntity]、
- * [BodyMetricEntity]。
+ * [BodyMetricEntity]、[ChatMessageEntity]、[AgentStepEntity]。
  */
 @TypeConverters(ExerciseConverters::class, LocalDateConverters::class, PlanConverters::class)
 @Database(
@@ -39,8 +43,10 @@ import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
         WorkoutPlanEntity::class,
         PlannedSessionEntity::class,
         BodyMetricEntity::class,
+        ChatMessageEntity::class,
+        AgentStepEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -84,4 +90,14 @@ abstract class AppDatabase : RoomDatabase() {
      * 提供 [BodyMetricDao] 实例。
      */
     abstract fun bodyMetricDao(): BodyMetricDao
+
+    /**
+     * 提供 [ChatMessageDao] 实例。
+     */
+    abstract fun chatMessageDao(): ChatMessageDao
+
+    /**
+     * 提供 [AgentStepDao] 实例。
+     */
+    abstract fun agentStepDao(): AgentStepDao
 }

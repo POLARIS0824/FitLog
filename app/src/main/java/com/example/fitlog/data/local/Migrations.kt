@@ -50,8 +50,52 @@ object Migrations {
     }
 
     /**
+     * 7 → 8：新增 AI 教练对话持久化两张表。
+     *
+     * - `chat_messages`：聊天 UI 的消息事实源（此前仅 ADK 会话库持有历史，UI 无法
+     *   挂载过程数据）；assistant 行经 `runId` 关联产生它的 Agent 运行。
+     * - `agent_steps`：Agent 执行过程时间线的单步记录（思考/工具调用/确认请求），
+     *   经 `runId` 挂到消息上供回放展开。
+     *
+     * 均为新表（CREATE TABLE + 索引），不触碰既有数据。
+     */
+    private val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `chat_messages` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`role` TEXT NOT NULL, " +
+                    "`content` TEXT NOT NULL, " +
+                    "`runId` TEXT, " +
+                    "`durationMs` INTEGER, " +
+                    "`createdAt` INTEGER NOT NULL)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_chat_messages_runId` " +
+                    "ON `chat_messages` (`runId`)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `agent_steps` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`runId` TEXT NOT NULL, " +
+                    "`stepOrder` INTEGER NOT NULL, " +
+                    "`type` TEXT NOT NULL, " +
+                    "`toolKey` TEXT, " +
+                    "`label` TEXT NOT NULL, " +
+                    "`detail` TEXT, " +
+                    "`elapsedMs` INTEGER NOT NULL, " +
+                    "`createdAt` INTEGER NOT NULL)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_agent_steps_runId_stepOrder` " +
+                    "ON `agent_steps` (`runId`, `stepOrder`)",
+            )
+        }
+    }
+
+    /**
      * 全部已注册迁移，按版本升序。
      * `DatabaseModule` 经 `addMigrations(*ALL_MIGRATIONS)` 挂载。
      */
-    val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_6_7)
+    val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_6_7, MIGRATION_7_8)
 }

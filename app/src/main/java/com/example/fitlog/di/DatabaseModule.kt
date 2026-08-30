@@ -1,7 +1,9 @@
 package com.example.fitlog.di
 
+import com.example.fitlog.data.local.dao.AgentStepDao
 import com.example.fitlog.data.local.dao.AIProviderConfigDao
 import com.example.fitlog.data.local.dao.BodyMetricDao
+import com.example.fitlog.data.local.dao.ChatMessageDao
 import com.example.fitlog.data.local.dao.ExerciseDao
 import com.example.fitlog.data.local.dao.ExerciseLogDao
 import com.example.fitlog.data.local.dao.SetLogDao
@@ -84,6 +86,16 @@ object DatabaseModule {
     @Provides
     fun provideBodyMetricDao(database: AppDatabase): BodyMetricDao {
         return database.bodyMetricDao()
+    }
+
+    @Provides
+    fun provideChatMessageDao(database: AppDatabase): ChatMessageDao {
+        return database.chatMessageDao()
+    }
+
+    @Provides
+    fun provideAgentStepDao(database: AppDatabase): AgentStepDao {
+        return database.agentStepDao()
     }
 
     @Provides

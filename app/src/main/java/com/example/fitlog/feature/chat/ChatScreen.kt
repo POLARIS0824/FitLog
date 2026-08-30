@@ -40,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.fitlog.model.ai.ChatMessage
 import com.example.fitlog.ui.components.StackedSnackbarHost
 import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 
@@ -110,10 +109,14 @@ fun ChatScreen(
         }
     }
 
-    // 新消息/发送中指示出现时自动滚动到底部，保证 AI 回复对用户可见
-    // （否则用户向上翻过历史后，回复与"AI 正在思考…"都渲染在屏幕外）
-    LaunchedEffect(uiState.messages.size, uiState.isSending) {
-        val lastIndex = uiState.messages.size - 1 + if (uiState.isSending) 1 else 0
+    // 新消息/时间线步骤追加时自动滚动到底部，保证 AI 回复与最新步骤对用户可见
+    // （否则用户向上翻过历史后，回复与进行中的时间线都渲染在屏幕外）
+    LaunchedEffect(
+        uiState.messages.size,
+        uiState.activeRun != null,
+        uiState.activeRun?.steps?.size,
+    ) {
+        val lastIndex = uiState.messages.lastIndex + if (uiState.activeRun != null) 1 else 0
         if (lastIndex >= 0) {
             listState.animateScrollToItem(lastIndex)
         }
@@ -163,25 +166,39 @@ fun ChatScreen(
                     if (msg.role == "user") {
                         UserMessageBubble(msg)
                     } else {
-                        // AI 回复不使用气泡，直接纯文本展示
-                        SelectionContainer {
-                            Text(
-                                text = msg.content,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                            )
+                        // AI 回复 = 过程时间线卡片（有步骤时）+ 无气泡纯文本
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        ) {
+                            if (msg.steps.isNotEmpty()) {
+                                AgentProcessCard(
+                                    steps = msg.steps,
+                                    isRunning = false,
+                                    elapsedMs = msg.durationMs ?: 0L,
+                                    initiallyExpanded = false,
+                                    modifier = Modifier.padding(bottom = 8.dp),
+                                )
+                            }
+                            SelectionContainer {
+                                Text(
+                                    text = msg.content,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                            }
                         }
                     }
                 }
-                // ── 字段 2: isSending → 列表末尾的"AI 正在输入..." ──
-                if (uiState.isSending) {
-                    item {
-                        Text(
-                            text = "AI 正在思考…",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // ── 字段 2: activeRun → 列表末尾展开的执行过程时间线 ──
+                uiState.activeRun?.let { run ->
+                    item(key = "active_run") {
+                        AgentProcessCard(
+                            steps = run.steps,
+                            isRunning = true,
+                            awaitingConfirmation = run.awaitingConfirmation,
+                            elapsedMs = run.activeMs,
+                            initiallyExpanded = true,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
                     }
@@ -267,7 +284,7 @@ private fun ToolConfirmationDialog(
         text = {
             Column {
                 Text(
-                    text = "工具：" + pending.toolName,
+                    text = "工具：" + AgentStepFormatter.toolLabel(pending.toolName),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Spacer(Modifier.height(8.dp))
@@ -308,7 +325,7 @@ private fun ToolConfirmationDialog(
  * AI 回复不使用气泡（见 [ChatScreen] 消息列表分支）。
  */
 @Composable
-fun UserMessageBubble(message: ChatMessage) {
+fun UserMessageBubble(message: ChatUiMessage) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
