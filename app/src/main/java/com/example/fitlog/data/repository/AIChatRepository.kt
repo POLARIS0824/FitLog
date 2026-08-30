@@ -113,9 +113,14 @@ class AIChatRepository @Inject constructor(
             )
 
             // ── 步骤 4: 提取第一条回复 ──
-            val choice = response.choices.firstOrNull()
+            // HTTP 200 但 body 为错误体（配额/内容审查等）时透传服务商真实原因，
+            // 否则只能报笼统的解析失败
+            response.error?.message?.takeIf { it.isNotBlank() }?.let { message ->
+                return Result.failure(IllegalStateException(message))
+            }
+            val choice = response.choices?.firstOrNull()
                 ?: return Result.failure(
-                    IllegalStateException("AI 未返回任何回复")
+                    IllegalStateException("AI 未返回任何回复"),
                 )
 
             // ── 步骤 5: DTO 转领域模型并返回 ──

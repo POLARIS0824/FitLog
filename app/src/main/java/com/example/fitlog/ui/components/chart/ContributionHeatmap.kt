@@ -56,6 +56,15 @@ import java.time.format.TextStyle as JavaTextStyle
 private const val ENTRANCE_SWEEP = 0.35f
 
 /**
+ * 默认月标签格式化的具名单例。
+ *
+ * 不能写成参数默认 lambda：默认表达式每次调用都产生新实例（lambda 相等性为身份比较），
+ * 会使 `remember(monthLabels, labelStyle, monthLabelOf)` 的月标签预测量逐帧失效。
+ */
+private val defaultMonthLabelOf: (Month) -> String =
+    { it.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault()) }
+
+/**
  * GitHub 风格的贡献热力图：7 行（周一..周日）× 周列的圆角格子矩阵，
  * 颜色深浅表示当日训练量强度。
  *
@@ -129,7 +138,7 @@ fun ContributionHeatmap(
     cellSize: Dp = 12.dp,
     cellSpacing: Dp = 3.dp,
     weekdayLabels: List<String> = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
-    monthLabelOf: (Month) -> String = { it.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault()) },
+    monthLabelOf: (Month) -> String = defaultMonthLabelOf,
     onDayClick: ((LocalDate) -> Unit)? = null,
     animationSpec: AnimationSpec<Float> = tween(600, easing = FastOutSlowInEasing),
     scrollToEndInitially: Boolean = true,

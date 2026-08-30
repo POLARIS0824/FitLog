@@ -40,6 +40,15 @@ interface AIProviderConfigDao {
     suspend fun delete(entity: AIProviderConfigEntity)
 
     /**
+     * 按 ID 删除配置（仅需主键，无需构造实体）。
+     *
+     * @param id 配置唯一标识
+     * @return 受影响行数（0 = 该 id 不存在）
+     */
+    @Query("DELETE FROM ai_provider_configs WHERE id = :id")
+    suspend fun deleteById(id: String): Int
+
+    /**
      * 根据 ID 查询配置。
      *
      * @param id 配置唯一标识

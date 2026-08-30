@@ -18,12 +18,16 @@ import java.time.LocalDate
  * @property feelings 训练感受/备注，可选
  * @property startedAt 训练开始时间（epoch millis），可选；与 [endedAt] 的差值即训练时长
  * @property endedAt 训练结束时间（epoch millis），可选
- * @property sourceFileName 来源 file 文件名，如 "2026-05-07.md"
+ * @property sourceFileName 来源 file 文件名，如 "2026-05-07.md"；唯一（NULL 不受约束），
+ *   导入幂等性由 schema 保证而非应用层 check-then-insert
  * @property rawContent 原始 file 全文，便于 AI 解析出错时对照排查
  */
 @Entity(
     tableName = "workouts",
-    indices = [Index(value = ["date"])],
+    indices = [
+        Index(value = ["date"]),
+        Index(value = ["sourceFileName"], unique = true),
+    ],
 )
 data class WorkoutEntity(
     @PrimaryKey(autoGenerate = true)

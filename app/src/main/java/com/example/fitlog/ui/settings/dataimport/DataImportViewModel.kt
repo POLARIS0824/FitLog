@@ -48,6 +48,13 @@ class DataImportViewModel @Inject constructor(
                         isScanning = false,
                         successes = result.successes,
                         failures = result.failures,
+                        // 空结果同样要给反馈：provider 拒绝枚举时扫描器已返回失败条目，
+                        // 这里兜底"文件夹里没有 .md"——否则 spinner 停止后界面毫无变化
+                        message = if (result.successes.isEmpty() && result.failures.isEmpty()) {
+                            "所选文件夹中没有找到可导入的训练日志文件"
+                        } else {
+                            null
+                        },
                     )
                 }
             } catch (e: CancellationException) {
@@ -60,7 +67,13 @@ class DataImportViewModel @Inject constructor(
         }
     }
 
-    /** 导入扫描结果：跳过已存在的文件，其余写入数据库。 */
+    /**
+     * 导入扫描结果：写入数据库，重复文件由 `sourceFileName` 唯一索引 +
+     * IGNORE 策略在数据库层拒绝（insert 返回 -1 计入跳过）。
+     *
+     * 不再用应用层 existsBySourceFileName 前置查询做去重——check-then-insert
+     * 存在 TOCTOU 窗口，且插入返回值此前被忽略会虚报"新增"计数。
+     */
     fun onImport() {
         val scanned = _uiState.value.successes
         if (scanned.isEmpty()) return
@@ -70,22 +83,18 @@ class DataImportViewModel @Inject constructor(
             var skipped = 0
             try {
                 scanned.forEach { item ->
-                    if (workoutRepository.existsBySourceFileName(item.fileName)) {
-                        skipped++
-                    } else {
-                        workoutRepository.insert(
-                            Workout(
-                                id = 0,
-                                userId = 0,
-                                date = item.date,
-                                exercises = emptyList(),
-                                feelings = null,
-                                sourceFileName = item.fileName,
-                                rawContent = item.content,
-                            )
+                    val insertedId = workoutRepository.insert(
+                        Workout(
+                            id = 0,
+                            userId = 0,
+                            date = item.date,
+                            exercises = emptyList(),
+                            feelings = null,
+                            sourceFileName = item.fileName,
+                            rawContent = item.content,
                         )
-                        imported++
-                    }
+                    )
+                    if (insertedId == -1L) skipped++ else imported++
                 }
                 _uiState.update {
                     it.copy(

@@ -77,7 +77,18 @@ class OpenAiCompatibleModel(
                 headers = config.type.buildHeaders(config.apiKey),
                 request = dto,
             )
-            val choice = response.choices.firstOrNull()
+            // 部分服务商以 HTTP 200 携带错误体（配额/内容审查/网关异常）：优先透传
+            // 服务商真实原因，否则 choices 缺失只会表现为笼统的解析失败
+            response.error?.message?.takeIf { it.isNotBlank() }?.let { message ->
+                emit(
+                    LlmResponse(
+                        errorMessage = message,
+                        errorCode = "PROVIDER_ERROR",
+                    ),
+                )
+                return@flow
+            }
+            val choice = response.choices?.firstOrNull()
             if (choice == null) {
                 emit(
                     LlmResponse(

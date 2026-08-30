@@ -1,6 +1,7 @@
 package com.example.fitlog.ui.components
 
 import android.content.res.Configuration
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -38,11 +39,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -313,13 +317,17 @@ private fun MetricRingChart(
     // 颜色解析须在 Canvas 绘制作用域之外完成（draw lambda 非 Composable）
     val resolved = segments.map { it to ringSegmentColor(it.colorKey) }
     val trackColor = contentColor.copy(alpha = 0.10f)
-    val animatedSweep by animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = tween(durationMillis = 800),
-        label = "ringSweep",
-    )
+    // 扫入动画必须用 Animatable 驱动：animate*AsState 首组合初值即目标值（无动画），
+    // 且 target 恒为 1f 永不变化——旧实现是永不运行的动画（KDoc 宣称的扫入从未播放）。
+    // Preview 中 LaunchedEffect 不执行，播种定形态避免空环
+    val isInspection = LocalInspectionMode.current
+    val sweep = remember(isInspection) { Animatable(if (isInspection) 1f else 0f) }
+    LaunchedEffect(Unit) {
+        sweep.animateTo(1f, tween(durationMillis = 800))
+    }
 
     Canvas(modifier = modifier) {
+        val animatedSweep = sweep.value
         val stroke = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Butt)
         val diameter = min(size.width, size.height) - stroke.width
         if (diameter <= 0f) return@Canvas
