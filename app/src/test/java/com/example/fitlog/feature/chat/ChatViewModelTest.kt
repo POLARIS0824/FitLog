@@ -1,5 +1,9 @@
 package com.example.fitlog.feature.chat
 
+import com.example.fitlog.data.local.dao.AgentStepDao
+import com.example.fitlog.data.local.dao.ChatMessageDao
+import com.example.fitlog.data.local.entity.chat.AgentStepEntity
+import com.example.fitlog.data.local.entity.chat.ChatMessageEntity
 import com.example.fitlog.feature.agent.engine.AgentEngine
 import com.google.adk.kt.events.Event
 import com.google.adk.kt.types.Content
@@ -75,23 +79,95 @@ class FakeAgentEngine : AgentEngine {
 }
 
 /**
- * [ChatViewModel] 的单元测试（纯 JVM，[FakeAgentEngine] 替身驱动）。
+ * [ChatMessageDao] 的内存假实现：写入按 Room 自增语义分配 id（从 1 起），
+ * 并记录清空调用次数，供清空对话分支断言"本地表确被清理"。
+ */
+private class FakeChatMessageDao : ChatMessageDao {
+
+    /** 已写入的消息（按写入顺序，id 已分配）。 */
+    val rows = mutableListOf<ChatMessageEntity>()
+
+    /** clearAll 被调用的次数。 */
+    var clearCount = 0
+        private set
+
+    private var nextId = 1L
+
+    /** 全部消息按写入顺序返回（真实现按 createdAt 升序，此处写入即有序）。 */
+    override suspend fun getAll(): List<ChatMessageEntity> = rows.toList()
+
+    /** 分配自增 id 并存储，返回该 id（与 Room 自增行为一致）。 */
+    override suspend fun insert(entity: ChatMessageEntity): Long {
+        val stored = entity.copy(id = nextId++)
+        rows.add(stored)
+        return stored.id
+    }
+
+    override suspend fun count(): Long = rows.size.toLong()
+
+    override suspend fun clearAll() {
+        clearCount++
+        rows.clear()
+    }
+}
+
+/**
+ * [AgentStepDao] 的内存假实现：写入按 Room 自增语义分配 id（从 1 起），
+ * 并记录清空调用次数。
+ */
+private class FakeAgentStepDao : AgentStepDao {
+
+    /** 已写入的步骤（按写入顺序，id 已分配）。 */
+    val rows = mutableListOf<AgentStepEntity>()
+
+    /** clearAll 被调用的次数。 */
+    var clearCount = 0
+        private set
+
+    private var nextId = 1L
+
+    /** 全部步骤按写入顺序返回。 */
+    override suspend fun getAll(): List<AgentStepEntity> = rows.toList()
+
+    /** 过滤出指定 runId 的步骤（真实现按 stepOrder 升序，此处写入即有序）。 */
+    override suspend fun getByRun(runId: String): List<AgentStepEntity> =
+        rows.filter { it.runId == runId }
+
+    /** 分配自增 id 并存储，返回该 id（与 Room 自增行为一致）。 */
+    override suspend fun insert(entity: AgentStepEntity): Long {
+        val stored = entity.copy(id = nextId++)
+        rows.add(stored)
+        return stored.id
+    }
+
+    override suspend fun clearAll() {
+        clearCount++
+        rows.clear()
+    }
+}
+
+/**
+ * [ChatViewModel] 的单元测试（纯 JVM，[FakeAgentEngine] 与内存 DAO 假实现驱动）。
  *
  * 覆盖：输入状态、发送防重入、成功回复上屏、引擎失败与事件流异常的错误提示、
- * 工具确认流程（弹框 → 回传 → 后续回复）。
+ * 工具确认流程（弹框 → 回传 → 后续回复）、清空对话的本地表清理。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
 
     private val testScheduler = TestCoroutineScheduler()
     private lateinit var fakeEngine: FakeAgentEngine
+    private lateinit var fakeMessageDao: FakeChatMessageDao
+    private lateinit var fakeStepDao: FakeAgentStepDao
     private lateinit var viewModel: ChatViewModel
 
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         fakeEngine = FakeAgentEngine()
-        viewModel = ChatViewModel(fakeEngine)
+        fakeMessageDao = FakeChatMessageDao()
+        fakeStepDao = FakeAgentStepDao()
+        viewModel = ChatViewModel(fakeEngine, fakeMessageDao, fakeStepDao)
     }
 
     @After
@@ -303,7 +379,7 @@ class ChatViewModelTest {
             com.example.fitlog.model.ai.ChatMessage(role = "user", content = "查体重"),
             com.example.fitlog.model.ai.ChatMessage(role = "assistant", content = "72.5kg"),
         )
-        val vm = ChatViewModel(fakeEngine)
+        val vm = ChatViewModel(fakeEngine, fakeMessageDao, fakeStepDao)
 
         val state = vm.uiState.value
         assertEquals(2, state.messages.size)
@@ -338,5 +414,10 @@ class ChatViewModelTest {
         assertNull(state.pendingConfirmation)
         assertEquals("", state.input)
         assertEquals(listOf("main_chat"), fakeEngine.clearedSessions)
+        // 本地两张表与 ADK 会话一并清理，否则重启后消息"复活"而模型已失忆
+        assertEquals(1, fakeMessageDao.clearCount)
+        assertEquals(1, fakeStepDao.clearCount)
+        assertTrue(fakeMessageDao.rows.isEmpty())
+        assertTrue(fakeStepDao.rows.isEmpty())
     }
 }
