@@ -42,7 +42,15 @@ class WeekProgressCalculatorTest {
     fun `SPLIT head shows count target and progress, placeholders explicit`() {
         val items = calculate(
             WeekProgressDisplayMode.SPLIT,
-            weekWorkouts = listOf(workout(id = 1L, date = weekStart)),
+            weekWorkouts = listOf(
+                workout(
+                    id = 1L,
+                    date = weekStart,
+                    exercises = listOf(
+                        exerciseLog("barbell-bench-press", "Barbell bench press", working(80f, 10)),
+                    ),
+                ),
+            ),
             targetWorkouts = 3,
         )
 
@@ -58,6 +66,31 @@ class WeekProgressCalculatorTest {
         // 补剂摄入占位
         assertEquals("补剂摄入", items[3].title)
         assertEquals("即将上线", items[3].subtitle)
+    }
+
+    /**
+     * 完成数口径：仅存档表头（无动作明细）的导入记录不计入本周完成次数。
+     */
+    @Test
+    fun `SPLIT head excludes header-only archived workouts`() {
+        val items = calculate(
+            WeekProgressDisplayMode.SPLIT,
+            weekWorkouts = listOf(
+                // 表头存档：那天练过的证明，但不是可计数的结构化训练
+                workout(id = 1L, date = weekStart),
+                workout(
+                    id = 2L,
+                    date = weekStart.plusDays(1),
+                    exercises = listOf(
+                        exerciseLog("barbell-bench-press", "Barbell bench press", working(80f, 10)),
+                    ),
+                ),
+            ),
+            targetWorkouts = 3,
+        )
+
+        assertEquals("1 次", items[0].valueText)
+        assertEquals(1f / 3f, items[0].progress!!, 1e-6f)
     }
 
     @Test
@@ -562,6 +595,29 @@ class WeekProgressCalculatorTest {
         assertEquals("—", segments[1].valueText)
         assertEquals("0 次", items[1].subtitle)
         assertEquals("0 次", items[2].subtitle)
+    }
+
+    /**
+     * 完成数口径：训练分布大卡的次数同样只计有动作明细的训练（与 SPLIT 一致）。
+     */
+    @Test
+    fun `CATEGORY head excludes header-only archived workouts`() {
+        val items = calculate(
+            WeekProgressDisplayMode.CATEGORY,
+            weekWorkouts = listOf(
+                workout(id = 1L, date = weekStart), // 表头存档，不计入
+                workout(
+                    id = 2L,
+                    date = weekStart.plusDays(1),
+                    exercises = listOf(
+                        exerciseLog("barbell-bench-press", "Barbell bench press", working(80f, 10)),
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("1 次", items[0].valueText)
+        assertEquals("力量 1 · 有氧 0", items[0].subtitle)
     }
 
     // ── 辅助方法 ──

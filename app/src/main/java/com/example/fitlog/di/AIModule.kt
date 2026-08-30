@@ -37,8 +37,12 @@ object AIModule {
         // OkHttp 拦截器——仅调试构建打印完整请求/响应到 Logcat；
         // Release 关闭：BODY 会泄露 API Key 与 prompt 内容
         val logging = HttpLoggingInterceptor().apply {
-            // BODY 级日志会原样打印 Authorization 头（即明文 API Key），必须脱敏
+            // BODY 级日志会原样打印认证头（明文 API Key），必须全部脱敏：
+            // "Authorization" 覆盖 Bearer 系（OpenAI/DeepSeek/Moonshot/...），
+            // "api-key" 是 Azure 的认证头，"x-api-key" 兜底常见网关变体
             redactHeader("Authorization")
+            redactHeader("api-key")
+            redactHeader("x-api-key")
             level = if (BuildConfig.DEBUG) {
                 HttpLoggingInterceptor.Level.BODY
             } else {

@@ -57,12 +57,29 @@ class ProfileViewModel @Inject constructor(
     fun onWeightChange(value: String) = _uiState.update { it.copy(weight = value) }
     fun onGoalChange(value: TrainingGoal) = _uiState.update { it.copy(goal = value) }
 
-    /** 保存资料：姓名为必填，其余字段留空则存 null。 */
+    /** 保存资料：姓名必填；数值字段留空存 null，填写则校验范围，非法输入阻断保存并提示。 */
     fun onSave() {
         val state = _uiState.value
         if (state.isSaving) return // 防重入：同帧双击不再各起一个 launch 双 insert
         if (state.name.isBlank()) {
             _uiState.update { it.copy(errorMessage = "请填写姓名") }
+            return
+        }
+        // 数值校验：toIntOrNull/toFloatOrNull 会接受 "NaN"/"Infinity" 等非有限值，
+        // 且解析失败静默转 null 会让"看似保存成功"的数据悄悄丢失，必须显式校验并提示
+        val age = state.age.trim().toIntOrNull()
+        val height = state.height.trim().toFloatOrNull()
+        val weight = state.weight.trim().toFloatOrNull()
+        val validationError = when {
+            state.age.isNotBlank() && (age == null || age !in 1..120) -> "年龄需为 1–120 的整数"
+            state.height.isNotBlank() &&
+                (height == null || !height.isFinite() || height !in 50f..250f) -> "身高需为 50–250 cm 的数字"
+            state.weight.isNotBlank() &&
+                (weight == null || !weight.isFinite() || weight !in 20f..400f) -> "体重需为 20–400 kg 的数字"
+            else -> null
+        }
+        if (validationError != null) {
+            _uiState.update { it.copy(errorMessage = validationError) }
             return
         }
         viewModelScope.launch {
@@ -71,10 +88,10 @@ class ProfileViewModel @Inject constructor(
                 val profile = UserProfile(
                     id = existingId ?: 0,
                     name = state.name.trim(),
-                    age = state.age.trim().toIntOrNull(),
+                    age = age,
                     gender = state.gender,
-                    height = state.height.trim().toFloatOrNull(),
-                    weight = state.weight.trim().toFloatOrNull(),
+                    height = height,
+                    weight = weight,
                     trainingGoal = state.goal,
                 )
                 if (existingId != null) {

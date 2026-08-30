@@ -87,7 +87,27 @@ class TodayViewModel @Inject constructor(
 
     // ── 本地 UI 事件态 ──
     private val displayMode = MutableStateFlow(WeekProgressDisplayMode.SPLIT)
-    private val uiFlow = MutableStateFlow(UiState())
+
+    /**
+     * 数据层异常通道：[guard] 捕获后写入，最终经 [uiState] 组装进
+     * `UiState.errorMessage`（TodayScreen 的 AlertDialog 消费），弹窗关闭时清空。
+     *
+     * 错误必须走独立通道而非在流的末端 `catch` 后发射错误态：`catch` 发射一次后
+     * 会**正常终结整条流**，stateIn 在订阅期间不会重启上游，此后"关闭弹窗"的
+     * 状态更新打在一条已死的流上——弹窗永远关不掉，页面冻结在降级态。
+     */
+    private val dataError = MutableStateFlow<String?>(null)
+
+    /**
+     * 数据流降级包装：上游异常时写入 [dataError] 并发射 [fallback]，保证
+     * combine 链不被单条 Room/DataStore 流击穿（否则 stateIn 停在 initialValue，
+     * 页面永久卡加载）。注意：出错的那条源流在此之后停止更新（直到页面重建），
+     * 其余源流与 UI 事件不受影响。
+     */
+    private fun <T> Flow<T>.guard(fallback: T): Flow<T> = catch { e ->
+        dataError.value = e.message ?: "数据加载失败，请重试"
+        emit(fallback)
+    }
 
     // ── 一次性加载：无默认值冷 Flow，combine 首发即真实值 ──
 
@@ -105,22 +125,24 @@ class TodayViewModel @Inject constructor(
     private val today: LocalDate = LocalDate.now()
     private val weekStart: LocalDate = today.with(DayOfWeek.MONDAY)
 
-    private val weekWorkouts = workoutRepository.getByDateRange(weekStart, today)
-    private val prevWeekWorkouts = workoutRepository.getByDateRange(weekStart.minusDays(7), weekStart.minusDays(1))
-    private val todayWorkouts = workoutRepository.getByDate(today)
-    private val latestWorkout = workoutRepository.getLatest()
-    private val activePlan = workoutPlanRepository.activePlan
+    private val weekWorkouts = workoutRepository.getByDateRange(weekStart, today).guard(emptyList())
+    private val prevWeekWorkouts =
+        workoutRepository.getByDateRange(weekStart.minusDays(7), weekStart.minusDays(1))
+            .guard(emptyList())
+    private val todayWorkouts = workoutRepository.getByDate(today).guard(emptyList())
+    private val latestWorkout = workoutRepository.getLatest().guard(null)
+    private val activePlan = workoutPlanRepository.activePlan.guard(null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val nextSession = activePlan.flatMapLatest { plan ->
         if (plan == null) {
             flowOf(null)
         } else {
-            workoutPlanRepository.getNextIncompleteSession(plan.id)
+            workoutPlanRepository.getNextIncompleteSession(plan.id).guard(null)
         }
     }
 
-    private val allWorkouts = workoutRepository.getWorkouts()
+    private val allWorkouts = workoutRepository.getWorkouts().guard(emptyList())
 
     /** 数据层五元快照（combine 单次最多 5 个 Flow 的一手组合）。 */
     private data class TodaySnapshot(
@@ -150,7 +172,7 @@ class TodayViewModel @Inject constructor(
     )
 
     /** 种子门：种子完成前不发射（只放行一次 true，之后恒透传）。 */
-    private val seedGate: Flow<Boolean> = seedOrchestrator.completed.filter { it }
+    private val seedGate: Flow<Boolean> = seedOrchestrator.completed.filter { it }.guard(false)
 
     /**
      * 共享材料流：组装链与 AI 增强链的共同上游。
@@ -211,45 +233,46 @@ class TodayViewModel @Inject constructor(
                 emit(AiPhase.Ready(insight))
             }
         }
+        // AI 异常静默回退规则版（与 getAiInsight 失败同策略），不进错误弹窗
+        .catch { emit(AiPhase.Hidden) }
 
-    /** 页面 UI 状态流，由数据层 Flow 与本地事件 Flow 组合而成。 */
+    /** 页面 UI 状态流，由数据层 Flow 与错误通道组合而成。 */
     val uiState: StateFlow<TodayUiState> = combine(
-        sharedMaterials.map { materials -> assemble(materials) },
-        aiPhaseFlow,
-        uiFlow,
-    ) { state, aiPhase, ui ->
-        state.copy(
-            coachInsight = mergeAiPhase(state.coachInsight, aiPhase),
-            uiState = ui,
-        )
-    }.combine(seedGate) { state, _ ->
-        state
-    }
-        // 任一 Room 流异常不能击穿整条链：否则 stateIn 停在 initialValue（isLoading=true），
-        // 页面永久卡加载。降级为错误态，errorMessage 通道由 TodayScreen 的 AlertDialog 消费
-        .catch { e ->
-            emit(
+        sharedMaterials.map { materials ->
+            // 组装是纯函数，理论不应抛异常；兜底降级保证链路存活（弹窗仍可关闭）
+            runCatching { assemble(materials) }.getOrElse { e ->
+                dataError.value = e.message ?: "数据加载失败，请重试"
                 TodayUiState(
                     coachInsight = CoachInsightState(),
                     weekProgress = WeekProgressState(),
                     todayPlan = TodayPlanState(),
-                    uiState = UiState(errorMessage = e.message ?: "数据加载失败，请重试"),
-                ),
-            )
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = TodayUiState(
-                coachInsight = CoachInsightState(),
-                weekProgress = WeekProgressState(),
-                todayPlan = TodayPlanState(),
-                uiState = UiState(isLoading = true),
-            ),
+                    uiState = UiState(),
+                )
+            }
+        },
+        aiPhaseFlow,
+        dataError,
+    ) { state, aiPhase, error ->
+        state.copy(
+            coachInsight = mergeAiPhase(state.coachInsight, aiPhase),
+            uiState = UiState(errorMessage = error),
         )
+    }.combine(seedGate) { state, _ ->
+        state
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = TodayUiState(
+            coachInsight = CoachInsightState(),
+            weekProgress = WeekProgressState(),
+            todayPlan = TodayPlanState(),
+            uiState = UiState(isLoading = true),
+        ),
+    )
 
     /** 计划选择弹层的数据源（与 uiState 平级暴露）。 */
     val allPlans: StateFlow<List<WorkoutPlan>> = workoutPlanRepository.getAllPlansFlow()
+        .guard(emptyList())
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -263,9 +286,8 @@ class TodayViewModel @Inject constructor(
     private fun assemble(materials: TodayMaterials): TodayUiState {
         val snapshot = materials.snapshot
         val weekTarget = snapshot.activePlan?.sessionsPerWeek ?: 4
-        // 导入的表头记录（无动作明细）不计入完成数：它是"那天练过"的存档证明，
-        // 不是一次可计数的结构化训练（否则导入历史会让本周次数/今日完成虚增）
-        val weekCompleted = snapshot.weekWorkouts.count { it.exercises.isNotEmpty() }
+        // 完成数口径统一走 Workout.isCountable（导入的表头存档记录不计入）
+        val weekCompleted = snapshot.weekWorkouts.count { it.isCountable }
 
         val todayPlan = TodayPlanAssembler.assemble(
             activePlan = snapshot.activePlan,
@@ -279,9 +301,9 @@ class TodayViewModel @Inject constructor(
             weekTarget = weekTarget,
             latestWorkout = materials.latestWorkout,
             nextSession = snapshot.nextSession,
-            // 自由训练（无计划）今日有记录同样视为已完成（同样要求有动作明细）
+            // 自由训练（无计划）今日有记录同样视为已完成（口径与 isTodayCompleted 一致）
             todayCompleted = todayPlan.status == PlanStatus.COMPLETED ||
-                snapshot.todayWorkouts.any { it.exercises.isNotEmpty() },
+                snapshot.todayWorkouts.any { it.isCountable },
             hasActivePlan = snapshot.activePlan != null,
             today = today,
             hour = LocalTime.now().hour,
@@ -328,21 +350,22 @@ class TodayViewModel @Inject constructor(
     // AI 增强（Coach Insight）
     // ──────────────────────────────────────
 
-    /** 今日训练是否已完成：计划课次完成，或自由训练今日有记录（与规则版口径一致）。 */
+    /** 今日训练是否已完成：计划课次完成，或自由训练今日有可计数记录（口径与规则版一致）。 */
     private fun TodayMaterials.isTodayCompleted(): Boolean {
         val planCompleted = TodayPlanAssembler.assemble(
             activePlan = snapshot.activePlan,
             nextSession = snapshot.nextSession,
             todayWorkouts = snapshot.todayWorkouts,
         ).status == PlanStatus.COMPLETED
-        return planCompleted || snapshot.todayWorkouts.isNotEmpty()
+        return planCompleted || snapshot.todayWorkouts.any { it.isCountable }
     }
 
     /** 材料 → AI 上下文（最近训练取全量记录按日期倒序前 3 条，含组详情）。 */
     private fun TodayMaterials.toCoachInsightContext(): CoachInsightContext =
         CoachInsightContext(
             profile = profile,
-            weekCompleted = snapshot.weekWorkouts.size,
+            // 与规则版完成数同口径，否则 AI 指纹与卡片数字互相矛盾
+            weekCompleted = snapshot.weekWorkouts.count { it.isCountable },
             weekTarget = snapshot.activePlan?.sessionsPerWeek ?: 4,
             todayCompleted = isTodayCompleted(),
             activePlan = snapshot.activePlan,
@@ -387,6 +410,8 @@ class TodayViewModel @Inject constructor(
         }
     }
 
-    /** 错误提示已展示，清除错误信息。 */
-    fun onErrorShown() = uiFlow.update { it.copy(errorMessage = null) }
+    /** 错误提示已展示，清除错误信息（写独立通道，combine 链始终存活，弹窗可正常关闭）。 */
+    fun onErrorShown() {
+        dataError.value = null
+    }
 }

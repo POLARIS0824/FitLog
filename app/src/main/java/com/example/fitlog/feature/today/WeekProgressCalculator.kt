@@ -88,7 +88,9 @@ object WeekProgressCalculator {
         targetWorkouts: Int,
         catalog: List<Exercise>,
     ): List<ProgressItemState> {
-        val completed = weekWorkouts.size
+        // 完成数口径统一走 Workout.isCountable（导入的表头存档记录不计入），
+        // 与 ViewModel 规则版/AI 上下文的数字保持一致
+        val completed = weekWorkouts.count { it.isCountable }
         val head = ProgressItemState(
             id = "week-total",
             title = "本周训练",
@@ -372,7 +374,8 @@ object WeekProgressCalculator {
             id = "category-distribution",
             title = "训练分布",
             subtitle = "力量 $strengthCount · 有氧 $cardioCount",
-            valueText = "${weekWorkouts.size} 次",
+            // 与 SPLIT 大卡同口径：只计有动作明细的训练
+            valueText = "${weekWorkouts.count { it.isCountable }} 次",
             ringSegments = ringSegments,
         )
         return listOf(

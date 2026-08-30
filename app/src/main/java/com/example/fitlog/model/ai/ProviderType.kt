@@ -1,5 +1,6 @@
 package com.example.fitlog.model.ai
 
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
@@ -30,7 +31,7 @@ enum class ProviderType {
     fun buildUrl(config: AIProviderConfig): String {
         val base = config.baseUrl.toHttpUrlOrNull()
             ?: throw IllegalArgumentException("Invalid baseUrl: ${config.baseUrl}")
-        val builder = base.newBuilder()
+        val builder = normalizedBase(base).newBuilder()
 
         when (this) {
             OPENAI, MOONSHOT, SILICONFLOW -> {
@@ -73,7 +74,7 @@ enum class ProviderType {
     fun buildModelsUrl(config: AIProviderConfig): String {
         val base = config.baseUrl.toHttpUrlOrNull()
             ?: throw IllegalArgumentException("Invalid baseUrl: ${config.baseUrl}")
-        val builder = base.newBuilder()
+        val builder = normalizedBase(base).newBuilder()
         when (this) {
             OPENAI, MOONSHOT, SILICONFLOW, CUSTOM -> builder.addPathSegments("v1/models")
             DEEPSEEK -> builder.addPathSegments("models")
@@ -97,5 +98,28 @@ enum class ProviderType {
                 mapOf("api-key" to apiKey)
             }
         }
+    }
+
+    /**
+     * baseUrl 归一化：会拼接 "v1/..." 前缀的类型（OPENAI/MOONSHOT/SILICONFLOW，
+     * 以及模型列表的 CUSTOM），在 baseUrl 按惯例以 `v1` 路径段结尾时先剥离，
+     * 避免双重拼接出 `/v1/v1/...` 导致 404；其余类型原样返回。
+     */
+    private fun normalizedBase(base: HttpUrl): HttpUrl {
+        val appendsV1 = when (this) {
+            OPENAI, MOONSHOT, SILICONFLOW -> true
+            DEEPSEEK, AZURE -> false
+            // CUSTOM 的聊天路径由 customEndpoint 覆盖，但模型列表固定拼 "v1/models"
+            CUSTOM -> true
+        }
+        if (!appendsV1) return base
+        val segments = base.pathSegments.dropLastWhile { it.isEmpty() }.toMutableList()
+        if (segments.lastOrNull() == "v1") segments.removeAt(segments.lastIndex)
+        return HttpUrl.Builder()
+            .scheme(base.scheme)
+            .host(base.host)
+            .port(base.port)
+            .apply { if (segments.isNotEmpty()) addPathSegments(segments.joinToString("/")) }
+            .build()
     }
 }

@@ -144,14 +144,71 @@ class ProfileViewModelTest {
     }
 
     /**
-     * 测试数值字段输入非法文本时存为 null（而非崩溃或存 0）。
+     * 测试数值字段输入非法文本时保存被阻断：提示校验错误，不写数据库
+     * （旧实现静默转 null 并提示"保存成功"，数据悄悄丢失）。
      */
     @Test
-    fun testOnSave_invalidNumericInput_storedAsNull() = runTest {
+    fun testOnSave_invalidNumericInput_blockedWithError() = runTest {
         viewModel.onNameChange("张三")
         viewModel.onAgeChange("abc")
-        viewModel.onHeightChange("一米八")
-        viewModel.onWeightChange("")
+
+        viewModel.onSave()
+
+        assertEquals("年龄需为 1–120 的整数", viewModel.uiState.value.errorMessage)
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertNull(repository.getFirst())
+    }
+
+    /**
+     * 测试越界数值被阻断：年龄/身高/体重超出合理范围时不允许保存。
+     */
+    @Test
+    fun testOnSave_outOfRangeValues_blocked() = runTest {
+        viewModel.onNameChange("张三")
+        viewModel.onAgeChange("300")
+        viewModel.onSave()
+        assertEquals("年龄需为 1–120 的整数", viewModel.uiState.value.errorMessage)
+
+        viewModel.onAgeChange("")
+        viewModel.onHeightChange("300")
+        viewModel.onSave()
+        assertEquals("身高需为 50–250 cm 的数字", viewModel.uiState.value.errorMessage)
+
+        viewModel.onHeightChange("")
+        viewModel.onWeightChange("10")
+        viewModel.onSave()
+        assertEquals("体重需为 20–400 kg 的数字", viewModel.uiState.value.errorMessage)
+        assertNull(repository.getFirst())
+    }
+
+    /**
+     * 测试非有限数值（NaN/Infinity）与小数逗号输入被阻断，不写入脏数据。
+     * `toFloatOrNull` 对 "NaN"/"Infinity" 会解析出非有限值，必须显式拒绝。
+     */
+    @Test
+    fun testOnSave_nonFiniteAndCommaDecimal_blocked() = runTest {
+        viewModel.onNameChange("张三")
+        viewModel.onHeightChange("NaN")
+        viewModel.onSave()
+        assertEquals("身高需为 50–250 cm 的数字", viewModel.uiState.value.errorMessage)
+
+        viewModel.onHeightChange("Infinity")
+        viewModel.onSave()
+        assertEquals("身高需为 50–250 cm 的数字", viewModel.uiState.value.errorMessage)
+
+        // 欧式小数逗号：解析失败 → 阻断并提示，而非静默丢字段
+        viewModel.onHeightChange("175,5")
+        viewModel.onSave()
+        assertEquals("身高需为 50–250 cm 的数字", viewModel.uiState.value.errorMessage)
+        assertNull(repository.getFirst())
+    }
+
+    /**
+     * 测试数值字段留空仍按原设计存 null（"未填写"是合法语义）。
+     */
+    @Test
+    fun testOnSave_blankNumericFields_storedAsNull() = runTest {
+        viewModel.onNameChange("张三")
 
         viewModel.onSave()
         viewModel.uiState.first { it.successMessage != null }

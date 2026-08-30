@@ -76,7 +76,52 @@ class ProviderTypeTest {
     }
 
     /**
-     * 测试 DeepSeek 拼接 chat/completions（无 v1 前缀）。
+     * 测试 baseUrl 按惯例以 /v1（或 /v1/）结尾时不双重拼接：
+     * 剥离末尾 v1 段后再拼完整端点，避免 `/v1/v1/...` 404。
+     */
+    @Test
+    fun testBuildUrl_baseUrlEndingWithV1_noDoubleV1() {
+        val withSlash = config(ProviderType.OPENAI, "https://api.openai.com/v1")
+        assertEquals(
+            "https://api.openai.com/v1/chat/completions",
+            ProviderType.OPENAI.buildUrl(withSlash),
+        )
+
+        val withTrailingSlash = config(ProviderType.MOONSHOT, "https://api.moonshot.cn/v1/")
+        assertEquals(
+            "https://api.moonshot.cn/v1/chat/completions",
+            ProviderType.MOONSHOT.buildUrl(withTrailingSlash),
+        )
+
+        // 带更深路径前缀时只剥离末尾的 v1 段，保留其余路径
+        val withPrefix = config(ProviderType.SILICONFLOW, "https://gateway.example.com/api/v1")
+        assertEquals(
+            "https://gateway.example.com/api/v1/chat/completions",
+            ProviderType.SILICONFLOW.buildUrl(withPrefix),
+        )
+    }
+
+    /**
+     * 测试模型列表地址在 baseUrl 以 /v1 结尾时同样不双重拼接。
+     */
+    @Test
+    fun testBuildModelsUrl_baseUrlEndingWithV1_noDoubleV1() {
+        val cfg = config(ProviderType.OPENAI, "https://api.openai.com/v1")
+        assertEquals(
+            "https://api.openai.com/v1/models",
+            ProviderType.OPENAI.buildModelsUrl(cfg),
+        )
+
+        val custom = config(ProviderType.CUSTOM, "https://gateway.example.com/v1")
+        assertEquals(
+            "https://gateway.example.com/v1/models",
+            ProviderType.CUSTOM.buildModelsUrl(custom),
+        )
+    }
+
+    /**
+     * 测试 DEEPSEEK 拼接 chat/completions（无 v1 前缀），自带 /v1 的 baseUrl 语义恰好
+     * 正确，不参与归一化。
      */
     @Test
     fun testBuildUrl_deepseek_appendsChatCompletions() {
