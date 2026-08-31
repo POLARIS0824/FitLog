@@ -9,6 +9,7 @@ import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.model.user.UserProfile
 import com.example.fitlog.util.TrainingLevelCalculator
+import com.example.fitlog.util.VolumeAggregator
 import com.google.adk.kt.annotations.Param
 import com.google.adk.kt.annotations.Tool
 import kotlinx.coroutines.flow.first
@@ -145,16 +146,20 @@ class FitnessTools @Inject constructor(
      * 在动作库中搜索动作（按名称模糊搜索或按身体部位筛选）。
      *
      * @param query 动作名称关键词（可选）
-     * @param bodyPart 身体部位（可选，如 CHEST/BACK/LEGS）
+     * @param bodyPart 身体部位英文名（可选，枚举值如 CHEST/UPPER_BACK/LOWER_BACK/
+     *   SHOULDERS/UPPER_ARMS/FOREARMS/UPPER_LEGS/LOWER_LEGS/WAIST/HIPS/NECK——
+     *   注意腿部是 UPPER_LEGS/LOWER_LEGS，没有 "LEGS"；大小写不敏感则更稳妥）
      */
     @Tool
     suspend fun searchExercises(
         @Param("动作名称关键词，可选") query: String? = null,
-        @Param("身体部位英文名，可选") bodyPart: String? = null,
+        @Param("身体部位英文名（枚举值，如 CHEST/UPPER_LEGS），可选") bodyPart: String? = null,
     ): List<ExerciseDto> {
+        // 入参归一化：模型可能传小写或带空格的部位名，统一大写去空白后再等值匹配
+        val normalizedPart = bodyPart?.trim()?.uppercase()?.takeIf { it.isNotBlank() }
         val results = when {
             !query.isNullOrBlank() -> exerciseRepository.searchByName(query)
-            !bodyPart.isNullOrBlank() -> exerciseRepository.getByBodyPart(bodyPart)
+            !normalizedPart.isNullOrBlank() -> exerciseRepository.getByBodyPart(normalizedPart)
             else -> exerciseRepository.getAll()
         }
         return results.take(30).map { it.toDto() }
@@ -183,6 +188,9 @@ class FitnessTools @Inject constructor(
 
     /**
      * 获取本周与上周训练对比概览（训练次数、总正式组数、总容量）。
+     *
+     * 训练次数统一走 [Workout.isCountable] 口径（Markdown 导入的仅存档表头
+     * 记录不计入），与 Today/Stats 页卡片数字保持一致。
      */
     @Tool
     suspend fun getWeeklySummary(): WeeklySummaryDto {
@@ -190,11 +198,13 @@ class FitnessTools @Inject constructor(
         val thisWeekStart = today.with(DayOfWeek.MONDAY)
         val lastWeekStart = thisWeekStart.minusWeeks(1)
         val thisWeek = workoutRepository.getByDateRange(thisWeekStart, today).first()
+            .filter { it.isCountable }
         val lastWeek = workoutRepository.getByDateRange(lastWeekStart, thisWeekStart.minusDays(1)).first()
+            .filter { it.isCountable }
         return WeeklySummaryDto(
             thisWeek = thisWeek.toPeriodSummary(),
             lastWeek = lastWeek.toPeriodSummary(),
-            todayWorkouts = workoutRepository.getByDate(today).first().size,
+            todayWorkouts = workoutRepository.getByDate(today).first().count { it.isCountable },
         )
     }
 
@@ -366,16 +376,10 @@ class FitnessTools @Inject constructor(
     )
 
     private fun Workout.toSummaryDto(): WorkoutSummaryDto {
-        var workingSets = 0
-        var volumeKg = 0.0
+        // 组数/容量统一走 VolumeAggregator 收口（与 Stats 页同口径，消除手写漂移面）
+        val workingSets = VolumeAggregator.workingSetCountOf(this)
+        val volumeKg = VolumeAggregator.workingVolumeOf(this)
         val setsByPart = mutableMapOf<String, Int>()
-        exercises.forEach { log ->
-            log.sets.filter { it.setType == SetType.WORKING }.forEach { set ->
-                workingSets++
-                volumeKg += set.weightKg * set.reps
-            }
-        }
-        // 主导部位：按动作名聚合（无 bodyPart 映射，v1 用动作名）
         exercises.forEach { log ->
             log.sets.count { it.setType == SetType.WORKING }
                 .takeIf { it > 0 }
@@ -435,17 +439,9 @@ class FitnessTools @Inject constructor(
         description = description,
     )
 
-    private fun List<Workout>.toPeriodSummary(): PeriodSummaryDto {
-        var workingSets = 0
-        var volumeKg = 0.0
-        forEach { workout ->
-            workout.exercises.forEach { log ->
-                log.sets.filter { it.setType == SetType.WORKING }.forEach { set ->
-                    workingSets++
-                    volumeKg += set.weightKg * set.reps
-                }
-            }
-        }
-        return PeriodSummaryDto(workouts = size, workingSets = workingSets, volumeKg = volumeKg)
-    }
+    private fun List<Workout>.toPeriodSummary(): PeriodSummaryDto = PeriodSummaryDto(
+        workouts = count { it.isCountable },
+        workingSets = sumOf { VolumeAggregator.workingSetCountOf(it) },
+        volumeKg = VolumeAggregator.workingVolume(this),
+    )
 }

@@ -73,6 +73,24 @@ import kotlinx.serialization.json.put
  */
 object OpenAiAdapters {
 
+    /**
+     * 消息历史的默认总字符预算（不含 system 指令）。
+     * 按最不利口径估算：本应用对话以中文为主（约 1 token/字），32k 字 ≈ 32k
+     * token，落在常见 32k 起步的兼容网关窗口内。英文内容同预算下更省，
+     * 留出的余量吸收工具结果与多轮调用开销。
+     */
+    const val DEFAULT_MAX_HISTORY_CHARS = 32_000
+
+    /**
+     * 单条 tool 结果内容的字符上限：`getImportedWorkoutContent` 等工具会把整篇
+     * 导入原文塞进 tool 消息，一条即可挤爆预算。超限截断并标注，模型至少
+     * 能看到结果开头并知晓被截断。
+     */
+    const val MAX_TOOL_CONTENT_CHARS = 8_000
+
+    /** 悬空 tool_call 自愈时注入的合成 tool 结果。 */
+    private const val DANGLING_TOOL_RESULT_JSON = """{"error":"运行被中断，工具未执行"}"""
+
     /** 宽松 JSON 解析器：容忍未加引号的键/尾逗号等模型常见输出，忽略未知键。 */
     private val lenientJson = Json {
         ignoreUnknownKeys = true
@@ -89,10 +107,13 @@ object OpenAiAdapters {
      * @param systemInstruction 系统提示（来自 `GenerateContentConfig.systemInstruction`），
      *     非空时翻译为首条 `role="system"` 消息
      * @param contents ADK 会话内容（user/model 交替，含工具调用与工具结果）
+     * @param maxHistoryChars 消息历史总字符预算（超出时从最旧的完整轮次开始丢弃，
+     *     见 [truncateHistory]；工具结果单条上限另见 [MAX_TOOL_CONTENT_CHARS]）
      */
     fun toOpenAiMessages(
         systemInstruction: Content?,
         contents: List<Content>,
+        maxHistoryChars: Int = DEFAULT_MAX_HISTORY_CHARS,
     ): List<MessageDto> {
         val messages = mutableListOf<MessageDto>()
         systemInstruction?.let { sys ->
@@ -211,8 +232,80 @@ object OpenAiAdapters {
                 }
             }
         }
-        return messages
+        // 运行中断（取消/进程被杀）会在会话里留下「assistant 携带 tool_calls 却没有
+        // 对应 tool 结果」的坏历史——严格服务商从此每轮 400（会话毒化）。请求装配
+        // 阶段补齐合成结果，配合截断护栏（截断只在 user 边界切，不拆散调用对）
+        return truncateHistory(repairDanglingToolCalls(messages), maxHistoryChars)
     }
+
+    /**
+     * 悬空 tool_call 自愈：为「已发出但始终没有 tool 结果」的调用补一条合成
+     * tool 消息，使 `assistant(tool_calls)` → `tool` 的协议对恢复完整。
+     *
+     * 扫描消息序列维护未消费调用集合：遇到非 tool 消息（即该批调用的结果
+     * 不会再出现）时立即在其前插入合成结果；序列尾部悬空同样补齐。
+     * 合成内容明确标注「被中断」，模型可据此向用户解释而非困惑于空结果。
+     */
+    private fun repairDanglingToolCalls(messages: List<MessageDto>): List<MessageDto> {
+        if (messages.none { it.toolCalls != null }) return messages
+        val repaired = mutableListOf<MessageDto>()
+        // id → 函数名：已发出但尚未等到结果的调用（按发出顺序，合成响应对齐同序）
+        var pending = LinkedHashMap<String, String>()
+        messages.forEach { message ->
+            if (message.role != "tool" && pending.isNotEmpty()) {
+                pending.keys.forEach { id ->
+                    repaired += MessageDto(
+                        role = "tool",
+                        content = DANGLING_TOOL_RESULT_JSON,
+                        toolCallId = id,
+                    )
+                }
+                pending = LinkedHashMap()
+            }
+            message.toolCalls?.forEach { call -> pending[call.id] = call.function.name }
+            if (message.role == "tool") {
+                pending.remove(message.toolCallId)
+            }
+            repaired += message
+        }
+        pending.keys.forEach { id ->
+            repaired += MessageDto(
+                role = "tool",
+                content = DANGLING_TOOL_RESULT_JSON,
+                toolCallId = id,
+            )
+        }
+        return repaired
+    }
+
+    /**
+     * 历史长度护栏：全量翻译历史 + 工具大 payload 会超出模型上下文窗口（服务商 400，
+     * 除清空对话外无自愈路径）。超预算时从最旧的完整轮次开始丢弃。
+     *
+     * 截断点只取 `role="user"` 文本消息边界：tool 消息永远紧跟其 assistant
+     * tool_calls（见 [toOpenAiMessages] 分派顺序），在 user 边界切开不会拆散
+     * 任何调用/结果对，也无需重跑悬空修复。system 消息始终保留。
+     */
+    private fun truncateHistory(messages: List<MessageDto>, maxChars: Int): List<MessageDto> {
+        if (messages.sumOf { it.approximateChars() } <= maxChars) return messages
+        val systemMessages = messages.takeWhile { it.role == "system" }
+        val rest = messages.drop(systemMessages.size)
+        val budget = maxChars - systemMessages.sumOf { it.approximateChars() }
+        // 最早的、使保留部分 ≤ 预算的 user 边界（越晚保留越少）
+        val boundary = rest.withIndex()
+            .filter { it.value.role == "user" }
+            .firstOrNull { (index, _) ->
+                rest.subList(index, rest.size).sumOf { it.approximateChars() } <= budget
+            }?.index
+            ?: return messages // 连最后一个完整轮次都超预算：不硬截，交给服务商报错
+        val kept = systemMessages + rest.subList(boundary, rest.size)
+        return if (kept.size == messages.size) messages else kept
+    }
+
+    /** 消息近似字符数（中文≈1 token/字，英文≈4 chars/token，取宽估算做预算）。 */
+    private fun MessageDto.approximateChars(): Int =
+        (content?.length ?: 0) +
+            (toolCalls?.sumOf { it.function.name.length + it.function.arguments.length } ?: 0)
 
     /**
      * 把 ADK 工具定义翻译为 OpenAI `tools` 数组。
@@ -350,11 +443,19 @@ object OpenAiAdapters {
             args.forEach { (k, v) -> put(k, anyToJsonElement(v)) }
         }.toString()
 
-    /** 工具结果 Map → JSON 字符串（作为 tool 消息 content）。 */
-    private fun responseMapToJsonString(response: Map<String, Any?>): String =
-        buildJsonObject {
+    /** 工具结果 Map → JSON 字符串（作为 tool 消息 content，超 [MAX_TOOL_CONTENT_CHARS] 截断）。 */
+    private fun responseMapToJsonString(response: Map<String, Any?>): String {
+        val json = buildJsonObject {
             response.forEach { (k, v) -> put(k, anyToJsonElement(v)) }
         }.toString()
+        if (json.length <= MAX_TOOL_CONTENT_CHARS) return json
+        // 截断点回退避开 UTF-16 代理对（emoji 等），避免产生孤立代理乱码；
+        // 截断后的文本可能不再是合法 JSON，但 tool content 是自由文本，
+        // 模型能识别"结果被截断"并基于可见前缀继续
+        var end = MAX_TOOL_CONTENT_CHARS
+        while (end > 0 && Character.isHighSurrogate(json[end - 1])) end--
+        return json.take(end) + "...（结果过长已截断）"
+    }
 
     /** 任意 JSON 原生值 → [JsonElement]。 */
     private fun anyToJsonElement(value: Any?): JsonElement = when (value) {

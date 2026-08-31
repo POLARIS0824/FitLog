@@ -103,6 +103,7 @@ class AgentEngineImpl @Inject constructor(
             ?: return Result.failure(
                 IllegalStateException("未配置 AI 服务商，请先在设置中配置 API Key"),
             )
+        config.ensureUsableCredentials()
 
         val runner = getOrCreateRunner(config) ?: return Result.failure(
             IllegalStateException("Agent 引擎初始化失败"),
@@ -130,6 +131,7 @@ class AgentEngineImpl @Inject constructor(
             ?: return Result.failure(
                 IllegalStateException("未配置 AI 服务商，请先在设置中配置 API Key"),
             )
+        config.ensureUsableCredentials()
 
         val runner = getOrCreateRunner(config) ?: return Result.failure(
             IllegalStateException("Agent 引擎初始化失败"),
@@ -236,6 +238,19 @@ class AgentEngineImpl @Inject constructor(
         if (this.isNullOrEmpty()) return "none"
         val digest = MessageDigest.getInstance("SHA-256").digest(toByteArray(Charsets.UTF_8))
         return digest.take(6).joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * 发请求前的凭据前置校验：密钥解密失败会降级为空串入库（换机恢复等场景），
+     * 若照常发请求，用户只会看到服务商 401「Invalid API key」，无从排查。
+     * 此处拦截并给出明确指引。
+     */
+    private fun AIProviderConfig.ensureUsableCredentials() {
+        if (apiKey.isBlank()) {
+            throw IllegalStateException(
+                "API Key 无法读取（可能因备份恢复或系统凭据变更失效），请到 AI 设置中重新保存密钥",
+            )
+        }
     }
 
     private suspend fun getOrCreateRunner(config: AIProviderConfig): InMemoryRunner? =
