@@ -12,8 +12,8 @@ import com.example.fitlog.model.WorkoutPlan
  * 状态优先级：NO_PLAN →（计划全完成）COMPLETED →（今日已关联）COMPLETED
  * → IN_PROGRESS → NOT_STARTED。
  *
- * 注意：IN_PROGRESS 依赖 `Workout.startedAt != null && endedAt == null`，
- * 当前没有任何写入方（训练记录流未实现），v1 不可达——分支为记录流预留。
+ * IN_PROGRESS 分支由训练执行流驱动：进行中的会话以 workouts 行
+ * （startedAt 已写、endedAt 空）存在于 DB，见 WorkoutViewModel。
  */
 object TodayPlanAssembler {
 
@@ -67,11 +67,13 @@ object TodayPlanAssembler {
             )
         }
 
-        // 4. 进行中（v1 不可达：startedAt/endedAt 暂无写入方，为训练记录流预留）
+        // 4. 进行中（训练执行流以 DB 为状态源，此分支可达）
         val inProgress = todayWorkouts.firstOrNull { it.startedAt != null && it.endedAt == null }
         if (inProgress != null) {
+            // 只计已录入的正式组（reps>0）：占位组（0 次，与手动添加动作一致）
+            // 不计入，否则刚开练进度就虚高（每个动作预置一组）
             val loggedSets = inProgress.exercises.sumOf { log ->
-                log.sets.count { it.setType == SetType.WORKING }
+                log.sets.count { it.setType == SetType.WORKING && it.reps > 0 }
             }
             val targetSets = nextSession.exercises.sumOf { it.targetSets }.coerceAtLeast(1)
             return TodayPlanState(

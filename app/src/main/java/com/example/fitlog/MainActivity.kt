@@ -126,14 +126,18 @@ class MainActivity : ComponentActivity() {
                             entry<TodayKey> {
                                 TodayRoute(
                                     onNavigateToSettings = { backStack.add(SettingsKey) },
-                                    onNavigateToWorkout = { backStack.add(WorkoutKey) },
+                                    onNavigateToWorkout = { backStack.add(WorkoutKey()) },
+                                    onStartWorkout = { backStack.add(WorkoutKey(autoStart = true)) },
                                 )
                             }
                             entry<ChatKey> {
                                 ChatRoute()
                             }
-                            entry<WorkoutKey> {
-                                WorkoutRoute(onBack = { backStack.removeLastOrNull() })
+                            entry<WorkoutKey> { key ->
+                                WorkoutRoute(
+                                    autoStart = key.autoStart,
+                                    onBack = { backStack.removeLastOrNull() },
+                                )
                             }
                             entry<StatsKey> {
                                 StatsRoute()

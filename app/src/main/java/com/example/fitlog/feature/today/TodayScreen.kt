@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,15 +51,18 @@ import com.example.fitlog.ui.theme.fitLogColors
 
 /**
  * 1. 容器层 (Stateful)
- * 绑定 Hilt ViewModel，处理生命周期感知的状态收集。
+ * 绑定 Hilt ViewModel，处理生命周期安全的状态收集。
  *
  * @param onNavigateToSettings 跳转设置回调
- * @param onNavigateToWorkout 跳转训练记录回调
+ * @param onNavigateToWorkout 跳转训练记录回调（仅查看历史）
+ * @param onStartWorkout 启动训练回调（导航至训练页并自动开启会话；
+ *   已有进行中会话时为"继续训练"语义）
  */
 @Composable
 fun TodayRoute(
     onNavigateToSettings: () -> Unit = {},
     onNavigateToWorkout: () -> Unit = {},
+    onStartWorkout: () -> Unit = onNavigateToWorkout,
     modifier: Modifier = Modifier,
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
@@ -69,6 +73,7 @@ fun TodayRoute(
         allPlans = allPlans,
         onNavigateToSettings = onNavigateToSettings,
         onNavigateToWorkout = onNavigateToWorkout,
+        onStartWorkout = onStartWorkout,
         onDisplayModeSelected = viewModel::onDisplayModeSelected,
         onPlanSelected = viewModel::onPlanSelected,
         onErrorShown = viewModel::onErrorShown,
@@ -90,16 +95,17 @@ fun TodayScreen(
     allPlans: List<WorkoutPlan>,
     onNavigateToSettings: () -> Unit,
     onNavigateToWorkout: () -> Unit,
+    onStartWorkout: () -> Unit = onNavigateToWorkout,
     onDisplayModeSelected: (WeekProgressDisplayMode) -> Unit,
     onPlanSelected: (String) -> Unit,
     onErrorShown: () -> Unit,
     onLogClick: () -> Unit = onNavigateToWorkout,
-    onStartClick: () -> Unit = onNavigateToWorkout,
     onEditClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
-    var showPlanSheet by remember { mutableStateOf(false) }
+    // rememberSaveable：旋转/重建后弹层不静默消失
+    var showPlanSheet by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -129,14 +135,14 @@ fun TodayScreen(
             ) {
                 CoachInsightCard(
                     insight = uiState.coachInsight,
-                    onStartWorkoutClick = onNavigateToWorkout,
+                    onStartWorkoutClick = onStartWorkout,
                 )
 
                 WeekProgressSection(
                     weekProgress = uiState.weekProgress,
                     onDisplayModeSelected = onDisplayModeSelected,
                     onLogClick = onLogClick,
-                    onStartClick = onStartClick,
+                    onStartClick = onStartWorkout,
                     onEditClick = onEditClick ?: { showPlanSheet = true },
                 )
 
@@ -146,7 +152,9 @@ fun TodayScreen(
                     onActionClick = {
                         when (uiState.todayPlan.status) {
                             PlanStatus.NO_PLAN -> showPlanSheet = true
-                            else -> onNavigateToWorkout()
+                            // 未开始/进行中 → 启动或继续会话；已完成 → 查看记录
+                            PlanStatus.NOT_STARTED, PlanStatus.IN_PROGRESS -> onStartWorkout()
+                            PlanStatus.COMPLETED -> onNavigateToWorkout()
                         }
                     },
                 )

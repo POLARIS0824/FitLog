@@ -664,6 +664,9 @@ class WeekProgressCalculatorTest {
         date = date,
         exercises = exercises,
         feelings = null,
+        // 夹具默认为"已结束"训练：isCountable 口径要求有动作且 endedAt 非空
+        startedAt = 0L,
+        endedAt = 3_600_000L,
     )
 
     private fun exerciseLog(key: String?, name: String, vararg setLogs: SetLog) = ExerciseLog(

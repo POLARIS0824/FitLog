@@ -67,7 +67,16 @@ object WeekProgressCalculator {
         weekStart: LocalDate,
     ): List<ProgressItemState> = when (mode) {
         WeekProgressDisplayMode.SPLIT ->
-            splitItems(activePlan, nextSession, latestWorkout, weekWorkouts, targetWorkouts, catalog)
+            // 最近训练取"已结束"的最新一条：进行中的会话（endedAt 为空、含占位组）
+            // 还没练完，不能作为"最近训练"参与主导部位推导
+            splitItems(
+                activePlan,
+                nextSession,
+                latestWorkout?.takeIf { it.endedAt != null },
+                weekWorkouts,
+                targetWorkouts,
+                catalog,
+            )
         WeekProgressDisplayMode.MUSCLE_SETS -> muscleSetItems(weekWorkouts, catalog)
         WeekProgressDisplayMode.VOLUME_PR ->
             volumePrItems(weekWorkouts, prevWeekWorkouts, allWorkouts, weekStart, catalog)
@@ -135,7 +144,8 @@ object WeekProgressCalculator {
         val counts = LinkedHashMap<BodyPart, Int>()
         latestWorkout.exercises.forEach { log ->
             val exercise = lookup.find(log.exerciseKey, log.name) ?: return@forEach
-            val workingSets = log.sets.count { it.setType == SetType.WORKING }
+            // 只计已录入的正式组（reps>0）：占位组不参与主导部位推导
+            val workingSets = log.sets.count { it.setType == SetType.WORKING && it.reps > 0 }
             if (workingSets > 0) {
                 counts[exercise.bodyPart] = (counts[exercise.bodyPart] ?: 0) + workingSets
             }
@@ -161,7 +171,8 @@ object WeekProgressCalculator {
         var totalWorkingSets = 0
         weekWorkouts.forEach { workout ->
             workout.exercises.forEach { log ->
-                val workingSets = log.sets.count { it.setType == SetType.WORKING }
+                // 只计已录入的正式组（reps>0）：进行中会话的占位组不虚增组数
+                val workingSets = log.sets.count { it.setType == SetType.WORKING && it.reps > 0 }
                 totalWorkingSets += workingSets
                 val exercise = lookup.find(log.exerciseKey, log.name) ?: return@forEach
                 if (workingSets > 0 && exercise.bodyPart in MAJOR_BODY_PARTS) {
@@ -289,14 +300,14 @@ object WeekProgressCalculator {
             .maxByOrNull { it.second }
             ?.first ?: return null
 
-        // 该动作本周实际最佳正式组（逐组 Epley 取最大）
-        val bestSet = weekWorkouts
-            .flatMap { it.exercises }
-            .filter { (it.exerciseKey ?: it.name) == topKey }
-            .flatMap { it.sets }
-            .filter { it.setType == SetType.WORKING }
-            .maxByOrNull { it.weightKg * (1 + it.reps / 30.0) }
-            ?: return null
+        // 该动作本周实际最佳正式组（Epley 出口与 1RM 计算同源，含 reps>0 过滤）
+        val bestSet = TrainingLevelCalculator.bestOneRMSet(
+            weekWorkouts
+                .flatMap { it.exercises }
+                .filter { (it.exerciseKey ?: it.name) == topKey }
+                .flatMap { it.sets }
+                .filter { it.setType == SetType.WORKING },
+        ) ?: return null
         val name = displayNames[topKey] ?: topKey
         return "$name ${formatSetBrief(bestSet.weightKg, bestSet.reps)}"
     }
@@ -429,15 +440,9 @@ object WeekProgressCalculator {
         return volumes
     }
 
-    /** 正式组简写：如 "85kg×5"；重量为整数时不带小数点。 */
-    private fun formatSetBrief(weightKg: Float, reps: Int): String {
-        val weight = if (weightKg % 1.0f == 0.0f) {
-            "${weightKg.toInt()}"
-        } else {
-            String.format(java.util.Locale.US, "%.1f", weightKg)
-        }
-        return "${weight}kg×$reps"
-    }
+    /** 正式组简写：如 "85kg×5"；重量格式化统一走 [VolumeFormatter.formatWeightKg] 收口。 */
+    private fun formatSetBrief(weightKg: Float, reps: Int): String =
+        "${VolumeFormatter.formatWeightKg(weightKg)}kg×$reps"
 
     /** [BodyPart] → 中文显示名（仅 UI 展示，不改 model 枚举）。 */
     private fun BodyPart.displayName(): String = when (this) {

@@ -135,7 +135,12 @@ class TodayViewModelTest {
         exerciseRepository = ExerciseRepository(db.exerciseDao())
         seedOrchestrator = SeedOrchestrator(
             ExerciseSeeder(db.exerciseDao(), dataStore, context),
-            WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore),
+            WorkoutPlanSeeder(
+                workoutPlanDao = db.workoutPlanDao(),
+                exerciseDao = db.exerciseDao(),
+                workoutPlanRepository = workoutPlanRepository,
+                dataStore = dataStore,
+            ),
         )
         // Coach Insight AI 链路：Fake API + 真实配置仓库（默认无激活服务商 → AI 静默隐藏）
         fakeApi = FakeAIApi()
@@ -441,5 +446,8 @@ class TodayViewModelTest {
         date = date,
         exercises = exercises,
         feelings = null,
+        // 夹具默认为"已结束"训练：isCountable 口径要求有动作且 endedAt 非空
+        startedAt = 0L,
+        endedAt = 3_600_000L,
     )
 }

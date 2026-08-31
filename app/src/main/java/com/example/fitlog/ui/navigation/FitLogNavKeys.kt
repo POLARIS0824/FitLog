@@ -6,9 +6,9 @@ import kotlinx.serialization.Serializable
 /**
  * 应用的导航 Key 集合（Navigation3）。
  *
- * 均为无参目的地，故使用 data object；
- * 带参数的页面（如将来的训练详情页）改为
- * `@Serializable data class XxxKey(val id: Long) : NavKey`。
+ * 页面默认无参，用 data object；带参数的页面用 `@Serializable data class`
+ * （如 [WorkoutKey.autoStart]）。带默认值的参数保证旧版本持久化回退栈的
+ * JSON 反序列化兼容（缺失字段取默认值）。
  *
  * `@Serializable` 是 `rememberNavBackStack` 持久化回退栈的前提。
  */
@@ -19,8 +19,12 @@ data object TodayKey : NavKey
 @Serializable
 data object ChatKey : NavKey
 
+/**
+ * 训练页。携带 [autoStart] 时进入即自动启动训练会话（Today「开始训练」）；
+ * 无参打开仅查看历史记录（已有会话时无论何种入口都恢复会话视图）。
+ */
 @Serializable
-data object WorkoutKey : NavKey
+data class WorkoutKey(val autoStart: Boolean = false) : NavKey
 
 @Serializable
 data object StatsKey : NavKey
