@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import com.example.fitlog.data.local.dao.ExerciseDao
 import com.example.fitlog.data.local.dao.WorkoutPlanDao
 import com.example.fitlog.data.mapper.toEntity
+import com.example.fitlog.data.repository.WorkoutPlanRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -29,16 +30,17 @@ import javax.inject.Singleton
 class WorkoutPlanSeeder @Inject constructor(
     private val workoutPlanDao: WorkoutPlanDao,
     private val exerciseDao: ExerciseDao,
+    private val workoutPlanRepository: WorkoutPlanRepository,
     private val dataStore: DataStore<Preferences>,
 ) {
 
     /**
      * 检查并执行预置计划导入。
      *
-     * 跳过条件：seed 版本已最新 **且** 计划表非空。
-     * 版本号存在但计划表为空（如 fallbackToDestructiveMigration 升级清库后，
-     * DataStore 版本号残留）时强制重灌，避免预置计划永久缺失——
-     * 与 [ExerciseSeeder] 的"版本最新且动作表非空"短路条件保持一致。
+     * 跳过条件：seed 版本已最新，且（计划表非空 **或** 用户已主动删光全部计划）。
+     * 版本号存在但计划表为空且无删光标记（如 destructive 迁移后版本号残留）时
+     * 强制重灌，避免预置计划永久缺失——与 [ExerciseSeeder] 的"版本最新且动作表非空"
+     * 短路条件保持一致。
      *
      * 注意：**仅在真正写入过计划后才标记版本**——动作库缺失导致整体跳过时
      * 不标记，下次启动（动作库就绪后）可自动重试，避免版本号被错误置位后卡死。
@@ -48,7 +50,13 @@ class WorkoutPlanSeeder @Inject constructor(
             .map { it[SEED_VERSION_KEY] ?: 0 }
             .first()
 
-        if (currentSeedVersion >= SEED_VERSION && workoutPlanDao.getPlanCount() > 0) return@withContext
+        if (currentSeedVersion >= SEED_VERSION) {
+            // 表非空 → 无需重灌；用户主动删光全部计划（repository 标记）→ 尊重用户
+            // 意图不复活预置计划。仅"表空且无标记"（清库残留）才继续重灌
+            if (workoutPlanDao.getPlanCount() > 0 || workoutPlanRepository.isPresetPlansCleared()) {
+                return@withContext
+            }
+        }
 
         var seeded = false
         PresetPlans.all().forEach { plan ->

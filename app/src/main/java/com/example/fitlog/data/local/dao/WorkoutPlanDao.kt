@@ -134,6 +134,13 @@ interface WorkoutPlanDao {
     fun getNextIncompleteSession(planId: String): Flow<PlannedSessionEntity?>
 
     /**
+     * 按主键取单个训练日（训练执行流预填动作清单用：
+     * Today「开始训练」仅携带 sessionId 导航，此处还原课次内容）。
+     */
+    @Query("SELECT * FROM planned_sessions WHERE id = :sessionId")
+    suspend fun getSessionById(sessionId: String): PlannedSessionEntity?
+
+    /**
      * 事务级保存完整计划。
      *
      * 语义：

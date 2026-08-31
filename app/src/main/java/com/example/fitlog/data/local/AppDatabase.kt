@@ -46,7 +46,7 @@ import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
         ChatMessageEntity::class,
         AgentStepEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {

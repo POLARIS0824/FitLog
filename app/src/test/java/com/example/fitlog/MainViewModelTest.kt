@@ -9,6 +9,7 @@ import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.local.entity.ExerciseEntity
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.data.repository.UserPreferencesRepository
+import com.example.fitlog.data.repository.WorkoutPlanRepository
 import com.example.fitlog.data.seed.ExerciseSeeder
 import com.example.fitlog.data.seed.SeedOrchestrator
 import com.example.fitlog.data.seed.WorkoutPlanSeeder
@@ -101,7 +102,12 @@ class MainViewModelTest {
             ),
         )
         val exerciseSeeder = ExerciseSeeder(db.exerciseDao(), dataStore, context)
-        val planSeeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
+        val planSeeder = WorkoutPlanSeeder(
+            workoutPlanDao = db.workoutPlanDao(),
+            exerciseDao = db.exerciseDao(),
+            workoutPlanRepository = WorkoutPlanRepository(db.workoutPlanDao(), dataStore),
+            dataStore = dataStore,
+        )
         viewModel = MainViewModel(preferencesRepository, SeedOrchestrator(exerciseSeeder, planSeeder))
     }
 
@@ -165,9 +171,13 @@ class MainViewModelTest {
             SeedOrchestrator(
                 ExerciseSeeder(db.exerciseDao(), createTestPreferencesDataStore(tmpFolder.newFile("seed2.preferences_pb"), dataStoreScope), ApplicationProvider.getApplicationContext()),
                 WorkoutPlanSeeder(
-                    db.workoutPlanDao(),
-                    db.exerciseDao(),
-                    createTestPreferencesDataStore(tmpFolder.newFile("seed3.preferences_pb"), dataStoreScope),
+                    workoutPlanDao = db.workoutPlanDao(),
+                    exerciseDao = db.exerciseDao(),
+                    workoutPlanRepository = WorkoutPlanRepository(
+                        db.workoutPlanDao(),
+                        createTestPreferencesDataStore(tmpFolder.newFile("seed3.preferences_pb"), dataStoreScope),
+                    ),
+                    dataStore = createTestPreferencesDataStore(tmpFolder.newFile("seed4.preferences_pb"), dataStoreScope),
                 ),
             ),
         )

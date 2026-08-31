@@ -93,7 +93,9 @@ class MockStatsHistorySeederTest {
             if (!isTrainingDay) continue
 
             val marker = "mock://$date"
-            if (workoutRepository.existsBySourceFileName(marker)) {
+            // 幂等重跑检查走 DAO 直查（repository 的应用层去重方法已随
+            // 唯一索引方案移除；insert IGNORE 的 -1 返回是第二道防线）
+            if (db.workoutDao().getBySourceFileName(marker) != null) {
                 skipped++
                 continue
             }

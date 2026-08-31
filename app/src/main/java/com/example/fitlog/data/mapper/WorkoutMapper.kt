@@ -27,6 +27,7 @@ fun WorkoutWithExerciseLogs.toModel(): Workout {
         feelings = workout.feelings,
         startedAt = workout.startedAt,
         endedAt = workout.endedAt,
+        planSessionId = workout.planSessionId,
         sourceFileName = workout.sourceFileName,
         rawContent = workout.rawContent,
     )
@@ -56,6 +57,7 @@ fun Workout.toEntity(): WorkoutEntity {
         feelings = feelings,
         startedAt = startedAt,
         endedAt = endedAt,
+        planSessionId = planSessionId,
         sourceFileName = sourceFileName,
         rawContent = rawContent,
     )

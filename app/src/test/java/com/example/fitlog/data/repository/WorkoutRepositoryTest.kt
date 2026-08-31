@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -227,6 +228,6 @@ class WorkoutRepositoryTest {
         val workoutId = repository.insert(shell)
         assertTrue(workoutId > 0)
         assertTrue(db.exerciseLogDao().getByWorkoutId(workoutId).isEmpty())
-        assertTrue(repository.existsBySourceFileName("2026-05-21.md"))
+        assertNotNull(db.workoutDao().getBySourceFileName("2026-05-21.md"))
     }
 }

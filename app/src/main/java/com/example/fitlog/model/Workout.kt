@@ -14,18 +14,24 @@ data class Workout(
     val feelings: String?,
     val startedAt: Long? = null,
     val endedAt: Long? = null,
+    val planSessionId: String? = null,
     val sourceFileName: String? = null,
     val rawContent: String? = null,
 ) {
     /**
-     * 是否为可计数的结构化训练（含动作明细）。
+     * 是否为可计数的结构化训练（含动作明细且已结束）。
      *
-     * 导入 Markdown 时仅存档表头（日期/感受）而无动作明细的记录，是"那天练过"的
-     * 存档证明，不是一次可计数的训练——完成次数等统计必须统一走本口径，
-     * 否则卡片显示次数与 Coach 观察/AI 指纹会互相矛盾。
+     * 两类记录必须排除：
+     * 1. 导入 Markdown 时仅存档表头（日期/感受）而无动作明细的记录，是
+     *    "那天练过"的存档证明，不是一次可计数的训练；
+     * 2. 训练执行流的进行中会话（startedAt 已写、endedAt 为空）——组数还在
+     *    增长，计入"完成次数"会让 Today/Stats 的数字随录入过程虚高。
+     *
+     * 完成次数等统计必须统一走本口径，否则卡片显示次数与
+     * Coach 观察/AI 指纹会互相矛盾。
      */
     val isCountable: Boolean
-        get() = exercises.isNotEmpty()
+        get() = exercises.isNotEmpty() && endedAt != null
 }
 
 /**
