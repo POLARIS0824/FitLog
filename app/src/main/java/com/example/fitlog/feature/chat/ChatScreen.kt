@@ -1,14 +1,20 @@
 package com.example.fitlog.feature.chat
 
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,6 +24,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,12 +41,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.fitlog.model.ai.AgentStep
+import com.example.fitlog.model.ai.ChatThreadMessage
 import com.example.fitlog.ui.components.StackedSnackbarHost
 import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 import com.example.fitlog.ui.theme.fitLogColors
@@ -47,23 +59,38 @@ import com.example.fitlog.ui.theme.fitLogColors
 /**
  * AI 教练对话页容器层：绑定 [ChatViewModel]，收集状态并转发事件。
  *
- * @param modifier 修饰符
+ * ViewModel 挂在 Activity 级 ViewModelStore（而非 nav entry）：切 tab 清栈销毁
+ * entry 时，进行中的 Agent 运行不被取消（中断会在会话里留悬空 tool_call，虽已有
+ * 请求装配层自愈，但能不中断就不中断），输入到一半的草稿也不丢失。
  */
 @Composable
 fun ChatRoute(
     modifier: Modifier = Modifier,
-    viewModel: ChatViewModel = hiltViewModel(),
 ) {
+    val activity = LocalContext.current.findActivity()
+    val viewModel: ChatViewModel = if (activity != null) {
+        hiltViewModel(activity)
+    } else {
+        hiltViewModel()
+    }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     ChatScreen(
         uiState = uiState,
         onInputChange = viewModel::onInputChange,
         onSend = viewModel::send,
+        onStop = viewModel::stopRun,
         onErrorShown = viewModel::onErrorShown,
         onConfirm = viewModel::respondToConfirmation,
         onClearChat = viewModel::onClearChat,
         modifier = modifier,
     )
+}
+
+/** 沿 ContextWrapper 链找到宿主 [ComponentActivity]（Compose 的 context 常被主题包装）。 */
+private tailrec fun Context.findActivity(): ComponentActivity? = when (this) {
+    is ComponentActivity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /**
@@ -76,6 +103,7 @@ fun ChatRoute(
  * @param uiState 对话状态
  * @param onInputChange 输入框文本变化事件
  * @param onSend 发送按钮点击事件
+ * @param onStop 停止按钮点击事件（生成期间取消进行中的运行）
  * @param onErrorShown 错误提示展示完毕回调
  * @param onConfirm 工具确认请求回调（参数为是否同意；同意才真正执行写操作）
  * @param onClearChat 清空对话事件（删除持久化历史并重置 UI）
@@ -87,6 +115,7 @@ fun ChatScreen(
     uiState: ChatUiState,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
+    onStop: () -> Unit = {},
     onErrorShown: () -> Unit = {},
     onConfirm: (Boolean) -> Unit = {},
     onClearChat: () -> Unit = {},
@@ -95,7 +124,8 @@ fun ChatScreen(
     val stackedSnackbarHostState = rememberStackedSnackbarHostState()
     val listState = rememberLazyListState()
     // 清空对话需二次确认：操作不可逆；会话历史删除前会归档为长期记忆，教练仍可引用历史要点
-    var showClearDialog by remember { mutableStateOf(false) }
+    // （rememberSaveable：旋转重建后弹层不静默消失）
+    var showClearDialog by rememberSaveable { mutableStateOf(false) }
 
     // 错误提示：errorMessage 出现时弹出 StackedSnackbar，展示完毕后清除一次性错误状态
     LaunchedEffect(uiState.errorMessage) {
@@ -105,16 +135,27 @@ fun ChatScreen(
         }
     }
 
-    // 新消息/时间线步骤追加时自动滚动到底部，保证 AI 回复与最新步骤对用户可见
-    // （否则用户向上翻过历史后，回复与进行中的时间线都渲染在屏幕外）
+    // 新消息/时间线步骤追加/键盘弹出时自动滚动到底部，保证 AI 回复与最新步骤
+    // 对用户可见（否则用户向上翻过历史后，回复与进行中的时间线都渲染在屏幕外）。
+    // 仅当用户已接近底部时才跟随：生成期间每个新步骤都会触发本效果，
+    // 无条件滚动会把正在回看历史的用户反复拽回底部
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     LaunchedEffect(
         uiState.messages.size,
         uiState.activeRun != null,
         uiState.activeRun?.steps?.size,
+        imeVisible,
     ) {
         val lastIndex = uiState.messages.lastIndex + if (uiState.activeRun != null) 1 else 0
         if (lastIndex >= 0) {
-            listState.animateScrollToItem(lastIndex)
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val nearBottom = !listState.canScrollForward || lastVisibleIndex >= lastIndex - 1
+            if (nearBottom) {
+                // 带 offset 滚动：运行中的时间线卡片可高于视口（展开态无内部滚动），
+                // 顶部对齐会让卡片底部的新步骤永远留在视口外；大 offset 把卡片
+                // 底部带进视口，短卡片时被列表末尾 clamp，效果等同滚到底
+                listState.animateScrollToItem(lastIndex, 2_000)
+            }
         }
     }
 
@@ -197,14 +238,25 @@ fun ChatScreen(
             }
 
             // ── 字段 3: input → 底部输入栏 ──
-            Row {
+            // imePadding：edge-to-edge 下根 Scaffold 未消费键盘 insets，必须自行避让，
+            // 否则键盘弹出会遮挡输入框
+            Row(modifier = Modifier.imePadding()) {
                 TextField(
                     value = uiState.input,
                     onValueChange = onInputChange,   // ← 事件转发
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = onSend, enabled = !uiState.isSending) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "发送")
+                // 发送 ⇄ 停止：生成期间变为停止按钮（此前生成中无任何取消手段，
+                // 流挂起时用户最长要等 180s readTimeout）
+                IconButton(
+                    onClick = if (uiState.isSending) onStop else onSend,
+                    enabled = uiState.isSending || uiState.input.isNotBlank(),
+                ) {
+                    if (uiState.isSending) {
+                        Icon(Icons.Filled.Stop, contentDescription = "停止生成")
+                    } else {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "发送")
+                    }
                 }
             }
         }
@@ -212,7 +264,9 @@ fun ChatScreen(
         // ── 字段 4: errorMessage → 底部叠加 StackedSnackbar ──
         StackedSnackbarHost(
             hostState = stackedSnackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .imePadding(),
         )
     }
 
@@ -316,7 +370,7 @@ private fun ToolConfirmationDialog(
  * AI 回复不使用气泡（见 [ChatScreen] 消息列表分支）。
  */
 @Composable
-fun UserMessageBubble(message: ChatUiMessage) {
+fun UserMessageBubble(message: ChatThreadMessage) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

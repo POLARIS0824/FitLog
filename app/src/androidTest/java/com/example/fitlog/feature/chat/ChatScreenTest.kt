@@ -13,6 +13,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.fitlog.model.ai.AgentStep
+import com.example.fitlog.model.ai.AgentStepType
+import com.example.fitlog.model.ai.ChatThreadMessage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -121,8 +124,8 @@ class ChatScreenTest {
     @Test
     fun assistantMessageWithSteps_rendersCollapsibleTimeline() {
         val steps = listOf(
-            AgentStepUi(id = 1, type = AgentStepType.THINKING, label = "我先查一下训练记录", elapsedMs = 1_000),
-            AgentStepUi(
+            AgentStep(id = 1, type = AgentStepType.THINKING, label = "我先查一下训练记录", elapsedMs = 1_000),
+            AgentStep(
                 id = 2,
                 type = AgentStepType.TOOL_CALL,
                 toolKey = "getRecentWorkouts",
@@ -135,7 +138,7 @@ class ChatScreenTest {
             ChatScreen(
                 uiState = ChatUiState(
                     messages = listOf(
-                        ChatUiMessage(
+                        ChatThreadMessage(
                             id = 10,
                             role = "assistant",
                             content = "基于你的训练数据，建议……",

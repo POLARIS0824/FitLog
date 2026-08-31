@@ -1,5 +1,7 @@
 package com.example.fitlog.feature.chat
 
+import com.example.fitlog.model.ai.ChatThreadMessage
+
 /**
  * 待用户确认的工具调用（ADK 确认协议）。
  *
@@ -21,7 +23,7 @@ data class PendingConfirmation(
 /**
  * AI 教练界面的 UI 状态。
  *
- * @property messages 消息列表（assistant 消息自带过程时间线步骤，按时间升序）
+ * @property messages 消息列表（[ChatThreadMessage]，assistant 消息自带过程时间线步骤，按时间升序）
  * @property input 输入框文本
  * @property isSending 是否正在等待 Agent 产出（控制发送按钮与滚动）
  * @property activeRun 进行中/待确认的 Agent 运行；非空时列表尾部渲染展开的时间线卡片
@@ -29,7 +31,7 @@ data class PendingConfirmation(
  * @property pendingConfirmation 非空时展示确认对话框；确认/拒绝后由 ViewModel 清除
  */
 data class ChatUiState(
-    val messages: List<ChatUiMessage> = emptyList(),
+    val messages: List<ChatThreadMessage> = emptyList(),
     val input: String = "",
     val isSending: Boolean = false,
     val activeRun: ActiveRun? = null,
