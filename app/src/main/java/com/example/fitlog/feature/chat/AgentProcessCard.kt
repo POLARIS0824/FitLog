@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.fitlog.model.ai.AgentStep
+import com.example.fitlog.model.ai.AgentStepType
 import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.components.TonalIcon
 import com.example.fitlog.ui.theme.FitLogTheme
@@ -61,7 +63,7 @@ import com.example.fitlog.ui.theme.FitLogTheme
  */
 @Composable
 internal fun AgentProcessCard(
-    steps: List<AgentStepUi>,
+    steps: List<AgentStep>,
     isRunning: Boolean,
     elapsedMs: Long,
     awaitingConfirmation: Boolean = false,
@@ -147,7 +149,7 @@ private fun headerText(isRunning: Boolean, awaitingConfirmation: Boolean, elapse
 
 /** 单个步骤行：tonal 图标 + 主/副文本。 */
 @Composable
-private fun StepRow(step: AgentStepUi) {
+private fun StepRow(step: AgentStep) {
     Row(
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -178,7 +180,7 @@ private fun StepRow(step: AgentStepUi) {
 }
 
 /** 步骤图标：思考→灯泡；确认→核对；写工具→编辑；读工具→搜索。 */
-private fun stepIcon(step: AgentStepUi): ImageVector = when {
+private fun stepIcon(step: AgentStep): ImageVector = when {
     step.type == AgentStepType.THINKING -> Icons.Filled.Lightbulb
     step.type == AgentStepType.CONFIRM_REQUEST -> Icons.AutoMirrored.Filled.FactCheck
     step.toolKey != null && AgentStepFormatter.isWriteTool(step.toolKey) -> Icons.Filled.Edit
@@ -186,7 +188,7 @@ private fun stepIcon(step: AgentStepUi): ImageVector = when {
 }
 
 /** 步骤图标 tonal 色槽：思考=primary、读工具=secondary、写/确认=tertiary（同类型同色，稳定不轮换）。 */
-private fun stepTonalIndex(step: AgentStepUi): Int = when {
+private fun stepTonalIndex(step: AgentStep): Int = when {
     step.type == AgentStepType.THINKING -> 0
     step.type == AgentStepType.CONFIRM_REQUEST -> 2
     step.toolKey != null && AgentStepFormatter.isWriteTool(step.toolKey) -> 2
@@ -199,8 +201,8 @@ private fun AgentProcessCardRunningPreview() {
     FitLogTheme {
         AgentProcessCard(
             steps = listOf(
-                AgentStepUi(id = 1, type = AgentStepType.THINKING, label = "我先查一下你最近的训练记录", elapsedMs = 1_200),
-                AgentStepUi(id = 2, type = AgentStepType.TOOL_CALL, toolKey = "getRecentWorkouts", label = "查询最近训练", detail = "最近 5 次", elapsedMs = 2_400),
+                AgentStep(id = 1, type = AgentStepType.THINKING, label = "我先查一下你最近的训练记录", elapsedMs = 1_200),
+                AgentStep(id = 2, type = AgentStepType.TOOL_CALL, toolKey = "getRecentWorkouts", label = "查询最近训练", detail = "最近 5 次", elapsedMs = 2_400),
             ),
             isRunning = true,
             elapsedMs = 12_000,
@@ -215,9 +217,9 @@ private fun AgentProcessCardCollapsedPreview() {
     FitLogTheme {
         AgentProcessCard(
             steps = listOf(
-                AgentStepUi(id = 1, type = AgentStepType.THINKING, label = "我先查一下你最近的训练记录", elapsedMs = 1_200),
-                AgentStepUi(id = 2, type = AgentStepType.TOOL_CALL, toolKey = "getRecentWorkouts", label = "查询最近训练", detail = "最近 5 次", elapsedMs = 2_400),
-                AgentStepUi(id = 3, type = AgentStepType.CONFIRM_REQUEST, toolKey = "logBodyWeight", label = "记录体重", detail = "72.5 kg", elapsedMs = 3_100),
+                AgentStep(id = 1, type = AgentStepType.THINKING, label = "我先查一下你最近的训练记录", elapsedMs = 1_200),
+                AgentStep(id = 2, type = AgentStepType.TOOL_CALL, toolKey = "getRecentWorkouts", label = "查询最近训练", detail = "最近 5 次", elapsedMs = 2_400),
+                AgentStep(id = 3, type = AgentStepType.CONFIRM_REQUEST, toolKey = "logBodyWeight", label = "记录体重", detail = "72.5 kg", elapsedMs = 3_100),
             ),
             isRunning = false,
             elapsedMs = 45_000,
@@ -231,8 +233,8 @@ private fun AgentProcessCardExpandedPreview() {
     FitLogTheme {
         AgentProcessCard(
             steps = listOf(
-                AgentStepUi(id = 1, type = AgentStepType.THINKING, label = "我先查一下你最近的训练记录", elapsedMs = 1_200),
-                AgentStepUi(id = 2, type = AgentStepType.TOOL_CALL, toolKey = "getBodyMetrics", label = "查询体重趋势", detail = "近 30 天", elapsedMs = 2_400),
+                AgentStep(id = 1, type = AgentStepType.THINKING, label = "我先查一下你最近的训练记录", elapsedMs = 1_200),
+                AgentStep(id = 2, type = AgentStepType.TOOL_CALL, toolKey = "getBodyMetrics", label = "查询体重趋势", detail = "近 30 天", elapsedMs = 2_400),
             ),
             isRunning = false,
             elapsedMs = 45_000,

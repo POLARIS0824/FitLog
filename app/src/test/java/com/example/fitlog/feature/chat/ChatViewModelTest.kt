@@ -1,32 +1,28 @@
 package com.example.fitlog.feature.chat
 
-import com.example.fitlog.data.local.dao.AgentStepDao
-import com.example.fitlog.data.local.dao.ChatMessageDao
-import com.example.fitlog.data.local.entity.chat.AgentStepEntity
-import com.example.fitlog.data.local.entity.chat.ChatMessageEntity
+import com.example.fitlog.data.repository.ChatRepository
 import com.example.fitlog.feature.agent.engine.AgentEngine
+import com.example.fitlog.model.ai.AgentStep
+import com.example.fitlog.model.ai.AgentStepType
+import com.example.fitlog.model.ai.ChatThreadMessage
+import com.example.fitlog.testing.MainDispatcherRule
 import com.google.adk.kt.events.Event
 import com.google.adk.kt.types.Content
 import com.google.adk.kt.types.FunctionCall
 import com.google.adk.kt.types.Part
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.test.TestCoroutineScheduler
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 /**
@@ -79,75 +75,106 @@ class FakeAgentEngine : AgentEngine {
 }
 
 /**
- * [ChatMessageDao] 的内存假实现：写入按 Room 自增语义分配 id（从 1 起），
- * 并记录清空调用次数，供清空对话分支断言"本地表确被清理"。
+ * [ChatRepository] 的内存假实现：写入按 Room 自增语义分配 id（从 1 起），
+ * 步骤按 runId 挂载到消息（与 RoomChatRepository.loadThread 同规则）；
+ * 记录清空调用次数，供清空对话分支断言"本地两张表确被清理"。
  */
-private class FakeChatMessageDao : ChatMessageDao {
+private class FakeChatRepository : ChatRepository {
 
-    /** 已写入的消息（按写入顺序，id 已分配）。 */
-    val rows = mutableListOf<ChatMessageEntity>()
+    private data class StoredMessage(
+        val id: Long,
+        val role: String,
+        val content: String,
+        val runId: String?,
+        val durationMs: Long?,
+        val createdAt: Long,
+    )    private data class StoredStep(
+        val id: Long,
+        val runId: String,
+        val order: Int,
+        val type: AgentStepType,
+        val toolKey: String?,
+        val label: String,
+        val detail: String?,
+        val elapsedMs: Long,
+        val createdAt: Long,
+    )
+
+    /** 已写入的步骤数（清空断言用）。 */
+    var stepCount = 0
+        private set
 
     /** clearAll 被调用的次数。 */
     var clearCount = 0
         private set
 
+    private val stored = mutableListOf<StoredMessage>()
+    private val storedSteps = mutableListOf<StoredStep>()
     private var nextId = 1L
 
-    /** 全部消息按写入顺序返回（真实现按 createdAt 升序，此处写入即有序）。 */
-    override suspend fun getAll(): List<ChatMessageEntity> = rows.toList()
-
-    /** 分配自增 id 并存储，返回该 id（与 Room 自增行为一致）。 */
-    override suspend fun insert(entity: ChatMessageEntity): Long {
-        val stored = entity.copy(id = nextId++)
-        rows.add(stored)
-        return stored.id
+    override suspend fun insertMessage(
+        role: String,
+        content: String,
+        runId: String?,
+        durationMs: Long?,
+        createdAt: Long,
+    ): Long {
+        val id = nextId++
+        stored += StoredMessage(id, role, content, runId, durationMs, createdAt)
+        return id
     }
 
-    override suspend fun count(): Long = rows.size.toLong()
+    override suspend fun insertStep(
+        runId: String,
+        order: Int,
+        type: AgentStepType,
+        toolKey: String?,
+        label: String,
+        detail: String?,
+        elapsedMs: Long,
+        createdAt: Long,
+    ): Long {
+        val id = nextId++
+        storedSteps += StoredStep(id, runId, order, type, toolKey, label, detail, elapsedMs, createdAt)
+        stepCount++
+        return id
+    }
+
+    /** 全部消息按写入顺序（createdAt 升序）返回，步骤按 runId 挂载。 */
+    override suspend fun loadThread(): List<ChatThreadMessage> =
+        stored.map { message ->
+            ChatThreadMessage(
+                id = message.id,
+                role = message.role,
+                content = message.content,
+                durationMs = message.durationMs,
+                steps = storedSteps
+                    .filter { it.runId == message.runId }
+                    .sortedBy { it.order }
+                    .map { step ->
+                        AgentStep(
+                            id = step.id,
+                            type = step.type,
+                            toolKey = step.toolKey,
+                            label = step.label,
+                            detail = step.detail,
+                            elapsedMs = step.elapsedMs,
+                        )
+                    },
+            )
+        }
+
+    override suspend fun count(): Long = stored.size.toLong()
 
     override suspend fun clearAll() {
         clearCount++
-        rows.clear()
+        stored.clear()
+        storedSteps.clear()
     }
 }
 
 /**
- * [AgentStepDao] 的内存假实现：写入按 Room 自增语义分配 id（从 1 起），
- * 并记录清空调用次数。
- */
-private class FakeAgentStepDao : AgentStepDao {
-
-    /** 已写入的步骤（按写入顺序，id 已分配）。 */
-    val rows = mutableListOf<AgentStepEntity>()
-
-    /** clearAll 被调用的次数。 */
-    var clearCount = 0
-        private set
-
-    private var nextId = 1L
-
-    /** 全部步骤按写入顺序返回。 */
-    override suspend fun getAll(): List<AgentStepEntity> = rows.toList()
-
-    /** 过滤出指定 runId 的步骤（真实现按 stepOrder 升序，此处写入即有序）。 */
-    override suspend fun getByRun(runId: String): List<AgentStepEntity> =
-        rows.filter { it.runId == runId }
-
-    /** 分配自增 id 并存储，返回该 id（与 Room 自增行为一致）。 */
-    override suspend fun insert(entity: AgentStepEntity): Long {
-        val stored = entity.copy(id = nextId++)
-        rows.add(stored)
-        return stored.id
-    }
-
-    override suspend fun clearAll() {
-        clearCount++
-        rows.clear()
-    }
-}
-
-/**
- * [ChatViewModel] 的单元测试（纯 JVM，[FakeAgentEngine] 与内存 DAO 假实现驱动）。
+ * [ChatViewModel] 的单元测试（纯 JVM，[FakeAgentEngine] 与内存仓库假实现驱动）。
  *
  * 覆盖：输入状态、发送防重入、成功回复上屏、引擎失败与事件流异常的错误提示、
  * 工具确认流程（弹框 → 回传 → 后续回复）、清空对话的本地表清理。
@@ -155,24 +182,18 @@ private class FakeAgentStepDao : AgentStepDao {
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
 
-    private val testScheduler = TestCoroutineScheduler()
+    @get:Rule
+    val mainDispatcher = MainDispatcherRule()
+
     private lateinit var fakeEngine: FakeAgentEngine
-    private lateinit var fakeMessageDao: FakeChatMessageDao
-    private lateinit var fakeStepDao: FakeAgentStepDao
+    private lateinit var fakeChatRepository: FakeChatRepository
     private lateinit var viewModel: ChatViewModel
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         fakeEngine = FakeAgentEngine()
-        fakeMessageDao = FakeChatMessageDao()
-        fakeStepDao = FakeAgentStepDao()
-        viewModel = ChatViewModel(fakeEngine, fakeMessageDao, fakeStepDao)
-    }
-
-    @After
-    fun tearDown() {
-        Dispatchers.resetMain()
+        fakeChatRepository = FakeChatRepository()
+        viewModel = ChatViewModel(fakeEngine, fakeChatRepository)
     }
 
     /** 构造一条模型最终文本回复事件。 */
@@ -207,14 +228,14 @@ class ChatViewModelTest {
 
     /** 输入框文本变化反映到状态。 */
     @Test
-    fun testOnInputChange_updatesInput() = runTest(testScheduler) {
+    fun testOnInputChange_updatesInput() = runTest(mainDispatcher.scheduler) {
         viewModel.onInputChange("今天练胸")
         assertEquals("今天练胸", viewModel.uiState.value.input)
     }
 
     /** 空白输入不可发送：不产生消息、不触达引擎。 */
     @Test
-    fun testSend_blankInput_doesNothing() = runTest(testScheduler) {
+    fun testSend_blankInput_doesNothing() = runTest(mainDispatcher.scheduler) {
         viewModel.onInputChange("   ")
         viewModel.send()
 
@@ -226,7 +247,7 @@ class ChatViewModelTest {
 
     /** 成功发送：用户消息立即上屏、输入框清空、isSending 复位、回复追加且 id 唯一。 */
     @Test
-    fun testSend_success_appendsReplyAndResetsState() = runTest(testScheduler) {
+    fun testSend_success_appendsReplyAndResetsState() = runTest(mainDispatcher.scheduler) {
         fakeEngine.sendHandler = { Result.success(kotlinx.coroutines.flow.flowOf(finalTextEvent("建议先做热身"))) }
 
         viewModel.onInputChange("你好")
@@ -245,7 +266,7 @@ class ChatViewModelTest {
 
     /** 未配置服务商（引擎构建失败）：错误信息展示、isSending 复位、用户消息保留。 */
     @Test
-    fun testSend_engineFailure_showsErrorMessage() = runTest(testScheduler) {
+    fun testSend_engineFailure_showsErrorMessage() = runTest(mainDispatcher.scheduler) {
         viewModel.onInputChange("你好")
         viewModel.send()
 
@@ -258,7 +279,7 @@ class ChatViewModelTest {
 
     /** 事件流中途抛异常：转为错误提示而非未捕获协程异常（闪退回归测试）。 */
     @Test
-    fun testSend_streamException_showsErrorMessageNotCrash() = runTest(testScheduler) {
+    fun testSend_streamException_showsErrorMessageNotCrash() = runTest(mainDispatcher.scheduler) {
         fakeEngine.sendHandler = {
             Result.success(flow<Event> { throw IOException("连接超时") })
         }
@@ -273,7 +294,7 @@ class ChatViewModelTest {
 
     /** ADK 错误事件（errorMessage）：直接展示且 isSending 复位。 */
     @Test
-    fun testSend_errorEvent_showsErrorMessage() = runTest(testScheduler) {
+    fun testSend_errorEvent_showsErrorMessage() = runTest(mainDispatcher.scheduler) {
         fakeEngine.sendHandler = {
             Result.success(flow<Event> { emit(Event(author = "model", errorMessage = "HTTP 429")) })
         }
@@ -287,7 +308,7 @@ class ChatViewModelTest {
 
     /** 发送过程中再次发送被忽略（防重复并发请求）。 */
     @Test
-    fun testSend_whileSending_secondSendIgnored() = runTest(testScheduler) {
+    fun testSend_whileSending_secondSendIgnored() = runTest(mainDispatcher.scheduler) {
         val latch = CompletableDeferred<Unit>()
         fakeEngine.sendHandler = {
             Result.success(
@@ -319,7 +340,7 @@ class ChatViewModelTest {
 
     /** 确认流程：确认请求事件弹框并暂停；同意后回传 callId，最终回复上屏。 */
     @Test
-    fun testConfirmationFlow_pausesAndResumes() = runTest(testScheduler) {
+    fun testConfirmationFlow_pausesAndResumes() = runTest(mainDispatcher.scheduler) {
         fakeEngine.sendHandler = {
             Result.success(
                 flow {
@@ -363,7 +384,7 @@ class ChatViewModelTest {
 
     /** onErrorShown 清除一次性错误状态。 */
     @Test
-    fun testOnErrorShown_clearsErrorMessage() = runTest(testScheduler) {
+    fun testOnErrorShown_clearsErrorMessage() = runTest(mainDispatcher.scheduler) {
         viewModel.onInputChange("你好")
         viewModel.send()
         assertNotNull(viewModel.uiState.value.errorMessage)
@@ -374,12 +395,12 @@ class ChatViewModelTest {
 
     /** init 时回放持久化历史：消息按序上屏、展示 id 从 1 起唯一递增。 */
     @Test
-    fun testInit_replaysPersistedHistory() = runTest(testScheduler) {
+    fun testInit_replaysPersistedHistory() = runTest(mainDispatcher.scheduler) {
         fakeEngine.history = listOf(
             com.example.fitlog.model.ai.ChatMessage(role = "user", content = "查体重"),
             com.example.fitlog.model.ai.ChatMessage(role = "assistant", content = "72.5kg"),
         )
-        val vm = ChatViewModel(fakeEngine, fakeMessageDao, fakeStepDao)
+        val vm = ChatViewModel(fakeEngine, fakeChatRepository)
 
         val state = vm.uiState.value
         assertEquals(2, state.messages.size)
@@ -400,7 +421,7 @@ class ChatViewModelTest {
 
     /** 清空对话：删除会话历史、重置全部 UI 状态。 */
     @Test
-    fun testOnClearChat_clearsMessagesAndSession() = runTest(testScheduler) {
+    fun testOnClearChat_clearsMessagesAndSession() = runTest(mainDispatcher.scheduler) {
         fakeEngine.sendHandler = { Result.success(flow { emit(finalTextEvent("你好呀")) }) }
         viewModel.onInputChange("你好")
         viewModel.send()
@@ -415,9 +436,8 @@ class ChatViewModelTest {
         assertEquals("", state.input)
         assertEquals(listOf("main_chat"), fakeEngine.clearedSessions)
         // 本地两张表与 ADK 会话一并清理，否则重启后消息"复活"而模型已失忆
-        assertEquals(1, fakeMessageDao.clearCount)
-        assertEquals(1, fakeStepDao.clearCount)
-        assertTrue(fakeMessageDao.rows.isEmpty())
-        assertTrue(fakeStepDao.rows.isEmpty())
+        assertEquals(1, fakeChatRepository.clearCount)
+        assertEquals(0L, fakeChatRepository.count())
+        assertEquals(0, fakeChatRepository.stepCount)
     }
 }

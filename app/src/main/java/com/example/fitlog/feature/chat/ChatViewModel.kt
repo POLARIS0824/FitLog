@@ -4,12 +4,11 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.fitlog.data.local.dao.AgentStepDao
-import com.example.fitlog.data.local.dao.ChatMessageDao
-import com.example.fitlog.data.local.entity.chat.AgentStepEntity
-import com.example.fitlog.data.local.entity.chat.ChatMessageEntity
+import com.example.fitlog.data.repository.ChatRepository
 import com.example.fitlog.feature.agent.engine.AgentEngine
-import com.example.fitlog.model.ai.ChatMessage
+import com.example.fitlog.model.ai.AgentStep
+import com.example.fitlog.model.ai.AgentStepType
+import com.example.fitlog.model.ai.ChatThreadMessage
 import com.google.adk.kt.events.Event
 import com.google.adk.kt.types.FunctionCall
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -58,8 +57,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val agentEngine: AgentEngine,
-    private val chatMessageDao: ChatMessageDao,
-    private val agentStepDao: AgentStepDao,
+    private val chatRepository: ChatRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -70,6 +68,9 @@ class ChatViewModel @Inject constructor(
 
     /** DB 落库失败时的兜底展示 id（负数递减，不与 Room 自增 id 冲突或重复）。 */
     private var fallbackId = -1L
+
+    /** 当前运行的收集协程（send / respondToConfirmation 共用），供 [stopRun] 取消。 */
+    private var runJob: Job? = null
 
     // ── 运行计时（暂停感知：分段累计，确认等待期间不计入）──
 
@@ -121,26 +122,19 @@ class ChatViewModel @Inject constructor(
 
         viewModelScope.launch {
             val runId = startNewRun()
-            val entity = ChatMessageEntity(
-                role = "user",
-                content = input,
-                runId = null,
-                durationMs = null,
-                createdAt = System.currentTimeMillis(),
-            )
-            val messageId = runCatching { chatMessageDao.insert(entity) }
-                .onFailure { Log.w(TAG, "用户消息落库失败", it) }
-                .getOrDefault(nextFallbackId())
+            val messageId = insertOrFallback("用户消息落库失败") {
+                chatRepository.insertMessage(role = "user", content = input, createdAt = System.currentTimeMillis())
+            }
             _uiState.update {
                 it.copy(
-                    messages = it.messages + ChatUiMessage(id = messageId, role = "user", content = input),
-                    activeRun = ActiveRun(runId = runId),
+                messages = it.messages + ChatThreadMessage(id = messageId, role = "user", content = input),
+                activeRun = ActiveRun(runId = runId),
                 )
             }
             agentEngine.sendMessage(sessionId, input)
                 .onSuccess { collectAgentEvents(it, runId) }
                 .onFailure { onEngineError(it) }
-        }
+        }.also { runJob = it }
     }
 
     /**
@@ -164,9 +158,13 @@ class ChatViewModel @Inject constructor(
         // 确认续传失败会停掉 ticker，重试恢复计时时要一并重启，否则头部秒数冻结
         startTicker()
 
+        // 步骤序号续计：确认是同一轮运行的延续，复用 runId 时从已有步骤数继续，
+        // 否则两段各自从 0 计数，持久化时间线按 runId+stepOrder 排序会交错乱序
+        val stepOrderStart = _uiState.value.activeRun?.steps?.size ?: 0
+
         viewModelScope.launch {
             agentEngine.respondToConfirmation(sessionId, pending.callId, confirmed)
-                .onSuccess { collectAgentEvents(it, runId) }
+                .onSuccess { collectAgentEvents(it, runId, stepOrderStart) }
                 .onFailure { error ->
                     onEngineError(error, clearActiveRun = false)
                     // 引擎失败时确认响应未写入会话，必须恢复确认框让用户重试——
@@ -174,21 +172,47 @@ class ChatViewModel @Inject constructor(
                     // 会话毒化且只能手动清空）
                     _uiState.update { it.copy(pendingConfirmation = pending) }
                 }
-        }
+        }.also { runJob = it }
+    }
+
+    /**
+     * 停止进行中的运行：取消事件收集协程并结束本轮 UI 状态。
+     *
+     * 此前无取消手段时，流挂起期间发送/清空全部被禁用，用户最长要等 180s
+     * readTimeout。中断可能在会话里留下悬空 tool_call（调用已写入会话、
+     * 结果未回传），请求装配层（OpenAiAdapters）会为悬空调用补合成结果，
+     * 会话不再因此被毒化，停止是安全的。
+     */
+    fun stopRun() {
+        if (!_uiState.value.isSending) return
+        runJob?.cancel()
+        runJob = null
+        stopRunTiming()
+        _uiState.update { it.copy(isSending = false, activeRun = null) }
     }
 
     /**
      * 消费一轮 ADK 事件流：确认请求 → 弹框暂停；中间过程 → 时间线步骤；
      * 最终文本 → 上屏；错误 → 提示。
      *
+     * @param stepOrderStart 本轮步骤序号基数。确认续传复用同一 runId 二次进入时，
+     *     必须从已有步骤数续计（否则两段各自从 0 计数，按 runId+stepOrder 排序
+     *     的持久化时间线重启恢复后交错乱序）
+     *
      * ADK 的事件流本身可能抛异常（工具执行失败、服务商中途断流、会话库 IO 错误等），
      * 因此整个收集过程包在 try/catch 中：异常转为 UI 错误提示而非未捕获协程异常
      * （后者会直接闪退）。[CancellationException] 按协程取消语义原样上抛。
      */
-    private suspend fun collectAgentEvents(events: Flow<Event>, runId: String) {
+    private suspend fun collectAgentEvents(
+        events: Flow<Event>,
+        runId: String,
+        stepOrderStart: Int = 0,
+    ) {
         var sawConfirmation = false
-        var sawAssistantOutput = false // 见流结束时兜底判断
-        var stepOrder = 0
+        var sawFinalAnswer = false // 是否已有最终回答上屏（流结束兜底判断用）
+        var sawAssistantOutput = false // 是否产生过任何中间/最终输出
+        var sawError = false // 已展示过引擎/服务商错误（流结束兜底不得覆盖）
+        var stepOrder = stepOrderStart
         try {
             events.collect { event ->
                 // 1) 确认请求：ADK 已暂停本轮，记步骤 + 弹确认框 + 暂停计时
@@ -228,6 +252,7 @@ class ChatViewModel @Inject constructor(
 
                 // 2) 引擎/服务商错误：运行作废（已记步骤成为无挂载孤儿数据）
                 event.errorMessage?.let { msg ->
+                    sawError = true
                     sawAssistantOutput = true
                     _uiState.update { it.copy(errorMessage = msg, isSending = false, activeRun = null) }
                     return@collect
@@ -258,6 +283,7 @@ class ChatViewModel @Inject constructor(
                 if (text.isNotBlank()) {
                     sawAssistantOutput = true
                     if (isFinal) {
+                        sawFinalAnswer = true
                         finalizeAnswer(runId, text)
                     } else if (!event.partial) {
                         addStep(
@@ -272,11 +298,17 @@ class ChatViewModel @Inject constructor(
                 }
             }
 
-            // 流结束：确认中 → 等用户决定（计时已暂停，运行保持）；其余收尾
-            if (!sawConfirmation && !sawAssistantOutput) {
-                _uiState.update {
-                    it.copy(errorMessage = "本轮对话未产生回复（可能已达到工具调用步数上限），请重试或换个问法")
+            // 流结束：确认中 → 等用户决定（计时已暂停，运行保持）；其余收尾。
+            // 已有过程输出但无最终回答 = 达到步数上限被静默截断，同样要给用户解释，
+            // 否则只有时间线没有回复、界面无声结束，用户不知道发生了什么。
+            // 已有错误提示时不再覆盖（服务商 429 等真实原因优先于推测性兜底文案）
+            if (!sawConfirmation && !sawFinalAnswer && !sawError) {
+                val reason = if (sawAssistantOutput) {
+                    "本轮已执行多个步骤但达到工具调用步数上限，未能生成最终回复，请重试或换个问法"
+                } else {
+                    "本轮对话未产生回复（可能已达到工具调用步数上限），请重试或换个问法"
                 }
+                _uiState.update { it.copy(errorMessage = reason) }
             }
             if (!sawConfirmation) {
                 stopRunTiming()
@@ -296,19 +328,18 @@ class ChatViewModel @Inject constructor(
     private suspend fun finalizeAnswer(runId: String, text: String) {
         val durationMs = stopRunTiming()
         val steps = _uiState.value.activeRun?.steps ?: emptyList()
-        val entity = ChatMessageEntity(
-            role = "assistant",
-            content = text,
-            runId = runId,
-            durationMs = durationMs,
-            createdAt = System.currentTimeMillis(),
-        )
-        val messageId = runCatching { chatMessageDao.insert(entity) }
-            .onFailure { Log.w(TAG, "最终回答落库失败", it) }
-            .getOrDefault(nextFallbackId())
+        val messageId = insertOrFallback("最终回答落库失败") {
+            chatRepository.insertMessage(
+                role = "assistant",
+                content = text,
+                runId = runId,
+                durationMs = durationMs,
+                createdAt = System.currentTimeMillis(),
+            )
+        }
         _uiState.update {
             it.copy(
-                messages = it.messages + ChatUiMessage(
+                messages = it.messages + ChatThreadMessage(
                     id = messageId,
                     role = "assistant",
                     content = text,
@@ -334,20 +365,19 @@ class ChatViewModel @Inject constructor(
         detail: String?,
     ) {
         val elapsedMs = currentRunElapsedMs()
-        val entity = AgentStepEntity(
-            runId = runId,
-            stepOrder = order,
-            type = type.storageValue,
-            toolKey = toolKey,
-            label = label,
-            detail = detail,
-            elapsedMs = elapsedMs,
-            createdAt = System.currentTimeMillis(),
-        )
-        val id = runCatching { agentStepDao.insert(entity) }
-            .onFailure { Log.w(TAG, "过程步骤落库失败", it) }
-            .getOrDefault(nextFallbackId())
-        val step = AgentStepUi(
+        val id = insertOrFallback("过程步骤落库失败") {
+            chatRepository.insertStep(
+                runId = runId,
+                order = order,
+                type = type,
+                toolKey = toolKey,
+                label = label,
+                detail = detail,
+                elapsedMs = elapsedMs,
+                createdAt = System.currentTimeMillis(),
+            )
+        }
+        val step = AgentStep(
             id = id,
             type = type,
             toolKey = toolKey,
@@ -422,10 +452,18 @@ class ChatViewModel @Inject constructor(
             it.copy(
                 isSending = false,
                 activeRun = if (clearActiveRun) null else it.activeRun?.copy(awaitingConfirmation = true),
-                errorMessage = error.message ?: "Agent 请求失败",
+                errorMessage = error.toUserFacingAgentMessage(),
             )
         }
     }
+
+    /** 异常 → 用户可读文案：ADK 步数上限异常给中文说明，其余透传（通常已可读）。 */
+    private fun Throwable.toUserFacingAgentMessage(): String =
+        if (javaClass.simpleName.contains("LlmCallsLimit")) {
+            "已达单轮工具调用步数上限，请重试或换个问法"
+        } else {
+            message ?: "Agent 请求失败"
+        }
 
     /**
      * 清空对话：删除 ADK 会话与本地两张表并重置 UI。
@@ -454,20 +492,27 @@ class ChatViewModel @Inject constructor(
             agentEngine.clearSession(sessionId)
                 .onSuccess {
                     // 本地历史与 ADK 会话一并清除，否则重启后消息"复活"而模型已失忆
-                    runCatching {
-                        chatMessageDao.clearAll()
-                        agentStepDao.clearAll()
-                    }.onFailure { Log.w(TAG, "聊天记录本地清理失败", it) }
+                    runCatching { chatRepository.clearAll() }
+                        .onFailure { Log.w(TAG, "聊天记录本地清理失败", it) }
                 }
                 .onFailure { error ->
-                    _uiState.update {
-                        it.copy(
-                            messages = previous.messages,
-                            pendingConfirmation = previous.pendingConfirmation,
-                            input = previous.input,
-                            activeRun = previous.activeRun,
-                            errorMessage = error.message ?: "清空会话失败，请重试",
-                        )
+                    // 回滚以 DB 为准重载，而非用快照整体覆盖：清空在途期间用户可能
+                    // 已发出新消息（已落库），快照覆盖会让新消息从 UI 消失但 DB 仍在，
+                    // 重启后"复活"，界面与持久层分叉
+                    viewModelScope.launch {
+                        val reloaded = runCatching { chatRepository.loadThread() }
+                            .onFailure { Log.w(TAG, "清空回滚重载失败", it) }
+                            .getOrDefault(previous.messages)
+                        _uiState.update {
+                            it.copy(
+                                messages = reloaded,
+                                // 清空窗口内的新状态（若用户已重新发消息/输入）优先于旧快照
+                                pendingConfirmation = it.pendingConfirmation
+                                    ?: previous.pendingConfirmation,
+                                activeRun = it.activeRun ?: previous.activeRun,
+                                errorMessage = error.message ?: "清空会话失败，请重试",
+                            )
+                        }
                     }
                 }
         }
@@ -484,12 +529,12 @@ class ChatViewModel @Inject constructor(
 
     /** 启动恢复：本地库优先；本地为空且 ADK 有历史时做一次性 seed（老版本升级路径）。 */
     private suspend fun restoreHistory() {
-        val localCount = runCatching { chatMessageDao.count() }
+        val localCount = runCatching { chatRepository.count() }
             .onFailure { Log.w(TAG, "读取聊天记录数失败", it) }
             .getOrDefault(0L)
         if (localCount == 0L) seedFromAdkHistory()
 
-        val restored = runCatching { loadMessages() }
+        val restored = runCatching { chatRepository.loadThread() }
             .getOrElse { Log.w(TAG, "读取聊天历史失败", it); emptyList() }
         _uiState.update { state ->
             // init 与 send 并发的防御：若用户已发出新消息，不覆盖现场
@@ -500,7 +545,9 @@ class ChatViewModel @Inject constructor(
 
     /** 从 ADK 会话回放 seed 本地消息表（时间线功能上线前的历史无步骤可挂）。 */
     private suspend fun seedFromAdkHistory() {
-        val history: List<ChatMessage> = runCatching { agentEngine.replayHistory(sessionId) }
+        val history: List<com.example.fitlog.model.ai.ChatMessage> = runCatching {
+            agentEngine.replayHistory(sessionId)
+        }
             .onFailure { Log.w(TAG, "ADK 历史回放失败", it) }
             .getOrDefault(emptyList())
         if (history.isEmpty()) return
@@ -508,47 +555,34 @@ class ChatViewModel @Inject constructor(
         // 发出新消息（createdAt 为当下），回溯可保证 seed 的旧历史始终排在新消息之前
         val base = System.currentTimeMillis() - history.size
         history.forEachIndexed { index, message ->
-            val entity = ChatMessageEntity(
-                role = message.role,
-                content = message.content,
-                runId = null,
-                durationMs = null,
-                createdAt = base + index,
-            )
-            runCatching { chatMessageDao.insert(entity) }
-                .onFailure { Log.w(TAG, "历史消息 seed 落库失败", it) }
-        }
-    }
-
-    /** 本地消息 + 按 runId 挂载的时间线步骤。 */
-    private suspend fun loadMessages(): List<ChatUiMessage> {
-        val messages = chatMessageDao.getAll()
-        val stepsByRun = agentStepDao.getAll().groupBy { it.runId }
-        return messages.map { entity ->
-            ChatUiMessage(
-                id = entity.id,
-                role = entity.role,
-                content = entity.content,
-                steps = entity.runId
-                    ?.let { runId ->
-                        stepsByRun[runId].orEmpty().map { s ->
-                            AgentStepUi(
-                                id = s.id,
-                                type = AgentStepType.fromStorageValue(s.type),
-                                toolKey = s.toolKey,
-                                label = s.label,
-                                detail = s.detail,
-                                elapsedMs = s.elapsedMs,
-                            )
-                        }
-                    }
-                    ?: emptyList(),
-                durationMs = entity.durationMs,
-            )
+            insertOrFallback("历史消息 seed 落库失败") {
+                chatRepository.insertMessage(
+                    role = message.role,
+                    content = message.content,
+                    createdAt = base + index,
+                )
+            }
         }
     }
 
     private fun nextFallbackId(): Long = fallbackId--
+
+    /**
+     * 落库容错：DB 异常降级为负数兜底 id（时间线是辅助信息，不中断对话）。
+     *
+     * 刻意不用 [runCatching]：它会吞掉 [CancellationException]——stopRun 与
+     * 正常完成的竞态下，被吞的取消会让未落库的回答继续上屏（重启后消失，
+     * 与 ADK 会话分叉）。取消必须原样上抛。
+     */
+    private inline fun insertOrFallback(logMessage: String, block: () -> Long): Long =
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, logMessage, e)
+            nextFallbackId()
+        }
 
     companion object {
         private const val TAG = "ChatViewModel"
