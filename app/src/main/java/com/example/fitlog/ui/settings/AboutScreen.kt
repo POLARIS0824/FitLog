@@ -98,7 +98,11 @@ fun AboutScreen(
                 color = MaterialTheme.colorScheme.primary,
                 textDecoration = TextDecoration.Underline,
                 modifier = Modifier.clickable {
-                    uriHandler.openUri("https://github.com/POLARIS0824/FitLog")
+                    // 无任何浏览器的设备上 openUri 抛 ActivityNotFoundException：
+                    // 非核心功能，吞掉即可，不必崩溃
+                    runCatching {
+                        uriHandler.openUri("https://github.com/POLARIS0824/FitLog")
+                    }
                 },
             )
             Text(

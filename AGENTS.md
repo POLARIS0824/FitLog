@@ -14,7 +14,7 @@ AI-powered native Android fitness app for personal use and portfolio/demo purpos
 - Coroutines + Flow
 - Navigation3
 - Retrofit / OkHttp
-- WorkManager (TODO)
+- WorkManager
 
 ## Architecture & Package Structure
 
@@ -26,10 +26,19 @@ Single `app` module, organized by package:
 - `model/`: Domain models (repos map DAOs/DTOs directly to domain models)
 - `feature/`: Feature modules (`agent` AI engine + tools, `aisettings`, `chat`, `stats`, `today`, `workout`)
 - `ui/`: Global UI components, Theme, Navigation3 routes; settings subpages (`appearance`, `dataimport`, `profile`, `reminder`, `SettingsScreen`, `AboutScreen`)
-- `di/`: Hilt modules (`DatabaseModule`, `AIModule`, `AgentEngineModule`)
+- `di/`: Hilt modules (`DatabaseModule`, `AIModule`, `AgentEngineModule`, `ChatModule`, `ReminderModule`)
 - `util/`: Utilities (e.g. `KeystoreManager` for AES-GCM API key encryption, `VolumeFormatter`/`VolumeAggregator` for shared workout-metric conventions)
 
-Keep package boundaries clean for potential future modularization.
+Keep package boundaries clean for potential future modularization:
+
+- Feature/UI layers must NOT import `data.local` (DAO/entity) — go through repositories. Feature-layer ViewModels expose domain or UI models only.
+- Shared metric conventions live in `util/` (`VolumeAggregator` for volume/set counts, `VolumeFormatter` for number formatting, `Workout.isCountable` for countability). Do not hand-roll these inline.
+
+## ViewModel Conventions
+
+- Data-flow exceptions degrade via the guard pattern: `catch` writes a one-shot message channel and emits a fallback (never emit an error state that terminates the chain — see TodayViewModel/StatsViewModel/WorkoutViewModel comments).
+- One-shot events (snackbar text, operation feedback) live in a separate `StateFlow` cleared by an `onXxxShown` callback; do not fold them into composed UI state.
+- `stateIn` uses `WhileSubscribed(5000)` unless there is a documented reason otherwise.
 
 ## UI & Design System
 
