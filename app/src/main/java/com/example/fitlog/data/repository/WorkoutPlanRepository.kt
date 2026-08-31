@@ -2,6 +2,7 @@ package com.example.fitlog.data.repository
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.fitlog.data.local.dao.WorkoutPlanDao
@@ -36,6 +37,13 @@ class WorkoutPlanRepository @Inject constructor(
 
     private companion object {
         val ACTIVE_PLAN_KEY = stringPreferencesKey("active_plan_id")
+
+        /**
+         * 用户已主动删光全部计划的标记。表空无法区分"清库残留"和"用户主动删光"，
+         * 预置计划播种器（WorkoutPlanSeeder）据此避免把用户刻意清空的预置计划
+         * 在每次启动时复活。
+         */
+        val PRESET_PLANS_CLEARED_KEY = booleanPreferencesKey("preset_plans_cleared")
     }
 
     /**
@@ -48,13 +56,27 @@ class WorkoutPlanRepository @Inject constructor(
 
     /**
      * 删除训练计划；若删除的是当前激活计划，联动清除激活 ID。
+     *
+     * 删光全部计划时记录"用户已主动清空"标记：表空无法区分"清库残留"和
+     * "用户主动删光"，标记供预置计划播种器跳过重灌（否则用户永远删不净预置计划）。
      */
     suspend fun delete(id: String) {
         workoutPlanDao.deletePlan(id)
         if (activePlanId.first() == id) {
             clearActivePlanId()
         }
+        if (workoutPlanDao.getPlanCount() == 0) {
+            dataStore.edit { prefs ->
+                prefs[PRESET_PLANS_CLEARED_KEY] = true
+            }
+        }
     }
+
+    /**
+     * 用户是否已主动删光全部计划（供预置计划播种器判断是否跳过重灌）。
+     */
+    suspend fun isPresetPlansCleared(): Boolean =
+        dataStore.data.map { prefs -> prefs[PRESET_PLANS_CLEARED_KEY] ?: false }.first()
 
     suspend fun getAllPlans(): List<WorkoutPlan> {
         return workoutPlanDao.getAllPlansWithDetails().map { it.toModel() }
@@ -89,6 +111,12 @@ class WorkoutPlanRepository @Inject constructor(
 
     suspend fun unmarkSessionCompleted(sessionId: String) =
         workoutPlanDao.unmarkSessionCompleted(sessionId)
+
+    /**
+     * 按主键取单个训练日（训练执行流预填动作清单用）。
+     */
+    suspend fun getSessionById(sessionId: String): PlannedSession? =
+        workoutPlanDao.getSessionById(sessionId)?.toModel()
 
     // ──────────────────────────────────────
     // 激活管理 — "当前正在执行哪套计划？"

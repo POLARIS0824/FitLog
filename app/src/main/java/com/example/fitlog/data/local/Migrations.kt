@@ -94,8 +94,22 @@ object Migrations {
     }
 
     /**
+     * 8 → 9：`workouts.planSessionId` 列，训练执行流的会话行 ↔ 计划课次关联落库。
+     *
+     * 此前关联只存于 ViewModel 内存（SavedStateHandle），会话页退出后丢失：
+     * 结束一次"从计划开始"的会话时无法回写 planned_sessions.completedWorkoutId，
+     * 该课次永远保持未完成。落库后关联与会话行同生命周期，恢复/换机均不丢。
+     * 可空：自由训练与导入记录为 NULL，不触碰既有数据。
+     */
+    private val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `workouts` ADD COLUMN `planSessionId` TEXT")
+        }
+    }
+
+    /**
      * 全部已注册迁移，按版本升序。
      * `DatabaseModule` 经 `addMigrations(*ALL_MIGRATIONS)` 挂载。
      */
-    val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_6_7, MIGRATION_7_8)
+    val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
 }

@@ -39,6 +39,15 @@ interface WorkoutDao {
     suspend fun delete(workoutEntity: WorkoutEntity)
 
     /**
+     * 按主键删除训练日记录（子行经外键 CASCADE 连带删除）。
+     *
+     * 训练执行流"放弃会话"入口：调用方只有 id（进行中的会话行由
+     * [getInProgressWithDetails] 流式给出），无完整实体可走 [delete]。
+     */
+    @Query("DELETE FROM workouts WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    /**
      * 根据日期查询训练日记录。
      *
      * @param date LocalDate
@@ -54,6 +63,10 @@ interface WorkoutDao {
 
     /**
      * 根据来源文件名查询训练日记录。
+     *
+     * 生产路径的导入去重由 `sourceFileName` 唯一索引 + IGNORE 策略保证
+     * （应用层 check-then-insert 有 TOCTOU 窗口，已弃用）；本查询保留供
+     * 测试断言与排障使用。
      */
     @Query("SELECT * FROM workouts WHERE sourceFileName = :fileName")
     suspend fun getBySourceFileName(fileName: String): WorkoutEntity?
@@ -98,6 +111,33 @@ interface WorkoutDao {
     @Transaction
     @Query("SELECT * FROM workouts ORDER BY date DESC, id DESC LIMIT :limit")
     fun getRecentWithDetails(limit: Int): Flow<List<WorkoutWithExerciseLogs>>
+
+    /**
+     * 放弃会话的条件删除：仅当该行仍处于进行中（endedAt 为空）时删除。
+     *
+     * 防止"结束落库后放弃"的双操作竞态把已保存的训练整体删掉。
+     *
+     * @return 删除的行数（0 = 会话已结束或不存在，放弃被拒绝）
+     */
+    @Query("DELETE FROM workouts WHERE id = :id AND endedAt IS NULL")
+    suspend fun deleteInProgressById(id: Long): Int
+
+    /**
+     * 查询进行中的训练（startedAt 已写、endedAt 为空），含动作与组。
+     *
+     * 训练执行流以 DB 为会话状态源：进程死亡/页面销毁后，本查询仍是
+     * 恢复入口（"继续训练"）。全库至多一条（启动会话前有防御），LIMIT 1 兜底。
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM workouts
+        WHERE startedAt IS NOT NULL AND endedAt IS NULL
+        ORDER BY startedAt DESC
+        LIMIT 1
+        """,
+    )
+    fun getInProgressWithDetails(): Flow<WorkoutWithExerciseLogs?>
 
     /**
      * 查询日期区间内的训练（含动作与组），按日期降序排列

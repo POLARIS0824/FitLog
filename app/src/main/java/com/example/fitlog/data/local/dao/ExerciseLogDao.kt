@@ -44,6 +44,12 @@ interface ExerciseLogDao {
     suspend fun getByWorkoutId(workoutId: Long): List<ExerciseLogEntity>
 
     /**
+     * 按主键删除动作记录（set_logs 经外键 CASCADE 连带删除）。
+     */
+    @Query("DELETE FROM exercise_logs WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    /**
      * 删除指定训练日下的所有动作记录（set_logs 由外键 CASCADE 连带删除）。
      *
      * @param workoutId 训练日 ID

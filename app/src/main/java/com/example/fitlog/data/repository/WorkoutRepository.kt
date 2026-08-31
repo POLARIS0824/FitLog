@@ -5,10 +5,15 @@ import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.local.dao.ExerciseLogDao
 import com.example.fitlog.data.local.dao.SetLogDao
 import com.example.fitlog.data.local.dao.WorkoutDao
+import com.example.fitlog.data.local.entity.workout.ExerciseLogEntity
+import com.example.fitlog.data.local.entity.workout.SetLogEntity
+import com.example.fitlog.data.local.relation.WorkoutWithExerciseLogs
 import com.example.fitlog.data.mapper.toEntity
 import com.example.fitlog.data.mapper.toModel
+import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import javax.inject.Inject
@@ -84,12 +89,6 @@ class WorkoutRepository @Inject constructor(
     suspend fun getById(id: Long): Workout? =
         workoutDao.getByIdWithDetails(id)?.toModel()
 
-    /**
-     * 判断指定来源文件名的训练记录是否已存在（导入去重用）。
-     */
-    suspend fun existsBySourceFileName(fileName: String) =
-        workoutDao.getBySourceFileName(fileName) != null
-
     suspend fun delete(workout: Workout) = workoutDao.delete(workout.toEntity())
 
     fun getByDate(date: LocalDate) = workoutDao.getByDateWithDetails(date).map { list ->
@@ -133,4 +132,195 @@ class WorkoutRepository @Inject constructor(
         workoutDao.getByDateRangeWithDetails(from, to).map { list ->
             list.map { it.toModel() }
         }
+
+    // ──────────────────────────────────────
+    // 训练执行流（进行中会话）— 状态源是 DB 而非内存：
+    // 进程死亡/页面销毁后重启仍可恢复，Today 卡片的 IN_PROGRESS 分支同源
+    // ──────────────────────────────────────
+
+    /**
+     * 事务化创建会话并预填计划动作清单（各附一个占位组 0kg×0 次）。
+     *
+     * 单事务保证"半初始化会话"不可见：workout 行与全部预填行要么同时
+     * 存在，要么都不存在（此前逐条落库的窗口期内投影会出现无组动作行，
+     * 且中途失败会留下进行中会话与"启动失败"提示并存的矛盾）。
+     *
+     * @param planSession 来源计划课次（null = 自由训练，不预填动作）
+     * @return 新会话的 workouts 主键；写入失败返回 -1
+     */
+    suspend fun createSessionWorkout(planSession: com.example.fitlog.model.PlannedSession?): Long =
+        db.withTransaction {
+            val workoutId = workoutDao.insert(
+                Workout(
+                    id = 0,
+                    userId = 0,
+                    date = LocalDate.now(),
+                    exercises = emptyList(),
+                    feelings = null,
+                    startedAt = System.currentTimeMillis(),
+                    endedAt = null,
+                    planSessionId = planSession?.id,
+                ).toEntity(),
+            )
+            if (workoutId == -1L) return@withTransaction -1L
+
+            planSession?.exercises
+                ?.sortedBy { it.order }
+                ?.forEachIndexed { index, item ->
+                    val logId = exerciseLogDao.insert(
+                        ExerciseLogEntity(
+                            workoutId = workoutId,
+                            exerciseKey = item.exerciseKey,
+                            name = item.exerciseName ?: item.exerciseKey,
+                            sortOrder = index,
+                        ),
+                    )
+                    if (logId != -1L) {
+                        setLogDao.insert(
+                            SetLogEntity(
+                                exerciseLogId = logId,
+                                setNumber = 1,
+                                weightKg = 0f,
+                                reps = 0,
+                                setType = SetType.WORKING.name,
+                            ),
+                        )
+                    }
+                }
+            workoutId
+        }
+
+    /**
+     * 观察进行中的训练（startedAt 已写、endedAt 为空）。
+     *
+     * 刻意返回 relation 包装而非 domain [Workout]：会话内的组编辑
+     * （updateSet/deleteSet）需要 exerciseLog/setLog 的数据库主键，
+     * domain 模型不含 id。仅限训练执行流使用。
+     */
+    fun getInProgressWorkoutEntity(): Flow<WorkoutWithExerciseLogs?> =
+        workoutDao.getInProgressWithDetails()
+
+    /** 进行中会话是否已存在（启动新会话的防御检查）。 */
+    suspend fun hasInProgressWorkout(): Boolean =
+        workoutDao.getInProgressWithDetails().map { it != null }.first()
+
+    /**
+     * 向进行中会话添加动作（不预建组）。
+     *
+     * @param exerciseKey 动作库 id；调用方必须保证其存在于 exercises 表
+     *   （exercise_logs 外键对未知 key 会触发约束异常整体回滚），
+     *   计划种子与动作选择器均已校验
+     * @param sortOrder 动作排序序号
+     * @return 新插入动作记录的主键
+     */
+    suspend fun addExerciseToSession(
+        workoutId: Long,
+        exerciseKey: String?,
+        name: String,
+        sortOrder: Int,
+    ): Long = db.withTransaction {
+        exerciseLogDao.insert(
+            ExerciseLogEntity(workoutId = workoutId, exerciseKey = exerciseKey, name = name, sortOrder = sortOrder),
+        )
+    }
+
+    /**
+     * 向动作记录追加一组（会话内"添加一组"，默认值由调用方按上一组复制）。
+     *
+     * @return 新插入组记录的主键
+     */
+    suspend fun addSetToExercise(
+        exerciseLogId: Long,
+        setNumber: Int,
+        weightKg: Float,
+        reps: Int,
+        setType: SetType,
+    ): Long = setLogDao.insert(
+        SetLogEntity(
+            exerciseLogId = exerciseLogId,
+            setNumber = setNumber,
+            weightKg = weightKg,
+            reps = reps,
+            setType = setType.name,
+        ),
+    )
+
+    /** 更新会话内一组的重量/次数/组类型（逐键提交，频率高故走定向 UPDATE 而非全列覆盖）。 */
+    suspend fun updateSessionSet(setId: Long, weightKg: Float, reps: Int, setType: SetType) {
+        setLogDao.updateById(id = setId, weightKg = weightKg, reps = reps, setType = setType.name)
+    }
+
+    /** 翻转会话内一组的组类型（WORKING ⇄ WARMUP，SQL 侧原子取反）。 */
+    suspend fun toggleSessionSetType(setId: Long) {
+        setLogDao.toggleTypeById(setId)
+    }
+
+    /** 删除会话内一组。 */
+    suspend fun deleteSessionSet(setId: Long) {
+        setLogDao.deleteById(setId)
+    }
+
+    /** 删除会话内一个动作（其组经外键 CASCADE 连带删除）。 */
+    suspend fun deleteSessionExercise(exerciseLogId: Long) {
+        exerciseLogDao.deleteById(exerciseLogId)
+    }
+
+    /**
+     * 结束会话：清洗无效数据、写 endedAt 与感受，训练正式落库。
+     *
+     * 清洗规则：reps ≤ 0 的组剔除（占位行）；清洗后无任何有效组的动作剔除；
+     * 清洗后不存在任何有效动作时结束失败（返回 false，会话保持进行中）。
+     * 已结束的行直接拒绝（双击"保存"的第二击不改写 endedAt）。
+     *
+     * @return true 结束成功；false 无有效训练内容或会话已结束，不能结束
+     */
+    suspend fun finishSession(workoutId: Long, feelings: String?, endedAt: Long): Boolean =
+        db.withTransaction {
+            val relation = workoutDao.getByIdWithDetails(workoutId)
+                ?: return@withTransaction false
+            if (relation.workout.endedAt != null) return@withTransaction false
+            val cleaned = relation.exerciseLogs
+                .sortedBy { it.exerciseLog.sortOrder }
+                .mapNotNull { log ->
+                    // @Relation 无 ORDER BY：按持久化组号显式排序后再清洗重排，
+                    // 保证重插后的 setNumber 连续且与录入顺序一致
+                    log to log.sets.sortedBy { it.setNumber }.filter { it.reps > 0 }
+                }
+                .filter { (_, sets) -> sets.isNotEmpty() }
+            if (cleaned.isEmpty()) return@withTransaction false
+
+            // 删除旧子行并按清洗结果重插（组号重新连续编号），再补 endedAt/feelings
+            exerciseLogDao.deleteByWorkoutId(workoutId)
+            cleaned.forEachIndexed { index, (log, sets) ->
+                val logId = exerciseLogDao.insert(
+                    ExerciseLogEntity(
+                        workoutId = workoutId,
+                        exerciseKey = log.exerciseLog.exerciseKey,
+                        name = log.exerciseLog.name,
+                        sortOrder = index,
+                    ),
+                )
+                setLogDao.insertAll(
+                    sets.mapIndexed { setIndex, set ->
+                        SetLogEntity(
+                            exerciseLogId = logId,
+                            setNumber = setIndex + 1,
+                            weightKg = set.weightKg,
+                            reps = set.reps,
+                            setType = set.setType,
+                        )
+                    },
+                )
+            }
+            workoutDao.update(relation.workout.copy(feelings = feelings, endedAt = endedAt))
+            true
+        }
+
+    /**
+     * 放弃会话：条件删除训练日行（动作与组经外键 CASCADE 连带清除）。
+     *
+     * @return true 放弃成功；false 会话已结束（拒绝删除已保存的训练）或不存在
+     */
+    suspend fun discardSession(workoutId: Long): Boolean =
+        workoutDao.deleteInProgressById(workoutId) > 0
 }

@@ -1,6 +1,9 @@
 package com.example.fitlog.data.seed
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.room.Room
@@ -8,6 +11,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.local.entity.ExerciseEntity
 import com.example.fitlog.data.mapper.toEntity
+import com.example.fitlog.data.repository.WorkoutPlanRepository
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -61,7 +65,7 @@ class WorkoutPlanSeederTest {
             backgroundScope,
         )
         insertPresetReferencedExercises()
-        val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
+        val seeder = createSeeder(dataStore)
 
         seeder.seedIfNeeded()
 
@@ -93,7 +97,7 @@ class WorkoutPlanSeederTest {
         dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 2 }
         insertPresetReferencedExercises()
         db.workoutPlanDao().insertPlanIgnore(PresetPlans.all().first().toEntity())
-        val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
+        val seeder = createSeeder(dataStore)
 
         seeder.seedIfNeeded()
 
@@ -114,7 +118,7 @@ class WorkoutPlanSeederTest {
         // 版本已最新，但计划表为空（模拟清库后残留）
         dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 2 }
         insertPresetReferencedExercises()
-        val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
+        val seeder = createSeeder(dataStore)
 
         seeder.seedIfNeeded()
 
@@ -132,7 +136,7 @@ class WorkoutPlanSeederTest {
             backgroundScope,
         )
         // 动作库为空 → 两套计划都缺少引用动作，应全部跳过
-        val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
+        val seeder = createSeeder(dataStore)
 
         seeder.seedIfNeeded()
 
@@ -150,7 +154,7 @@ class WorkoutPlanSeederTest {
             backgroundScope,
         )
         // 动作库为空 → 全部跳过
-        val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
+        val seeder = createSeeder(dataStore)
 
         seeder.seedIfNeeded()
 
@@ -172,11 +176,35 @@ class WorkoutPlanSeederTest {
         // 模拟被旧缺陷污染的安装：v1 已标记但计划表为空
         dataStore.edit { it[intPreferencesKey("plan_seed_version")] = 1 }
         insertPresetReferencedExercises()
-        val seeder = WorkoutPlanSeeder(db.workoutPlanDao(), db.exerciseDao(), dataStore)
+        val seeder = createSeeder(dataStore)
 
         seeder.seedIfNeeded()
 
         assertEquals(PresetPlans.all().size, db.workoutPlanDao().getAllPlans().size)
+    }
+
+    /**
+     * 测试用户主动删光全部计划后，预置计划不再于每次启动时"复活"
+     * （repository 的 preset_plans_cleared 标记拦截重灌）。
+     */
+    @Test
+    fun testSeed_skipsWhenUserClearedAllPlans() = runTest {
+        val dataStore = createTestPreferencesDataStore(
+            tmpFolder.newFile("seeder_prefs7.preferences_pb"),
+            backgroundScope,
+        )
+        // 版本已最新 + 计划表为空 + 用户删光标记（键名与
+        // WorkoutPlanRepository.PRESET_PLANS_CLEARED_KEY 对应，私有故按名直写）
+        dataStore.edit {
+            it[intPreferencesKey("plan_seed_version")] = 2
+            it[booleanPreferencesKey("preset_plans_cleared")] = true
+        }
+        insertPresetReferencedExercises()
+        val seeder = createSeeder(dataStore)
+
+        seeder.seedIfNeeded()
+
+        assertEquals(0, db.workoutPlanDao().getAllPlans().size)
     }
 
     /**
@@ -190,4 +218,14 @@ class WorkoutPlanSeederTest {
             .distinct()
         db.exerciseDao().insertAll(keys.map { ExerciseEntity(id = it, name = it) })
     }
+
+    /** 组装被测对象：seeder 依赖 repository 提供的"用户已删光"标记。 */
+    private fun createSeeder(
+        dataStore: DataStore<Preferences>,
+    ): WorkoutPlanSeeder = WorkoutPlanSeeder(
+        workoutPlanDao = db.workoutPlanDao(),
+        exerciseDao = db.exerciseDao(),
+        workoutPlanRepository = WorkoutPlanRepository(db.workoutPlanDao(), dataStore),
+        dataStore = dataStore,
+    )
 }

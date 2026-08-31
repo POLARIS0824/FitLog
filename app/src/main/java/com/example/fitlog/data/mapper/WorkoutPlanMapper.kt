@@ -33,7 +33,11 @@ fun WorkoutPlanWithSessions.toModel(): WorkoutPlan {
         isCustom = plan.isCustom,
         createdAt = plan.createdAt,
         rawPlanText = plan.rawPlanText,
-        sessions = sessions.map { it.toModel() },
+        // @Relation 不支持 orderBy（Room 内部查询序非 API 契约），与 WorkoutMapper
+        // 的显式排序契约对称；savePlanWithSessions 的 REPLACE 会把被编辑的 session
+        // 挪到表尾，不排序则计划详情页的课次顺序随编辑漂移
+        sessions = sessions.sortedWith(compareBy({ it.weekNumber }, { it.dayNumber }))
+            .map { it.toModel() },
     )
 }
 
