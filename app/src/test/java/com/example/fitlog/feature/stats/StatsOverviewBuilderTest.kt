@@ -114,5 +114,8 @@ class StatsOverviewBuilderTest {
         date = date,
         exercises = listOf(ExerciseLog(name = "测试动作", sets = sets)),
         feelings = null,
+        // 夹具为"已结束"训练：isCountable 口径要求 endedAt 非空
+        startedAt = 0L,
+        endedAt = 3_600_000L,
     )
 }

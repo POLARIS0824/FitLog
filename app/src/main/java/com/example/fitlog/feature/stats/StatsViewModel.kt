@@ -1,5 +1,6 @@
 package com.example.fitlog.feature.stats
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.BodyMetricRepository
@@ -135,9 +136,14 @@ class StatsViewModel @Inject constructor(
      */
     fun onWeightSheetOpened() {
         viewModelScope.launch {
-            val existing = bodyMetricRepository.getByDateRange(today, today)
-                .map { it.firstOrNull() }
-                .first()
+            // 页面驻留可跨零点：预填与写入都以"当下"为准，不能用 VM 创建时固定的 today
+            val now = LocalDate.now()
+            val existing = runCatching {
+                bodyMetricRepository.getByDateRange(now, now).map { it.firstOrNull() }.first()
+            }.getOrElse { e ->
+                Log.w(TAG, "读取今日体重失败，弹层以空值打开", e)
+                null
+            }
             _weightSheetState.update {
                 it.copy(input = existing?.weightKg?.toString().orEmpty(), error = null)
             }
@@ -151,6 +157,10 @@ class StatsViewModel @Inject constructor(
     /**
      * 提交体重：校验通过后按天 upsert 并发出 [WeightSheetState.savedTick] 信号。
      * 校验失败/写库失败只更新 error，不动 savedTick（Screen 不关弹层）。
+     *
+     * 写路径取 [LocalDate.now] 而非 VM 创建时固定的 [today]：页面驻留跨零点后提交，
+     * 固定值会把体重写到"昨天"的 date 主键上覆盖真实记录——显示层跨零点不刷新是
+     * 可接受的 v1 取舍，写层不行。
      */
     fun onWeightSubmit() {
         val parsed = _weightSheetState.value.input.trim().toFloatOrNull()
@@ -160,7 +170,9 @@ class StatsViewModel @Inject constructor(
                 _weightSheetState.update { it.copy(error = "体重需在 20–300 kg 之间") }
             else -> viewModelScope.launch {
                 try {
-                    bodyMetricRepository.upsert(BodyMetric(date = today, weightKg = parsed))
+                    bodyMetricRepository.upsert(
+                        BodyMetric(date = LocalDate.now(), weightKg = parsed),
+                    )
                     _weightSheetState.update {
                         it.copy(input = "", error = null, savedTick = it.savedTick + 1)
                     }
@@ -176,4 +188,8 @@ class StatsViewModel @Inject constructor(
     /** 弹层关闭：清空表单与错误；savedTick 保留单调性（再次打开不算新保存）。 */
     fun onWeightSheetDismissed() =
         _weightSheetState.update { it.copy(input = "", error = null) }
+
+    private companion object {
+        private const val TAG = "StatsViewModel"
+    }
 }

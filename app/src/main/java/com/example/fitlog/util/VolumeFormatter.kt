@@ -24,4 +24,19 @@ object VolumeFormatter {
         } else {
             String.format(Locale.US, "%.0f kg", volumeKg)
         }
+
+    /**
+     * 重量数值文案：整数值去掉小数尾巴（60.0 → "60"，62.5 → "62.5"）。
+     *
+     * 组录入行/训练明细/PR 摘要的统一重量格式化口径（此前三处各有一份
+     * 私有实现，收口至此消除漂移面）。
+     *
+     * @param weightKg 重量（kg）
+     */
+    fun formatWeightKg(weightKg: Float): String =
+        if (weightKg == weightKg.toInt().toFloat()) {
+            weightKg.toInt().toString()
+        } else {
+            weightKg.toString()
+        }
 }

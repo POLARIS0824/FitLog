@@ -1,7 +1,7 @@
 package com.example.fitlog.feature.stats
 
-import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
+import com.example.fitlog.util.VolumeAggregator
 import java.time.LocalDate
 
 /**
@@ -27,23 +27,16 @@ object StatsOverviewBuilder {
      */
     fun build(workouts: List<Workout>, period: StatsPeriod, today: LocalDate): StatsOverviewState {
         val range = StatsChartDataBuilder.rangeOf(period, today)
-        // 空动作记录（Markdown 导入的表头存档）不计入次数与均值：
-        // 它没有可聚合的组数据，计入只会摊薄"平均单次容量"并虚增次数
-        val inWindow = workouts.filter { it.date in range && it.exercises.isNotEmpty() }
+        // 统一走 isCountable 口径：空动作记录（Markdown 导入的表头存档）与
+        // 进行中的会话行（startedAt 已写、endedAt 为空，含 0 次占位组）都不计入，
+        // 否则次数/组数被虚增且进行中会话在结束前永久抬高区间均值
+        val inWindow = workouts.filter { it.date in range && it.isCountable }
 
         val sessionCount = inWindow.size
-        var totalVolume = 0.0
-        var workingSets = 0
-        inWindow.forEach { workout ->
-            workout.exercises.forEach { log ->
-                log.sets.forEach { set ->
-                    if (set.setType == SetType.WORKING) {
-                        totalVolume += set.weightKg * set.reps
-                        workingSets++
-                    }
-                }
-            }
-        }
+        // 容量/组数聚合统一走 VolumeAggregator 收口，消除与 Stats 图表、
+        // Agent 工具路径的手写口径漂移面
+        val totalVolume = inWindow.sumOf { VolumeAggregator.workingVolumeOf(it) }
+        val workingSets = inWindow.sumOf { VolumeAggregator.workingSetCountOf(it) }
         val averageVolume = if (sessionCount > 0) totalVolume / sessionCount else 0.0
 
         return StatsOverviewState(
