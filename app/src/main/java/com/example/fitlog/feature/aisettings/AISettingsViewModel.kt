@@ -76,7 +76,7 @@ class AISettingsViewModel @Inject constructor(
             apiKey = apiKey,
             model = model,
             endpoint = EndpointState(),
-            test = TestState(), // TODO: 连通性测试
+            test = TestState(),
             ui = UiState(),
         )
     }.combine(endpointState) { state, endpoint ->

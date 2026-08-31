@@ -93,6 +93,15 @@ class AIChatRepository @Inject constructor(
         maxTokens: Int? = null,
         jsonMode: Boolean = false,
     ): Result<ChatMessage> {
+        // 密钥解密失败会降级为空串（换机恢复等场景）：拦截并给出明确指引，
+        // 否则用户只会看到服务商 401「Invalid API key」，无从排查
+        if (config.apiKey.isBlank()) {
+            return Result.failure(
+                IllegalStateException(
+                    "API Key 无法读取（可能因备份恢复或系统凭据变更失效），请到 AI 设置中重新保存密钥",
+                ),
+            )
+        }
         return try {
             // ── 步骤 2: 构建请求参数 ──
             val url = config.type.buildUrl(config)

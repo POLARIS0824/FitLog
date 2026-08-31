@@ -46,6 +46,10 @@ data class ChoiceDto(
 /**
  * Token 使用量统计。
  *
+ * ⚠️ 三个字段都带默认值 0：部分兼容网关会省略个别 usage 字段（甚至整个 usage
+ * 只给部分），非空声明会让整条响应反序列化失败——agent 整轮回复报废、洞察卡
+ * 解析报错。usage 只是统计信息，缺失按 0 处理即可。
+ *
  * @param promptTokens 输入 token 数
  * @param completionTokens 输出 token 数
  * @param totalTokens 总 token 数
@@ -53,9 +57,9 @@ data class ChoiceDto(
 @Serializable
 data class UsageDto(
     @SerialName("prompt_tokens")
-    val promptTokens: Int,
+    val promptTokens: Int = 0,
     @SerialName("completion_tokens")
-    val completionTokens: Int,
+    val completionTokens: Int = 0,
     @SerialName("total_tokens")
-    val totalTokens: Int,
+    val totalTokens: Int = 0,
 )
