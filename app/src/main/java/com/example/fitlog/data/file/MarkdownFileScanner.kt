@@ -111,8 +111,10 @@ class MarkdownFileScanner @Inject constructor() {
             }
 
             while (cursor.moveToNext()) {
-                val docId = cursor.getString(idColumn)
-                val fileName = cursor.getString(nameColumn)
+                //个别 provider 异常返回 null 值列（列存在但值为 null）：直接跳过该行，
+                //避免平台类型上调用 endsWith 抛 NPE 中断整次扫描（与既有单文件容错一致）
+                val docId = cursor.getString(idColumn) ?: continue
+                val fileName = cursor.getString(nameColumn) ?: continue
 
                 if (!fileName.endsWith(".md", ignoreCase = true)) continue
 
@@ -155,13 +157,18 @@ class MarkdownFileScanner @Inject constructor() {
     /**
      * 通过 ContentResolver 读取文件完整文本内容。
      *
+     * Java/Kotlin 的 Reader 不剥离 UTF-8 BOM，而 Windows 记事本等工具保存的
+     * Markdown 常带 BOM：`\uFEFF` 属 Cf 类字符不会被 trim 去除，会混入首行入库
+     * 并破坏 `# 标题`/`- 列表` 的前缀解析，读取后统一剥离。
+     *
      * @param contentResolver ContentResolver
      * @param fileUri 文件 Uri
-     * @return UTF-8 文本内容
+     * @return UTF-8 文本内容（已剥离 BOM）
      */
     private fun readFileContent(contentResolver: ContentResolver, fileUri: Uri): String {
         return contentResolver.openInputStream(fileUri)?.use { stream ->
             stream.bufferedReader().use { it.readText() }
-        } ?: throw IllegalStateException("无法打开文件输入流")
+        }?.removePrefix("\uFEFF")
+            ?: throw IllegalStateException("无法打开文件输入流")
     }
 }

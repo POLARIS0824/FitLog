@@ -105,8 +105,13 @@ class DataImportViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                // 每个文件是独立事务：中途失败时前面的文件已落库（可靠唯一索引保证
+                // 重试不重复），提示必须带上已成功的计数，否则用户不知道实际进度
                 _uiState.update {
-                    it.copy(isImporting = false, message = "导入失败：${e.message}")
+                    it.copy(
+                        isImporting = false,
+                        message = "导入中断（已新增 $imported 条，跳过 $skipped 条）：${e.message}；重试可从断点继续",
+                    )
                 }
             }
         }
