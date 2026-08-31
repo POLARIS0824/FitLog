@@ -75,6 +75,7 @@ fun TodayRoute(
         onNavigateToWorkout = onNavigateToWorkout,
         onStartWorkout = onStartWorkout,
         onDisplayModeSelected = viewModel::onDisplayModeSelected,
+        onToggleExerciseCheck = viewModel::onToggleExerciseCheck,
         onPlanSelected = viewModel::onPlanSelected,
         onErrorShown = viewModel::onErrorShown,
         modifier = modifier,
@@ -97,6 +98,7 @@ fun TodayScreen(
     onNavigateToWorkout: () -> Unit,
     onStartWorkout: () -> Unit = onNavigateToWorkout,
     onDisplayModeSelected: (WeekProgressDisplayMode) -> Unit,
+    onToggleExerciseCheck: (String) -> Unit = {},
     onPlanSelected: (String) -> Unit,
     onErrorShown: () -> Unit,
     onLogClick: () -> Unit = onNavigateToWorkout,
@@ -149,10 +151,18 @@ fun TodayScreen(
                 SectionLabel("今日训练")
                 TodayPlanCard(
                     todayPlan = uiState.todayPlan,
+                    onToggleExerciseCheck = onToggleExerciseCheck,
                     onActionClick = {
                         when (uiState.todayPlan.status) {
                             PlanStatus.NO_PLAN -> showPlanSheet = true
                             // 未开始/进行中 → 启动或继续会话；已完成 → 查看记录
+                            PlanStatus.NOT_STARTED, PlanStatus.IN_PROGRESS -> onStartWorkout()
+                            PlanStatus.COMPLETED -> onNavigateToWorkout()
+                        }
+                    },
+                    onExerciseClick = {
+                        when (uiState.todayPlan.status) {
+                            PlanStatus.NO_PLAN -> showPlanSheet = true
                             PlanStatus.NOT_STARTED, PlanStatus.IN_PROGRESS -> onStartWorkout()
                             PlanStatus.COMPLETED -> onNavigateToWorkout()
                         }
@@ -291,10 +301,61 @@ private fun TodayScreenPreview() {
                 todayPlan = TodayPlanState(
                     planId = "plan-1",
                     sessionId = "s3",
-                    title = "腿日 · 股四头后侧链",
-                    subtitle = "6 个动作 · 60 分钟",
+                    tagText = "推拉腿 · 第3天",
+                    title = "腿日 · 股四腿后",
+                    subtitle = "6 个动作 · 约 65 分钟",
                     progress = 0f,
                     status = PlanStatus.NOT_STARTED,
+                    exercises = listOf(
+                        TodayPlanExerciseState(
+                            id = "ex-1",
+                            exerciseKey = "barbell-full-squat",
+                            name = "杠铃深蹲",
+                            setsRepsText = "4 组 × 6-8",
+                            weightText = "100 kg",
+                            isCompleted = false,
+                        ),
+                        TodayPlanExerciseState(
+                            id = "ex-2",
+                            exerciseKey = "barbell-romanian-deadlift",
+                            name = "罗马尼亚硬拉",
+                            setsRepsText = "3 组 × 8-10",
+                            weightText = "85 kg",
+                            isCompleted = false,
+                        ),
+                        TodayPlanExerciseState(
+                            id = "ex-3",
+                            exerciseKey = "bulgarian-split-squat",
+                            name = "保加利亚深蹲",
+                            setsRepsText = "3 组 × 10",
+                            weightText = "60 kg",
+                            isCompleted = false,
+                        ),
+                        TodayPlanExerciseState(
+                            id = "ex-4",
+                            exerciseKey = "lever-lying-leg-curl",
+                            name = "腿弯举",
+                            setsRepsText = "3 组 × 12",
+                            weightText = "45 kg",
+                            isCompleted = false,
+                        ),
+                        TodayPlanExerciseState(
+                            id = "ex-5",
+                            exerciseKey = "lever-leg-extension",
+                            name = "腿伸展",
+                            setsRepsText = "3 组 × 15",
+                            weightText = "40 kg",
+                            isCompleted = false,
+                        ),
+                        TodayPlanExerciseState(
+                            id = "ex-6",
+                            exerciseKey = "lever-standing-calf-raise",
+                            name = "提踵",
+                            setsRepsText = "4 组 × 15",
+                            weightText = "70 kg",
+                            isCompleted = false,
+                        ),
+                    ),
                 ),
                 uiState = UiState(),
             ),

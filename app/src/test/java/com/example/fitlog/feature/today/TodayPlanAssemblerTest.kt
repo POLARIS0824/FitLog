@@ -171,16 +171,114 @@ class TodayPlanAssemblerTest {
         assertEquals("1 个动作", state.subtitle)
     }
 
+    @Test
+    fun `assemble populates tagText and exercise list with Chinese names and prescription`() {
+        val next = session(
+            id = "s1",
+            name = "腿日 · 股四头后侧链",
+            targetDurationMinutes = 65,
+            exercises = listOf(
+                PlannedExerciseItem(
+                    exerciseKey = "barbell-full-squat",
+                    exerciseName = "Barbell full squat",
+                    targetSets = 4,
+                    targetRepsMin = 6,
+                    targetRepsMax = 8,
+                    order = 0,
+                ),
+                PlannedExerciseItem(
+                    exerciseKey = "barbell-romanian-deadlift",
+                    exerciseName = "Barbell romanian deadlift",
+                    targetSets = 3,
+                    targetRepsMin = 8,
+                    targetRepsMax = 10,
+                    order = 1,
+                ),
+            ),
+        )
+        val testPlan = plan(sessions = listOf(next)).copy(name = "推拉腿 PPL · 4 周")
+
+        val state = assemble(activePlan = testPlan, nextSession = next)
+
+        assertEquals("推拉腿 · 第1天", state.tagText)
+        assertEquals("腿日 · 股四头后侧链", state.title)
+        assertEquals("2 个动作 · 65 分钟", state.subtitle)
+        assertEquals(2, state.exercises.size)
+        assertEquals("杠铃深蹲", state.exercises[0].name)
+        assertEquals("4 组 × 6-8", state.exercises[0].setsRepsText)
+        assertEquals("罗马尼亚硬拉", state.exercises[1].name)
+        assertEquals("3 组 × 8-10", state.exercises[1].setsRepsText)
+    }
+
+    @Test
+    fun `checkedExerciseKeys marks exercise completed and updates progress`() {
+        val next = session(
+            id = "s1",
+            exercises = listOf(
+                PlannedExerciseItem(exerciseKey = "ex-1", targetSets = 4, order = 0),
+                PlannedExerciseItem(exerciseKey = "ex-2", targetSets = 3, order = 1),
+            ),
+        )
+        val testPlan = plan(sessions = listOf(next))
+
+        val state = assemble(
+            activePlan = testPlan,
+            nextSession = next,
+            checkedExerciseKeys = setOf("ex-1"),
+        )
+
+        assertEquals(PlanStatus.IN_PROGRESS, state.status)
+        assertEquals(0.5f, state.progress)
+        assertEquals(true, state.exercises[0].isCompleted)
+        assertEquals(false, state.exercises[1].isCompleted)
+    }
+
+    @Test
+    fun `assemble looks up recent weight from allWorkouts`() {
+        val next = session(
+            id = "s1",
+            exercises = listOf(
+                PlannedExerciseItem(exerciseKey = "barbell-full-squat", targetSets = 4, order = 0),
+            ),
+        )
+        val historyWorkouts = listOf(
+            workout(
+                id = 1L,
+                exercises = listOf(
+                    ExerciseLog(
+                        name = "杠铃深蹲",
+                        exerciseKey = "barbell-full-squat",
+                        sets = listOf(
+                            SetLog(100f, 6, SetType.WORKING),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val state = assemble(
+            activePlan = plan(sessions = listOf(next)),
+            nextSession = next,
+            allWorkouts = historyWorkouts,
+        )
+
+        assertEquals("100 kg", state.exercises[0].weightText)
+    }
+
     // ── 辅助方法 ──
 
     private fun assemble(
         activePlan: WorkoutPlan?,
         nextSession: PlannedSession? = null,
         todayWorkouts: List<Workout> = emptyList(),
+        allWorkouts: List<Workout> = emptyList(),
+        checkedExerciseKeys: Set<String> = emptySet(),
     ) = TodayPlanAssembler.assemble(
         activePlan = activePlan,
         nextSession = nextSession,
         todayWorkouts = todayWorkouts,
+        allWorkouts = allWorkouts,
+        checkedExerciseKeys = checkedExerciseKeys,
     )
 
     private fun plan(sessions: List<PlannedSession>) = WorkoutPlan(

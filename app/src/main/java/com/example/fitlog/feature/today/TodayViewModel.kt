@@ -88,6 +88,7 @@ class TodayViewModel @Inject constructor(
 
     // ── 本地 UI 事件态 ──
     private val displayMode = MutableStateFlow(WeekProgressDisplayMode.SPLIT)
+    private val checkedExercises = MutableStateFlow<Set<String>>(emptySet())
 
     /**
      * 数据层异常通道：[guard] 捕获后写入，最终经 [uiState] 组装进
@@ -170,6 +171,7 @@ class TodayViewModel @Inject constructor(
         val displayMode: WeekProgressDisplayMode,
         val profile: UserProfile?,
         val catalog: List<Exercise>,
+        val checkedExercises: Set<String> = emptySet(),
     )
 
     /** 种子门：种子完成前不发射（只放行一次 true，之后恒透传）。 */
@@ -191,9 +193,12 @@ class TodayViewModel @Inject constructor(
             displayMode = displayMode.value,
             profile = extras.profile,
             catalog = extras.catalog,
+            checkedExercises = checkedExercises.value,
         )
     }.combine(displayMode) { materials, mode ->
         materials.copy(displayMode = mode)
+    }.combine(checkedExercises) { materials, checked ->
+        materials.copy(checkedExercises = checked)
     }.shareIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -294,6 +299,9 @@ class TodayViewModel @Inject constructor(
             activePlan = snapshot.activePlan,
             nextSession = snapshot.nextSession,
             todayWorkouts = snapshot.todayWorkouts,
+            allWorkouts = snapshot.allWorkouts,
+            catalog = materials.catalog,
+            checkedExerciseKeys = materials.checkedExercises,
         )
 
         val coachInsight = CoachInsightBuilder.build(
@@ -352,6 +360,9 @@ class TodayViewModel @Inject constructor(
             activePlan = snapshot.activePlan,
             nextSession = snapshot.nextSession,
             todayWorkouts = snapshot.todayWorkouts,
+            allWorkouts = snapshot.allWorkouts,
+            catalog = catalog,
+            checkedExerciseKeys = checkedExercises,
         ).status == PlanStatus.COMPLETED
         return planCompleted || snapshot.todayWorkouts.any { it.isCountable }
     }
@@ -398,6 +409,13 @@ class TodayViewModel @Inject constructor(
 
     /** 切换本周进度的展示模式。 */
     fun onDisplayModeSelected(mode: WeekProgressDisplayMode) = displayMode.update { mode }
+
+    /** 切换今日动作的手动打卡状态。 */
+    fun onToggleExerciseCheck(exerciseKey: String) {
+        checkedExercises.update { set ->
+            if (exerciseKey in set) set - exerciseKey else set + exerciseKey
+        }
+    }
 
     /** 在计划选择弹层中选中一套计划（设为当前激活计划）。 */
     fun onPlanSelected(planId: String) {

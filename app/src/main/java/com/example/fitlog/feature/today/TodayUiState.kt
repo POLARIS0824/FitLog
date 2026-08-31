@@ -71,10 +71,22 @@ data class ProgressItemState(
     val ringSegments: List<RingSegment>? = null,
 )
 
+/** 今日训练计划中单个动作的状态模型 */
+data class TodayPlanExerciseState(
+    val id: String,
+    val exerciseKey: String,
+    val name: String,
+    val setsRepsText: String,
+    val weightText: String? = null,
+    val isCompleted: Boolean = false,
+)
+
 /** 今日训练计划 */
 data class TodayPlanState(
     val planId: String? = null,
     val sessionId: String? = null,
+    /** 分化 / 计划标签（如 "推拉腿 · 第3天"） */
+    val tagText: String = "",
     /** 训练标题（如 "Leg Day - Strength"） */
     val title: String = "",
     /** 训练副标题描述（如 "6 exercises · 45 min"） */
@@ -85,6 +97,8 @@ data class TodayPlanState(
     val workoutId: Long? = null,
     /** 核心驱动状态：未开始 / 进行中 / 已完成 / 无计划 */
     val status: PlanStatus = PlanStatus.NOT_STARTED,
+    /** 今日训练包含的计划动作清单 */
+    val exercises: List<TodayPlanExerciseState> = emptyList(),
 ) {
     /** 动态导出的按钮显示文字 */
     val buttonText: String

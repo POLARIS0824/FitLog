@@ -413,6 +413,56 @@ class TodayViewModelTest {
         assertTrue(state.weekProgress.items[0].subtitle.startsWith("较上周"))
     }
 
+    /**
+     * 测试手动打卡动作：UI 状态更新对应动作打卡态并更新卡片进度。
+     */
+    @Test
+    fun testToggleExerciseCheck_updatesPlanExercisesAndProgress() = runTest(testScheduler) {
+        workoutPlanRepository.save(
+            plan(
+                sessions = listOf(
+                    PlannedSession(
+                        id = "w1d1",
+                        name = "腿日 · 股四头后侧链",
+                        description = null,
+                        dayNumber = 1,
+                        weekNumber = 1,
+                        targetDurationMinutes = 60,
+                        exercises = listOf(
+                            PlannedExerciseItem(exerciseKey = "barbell-full-squat", targetSets = 4, order = 0),
+                            PlannedExerciseItem(exerciseKey = "barbell-romanian-deadlift", targetSets = 3, order = 1),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = createViewModel()
+        viewModel.onPlanSelected("plan-1")
+        viewModel.uiState.first {
+            !it.uiState.isLoading && it.todayPlan.status == PlanStatus.NOT_STARTED
+        }
+
+        // 打卡第 1 个动作
+        viewModel.onToggleExerciseCheck("barbell-full-squat")
+
+        val state1 = viewModel.uiState.first {
+            it.todayPlan.exercises.isNotEmpty() && it.todayPlan.exercises[0].isCompleted
+        }
+        assertEquals(PlanStatus.IN_PROGRESS, state1.todayPlan.status)
+        assertEquals(0.5f, state1.todayPlan.progress)
+        assertTrue(state1.todayPlan.exercises[0].isCompleted)
+        assertFalse(state1.todayPlan.exercises[1].isCompleted)
+
+        // 打卡第 2 个动作 -> 全部完成
+        viewModel.onToggleExerciseCheck("barbell-romanian-deadlift")
+
+        val state2 = viewModel.uiState.first {
+            it.todayPlan.status == PlanStatus.COMPLETED
+        }
+        assertEquals(1f, state2.todayPlan.progress)
+        assertTrue(state2.todayPlan.exercises.all { it.isCompleted })
+    }
+
     // ── 辅助方法 ──
 
     private fun plan(sessions: List<PlannedSession>) = WorkoutPlan(
