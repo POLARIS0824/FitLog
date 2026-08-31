@@ -22,6 +22,22 @@ object VolumeAggregator {
     fun workingVolume(workouts: List<Workout>): Double = workouts.sumOf(::workoutVolume)
 
     /**
+     * 单次训练的正式组容量（kg）。
+     * Agent 工具（getRecentWorkouts/getWeeklySummary）与 Stats 概览的
+     * 单 workout 聚合统一走此出口，消除各自手写的口径漂移面。
+     */
+    fun workingVolumeOf(workout: Workout): Double = workoutVolume(workout)
+
+    /**
+     * 单次训练的正式组数（热身组不计）。
+     * 与 [workingVolumeOf] 同口径配对使用。
+     */
+    fun workingSetCountOf(workout: Workout): Int =
+        workout.exercises.sumOf { log ->
+            log.sets.count { it.setType == SetType.WORKING }
+        }
+
+    /**
      * 按日期聚合的正式组容量：同日多次训练合并，0 容量日不进 map
      * （调用方按"缺席 = 0"语义处理，如热力图空档）。
      *

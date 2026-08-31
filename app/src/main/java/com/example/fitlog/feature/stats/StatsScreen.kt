@@ -31,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -106,7 +107,8 @@ fun StatsScreen(
     modifier: Modifier = Modifier,
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    var showWeightSheet by remember { mutableStateOf(false) }
+    // rememberSaveable：旋转/重建后弹层不静默消失
+    var showWeightSheet by rememberSaveable { mutableStateOf(false) }
 
     // 保存成功信号：savedTick 单调递增，>0 即关弹层（再次打开不会误触发）
     LaunchedEffect(weightSheetState.savedTick) {

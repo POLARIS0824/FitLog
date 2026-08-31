@@ -1,5 +1,6 @@
 package com.example.fitlog.util
 
+import com.example.fitlog.model.SetLog
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.model.user.ExerciseTrainingLevel
@@ -62,4 +63,16 @@ object TrainingLevelCalculator {
         }
         return TrainingLevel(exercises)
     }
+
+    /**
+     * 按 Epley 公式返回估算 1RM 最大的那组（"最佳组"展示出口）。
+     *
+     * 与 [calculate] 的 1RM 口径同源（同一公式，杜绝两处实现漂移）；
+     * reps ≤ 0 的组没有 1RM 语义（Epley 退化为重量本身），过滤不计。
+     *
+     * @param sets 候选组（通常已按正式组过滤；热身组由调用方决定是否传入）
+     * @return 估算 1RM 最大的组；无有效组（reps 全为 0 或空列表）时返回 null
+     */
+    fun bestOneRMSet(sets: List<SetLog>): SetLog? =
+        sets.filter { it.reps > 0 }.maxByOrNull { it.weightKg * (1 + it.reps / 30.0) }
 }
