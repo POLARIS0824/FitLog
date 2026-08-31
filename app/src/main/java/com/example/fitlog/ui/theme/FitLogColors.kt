@@ -35,15 +35,9 @@ data class FitLogColors(
     companion object {
         /**
          * 从解析后的 [ColorScheme] 推导各角色：动态取色、深浅色模式自动跟随，
-         * 本函数只决定"用哪一档"。
+         * 本函数只决定"用哪一档"（当前为白卡风：页面 surface、卡片比页面亮一档、
+         * 底栏再亮一档；切"经典 M3"分层的备选方案见 git 历史）。
          */
-//        fun from(scheme: ColorScheme) = FitLogColors(
-//            pageBackground = scheme.surfaceContainerLow,
-//            card = scheme.surfaceContainerLowest,
-//            navigationBar = scheme.surface,
-//            topBarScrolled = scheme.surfaceContainer,
-//        )
-
         fun from(scheme: ColorScheme) = FitLogColors(
             pageBackground = scheme.surface,
             card = scheme.surfaceContainerLow,
