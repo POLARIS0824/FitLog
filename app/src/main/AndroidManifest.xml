@@ -3,6 +3,8 @@
         xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 训练提醒通知（API 33+ 运行时申请；低版本装了即有） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
             android:name=".FitLogApplication"

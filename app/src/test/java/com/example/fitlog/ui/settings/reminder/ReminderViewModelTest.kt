@@ -1,6 +1,7 @@
 package com.example.fitlog.ui.settings.reminder
 
 import com.example.fitlog.data.repository.UserPreferencesRepository
+import com.example.fitlog.feature.reminder.ReminderScheduler
 import com.example.fitlog.testing.createTestPreferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,8 +26,8 @@ import org.junit.rules.TemporaryFolder
 /**
  * [ReminderViewModel] 的单元测试。
  *
- * 使用临时文件 DataStore + 真实 [UserPreferencesRepository]，
- * 验证提醒开关与提醒时间的状态暴露和修改事件。
+ * 使用临时文件 DataStore + 真实 [UserPreferencesRepository] + 记录式调度器替身，
+ * 验证提醒开关与提醒时间的状态暴露、修改事件及调度联动。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReminderViewModelTest {
@@ -38,6 +39,7 @@ class ReminderViewModelTest {
     val tmpFolder = TemporaryFolder()
 
     private lateinit var preferencesRepository: UserPreferencesRepository
+    private lateinit var scheduler: RecordingScheduler
     private lateinit var viewModel: ReminderViewModel
 
     /**
@@ -62,7 +64,8 @@ class ReminderViewModelTest {
             dataStoreScope,
         )
         preferencesRepository = UserPreferencesRepository(dataStore)
-        viewModel = ReminderViewModel(preferencesRepository)
+        scheduler = RecordingScheduler()
+        viewModel = ReminderViewModel(preferencesRepository, scheduler)
     }
 
     /**
@@ -85,24 +88,58 @@ class ReminderViewModelTest {
     }
 
     /**
-     * 测试打开提醒开关：状态从 false 流转为 true。
+     * 测试打开提醒开关：状态从 false 流转为 true，且按默认时间调度。
      */
     @Test
-    fun testOnEnabledChange_updatesState() = runTest(testScheduler) {
+    fun testOnEnabledChange_updatesStateAndSchedules() = runTest(testScheduler) {
         viewModel.onEnabledChange(true)
 
         val state = viewModel.uiState.first { it.enabled }
         assertEquals(18 * 60, state.minutes)
+        assertEquals(listOf(18 * 60), scheduler.scheduled)
+        assertEquals(0, scheduler.cancelCount)
     }
 
     /**
-     * 测试修改提醒时间：状态从默认 18:00 流转为 07:30。
+     * 测试修改提醒时间：状态从默认 18:00 流转为 07:30；开关关闭时只写偏好不调度。
      */
     @Test
-    fun testOnTimeChange_updatesState() = runTest(testScheduler) {
+    fun testOnTimeChange_updatesStateWithoutSchedulingWhenDisabled() = runTest(testScheduler) {
         viewModel.onTimeChange(7 * 60 + 30)
 
         val state = viewModel.uiState.first { it.minutes == 7 * 60 + 30 }
         assertEquals(false, state.enabled)
+        assertEquals(0, scheduler.scheduled.size)
+    }
+
+    /**
+     * 测试开关为开时改时间：重排到新时刻；随后关开关：取消调度。
+     */
+    @Test
+    fun testScheduling_lifecycle() = runTest(testScheduler) {
+        viewModel.onEnabledChange(true)
+        viewModel.onTimeChange(7 * 60)
+
+        val state = viewModel.uiState.first { it.minutes == 7 * 60 }
+        assertEquals(true, state.enabled)
+        assertEquals(listOf(18 * 60, 7 * 60), scheduler.scheduled)
+
+        viewModel.onEnabledChange(false)
+        viewModel.uiState.first { !it.enabled }
+        assertEquals(1, scheduler.cancelCount)
+    }
+
+    /** 记录式调度器替身：记录 schedule 参数与 cancel 次数。 */
+    private class RecordingScheduler : ReminderScheduler {
+        val scheduled = mutableListOf<Int>()
+        var cancelCount = 0
+
+        override fun schedule(minutesOfDay: Int) {
+            scheduled += minutesOfDay
+        }
+
+        override fun cancel() {
+            cancelCount++
+        }
     }
 }
