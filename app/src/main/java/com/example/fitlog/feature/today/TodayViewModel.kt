@@ -1,5 +1,6 @@
 package com.example.fitlog.feature.today
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.CoachInsightRepository
@@ -401,12 +402,19 @@ class TodayViewModel @Inject constructor(
     /** 在计划选择弹层中选中一套计划（设为当前激活计划）。 */
     fun onPlanSelected(planId: String) {
         viewModelScope.launch {
-            workoutPlanRepository.setActivePlanId(planId)
+            // DataStore edit 是磁盘 IO：失败以未捕获协程异常击穿 viewModelScope 闪退，
+            // 其余事件入口均有 guard/runCatching，此处保持一致（失败仅留痕，下次重选即可）
+            runCatching { workoutPlanRepository.setActivePlanId(planId) }
+                .onFailure { Log.w(TAG, "切换激活计划失败", it) }
         }
     }
 
     /** 错误提示已展示，清除错误信息（写独立通道，combine 链始终存活，弹窗可正常关闭）。 */
     fun onErrorShown() {
         dataError.value = null
+    }
+
+    private companion object {
+        private const val TAG = "TodayViewModel"
     }
 }
