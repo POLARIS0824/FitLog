@@ -3,6 +3,7 @@ package com.example.fitlog.di
 import android.content.Context
 import com.example.fitlog.feature.agent.engine.AgentEngine
 import com.example.fitlog.feature.agent.engine.AgentEngineImpl
+import com.example.fitlog.feature.agent.engine.FaultTolerantMemoryService
 import com.google.adk.kt.memory.MemoryService
 import com.google.adk.kt.memory.appsearch.AppSearchMemoryService
 import dagger.Binds
@@ -38,6 +39,6 @@ abstract class AgentEngineModule {
         @Singleton
         fun provideMemoryService(
             @ApplicationContext context: Context,
-        ): MemoryService = AppSearchMemoryService.fromContext(context)
+        ): MemoryService = FaultTolerantMemoryService(AppSearchMemoryService.fromContext(context))
     }
 }
