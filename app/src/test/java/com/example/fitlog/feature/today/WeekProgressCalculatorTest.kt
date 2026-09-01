@@ -484,7 +484,8 @@ class WeekProgressCalculatorTest {
         assertEquals("暂无增长", noGrowth[2].subtitle)
 
         assertEquals("AI 分析", noGrowth[3].title)
-        assertEquals("即将上线", noGrowth[3].subtitle)
+        // 占位卡已接线：跳转 AI 教练（F-07），文案从「即将上线」改为行动引导
+        assertEquals("点击让 AI 解读", noGrowth[3].subtitle)
     }
 
     // ── CATEGORY ──
