@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
@@ -90,6 +92,24 @@ fun ActiveSessionView(
     var showFinishDialog by rememberSaveable { mutableStateOf(false) }
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
 
+    // 休息计时（纯 UI transient 态，不落库）：存截止时间戳，旋转后剩余时长不丢
+    var restEndAtMs by rememberSaveable { mutableStateOf(0L) }
+    val restRemainingMs by produceState(initialValue = 0L, key1 = restEndAtMs) {
+        while (true) {
+            if (restEndAtMs <= 0L) {
+                value = 0L
+                break
+            }
+            val remaining = restEndAtMs - System.currentTimeMillis()
+            value = remaining.coerceAtLeast(0L)
+            if (remaining <= 0L) {
+                restEndAtMs = 0L // 倒计时自然结束，自动收起
+                break
+            }
+            delay(200)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -132,6 +152,16 @@ fun ActiveSessionView(
             }
         }
 
+        // ── 休息计时条（组间休息 90s 起，可 +30s / 跳过）──
+        if (restRemainingMs > 0L) {
+            RestTimerBar(
+                remainingMs = restRemainingMs,
+                onExtend = { restEndAtMs += 30_000L },
+                onSkip = { restEndAtMs = 0L },
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
+
         // ── 底部操作栏（外层 Scaffold 的 innerPadding 已含底部系统栏 inset，
         //    此处不再叠加 navigationBarsPadding，避免双倍空隙）──
         Row(
@@ -145,6 +175,12 @@ fun ActiveSessionView(
                 modifier = Modifier.weight(1f),
             ) {
                 Text("放弃")
+            }
+            OutlinedButton(
+                onClick = { restEndAtMs = System.currentTimeMillis() + DEFAULT_REST_MS },
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("休息")
             }
             Button(
                 onClick = { showFinishDialog = true },
@@ -539,6 +575,55 @@ private fun FinishSessionDialog(
 }
 
 /** 毫秒 → "M:SS"（满一小时进 "H:MM:SS"）；数字口径固定 Locale.US。 */
+/** 休息计时默认时长（毫秒）：力量训练组间休息的常见起点。 */
+private const val DEFAULT_REST_MS = 90_000L
+
+/**
+ * 休息计时条：剩余秒数 + 延长 30s / 跳过。倒计时归零由调用方自动收起。
+ */
+@Composable
+private fun RestTimerBar(
+    remainingMs: Long,
+    onExtend: () -> Unit,
+    onSkip: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        tonalElevation = 2.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Filled.Timer,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = "休息 ${formatRestSeconds(remainingMs)}",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onExtend) {
+                Text("+30s")
+            }
+            TextButton(onClick = onSkip) {
+                Text("跳过")
+            }
+        }
+    }
+}
+
+/** 剩余毫秒 → 展示秒数（向上取整，避免"0s"闪现）。 */
+private fun formatRestSeconds(remainingMs: Long): String =
+    ((remainingMs + 999) / 1000).toString()
+
 private fun formatElapsed(elapsedMs: Long): String {
     val totalSeconds = (elapsedMs / 1000L).coerceAtLeast(0)
     val hours = totalSeconds / 3600
