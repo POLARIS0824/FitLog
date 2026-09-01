@@ -10,6 +10,8 @@ data class DataImportUiState(
     val successes: List<MarkdownFileScanner.ScannedMarkdown> = emptyList(),
     val failures: List<MarkdownFileScanner.Failure> = emptyList(),
     val isImporting: Boolean = false,
+    /** 是否正在导出（导出目标文件已选定、写入进行中） */
+    val isExporting: Boolean = false,
     /** 一次性提示（Snackbar 展示，展示后清除） */
     val message: String? = null,
 )

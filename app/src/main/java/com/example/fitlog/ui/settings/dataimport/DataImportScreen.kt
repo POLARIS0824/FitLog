@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,6 +29,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.fitlog.data.file.MarkdownExporter
 import com.example.fitlog.data.file.MarkdownFileScanner
 import com.example.fitlog.ui.components.CollapsingTitleScaffold
 import com.example.fitlog.ui.components.FitLogCard
@@ -54,6 +56,7 @@ fun DataImportRoute(
         onBack = onBack,
         onFolderSelected = viewModel::onFolderSelected,
         onImport = viewModel::onImport,
+        onExportTargetSelected = viewModel::onExportTargetSelected,
         onMessageShown = viewModel::onMessageShown,
         modifier = modifier,
     )
@@ -70,6 +73,7 @@ fun DataImportScreen(
     onBack: () -> Unit,
     onFolderSelected: (Uri) -> Unit,
     onImport: () -> Unit,
+    onExportTargetSelected: (Uri) -> Unit,
     onMessageShown: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -80,6 +84,13 @@ fun DataImportScreen(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
         uri?.let(onFolderSelected)
+    }
+
+    // SAF 建档导出（建议名带日期，避免覆盖历史导出）
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/markdown")
+    ) { uri ->
+        uri?.let(onExportTargetSelected)
     }
 
     CollapsingTitleScaffold(
@@ -166,10 +177,26 @@ fun DataImportScreen(
                 )
             }
         }
+        SectionLabel("导出")
+        FitLogCard {
+            Text("导出全部训练记录", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "将所有训练（含结构化明细与导入存档）合并为一个 Markdown 文件，" +
+                    "可在任意编辑器查看或长期备份",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(
+                onClick = { exportLauncher.launch(MarkdownExporter.suggestedFileName()) },
+                enabled = !uiState.isExporting,
+            ) {
+                Text(if (uiState.isExporting) "导出中…" else "选择位置并导出")
+            }
+        }
         Spacer(modifier = Modifier.height(16.dp))
     }
 
-    // 一次性提示（导入结果 / 扫描失败等）
+    // 一次性提示（导入结果 / 扫描失败 / 导出结果等）
     LaunchedEffect(uiState.message) {
         uiState.message?.let {
             stackedSnackbarHostState.showSnackbar(it)
@@ -227,6 +254,7 @@ private fun DataImportScreenPreview() {
         onBack = {},
         onFolderSelected = {},
         onImport = {},
+        onExportTargetSelected = {},
         onMessageShown = {},
     )
 }

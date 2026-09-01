@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.fitlog.data.file.MarkdownExporter
 import com.example.fitlog.data.file.MarkdownFileScanner
 import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.model.Workout
@@ -11,6 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -126,4 +128,37 @@ class DataImportViewModel @Inject constructor(
 
     /** 一次性提示已展示，清除。 */
     fun onMessageShown() = _uiState.update { it.copy(message = null) }
+
+    // ── 导出（数据所有权闭环：与导入对称的出口） ──
+
+    /** SAF 建档回调：目标文件就绪后写出全部训练记录。 */
+    fun onExportTargetSelected(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isExporting = true, message = null) }
+            try {
+                val workouts = workoutRepository.getWorkouts().first()
+                val markdown = MarkdownExporter.export(workouts)
+                if (markdown.isBlank()) {
+                    _uiState.update {
+                        it.copy(isExporting = false, message = "没有可导出的训练记录")
+                    }
+                    return@launch
+                }
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(markdown.toByteArray(Charsets.UTF_8))
+                    } ?: throw IllegalStateException("无法打开导出文件")
+                }
+                _uiState.update {
+                    it.copy(isExporting = false, message = "导出完成：共 ${workouts.size} 条训练记录")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isExporting = false, message = "导出失败：${e.message}")
+                }
+            }
+        }
+    }
 }
