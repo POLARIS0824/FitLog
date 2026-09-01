@@ -16,8 +16,12 @@ import kotlinx.serialization.Serializable
 @Serializable
 data object TodayKey : NavKey
 
+/**
+ * AI 教练对话页。[prefill] 非空时进入即预填输入框（如「AI 分析」小卡
+ * 携带的分析请求）；带默认值保证旧版本持久化回退栈的反序列化兼容。
+ */
 @Serializable
-data object ChatKey : NavKey
+data class ChatKey(val prefill: String? = null) : NavKey
 
 /**
  * 训练页。携带 [autoStart] 时进入即自动启动训练会话（Today「开始训练」）；

@@ -97,6 +97,18 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(input = text) }
     }
 
+    /** 外部预填已消费标记：导航参数随回退栈持久化，重组会重放，只能吃一次。 */
+    private var prefillApplied = false
+
+    /**
+     * 外部预填（Today「AI 分析」卡的分析请求）：覆盖输入框，一次性消费。
+     */
+    fun applyPrefill(text: String) {
+        if (prefillApplied || text.isBlank()) return
+        prefillApplied = true
+        _uiState.update { it.copy(input = text) }
+    }
+
     /**
      * 语音识别结果回填输入框：追加语义（保留已输入草稿，以空格衔接）。
      */

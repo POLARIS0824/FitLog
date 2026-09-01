@@ -51,6 +51,10 @@ import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.theme.FitLogTheme
 import com.example.fitlog.ui.theme.fitLogColors
 
+/** 「AI 分析」小卡跳转 AI 教练时预填的分析请求。 */
+private const val AI_ANALYSIS_PREFILL_QUESTION =
+    "请基于我最近几周的训练数据和当前计划，分析训练量与恢复情况，并给出下周的调整建议"
+
 /**
  * 1. 容器层 (Stateful)
  * 绑定 Hilt ViewModel，处理生命周期安全的状态收集。
@@ -65,6 +69,7 @@ fun TodayRoute(
     onNavigateToSettings: () -> Unit = {},
     onNavigateToWorkout: () -> Unit = {},
     onStartWorkout: () -> Unit = onNavigateToWorkout,
+    onNavigateToChatWithPrefill: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // VM 作用域提升到 Activity：切 tab = 清栈重建 entry，entry 作用域的 VM 会
@@ -81,6 +86,7 @@ fun TodayRoute(
         onNavigateToSettings = onNavigateToSettings,
         onNavigateToWorkout = onNavigateToWorkout,
         onStartWorkout = onStartWorkout,
+        onNavigateToChatWithPrefill = onNavigateToChatWithPrefill,
         onDisplayModeSelected = viewModel::onDisplayModeSelected,
         onToggleExerciseCheck = viewModel::onToggleExerciseCheck,
         onPlanSelected = viewModel::onPlanSelected,
@@ -112,6 +118,8 @@ fun TodayScreen(
     onErrorShown: () -> Unit,
     onLogClick: () -> Unit = onNavigateToWorkout,
     onEditClick: (() -> Unit)? = null,
+    /** 「AI 分析」小卡点击：携带预填分析请求跳转 AI 教练（null 时不挂点击） */
+    onNavigateToChatWithPrefill: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
@@ -159,6 +167,9 @@ fun TodayScreen(
                     onLogClick = onLogClick,
                     onStartClick = onStartWorkout,
                     onEditClick = onEditClick ?: { showPlanSheet = true },
+                    onAiAnalysisClick = {
+                        onNavigateToChatWithPrefill(AI_ANALYSIS_PREFILL_QUESTION)
+                    },
                 )
 
                 SectionLabel("今日训练")

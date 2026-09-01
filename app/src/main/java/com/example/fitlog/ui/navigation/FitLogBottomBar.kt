@@ -35,7 +35,7 @@ private data class FitLogTab(
  */
 private val FitLogTabs = listOf(
     FitLogTab(TodayKey, "Today", Icons.Filled.Today),
-    FitLogTab(ChatKey, "Chat", Icons.AutoMirrored.Filled.Chat),
+    FitLogTab(ChatKey(), "Chat", Icons.AutoMirrored.Filled.Chat),
     FitLogTab(StatsKey, "Stats", Icons.Filled.BarChart),
     FitLogTab(SettingsKey, "Settings", Icons.Filled.Settings),
 )
@@ -43,8 +43,11 @@ private val FitLogTabs = listOf(
 /**
  * 判断 [this] 是否为底部导航栏的顶级目的地（即 4 个 tab Key 之一），
  * 用于控制底栏显隐：仅栈顶为顶级目的地时显示。
+ *
+ * 按类型而非相等比较：带参 key（如 ChatKey(prefill=…)）与 tab 根实例
+ * 的值不同，但属于同一 tab，底栏必须照常显示。
  */
-fun NavKey?.isTabDestination(): Boolean = FitLogTabs.any { it.key == this }
+fun NavKey?.isTabDestination(): Boolean = FitLogTabs.any { it.key::class == this?.let { k -> k::class } }
 
 /**
  * 应用底部导航栏（Material 3 [NavigationBar]，4 tab：Today / Chat / Stats / Settings）。

@@ -3,6 +3,7 @@ package com.example.fitlog.feature.today
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -49,6 +50,7 @@ internal fun WeekProgressSection(
     onLogClick: () -> Unit = {},
     onStartClick: () -> Unit = {},
     onEditClick: () -> Unit = {},
+    onAiAnalysisClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val modes = WeekProgressDisplayMode.entries
@@ -92,7 +94,8 @@ internal fun WeekProgressSection(
                 weekProgress = weekProgress.copy(
                     displayMode = mode,
                     items = pageItems,
-                )
+                ),
+                onAiAnalysisClick = onAiAnalysisClick,
             )
         }
 
@@ -118,7 +121,10 @@ internal fun WeekProgressSection(
  * item[1..3] 进右侧小卡；不足 4 个时小卡槽位填占位（防御性兜底）。
  */
 @Composable
-private fun WeekProgressDashboard(weekProgress: WeekProgressState) {
+private fun WeekProgressDashboard(
+    weekProgress: WeekProgressState,
+    onAiAnalysisClick: (() -> Unit)? = null,
+) {
     val items = weekProgress.items
     if (items.isEmpty()) {
         FitLogCard {
@@ -158,18 +164,27 @@ private fun WeekProgressDashboard(weekProgress: WeekProgressState) {
             SmallMetricCardSlot(items.getOrNull(2), smallColors[1], smallCardIcons[1], gridModifier)
         },
         smallCardBottom = { gridModifier ->
-            SmallMetricCardSlot(items.getOrNull(3), smallColors[2], smallCardIcons[2], gridModifier)
+            val aiItem = items.getOrNull(3)
+            SmallMetricCardSlot(
+                aiItem,
+                smallColors[2],
+                smallCardIcons[2],
+                gridModifier,
+                // VOLUME_PR 模式的「AI 分析」卡：带预填问题跳转 AI 教练
+                onClick = if (aiItem?.id == "ai-analysis") onAiAnalysisClick else null,
+            )
         },
     )
 }
 
-/** 小卡槽位：有数据渲染真实指标，无数据渲染占位。 */
+/** 小卡槽位：有数据渲染真实指标，无数据渲染占位；[onClick] 非空时整卡可点。 */
 @Composable
 private fun SmallMetricCardSlot(
     item: ProgressItemState?,
     colors: Pair<Color, Color>,
     icon: ImageVector,
     modifier: Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     SmallMetricCard(
         title = item?.title ?: "—",
@@ -179,6 +194,10 @@ private fun SmallMetricCardSlot(
         contentColor = colors.second,
         badgeContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         badgeContentColor = colors.second,
-        modifier = modifier,
+        modifier = if (onClick != null) {
+            modifier.clickable(onClickLabel = item?.title) { onClick() }
+        } else {
+            modifier
+        },
     )
 }

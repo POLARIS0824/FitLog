@@ -84,6 +84,8 @@ import com.example.fitlog.ui.theme.fitLogColors
  */
 @Composable
 fun ChatRoute(
+    /** 非空时进入即预填输入框（一次性消费，重复重组不重放） */
+    prefill: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val activity = LocalContext.current.findActivity()
@@ -93,6 +95,11 @@ fun ChatRoute(
         hiltViewModel()
     }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // 外部预填（如 Today「AI 分析」卡的分析请求）：一次性消费
+    LaunchedEffect(prefill) {
+        prefill?.let(viewModel::applyPrefill)
+    }
 
     // 语音输入：系统识别器（RecognizerIntent）+ 结果追加回填。
     // 设备无识别服务时启动失败 → 一次性错误提示，不静默

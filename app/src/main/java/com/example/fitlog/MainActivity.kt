@@ -130,8 +130,8 @@ class MainActivity : ComponentActivity() {
                                     onStartWorkout = { backStack.add(WorkoutKey(autoStart = true)) },
                                 )
                             }
-                            entry<ChatKey> {
-                                ChatRoute()
+                            entry<ChatKey> { key ->
+                                ChatRoute(prefill = key.prefill)
                             }
                             entry<WorkoutKey> { key ->
                                 WorkoutRoute(

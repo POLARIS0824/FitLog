@@ -266,7 +266,8 @@ object WeekProgressCalculator {
         val aiAnalysis = ProgressItemState(
             id = "ai-analysis",
             title = "AI 分析",
-            subtitle = "即将上线",
+            // 已接线：UI 层对 id=="ai-analysis" 的小卡挂点击 → 带预填问题跳转 AI 教练
+            subtitle = "点击让 AI 解读",
         )
         return listOf(head, pr, growth, aiAnalysis)
     }
