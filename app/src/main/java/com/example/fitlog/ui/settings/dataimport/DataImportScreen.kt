@@ -36,6 +36,9 @@ import com.example.fitlog.ui.components.StackedSnackbarHost
 import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 import java.time.LocalDate
 
+/** 扫描结果在滚动 Column 中的最大渲染行数（超出部分折叠为摘要行）。 */
+private const val MAX_SHOWN_RESULT_ROWS = 20
+
 /**
  * 1. 容器层 (Stateful)
  */
@@ -91,7 +94,8 @@ fun DataImportScreen(
             Text("从 Markdown 导入训练日志", style = MaterialTheme.typography.titleMedium)
             Text(
                 "选择存放日志的文件夹，每个文件代表一天训练，" +
-                    "文件名需为日期格式，如 2026-05-07.md",
+                    "文件名需为日期格式，如 2026-05-07.md" +
+                    "（扫描文件夹的根目录，子文件夹不递归）",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -116,18 +120,34 @@ fun DataImportScreen(
         if (uiState.successes.isNotEmpty() || uiState.failures.isNotEmpty()) {
             SectionLabel("扫描结果")
             FitLogCard {
-                uiState.successes.forEach { item ->
+                // 结果列表封顶渲染：扫描目录可能有数百个 .md，逐行全部组合进
+                // 非懒加载的滚动 Column 会在扫描回调帧一次性测量，造成明显卡顿。
+                // 成功项在前、失败项其后，合计最多展示 MAX_SHOWN_ROWS 行
+                val maxRows = MAX_SHOWN_RESULT_ROWS
+                val totalRows = uiState.successes.size + uiState.failures.size
+                uiState.successes.take(maxRows).forEach { item ->
                     ScanResultRow(
                         fileName = item.fileName,
                         detail = item.date.toString(),
                         success = true,
                     )
                 }
-                uiState.failures.forEach { item ->
+                val failureBudget = (maxRows - uiState.successes.size).coerceAtLeast(0)
+                uiState.failures.take(failureBudget).forEach { item ->
                     ScanResultRow(
                         fileName = item.fileName,
                         detail = item.reason,
                         success = false,
+                    )
+                }
+                val shownRows = minOf(uiState.successes.size, maxRows) +
+                    minOf(uiState.failures.size, failureBudget)
+                if (totalRows > shownRows) {
+                    Text(
+                        "…其余 ${totalRows - shownRows} 条省略（导入不受影响）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                     )
                 }
             }

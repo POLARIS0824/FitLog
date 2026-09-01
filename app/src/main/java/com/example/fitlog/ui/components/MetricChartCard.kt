@@ -31,6 +31,7 @@ import com.example.fitlog.ui.components.chart.MiniBarChart
 import com.example.fitlog.ui.components.chart.MiniLineChart
 import com.example.fitlog.ui.components.chart.MiniLineStyle
 import com.example.fitlog.ui.theme.FitLogTheme
+import androidx.compose.runtime.Immutable
 
 /**
  * 指标图表卡片的图表区内容（柱状或折线）。
@@ -38,6 +39,7 @@ import com.example.fitlog.ui.theme.FitLogTheme
  * 纯值语义契约同 [ChartData]：不得持有 lambda（[ChartData] 实例是迷你图表
  * `LaunchedEffect` 的 key）；[Dp] 是 inline value class，可安全持有。
  */
+@Immutable
 sealed interface MetricChart {
     /** 迷你胶囊柱状图（[ChartData.goalLine] 呈现为细参考线）。 */
     data class Bars(val data: ChartData) : MetricChart
@@ -77,6 +79,7 @@ sealed interface MetricChart {
  *   null 取主题 primary。放在状态里（而非参数）是为了 [MetricChartCardGrid] 支持异色卡片混排；
  *   由屏幕/预览层注入（ViewModel 不读 MaterialTheme）
  */
+@Immutable
 data class MetricChartCardState(
     val title: String,
     val valueText: String,

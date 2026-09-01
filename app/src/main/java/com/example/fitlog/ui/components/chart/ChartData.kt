@@ -1,5 +1,7 @@
 package com.example.fitlog.ui.components.chart
 
+import androidx.compose.runtime.Immutable
+
 /**
  * 图表的一个数据条目（柱状图的一根柱 / 折线图的一个点）。
  *
@@ -8,6 +10,7 @@ package com.example.fitlog.ui.components.chart
  * 因此 id 必须在数据更新间保持稳定且有业务含义（如日桶用 ISO 日期 "2026-07-25"），
  * 不要用列表下标——下标在条目数变化时会产生错误的配对。
  */
+@Immutable
 data class ChartEntry(
     /** 跨数据集稳定的唯一标识（动画配对锚点） */
     val id: String,
@@ -37,6 +40,7 @@ data class ChartEntry(
  *   （全尺寸 = 虚线 + 数值标签；迷你 = 实线无标签），null 不绘制。
  *   与卡片级进度轨道 [com.example.fitlog.ui.components.GoalTrack] 是两种不同的目标语义
  */
+@Immutable
 data class ChartData(
     val entries: List<ChartEntry>,
     val yMax: Float,

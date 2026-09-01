@@ -5,6 +5,9 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.local.entity.ExerciseEntity
+import com.example.fitlog.data.local.entity.plan.WorkoutPlanEntity
+import com.example.fitlog.model.PlannedSession
+import com.example.fitlog.data.local.entity.plan.PlannedSessionEntity
 import com.example.fitlog.data.local.entity.workout.ExerciseLogEntity
 import com.example.fitlog.data.local.entity.workout.SetLogEntity
 import com.example.fitlog.data.local.entity.workout.WorkoutEntity
@@ -49,6 +52,7 @@ class WorkoutRepositoryTest {
             workoutDao = db.workoutDao(),
             exerciseLogDao = db.exerciseLogDao(),
             setLogDao = db.setLogDao(),
+            workoutPlanDao = db.workoutPlanDao(),
             db = db,
         )
     }
@@ -229,5 +233,79 @@ class WorkoutRepositoryTest {
         assertTrue(workoutId > 0)
         assertTrue(db.exerciseLogDao().getByWorkoutId(workoutId).isEmpty())
         assertNotNull(db.workoutDao().getBySourceFileName("2026-05-21.md"))
+    }
+
+    /**
+     * 测试 [WorkoutRepository.finishSession] 的课次完成回写：planSessionId
+     * 传入时，训练落库与 planned_sessions.completedWorkoutId 回写必须在
+     * 同一事务语义下同时生效（此前是两步写，进程死亡落在中间会留下
+     * "训练已保存、计划进度未推进"的永久缺口）。
+     */
+    @Test
+    fun testFinishSession_withPlanSessionId_marksSessionCompleted() = runTest {
+        db.exerciseDao().insertAll(
+            listOf(ExerciseEntity(id = "barbell-bench-press", name = "Barbell bench press")),
+        )
+        db.workoutPlanDao().insertPlanIgnore(
+            WorkoutPlanEntity(
+                id = "plan-1", name = "PPL", description = null, goal = null,
+                durationWeeks = 4, sessionsPerWeek = 3, isCustom = false,
+                createdAt = LocalDate.of(2026, 5, 1), rawPlanText = null,
+            ),
+        )
+        db.workoutPlanDao().insertSessions(
+            listOf(
+                PlannedSessionEntity(
+                    id = "session-1", planId = "plan-1", name = "Day 1", description = null,
+                    dayNumber = 1, weekNumber = 1, targetDurationMinutes = null,
+                    exercises = emptyList(), completedWorkoutId = null,
+                ),
+            ),
+        )
+
+        val workoutId = repository.createSessionWorkout(
+            PlannedSession(
+                id = "session-1", name = "Day 1", description = null, dayNumber = 1, weekNumber = 1,
+                targetDurationMinutes = null, exercises = emptyList(),
+            ),
+        )
+        assertTrue(workoutId > 0)
+        repository.addExerciseWithPlaceholderSet(workoutId, "barbell-bench-press", "杠铃卧推", 0)
+        val log = db.exerciseLogDao().getByWorkoutId(workoutId).first()
+        db.setLogDao().insert(
+            SetLogEntity(exerciseLogId = log.id, setNumber = 2, weightKg = 80f, reps = 10),
+        )
+
+        val ended = repository.finishSession(
+            workoutId = workoutId, feelings = null, endedAt = 1_000L, planSessionId = "session-1",
+        )
+        assertTrue(ended)
+        assertEquals(
+            workoutId,
+            db.workoutPlanDao().getSessionById("session-1")?.completedWorkoutId,
+        )
+    }
+
+    /**
+     * 测试 [WorkoutRepository.addExerciseWithPlaceholderSet]：动作与占位组单事务落库，
+     * 成功时动作行自带 1 条占位组（不存在无组动作行的中间态）。
+     */
+    @Test
+    fun testAddExerciseWithPlaceholderSet_insertsExerciseAndPlaceholder() = runTest {
+        db.exerciseDao().insertAll(
+            listOf(ExerciseEntity(id = "barbell-bench-press", name = "Barbell bench press")),
+        )
+        val workoutId = repository.createSessionWorkout(null)
+        assertTrue(workoutId > 0)
+
+        val logId = repository.addExerciseWithPlaceholderSet(
+            workoutId, "barbell-bench-press", "杠铃卧推", 0,
+        )
+        assertTrue(logId > 0)
+
+        val sets = db.setLogDao().getByExerciseLogId(logId)
+        assertEquals(1, sets.size)
+        assertEquals(0f, sets[0].weightKg)
+        assertEquals(0, sets[0].reps)
     }
 }

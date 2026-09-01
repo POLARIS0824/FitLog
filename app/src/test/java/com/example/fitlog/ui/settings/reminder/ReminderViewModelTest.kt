@@ -129,13 +129,18 @@ class ReminderViewModelTest {
         assertEquals(1, scheduler.cancelCount)
     }
 
-    /** 记录式调度器替身：记录 schedule 参数与 cancel 次数。 */
+    /** 记录式调度器替身：记录 schedule/self-chain 参数与 cancel 次数。 */
     private class RecordingScheduler : ReminderScheduler {
         val scheduled = mutableListOf<Int>()
+        val selfChained = mutableListOf<Int>()
         var cancelCount = 0
 
         override fun schedule(minutesOfDay: Int) {
             scheduled += minutesOfDay
+        }
+
+        override fun scheduleSelfChainedNext(minutesOfDay: Int) {
+            selfChained += minutesOfDay
         }
 
         override fun cancel() {

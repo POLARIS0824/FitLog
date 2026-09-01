@@ -28,9 +28,16 @@ object MarkdownParser {
             .map { line ->
                 line
                     .removePrefix("- ")
+                    // 前缀移除后再修剪："-  两空格" 粘贴排版会把首空格带进
+                    // rawContent（此前只在行级入口 trim 一次）
+                    .trim()
+                    .removePrefix("* ")
+                    .removePrefix("+ ")
                     .replace("**", "")
                     .replace("➕", "+")
                     .replace("✖️", "x")
+                    // 裸 ✖（无 VS16 变体选择符）：多数输入法直接产出该码点
+                    .replace("✖", "x")
                     .replace("×", "x")
             }
             .joinToString("\n")

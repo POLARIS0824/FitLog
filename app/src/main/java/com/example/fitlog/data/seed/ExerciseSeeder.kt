@@ -1,6 +1,7 @@
 package com.example.fitlog.data.seed
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -52,12 +53,20 @@ class ExerciseSeeder @Inject constructor(
 
         val seedList = json.decodeFromString<List<ExerciseSeedData>>(jsonString)
         val entities = ExerciseSeedMapper.toEntities(seedList)
+        // 投放对账：映射器对未知肌肉/部位值会静默丢条目（mapNotNull）。
+        // 不对账时，未来数据集新增一个未知 target 就会永久缺席于动作库，
+        // 且版本号照常置位、永不重试——至少要留痕（当前数据集实测零丢失）
+        if (entities.size != seedList.size) {
+            Log.w(TAG, "动作库种子映射丢弃 ${seedList.size - entities.size}/${seedList.size} 条（疑似新增未映射字段）")
+        }
         exerciseDao.upsertAllPreservingRows(entities)
 
         dataStore.edit { it[SEED_VERSION_KEY] = SEED_VERSION }
     }
 
     companion object {
+        private const val TAG = "ExerciseSeeder"
+
         /** 当前种子数据版本号，更新数据时递增。 */
         private const val SEED_VERSION = 1
         private val SEED_VERSION_KEY = intPreferencesKey("exercise_seed_version")
@@ -90,10 +99,15 @@ internal object ExerciseSeedMapper {
             val uniqueId = if (seenIds.add(entity.id)) {
                 entity.id
             } else {
-                // 同名冲突：并入数据集 id 消歧（如 barbell-seated-calf-raise-0088）
-                val disambiguated = "${entity.id}-${data.id}"
-                seenIds.add(disambiguated)
-                disambiguated
+                // 同名冲突：并入数据集 id 消歧（如 barbell-seated-calf-raise-1371）。
+                // add 返回值必须校验：消歧后的 id 仍可能撞上已有条目
+                // （三重同名，或某动作名天然等于另一条消歧结果），
+                // 不校验会以重复 id 静默 UPDATE 覆盖先前条目
+                var candidate = "${entity.id}-${data.id}"
+                while (!seenIds.add(candidate)) {
+                    candidate = "$candidate-x"
+                }
+                candidate
             }
             if (uniqueId == entity.id) entity else entity.copy(id = uniqueId)
         }
@@ -117,6 +131,8 @@ internal object ExerciseSeedMapper {
      */
     fun toEntity(data: ExerciseSeedData): ExerciseEntity? {
         val primaryMuscle = MuscleMapper.map(data.target) ?: return null
+        // 部位未知同样丢弃该条目（与肌肉映射同策略），由种子投放对账日志留痕
+        val bodyPart = BodyPartMapper.map(data.body_part) ?: return null
         val secondaryMuscleList = data.secondary_muscles.mapNotNull { MuscleMapper.map(it) }
         val groupMuscle = MuscleMapper.map(data.muscle_group)
 
@@ -137,7 +153,7 @@ internal object ExerciseSeedMapper {
             isCompound = allMuscles.size >= 3,
             isCustom = false,
             equipment = EquipmentMapper.map(data.equipment),
-            bodyPart = BodyPartMapper.map(data.body_part),
+            bodyPart = bodyPart,
             description = data.instructions["zh"],
             instructions = data.instruction_steps["zh"] ?: emptyList(),
             imageUrl = data.image.substringAfterLast("/"),

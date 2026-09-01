@@ -5,6 +5,7 @@ import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.local.dao.ExerciseLogDao
 import com.example.fitlog.data.local.dao.SetLogDao
 import com.example.fitlog.data.local.dao.WorkoutDao
+import com.example.fitlog.data.local.dao.WorkoutPlanDao
 import com.example.fitlog.data.local.entity.workout.ExerciseLogEntity
 import com.example.fitlog.data.local.entity.workout.SetLogEntity
 import com.example.fitlog.data.local.relation.WorkoutWithExerciseLogs
@@ -21,14 +22,16 @@ import javax.inject.Inject
 /**
  * 训练日志仓库。
  *
- * 协调 [WorkoutDao]、[ExerciseLogDao] 和 [SetLogDao]，
- * 通过 [androidx.room.withTransaction] 完成 3 层训练日志（Workout → ExerciseLog → SetLog）
- * 的事务级联存储、删除以及联表查询聚合。
+ * 协调 [WorkoutDao]、[ExerciseLogDao]、[SetLogDao] 与计划域的 [WorkoutPlanDao]
+ * （仅限会话落库时的课次完成回写），通过 [androidx.room.withTransaction]
+ * 完成 3 层训练日志（Workout → ExerciseLog → SetLog）的事务级联存储、
+ * 删除以及联表查询聚合。
  */
 class WorkoutRepository @Inject constructor(
     private val workoutDao: WorkoutDao,
     private val exerciseLogDao: ExerciseLogDao,
     private val setLogDao: SetLogDao,
+    private val workoutPlanDao: WorkoutPlanDao,
     private val db: AppDatabase,
 ) {
     /**
@@ -245,6 +248,41 @@ class WorkoutRepository @Inject constructor(
         ),
     )
 
+    /**
+     * 向进行中会话添加动作并附一个占位组（0kg×0 次），单事务落库。
+     *
+     * 此前"插动作 → 再插占位组"是两次独立写：进程死亡落在中间会留下
+     * 无组动作行——正是 [createSessionWorkout] 单事务化时声明消灭的
+     * "半初始化会话"投影。占位组写失败与动作插入一并回滚。
+     *
+     * @param exerciseKey 动作库 id；调用方必须保证其存在于 exercises 表
+     * @param sortOrder 动作排序序号
+     * @return 新插入动作记录的主键；占位组插入失败时动作行一并回滚并返回 -1
+     */
+    suspend fun addExerciseWithPlaceholderSet(
+        workoutId: Long,
+        exerciseKey: String?,
+        name: String,
+        sortOrder: Int,
+    ): Long = db.withTransaction {
+        val logId = exerciseLogDao.insert(
+            ExerciseLogEntity(workoutId = workoutId, exerciseKey = exerciseKey, name = name, sortOrder = sortOrder),
+        )
+        if (logId != -1L) {
+            val setId = setLogDao.insert(
+                SetLogEntity(
+                    exerciseLogId = logId,
+                    setNumber = 1,
+                    weightKg = 0f,
+                    reps = 0,
+                    setType = SetType.WORKING.name,
+                ),
+            )
+            if (setId == -1L) return@withTransaction -1L
+        }
+        logId
+    }
+
     /** 更新会话内一组的重量/次数/组类型（逐键提交，频率高故走定向 UPDATE 而非全列覆盖）。 */
     suspend fun updateSessionSet(setId: Long, weightKg: Float, reps: Int, setType: SetType) {
         setLogDao.updateById(id = setId, weightKg = weightKg, reps = reps, setType = setType.name)
@@ -266,15 +304,27 @@ class WorkoutRepository @Inject constructor(
     }
 
     /**
-     * 结束会话：清洗无效数据、写 endedAt 与感受，训练正式落库。
+     * 结束会话：清洗无效数据、写 endedAt 与感受，训练正式落库，
+     * 并在同一事务内回写计划课次完成标记。
      *
      * 清洗规则：reps ≤ 0 的组剔除（占位行）；清洗后无任何有效组的动作剔除；
      * 清洗后不存在任何有效动作时结束失败（返回 false，会话保持进行中）。
      * 已结束的行直接拒绝（双击"保存"的第二击不改写 endedAt）。
      *
+     * 课次回写必须与本事务合并：此前"保存训练 → 另一事务 markSessionCompleted"
+     * 的两步写在进程死亡落在中间时，会留下"训练已保存、计划进度未推进"的
+     * 永久缺口（残余场景由启动期 [WorkoutPlanDao.reconcileCompletedFromWorkouts]
+     * 对账兜底）。
+     *
+     * @param planSessionId 会话来源计划课次 id（自由训练为 null，不回写）
      * @return true 结束成功；false 无有效训练内容或会话已结束，不能结束
      */
-    suspend fun finishSession(workoutId: Long, feelings: String?, endedAt: Long): Boolean =
+    suspend fun finishSession(
+        workoutId: Long,
+        feelings: String?,
+        endedAt: Long,
+        planSessionId: String? = null,
+    ): Boolean =
         db.withTransaction {
             val relation = workoutDao.getByIdWithDetails(workoutId)
                 ?: return@withTransaction false
@@ -313,6 +363,9 @@ class WorkoutRepository @Inject constructor(
                 )
             }
             workoutDao.update(relation.workout.copy(feelings = feelings, endedAt = endedAt))
+            if (planSessionId != null) {
+                workoutPlanDao.markSessionCompleted(planSessionId, workoutId)
+            }
             true
         }
 

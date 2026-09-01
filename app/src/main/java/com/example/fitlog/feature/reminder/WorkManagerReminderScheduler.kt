@@ -45,6 +45,26 @@ class WorkManagerReminderScheduler @Inject constructor(
             .enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.REPLACE, request)
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * 走 [ExistingWorkPolicy.APPEND_OR_REPLACE] 而非外部重排的 REPLACE：
+     * Worker 自链时它自己正以同一 unique name 运行中——REPLACE 会把这条
+     * 运行中的任务标为 CANCELLED 并打断（当前仅因 showNotification 无挂起点
+     * 而侥幸无害，任何重构加入 suspend 调用都会静默断掉每日提醒）。
+     * APPEND 把下一次任务挂为本任务的子节点，父任务正常完成后自动接力；
+     * 用户改时间/开关时外部仍走 [schedule] 的 REPLACE，会取消整条 pending 链
+     * 并以新时间重排，两条路径互不冲突、不产生重复提醒。
+     */
+    override fun scheduleSelfChainedNext(minutesOfDay: Int) {
+        val request = OneTimeWorkRequestBuilder<ReminderWorker>()
+            .setInitialDelay(delayUntilNextOccurrence(minutesOfDay), TimeUnit.MILLISECONDS)
+            .addTag(TAG)
+            .build()
+        WorkManager.getInstance(context)
+            .enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+    }
+
     /** {@inheritDoc} */
     override fun cancel() {
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)

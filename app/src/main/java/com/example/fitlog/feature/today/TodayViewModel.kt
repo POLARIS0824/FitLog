@@ -16,6 +16,7 @@ import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.model.ai.CoachInsight
 import com.example.fitlog.model.ai.CoachInsightContext
 import com.example.fitlog.model.user.UserProfile
+import com.example.fitlog.util.guard as guardFlow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -101,15 +102,14 @@ class TodayViewModel @Inject constructor(
     private val dataError = MutableStateFlow<String?>(null)
 
     /**
-     * 数据流降级包装：上游异常时写入 [dataError] 并发射 [fallback]，保证
+     * 数据流降级包装：全局共享 [com.example.fitlog.util.guard]（catch+fallback）
+     * 绑定本页的错误通道。上游异常时写入 [dataError] 并发射 [fallback]，保证
      * combine 链不被单条 Room/DataStore 流击穿（否则 stateIn 停在 initialValue，
      * 页面永久卡加载）。注意：出错的那条源流在此之后停止更新（直到页面重建），
      * 其余源流与 UI 事件不受影响。
      */
-    private fun <T> Flow<T>.guard(fallback: T): Flow<T> = catch { e ->
-        dataError.value = e.message ?: "数据加载失败，请重试"
-        emit(fallback)
-    }
+    private fun <T> Flow<T>.guard(fallback: T): Flow<T> =
+        guardFlow(fallback) { e -> dataError.value = e.message ?: "数据加载失败，请重试" }
 
     // ── 一次性加载：无默认值冷 Flow，combine 首发即真实值 ──
 
@@ -163,7 +163,13 @@ class TodayViewModel @Inject constructor(
         val catalog: List<Exercise>,
     )
 
-    /** combine 链的中间态：组装 [TodayUiState] 的全部材料。 */
+    /**
+     * combine 链的中间态：组装 [TodayUiState] 的全部材料。
+     *
+     * [todayPlan] 在材料流中**组装一次**，UI 组装与 AI 上下文共用同一份——
+     * 此前 AI 链的 [isTodayCompleted] 会整份重跑 [TodayPlanAssembler.assemble]，
+     * 与页面上展示的状态存在重复计算与漂移风险。
+     */
     private data class TodayMaterials(
         val snapshot: TodaySnapshot,
         val prevWeekWorkouts: List<Workout>,
@@ -172,6 +178,7 @@ class TodayViewModel @Inject constructor(
         val profile: UserProfile?,
         val catalog: List<Exercise>,
         val checkedExercises: Set<String> = emptySet(),
+        val todayPlan: TodayPlanState = TodayPlanState(),
     )
 
     /** 种子门：种子完成前不发射（只放行一次 true，之后恒透传）。 */
@@ -180,6 +187,9 @@ class TodayViewModel @Inject constructor(
     /**
      * 共享材料流：组装链与 AI 增强链的共同上游。
      * `shareIn` 避免两条订阅链各自触发 Room/DataStore 查询。
+     *
+     * displayMode/checkedExercises 在此处留默认值——它们由紧随其后的两个
+     * `.combine` 响应式注入（此前直接读 `.value` 是死代码，只能供到初始值）。
      */
     private val sharedMaterials = combine(
         weekWorkouts, todayWorkouts, allWorkouts, activePlan, nextSession, ::TodaySnapshot,
@@ -190,15 +200,31 @@ class TodayViewModel @Inject constructor(
             snapshot = snapshot,
             prevWeekWorkouts = extras.prevWeekWorkouts,
             latestWorkout = extras.latestWorkout,
-            displayMode = displayMode.value,
+            displayMode = WeekProgressDisplayMode.SPLIT,
             profile = extras.profile,
             catalog = extras.catalog,
-            checkedExercises = checkedExercises.value,
         )
     }.combine(displayMode) { materials, mode ->
         materials.copy(displayMode = mode)
     }.combine(checkedExercises) { materials, checked ->
-        materials.copy(checkedExercises = checked)
+        // checkedExercises 注入后即组装 todayPlan（材料流内只组装这一次，
+        // UI 组装与 AI 上下文共用），打卡集合参与完成度推导必须排在其后
+        materials.copy(
+            checkedExercises = checked,
+            todayPlan = runCatching {
+                TodayPlanAssembler.assemble(
+                    activePlan = materials.snapshot.activePlan,
+                    nextSession = materials.snapshot.nextSession,
+                    todayWorkouts = materials.snapshot.todayWorkouts,
+                    allWorkouts = materials.snapshot.allWorkouts,
+                    catalog = materials.catalog,
+                    checkedExerciseKeys = checked,
+                )
+            }.getOrElse { e ->
+                Log.w(TAG, "今日计划状态组装失败", e)
+                TodayPlanState()
+            },
+        )
     }.shareIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -295,14 +321,8 @@ class TodayViewModel @Inject constructor(
         // 完成数口径统一走 Workout.isCountable（导入的表头存档记录不计入）
         val weekCompleted = snapshot.weekWorkouts.count { it.isCountable }
 
-        val todayPlan = TodayPlanAssembler.assemble(
-            activePlan = snapshot.activePlan,
-            nextSession = snapshot.nextSession,
-            todayWorkouts = snapshot.todayWorkouts,
-            allWorkouts = snapshot.allWorkouts,
-            catalog = materials.catalog,
-            checkedExerciseKeys = materials.checkedExercises,
-        )
+        // todayPlan 已在材料流内组装（含打卡集合推导），此处只消费不再重算
+        val todayPlan = materials.todayPlan
 
         val coachInsight = CoachInsightBuilder.build(
             profile = materials.profile,
@@ -355,17 +375,8 @@ class TodayViewModel @Inject constructor(
     // ──────────────────────────────────────
 
     /** 今日训练是否已完成：计划课次完成，或自由训练今日有可计数记录（口径与规则版一致）。 */
-    private fun TodayMaterials.isTodayCompleted(): Boolean {
-        val planCompleted = TodayPlanAssembler.assemble(
-            activePlan = snapshot.activePlan,
-            nextSession = snapshot.nextSession,
-            todayWorkouts = snapshot.todayWorkouts,
-            allWorkouts = snapshot.allWorkouts,
-            catalog = catalog,
-            checkedExerciseKeys = checkedExercises,
-        ).status == PlanStatus.COMPLETED
-        return planCompleted || snapshot.todayWorkouts.any { it.isCountable }
-    }
+    private fun TodayMaterials.isTodayCompleted(): Boolean =
+        todayPlan.status == PlanStatus.COMPLETED || snapshot.todayWorkouts.any { it.isCountable }
 
     /** 材料 → AI 上下文（最近训练取全量记录按日期倒序前 3 条，含组详情）。 */
     private fun TodayMaterials.toCoachInsightContext(): CoachInsightContext =
@@ -420,6 +431,10 @@ class TodayViewModel @Inject constructor(
     /** 在计划选择弹层中选中一套计划（设为当前激活计划）。 */
     fun onPlanSelected(planId: String) {
         viewModelScope.launch {
+            // 动作 key 跨计划共享（如 barbell-bench-press 出现在多数计划中）：
+            // 切换计划必须清空手动打卡集合，否则旧计划的勾选会泄漏进新计划，
+            // 凭空推高完成进度甚至把未开始的计划推到 COMPLETED
+            checkedExercises.update { emptySet() }
             // DataStore edit 是磁盘 IO：失败以未捕获协程异常击穿 viewModelScope 闪退，
             // 其余事件入口均有 guard/runCatching，此处保持一致（失败仅留痕，下次重选即可）
             runCatching { workoutPlanRepository.setActivePlanId(planId) }

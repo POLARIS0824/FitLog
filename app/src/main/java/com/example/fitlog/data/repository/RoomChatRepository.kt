@@ -1,5 +1,7 @@
 package com.example.fitlog.data.repository
 
+import androidx.room.withTransaction
+import com.example.fitlog.data.local.AppDatabase
 import com.example.fitlog.data.local.dao.AgentStepDao
 import com.example.fitlog.data.local.dao.ChatMessageDao
 import com.example.fitlog.data.local.entity.chat.AgentStepEntity
@@ -16,6 +18,7 @@ import javax.inject.Inject
 class RoomChatRepository @Inject constructor(
     private val chatMessageDao: ChatMessageDao,
     private val agentStepDao: AgentStepDao,
+    private val db: AppDatabase,
 ) : ChatRepository {
 
     /** {@inheritDoc} */
@@ -90,7 +93,10 @@ class RoomChatRepository @Inject constructor(
     override suspend fun count(): Long = chatMessageDao.count()
 
     /** {@inheritDoc} */
-    override suspend fun clearAll() {
+    override suspend fun clearAll() = db.withTransaction {
+        // 两表"同批"清空须在一个事务内：步骤行只经消息行的 runId 挂载，
+        // 消息已删而步骤残留时孤儿数据永久无法恢复（全库唯一未入事务的
+        // 多表写，与 WorkoutRepository 的级联写同一约束）
         chatMessageDao.clearAll()
         agentStepDao.clearAll()
     }

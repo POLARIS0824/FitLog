@@ -64,6 +64,7 @@ class StatsViewModelTest {
             workoutDao = db.workoutDao(),
             exerciseLogDao = db.exerciseLogDao(),
             setLogDao = db.setLogDao(),
+            workoutPlanDao = db.workoutPlanDao(),
             db = db,
         )
         bodyMetricRepository = BodyMetricRepository(db.bodyMetricDao())

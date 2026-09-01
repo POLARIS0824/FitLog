@@ -7,6 +7,7 @@ import com.example.fitlog.data.repository.BodyMetricRepository
 import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.model.BodyMetric
 import com.example.fitlog.model.Workout
+import com.example.fitlog.util.guard as guardFlow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -14,7 +15,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -62,11 +62,13 @@ class StatsViewModel @Inject constructor(
      */
     private val dataError = MutableStateFlow<String?>(null)
 
-    /** 数据流降级包装：上游异常时写入 [dataError] 并发射 [fallback]，保证 combine 链存活。 */
-    private fun <T> Flow<T>.guard(fallback: T): Flow<T> = catch { e ->
-        dataError.value = e.message ?: "数据加载失败，请重试"
-        emit(fallback)
-    }
+    /**
+     * 数据流降级包装：全局共享 [com.example.fitlog.util.guard]（catch+fallback）
+     * 绑定本页的错误通道；上游异常时写入 [dataError] 并发射 [fallback]，
+     * 保证 combine 链存活。
+     */
+    private fun <T> Flow<T>.guard(fallback: T): Flow<T> =
+        guardFlow(fallback) { e -> dataError.value = e.message ?: "数据加载失败，请重试" }
 
     private val today: LocalDate = LocalDate.now()
 

@@ -48,10 +48,11 @@ class ReminderWorker(
             if (!preferences.reminderEnabled.first()) return Result.success()
             // 自链紧贴读取时间并先于发通知执行：缩小"读到旧值后覆盖用户
             // 恰好重排的新任务"的竞态窗口（提醒刚响、用户顺手改时间正是
-            // Worker 运行期）。残余窗口为毫秒级，REPLACE 语义下无法根除，
-            // 显式接受——见 ReminderScheduler KDoc
+            // Worker 运行期）。残余窗口为毫秒级，无法根除，显式接受。
+            // 走 APPEND_OR_REPLACE 语义（而非外部的 REPLACE）：REPLACE 会取消
+            // 正在运行的本任务自身，见 ReminderScheduler.scheduleSelfChainedNext
             val minutes = preferences.reminderMinutes.first()
-            entryPoint.reminderScheduler().schedule(minutes)
+            entryPoint.reminderScheduler().scheduleSelfChainedNext(minutes)
             showNotification()
             return Result.success()
         } catch (e: CancellationException) {

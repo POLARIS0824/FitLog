@@ -52,18 +52,23 @@ class MockStatsHistorySeederTest {
     private lateinit var workoutRepository: WorkoutRepository
 
     /**
-     * 打开正式库文件（与 [com.example.fitlog.di.DatabaseModule] 同名 "fitlog.db"）。
+     * 打开独立测试库（"fitlog-mocktest.db"）。
+     *
+     * 此前与正式库同名 "fitlog.db" 且配 fallbackToDestructiveMigration：
+     * connectedAndroidTest 每次运行都会按 schema 差异销毁真机安装的生产数据，
+     * 再灌入一整年 mock 训练——训练历史不可再生，测试库必须与生产库隔离。
      */
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        db = Room.databaseBuilder(context, AppDatabase::class.java, "fitlog.db")
+        db = Room.databaseBuilder(context, AppDatabase::class.java, "fitlog-mocktest.db")
             .fallbackToDestructiveMigration()
             .build()
         workoutRepository = WorkoutRepository(
             workoutDao = db.workoutDao(),
             exerciseLogDao = db.exerciseLogDao(),
             setLogDao = db.setLogDao(),
+            workoutPlanDao = db.workoutPlanDao(),
             db = db,
         )
     }

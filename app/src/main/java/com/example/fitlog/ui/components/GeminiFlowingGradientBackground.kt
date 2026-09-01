@@ -7,7 +7,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +22,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
@@ -47,13 +47,16 @@ import kotlin.math.sin
  * （稳态下被压栈的 entry 会整体移出组合；此门控覆盖瞬态窗口并防御未来 OverlayScene。）
  *
  * @param modifier 外部 Modifier 修饰符
- * @param isDarkTheme 当前是否处于深色主题模式
+ * @param isDarkTheme 当前是否处于深色主题模式。默认从**生效主题**推导
+ *   （surface 亮度阈值）而非 `isSystemInDarkTheme()`——App 支持"外观"页的
+ *   应用内 LIGHT/DARK 覆盖，跟随系统会在"系统深色 + 应用强制浅色"时把
+ *   最显眼的首页卡片渲染成错误的色板
  * @param content 卡片内部内容布局
  */
 @Composable
 fun GeminiFlowingGradientBackground(
     modifier: Modifier = Modifier,
-    isDarkTheme: Boolean = isSystemInDarkTheme(),
+    isDarkTheme: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()

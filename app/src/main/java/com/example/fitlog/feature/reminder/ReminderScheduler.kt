@@ -15,6 +15,17 @@ interface ReminderScheduler {
      */
     fun schedule(minutesOfDay: Int)
 
+    /**
+     * Worker 触发后的自链调度：接力下一次提醒。
+     *
+     * 与 [schedule] 分离的原因：自链发生时 Worker 自身正以同一 unique name
+     * 运行，REPLACE 语义会取消运行中的任务（见实现类 KDoc），因此接力
+     * 必须走非打断式的追加语义。
+     *
+     * @param minutesOfDay 提醒时刻（一天中的分钟数，0–1439）
+     */
+    fun scheduleSelfChainedNext(minutesOfDay: Int)
+
     /** 取消提醒。 */
     fun cancel()
 }

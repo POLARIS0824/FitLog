@@ -113,6 +113,15 @@ class WorkoutPlanRepository @Inject constructor(
         workoutPlanDao.unmarkSessionCompleted(sessionId)
 
     /**
+     * 课次完成对账：按 [WorkoutPlanDao.reconcileCompletedFromWorkouts] 的口径，
+     * 把已保存训练但完成标记缺失的课次补齐（启动期幂等维护，见 DAO KDoc）。
+     *
+     * @return 补齐的课次数
+     */
+    suspend fun reconcileCompletedSessions(): Int =
+        workoutPlanDao.reconcileCompletedFromWorkouts()
+
+    /**
      * 按主键取单个训练日（训练执行流预填动作清单用）。
      */
     suspend fun getSessionById(sessionId: String): PlannedSession? =

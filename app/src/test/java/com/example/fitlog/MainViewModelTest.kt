@@ -102,13 +102,17 @@ class MainViewModelTest {
             ),
         )
         val exerciseSeeder = ExerciseSeeder(db.exerciseDao(), dataStore, context)
+        val planRepository = WorkoutPlanRepository(db.workoutPlanDao(), dataStore)
         val planSeeder = WorkoutPlanSeeder(
             workoutPlanDao = db.workoutPlanDao(),
             exerciseDao = db.exerciseDao(),
-            workoutPlanRepository = WorkoutPlanRepository(db.workoutPlanDao(), dataStore),
+            workoutPlanRepository = planRepository,
             dataStore = dataStore,
         )
-        viewModel = MainViewModel(preferencesRepository, SeedOrchestrator(exerciseSeeder, planSeeder))
+        viewModel = MainViewModel(
+            preferencesRepository,
+            SeedOrchestrator(exerciseSeeder, planSeeder, planRepository),
+        )
     }
 
     /**
@@ -166,6 +170,10 @@ class MainViewModelTest {
             override val dynamicColor =
                 kotlinx.coroutines.flow.flow<Boolean> { throw IOException("DataStore 损坏") }
         }
+        val planRepository2 = WorkoutPlanRepository(
+            db.workoutPlanDao(),
+            createTestPreferencesDataStore(tmpFolder.newFile("seed3.preferences_pb"), dataStoreScope),
+        )
         val vm2 = MainViewModel(
             crashingSource,
             SeedOrchestrator(
@@ -173,12 +181,10 @@ class MainViewModelTest {
                 WorkoutPlanSeeder(
                     workoutPlanDao = db.workoutPlanDao(),
                     exerciseDao = db.exerciseDao(),
-                    workoutPlanRepository = WorkoutPlanRepository(
-                        db.workoutPlanDao(),
-                        createTestPreferencesDataStore(tmpFolder.newFile("seed3.preferences_pb"), dataStoreScope),
-                    ),
+                    workoutPlanRepository = planRepository2,
                     dataStore = createTestPreferencesDataStore(tmpFolder.newFile("seed4.preferences_pb"), dataStoreScope),
                 ),
+                planRepository2,
             ),
         )
 

@@ -1,6 +1,7 @@
 package com.example.fitlog.data.seed
 
 import android.util.Log
+import com.example.fitlog.data.repository.WorkoutPlanRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -25,6 +26,7 @@ import kotlin.coroutines.cancellation.CancellationException
 class SeedOrchestrator @Inject constructor(
     private val exerciseSeeder: ExerciseSeeder,
     private val workoutPlanSeeder: WorkoutPlanSeeder,
+    private val workoutPlanRepository: WorkoutPlanRepository,
 ) {
 
     private val _completed = MutableStateFlow(false)
@@ -36,7 +38,8 @@ class SeedOrchestrator @Inject constructor(
     private var ran = false
 
     /**
-     * 触发种子导入：先动作库、后预置计划（计划动作引用动作库 key）。
+     * 触发种子导入：先动作库、后预置计划（计划动作引用动作库 key），
+     * 最后做一次课次完成对账（幂等维护，见 [WorkoutPlanRepository.reconcileCompletedSessions]）。
      * 进程内幂等；异常不向调用方（MainViewModel）上抛——种子失败只影响内容完整
      * （Today 首屏加载条正常放行，动作库/计划可能缺失或下次启动重试），
      * 绝不导致应用启动崩溃（fail-open）。
@@ -48,6 +51,8 @@ class SeedOrchestrator @Inject constructor(
             try {
                 exerciseSeeder.seedIfNeeded()
                 workoutPlanSeeder.seedIfNeeded()
+                runCatching { workoutPlanRepository.reconcileCompletedSessions() }
+                    .onFailure { Log.w(TAG, "课次完成对账失败（下次启动重试）", it) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

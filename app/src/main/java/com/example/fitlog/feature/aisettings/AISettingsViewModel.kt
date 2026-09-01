@@ -6,6 +6,7 @@ import com.example.fitlog.data.repository.AIChatRepository
 import com.example.fitlog.data.repository.AIProviderConfigRepository
 import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ProviderType
+import com.example.fitlog.util.guard as guardFlow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -61,8 +62,13 @@ class AISettingsViewModel @Inject constructor(
 
     /** 设置页 UI 状态流，由数据层 Flow 与本地表单 Flow 组合而成。 */
     val uiState: StateFlow<AISettingsUiState> = combine(
-        aiProviderConfigRepository.getAIProviders(),
-        aiProviderConfigRepository.activeProviderId,
+        aiProviderConfigRepository.getAIProviders()
+            // Room/DataStore 上游异常按全项目 guard 约定降级（空列表/null 继续组链），
+            // 并写一次性错误通道；否则异常击穿 stateIn 后整页表单状态（含未保存的
+            // apiKey 输入）全部丢失
+            .guardFlow(emptyList()) { e -> reportDataFlowError(e) },
+        aiProviderConfigRepository.activeProviderId
+            .guardFlow(null) { e -> reportDataFlowError(e) },
         selectedTypeState,
         apiKeyState,
         modelState,
@@ -97,6 +103,10 @@ class AISettingsViewModel @Inject constructor(
             ui = UiState(isLoading = true),
         ),
     )
+
+    /** 数据流降级守卫的一次性错误出口（复用保存失败同款错误通道）。 */
+    private fun reportDataFlowError(e: Throwable) =
+        uiFlow.update { it.copy(errorMessage = e.message ?: "配置读取失败，请重试") }
 
     // ──────────────────────────────────────
     // Provider 选择
@@ -224,7 +234,12 @@ class AISettingsViewModel @Inject constructor(
         val spec = ProviderSpecs.of(type)
         val tempConfig = buildConfigFromForm()
             ?.let { if (it.model.isBlank()) it.copy(model = spec.defaultModel) else it }
-            ?: return
+            ?: run {
+                // 表单不全时给一次性反馈而非静默 no-op（Screen 目前禁用了按钮，
+                // 此处是键盘/无障碍/未来调用方绕过禁用态的防御）
+                uiFlow.update { it.copy(errorMessage = "请先填写 API Key 与 Base URL") }
+                return
+            }
 
         viewModelScope.launch {
             modelState.update { it.copy(isLoading = true, fetchResult = "") }
@@ -273,7 +288,12 @@ class AISettingsViewModel @Inject constructor(
      */
     fun onTestConnection() {
         val model = modelState.value.selectedModel
-        val tempConfig = buildConfigFromForm()?.takeIf { model.isNotBlank() } ?: return
+        val tempConfig = buildConfigFromForm()?.takeIf { model.isNotBlank() } ?: run {
+            uiFlow.update {
+                it.copy(errorMessage = if (model.isBlank()) "请先填写模型名" else "请先填写 API Key 与 Base URL")
+            }
+            return
+        }
 
         viewModelScope.launch {
             testState.update { TestState(isTesting = true) }
@@ -309,7 +329,13 @@ class AISettingsViewModel @Inject constructor(
      * Screen 只上报点击事件，不感知 [AIProviderConfig] 的构造细节。
      */
     fun onSaveClick() {
-        val config = buildConfigFromForm()?.takeIf { it.model.isNotBlank() } ?: return
+        val config = buildConfigFromForm()?.takeIf { it.model.isNotBlank() } ?: run {
+            val modelBlank = modelState.value.selectedModel.isBlank()
+            uiFlow.update {
+                it.copy(errorMessage = if (modelBlank) "请先填写模型名" else "请先填写 API Key 与 Base URL")
+            }
+            return
+        }
 
         onSave(
             config.copy(cachedModels = modelState.value.availableModels),

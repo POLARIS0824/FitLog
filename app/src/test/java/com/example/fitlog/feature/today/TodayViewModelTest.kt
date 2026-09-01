@@ -128,6 +128,7 @@ class TodayViewModelTest {
             workoutDao = db.workoutDao(),
             exerciseLogDao = db.exerciseLogDao(),
             setLogDao = db.setLogDao(),
+            workoutPlanDao = db.workoutPlanDao(),
             db = db,
         )
         workoutPlanRepository = WorkoutPlanRepository(db.workoutPlanDao(), dataStore)
@@ -141,6 +142,7 @@ class TodayViewModelTest {
                 workoutPlanRepository = workoutPlanRepository,
                 dataStore = dataStore,
             ),
+            workoutPlanRepository,
         )
         // Coach Insight AI 链路：Fake API + 真实配置仓库（默认无激活服务商 → AI 静默隐藏）
         fakeApi = FakeAIApi()

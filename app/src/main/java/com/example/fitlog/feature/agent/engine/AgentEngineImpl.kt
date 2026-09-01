@@ -103,7 +103,7 @@ class AgentEngineImpl @Inject constructor(
             ?: return Result.failure(
                 IllegalStateException("未配置 AI 服务商，请先在设置中配置 API Key"),
             )
-        config.ensureUsableCredentials()
+        config.checkUsableCredentials()?.let { return Result.failure(it) }
 
         val runner = getOrCreateRunner(config) ?: return Result.failure(
             IllegalStateException("Agent 引擎初始化失败"),
@@ -131,7 +131,7 @@ class AgentEngineImpl @Inject constructor(
             ?: return Result.failure(
                 IllegalStateException("未配置 AI 服务商，请先在设置中配置 API Key"),
             )
-        config.ensureUsableCredentials()
+        config.checkUsableCredentials()?.let { return Result.failure(it) }
 
         val runner = getOrCreateRunner(config) ?: return Result.failure(
             IllegalStateException("Agent 引擎初始化失败"),
@@ -244,14 +244,19 @@ class AgentEngineImpl @Inject constructor(
      * 发请求前的凭据前置校验：密钥解密失败会降级为空串入库（换机恢复等场景），
      * 若照常发请求，用户只会看到服务商 401「Invalid API key」，无从排查。
      * 此处拦截并给出明确指引。
+     *
+     * 返回 null 表示凭据不可用（已携带指引消息）；调用方须转 [Result.failure]
+     * 而非让异常逃逸——本方法在 ChatViewModel 的裸 `launch` 中调用，抛出即
+     * 未捕获协程异常直接崩溃，"引导卡"契约（见 [AgentEngine] KDoc）随之失效。
      */
-    private fun AIProviderConfig.ensureUsableCredentials() {
+    private fun AIProviderConfig.checkUsableCredentials(): IllegalStateException? =
         if (apiKey.isBlank()) {
-            throw IllegalStateException(
+            IllegalStateException(
                 "API Key 无法读取（可能因备份恢复或系统凭据变更失效），请到 AI 设置中重新保存密钥",
             )
+        } else {
+            null
         }
-    }
 
     private suspend fun getOrCreateRunner(config: AIProviderConfig): InMemoryRunner? =
         rebuildLock.withLock {

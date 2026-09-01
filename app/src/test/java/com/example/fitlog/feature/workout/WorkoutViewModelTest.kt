@@ -87,6 +87,7 @@ class WorkoutViewModelTest {
             workoutDao = db.workoutDao(),
             exerciseLogDao = db.exerciseLogDao(),
             setLogDao = db.setLogDao(),
+            workoutPlanDao = db.workoutPlanDao(),
             db = db,
         )
         dataStoreScope = TestScope(UnconfinedTestDispatcher(testScheduler))

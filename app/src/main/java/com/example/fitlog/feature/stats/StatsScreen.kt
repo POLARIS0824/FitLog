@@ -33,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.fitlog.util.findActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.model.BodyMetric
 import com.example.fitlog.model.ExerciseLog
@@ -66,8 +68,10 @@ import java.time.LocalDate
 @Composable
 fun StatsRoute(
     modifier: Modifier = Modifier,
-    viewModel: StatsViewModel = hiltViewModel(),
 ) {
+    // VM 作用域提升到 Activity（理由见 TodayRoute 注释）；Preview 无 Activity 时回落
+    val activity = LocalContext.current.findActivity()
+    val viewModel: StatsViewModel = if (activity != null) hiltViewModel(activity) else hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val weightSheetState by viewModel.weightSheetState.collectAsStateWithLifecycle()
     StatsScreen(

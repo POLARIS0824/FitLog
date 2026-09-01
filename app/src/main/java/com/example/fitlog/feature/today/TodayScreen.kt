@@ -33,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.fitlog.util.findActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.model.ai.CoachAction
@@ -64,8 +66,13 @@ fun TodayRoute(
     onNavigateToWorkout: () -> Unit = {},
     onStartWorkout: () -> Unit = onNavigateToWorkout,
     modifier: Modifier = Modifier,
-    viewModel: TodayViewModel = hiltViewModel(),
 ) {
+    // VM 作用域提升到 Activity：切 tab = 清栈重建 entry，entry 作用域的 VM 会
+    // 被销毁重建（DB 重查 + 入场动画重放 + 今日动作打卡勾选丢失）。ChatRoute 已有
+    // 同款先例；本页无导航参数，Activity 作用域安全（训练页 WorkoutKey 有
+    // per-entry 参数，保持 entry 作用域）。Preview 无 Activity 时回落 entry 作用域。
+    val activity = LocalContext.current.findActivity()
+    val viewModel: TodayViewModel = if (activity != null) hiltViewModel(activity) else hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val allPlans by viewModel.allPlans.collectAsStateWithLifecycle()
     TodayScreen(

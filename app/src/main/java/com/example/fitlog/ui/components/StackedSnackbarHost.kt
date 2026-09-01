@@ -1,6 +1,7 @@
 package com.example.fitlog.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -25,11 +26,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
 
 /**
  * 堆叠式 Snackbar 数据项。
@@ -135,15 +138,21 @@ fun StackedSnackbarHost(
                     hostState.dismiss(item.id)
                 }
 
+                // 移除时机跟随退场动画实际结束（currentState/idle 判定），
+                // 而非固定 300ms——退场是低刚度 spring，通常 300ms 远未收敛，
+                // 定时移除会让收起动画中途消失出现"弹出"感
+                val visibleState = remember { MutableTransitionState(item.isVisible) }
                 LaunchedEffect(item.isVisible) {
-                    if (!item.isVisible) {
-                        delay(300L)
-                        hostState.remove(item.id)
-                    }
+                    visibleState.targetState = item.isVisible
+                }
+                LaunchedEffect(visibleState) {
+                    snapshotFlow { visibleState.isIdle && !visibleState.currentState }
+                        .filter { it }
+                        .collect { hostState.remove(item.id) }
                 }
 
                 AnimatedVisibility(
-                    visible = item.isVisible,
+                    visibleState = visibleState,
                     enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
                             slideInVertically(
                                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow),

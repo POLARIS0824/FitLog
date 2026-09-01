@@ -12,6 +12,7 @@ import com.example.fitlog.model.PlannedSession
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.util.VolumeAggregator
+import com.example.fitlog.util.guard
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
@@ -83,7 +84,7 @@ class WorkoutViewModel @Inject constructor(
         }
 
     /** 计划课次 id → 课次对象缓存（目标元数据投影用，会话生命周期内最多几条）。 */
-    private val planSessionCache = mutableMapOf<String, PlannedSession?>()
+    private val planSessionCache = java.util.concurrent.ConcurrentHashMap<String, PlannedSession?>()
 
     /**
      * 会话写操作互斥锁：逐键提交的 updateSet 与 finishSession/discard 在
@@ -122,16 +123,23 @@ class WorkoutViewModel @Inject constructor(
     val exerciseCatalog: StateFlow<List<Exercise>> = kotlinx.coroutines.flow.flow {
         emit(exerciseRepository.getAll())
     }
-        .catch { e ->
-            Log.w(TAG, "动作库加载失败", e)
-            emit(emptyList())
-        }
+        .guard(emptyList()) { e -> Log.w(TAG, "动作库加载失败", e) }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    /** 进行中的训练会话投影（null = 无会话，页面显示历史列表）。 */
+    /**
+     * 进行中的训练会话投影（null = 无会话，页面显示历史列表）。
+     *
+     * 与 [uiState] 同守卫约定：Room 上游异常时降级为 null（回到历史列表视图）
+     * 并写一次性提示，不让异常击穿 stateIn 的共享协程（否则会话视图死亡后
+     * 无法恢复，录入中的组数进度对 Today 卡片也不再可见）。
+     */
     val activeSession: StateFlow<ActiveSession?> = workoutRepository
         .getInProgressWorkoutEntity()
         .map { relation -> relation?.let { buildActiveSession(it) } }
+        .guard(null) { e ->
+            Log.w(TAG, "进行中会话加载失败", e)
+            _message.update { "会话加载失败，请重试" }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // ──────────────────────────────────────
@@ -184,7 +192,7 @@ class WorkoutViewModel @Inject constructor(
         }
     }
 
-    /** 结束会话：清洗落库 + 回写计划课次完成标记。[feelings] 可空。 */
+    /** 结束会话：清洗落库 + 单事务内回写计划课次完成标记。[feelings] 可空。 */
     fun finishSession(feelings: String?) {
         val session = activeSession.value ?: return
         viewModelScope.launch {
@@ -197,26 +205,21 @@ class WorkoutViewModel @Inject constructor(
                     if (current == null || current.id != session.workoutId) return@withLock
 
                     // 返回键销毁 VM 会取消协程：落库段包 NonCancellable，
-                    // 保证用户已确认的"保存"不因页面退出而静默回滚
+                    // 保证用户已确认的"保存"不因页面退出而静默回滚。
+                    // 课次完成回写在保存的同一事务内完成（仓库侧），无中途缺口
                     val ended = withContext(NonCancellable) {
                         workoutRepository.finishSession(
                             workoutId = session.workoutId,
                             feelings = feelings?.trim()?.takeIf { it.isNotEmpty() },
                             endedAt = System.currentTimeMillis(),
+                            planSessionId = session.planSessionId,
                         )
                     }
                     if (!ended) {
                         _message.update { "还没有可保存的训练内容，请至少完成一组" }
                         return@withLock
                     }
-                    session.planSessionId?.let { planSessionId ->
-                        withContext(NonCancellable) {
-                            runCatching {
-                                workoutPlanRepository.markSessionCompleted(planSessionId, session.workoutId)
-                            }.onFailure { Log.w(TAG, "回写课次完成标记失败", it) }
-                        }
-                    }
-                    planSessionCache.remove(session.planSessionId)
+                    session.planSessionId?.let { planSessionCache.remove(it) }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -256,6 +259,7 @@ class WorkoutViewModel @Inject constructor(
     /**
      * 添加动作并附一个占位组（0kg×0 次）：选择器只出动作库条目，
      * exerciseKey 必在 exercises 表——exercise_logs 外键对未知 key 会整体回滚。
+     * 动作与占位组在仓库侧单事务落库（进程死亡不会留下无组动作行）。
      */
     fun addExercise(exercise: Exercise) {
         val session = activeSession.value ?: return
@@ -263,21 +267,12 @@ class WorkoutViewModel @Inject constructor(
         viewModelScope.launch {
             sessionMutex.withLock {
                 try {
-                    val logId = workoutRepository.addExerciseToSession(
+                    workoutRepository.addExerciseWithPlaceholderSet(
                         workoutId = session.workoutId,
                         exerciseKey = exercise.id,
                         name = exercise.name,
                         sortOrder = session.exercises.size,
                     )
-                    if (logId != -1L) {
-                        workoutRepository.addSetToExercise(
-                            exerciseLogId = logId,
-                            setNumber = 1,
-                            weightKg = 0f,
-                            reps = 0,
-                            setType = SetType.WORKING,
-                        )
-                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {

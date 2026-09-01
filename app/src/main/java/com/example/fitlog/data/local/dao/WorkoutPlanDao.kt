@@ -93,6 +93,31 @@ interface WorkoutPlanDao {
     suspend fun unmarkSessionCompleted(sessionId: String)
 
     /**
+     * 课次完成对账：把"已完成训练行（endedAt 非空）经 planSessionId 关联、
+     * 但 completedWorkoutId 仍为空"的课次补齐完成标记。
+     *
+     * 历史背景：会话保存与课次回写曾是两个事务，进程死亡落在中间会留下
+     * "训练已保存、计划进度未推进"的永久缺口（v9 加 planSessionId 列正是
+     * 为消除此缺口）。对账以最新一条已结束训练为准，幂等可重复执行。
+     *
+     * @return 补齐的课次数
+     */
+    @Query(
+        """
+        UPDATE planned_sessions SET completedWorkoutId = (
+            SELECT w.id FROM workouts w
+            WHERE w.planSessionId = planned_sessions.id AND w.endedAt IS NOT NULL
+            ORDER BY w.endedAt DESC LIMIT 1
+        )
+        WHERE completedWorkoutId IS NULL AND EXISTS (
+            SELECT 1 FROM workouts w
+            WHERE w.planSessionId = planned_sessions.id AND w.endedAt IS NOT NULL
+        )
+        """,
+    )
+    suspend fun reconcileCompletedFromWorkouts(): Int
+
+    /**
      * 按 ID 删除单个训练日（编辑计划时清理被移除的训练日）。
      */
     @Query("DELETE FROM planned_sessions WHERE id = :sessionId")

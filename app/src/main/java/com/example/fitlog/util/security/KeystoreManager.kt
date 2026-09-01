@@ -88,6 +88,12 @@ object KeystoreManager {
      */
     fun decrypt(encryptedBase64: String): String {
         val encryptedBytes = android.util.Base64.decode(encryptedBase64, android.util.Base64.DEFAULT)
+        // 最短合法密文 = IV + GCM tag（空明文也有 tag）：过短说明密文被截断/损坏，
+        // 直接给出可诊断的异常，而不是在 ByteBuffer/doFinal 里抛出无关的
+        // BufferUnderflowException/AEADBadTagException 掩盖真实原因
+        require(encryptedBytes.size >= GCM_IV_LENGTH + GCM_TAG_LENGTH / 8) {
+            "密文长度不足（${encryptedBytes.size} 字节），可能已被截断或损坏"
+        }
         val buffer = ByteBuffer.wrap(encryptedBytes)
 
         val iv = ByteArray(GCM_IV_LENGTH)

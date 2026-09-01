@@ -70,7 +70,8 @@ fun ReminderScreen(
     onTimeChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var showTimePicker by remember { mutableStateOf(false) }
+    // rememberSaveable：旋转/重建后时间选择弹层不静默消失（与同页权限提示状态一致）
+    var showTimePicker by rememberSaveable { mutableStateOf(false) }
     // 权限被拒绝（含"不再询问"）时的可见反馈：开关弹回原位，无提示会让人
     // 不知道为什么开不了
     var showPermissionDeniedHint by rememberSaveable { mutableStateOf(false) }

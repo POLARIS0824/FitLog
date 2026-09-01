@@ -12,8 +12,10 @@ import com.example.fitlog.data.local.dao.WorkoutDao
 import com.example.fitlog.data.local.dao.WorkoutPlanDao
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import com.example.fitlog.data.local.AppDatabase
@@ -101,7 +103,13 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
-        return PreferenceDataStoreFactory.create {
+        // 损坏容错：默认 handler 会把 CorruptionException 原样抛给每一条
+        // dataStore.data 流（themeMode/activePlanId/activeProviderId/种子版本），
+        // 任一消费者漏加 catch 就会击穿订阅链崩溃。替换为空偏好降级——
+        // 损失的只是可重设的偏好（主题/激活计划/激活服务商），换启动稳定性值得
+        return PreferenceDataStoreFactory.create(
+            corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+        ) {
             context.preferencesDataStoreFile("fitLog_prefs")
         }
     }

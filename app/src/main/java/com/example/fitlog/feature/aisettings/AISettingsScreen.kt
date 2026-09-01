@@ -59,6 +59,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -162,7 +163,8 @@ fun AISettingsScreen(
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val scrollState = rememberScrollState()
-    var showProviderSheet by remember { mutableStateOf(false) }
+    // rememberSaveable：旋转/重建后弹层不静默消失（与其他设置页弹层约定一致）
+    var showProviderSheet by rememberSaveable { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val stackedSnackbarHostState = rememberStackedSnackbarHostState()
 

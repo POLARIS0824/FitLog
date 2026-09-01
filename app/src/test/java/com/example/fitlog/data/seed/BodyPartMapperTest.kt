@@ -2,6 +2,7 @@ package com.example.fitlog.data.seed
 
 import com.example.fitlog.model.BodyPart
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -32,7 +33,9 @@ class BodyPartMapperTest {
     }
 
     @Test
-    fun `unknown value returns fallback`() {
-        assertEquals(BodyPart.CHEST, BodyPartMapper.map("unknown"))
+    fun `unknown value returns null for drop`() {
+        // 未知部位不静默归入 CHEST（否则污染部位统计），返回 null 交由
+        // ExerciseSeedMapper 丢弃该条目
+        assertNull(BodyPartMapper.map("unknown"))
     }
 }

@@ -60,8 +60,15 @@ class DataImportViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                // 清掉上一文件夹的扫描结果：否则界面仍展示旧列表且"导入"按钮
+                // 可点，用户以为在导入新选的文件夹，实际重放的是旧快照
                 _uiState.update {
-                    it.copy(isScanning = false, message = "扫描失败：${e.message}")
+                    it.copy(
+                        isScanning = false,
+                        successes = emptyList(),
+                        failures = emptyList(),
+                        message = "扫描失败：${e.message}",
+                    )
                 }
             }
         }
