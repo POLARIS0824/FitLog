@@ -1,8 +1,12 @@
 package com.example.fitlog.feature.chat
 
 import android.content.Context
-import android.content.ContextWrapper
 import androidx.activity.ComponentActivity
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,25 +20,33 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -45,14 +57,23 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.model.ai.AgentStep
 import com.example.fitlog.model.ai.ChatThreadMessage
 import com.example.fitlog.ui.components.StackedSnackbarHost
+import com.example.fitlog.util.findActivity
 import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 import com.example.fitlog.ui.theme.fitLogColors
 
@@ -86,17 +107,10 @@ fun ChatRoute(
     )
 }
 
-/** 沿 ContextWrapper 链找到宿主 [ComponentActivity]（Compose 的 context 常被主题包装）。 */
-private tailrec fun Context.findActivity(): ComponentActivity? = when (this) {
-    is ComponentActivity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
-
 /**
  * AI 教练对话页纯 UI 层。
  *
- * 布局：顶栏（标题 + 清空对话）→ 消息列表 → 底部输入栏；
+ * 布局：顶栏（标题 + 清空对话）→ 消息列表 → 底部胶囊输入栏；
  * 错误提示经 [StackedSnackbarHost] 叠加在底部展示，展示完毕后回调 [onErrorShown]
  * 清除一次性错误状态（与全局 StackedSnackbar 用法一致）。
  *
@@ -107,6 +121,9 @@ private tailrec fun Context.findActivity(): ComponentActivity? = when (this) {
  * @param onErrorShown 错误提示展示完毕回调
  * @param onConfirm 工具确认请求回调（参数为是否同意；同意才真正执行写操作）
  * @param onClearChat 清空对话事件（删除持久化历史并重置 UI）
+ * @param onAttachClick 附加扩展按钮点击事件（预留能力）
+ * @param onVoiceInputClick 语音输入按钮点击事件（预留能力）
+ * @param onLiveClick 实时语音 Live 按钮点击事件（预留能力）
  * @param modifier 修饰符
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -119,6 +136,9 @@ fun ChatScreen(
     onErrorShown: () -> Unit = {},
     onConfirm: (Boolean) -> Unit = {},
     onClearChat: () -> Unit = {},
+    onAttachClick: () -> Unit = {},
+    onVoiceInputClick: () -> Unit = {},
+    onLiveClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val stackedSnackbarHostState = rememberStackedSnackbarHostState()
@@ -237,28 +257,23 @@ fun ChatScreen(
                 }
             }
 
-            // ── 字段 3: input → 底部输入栏 ──
+            // ── 字段 3: input → Material 3 Expressive 胶囊输入栏 ──
             // imePadding：edge-to-edge 下根 Scaffold 未消费键盘 insets，必须自行避让，
             // 否则键盘弹出会遮挡输入框
-            Row(modifier = Modifier.imePadding()) {
-                TextField(
-                    value = uiState.input,
-                    onValueChange = onInputChange,   // ← 事件转发
-                    modifier = Modifier.weight(1f),
-                )
-                // 发送 ⇄ 停止：生成期间变为停止按钮（此前生成中无任何取消手段，
-                // 流挂起时用户最长要等 180s readTimeout）
-                IconButton(
-                    onClick = if (uiState.isSending) onStop else onSend,
-                    enabled = uiState.isSending || uiState.input.isNotBlank(),
-                ) {
-                    if (uiState.isSending) {
-                        Icon(Icons.Filled.Stop, contentDescription = "停止生成")
-                    } else {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "发送")
-                    }
-                }
-            }
+            ChatInputBar(
+                input = uiState.input,
+                isSending = uiState.isSending,
+                onInputChange = onInputChange,
+                onSend = onSend,
+                onStop = onStop,
+                onAttachClick = onAttachClick,
+                onVoiceInputClick = onVoiceInputClick,
+                onLiveClick = onLiveClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .imePadding(),
+            )
         }
 
         // ── 字段 4: errorMessage → 底部叠加 StackedSnackbar ──
@@ -266,7 +281,8 @@ fun ChatScreen(
             hostState = stackedSnackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .imePadding(),
+                .imePadding()
+                .padding(bottom = 76.dp),
         )
     }
 
@@ -395,3 +411,271 @@ fun UserMessageBubble(message: ChatThreadMessage) {
         }
     }
 }
+
+/**
+ * Material 3 Expressive 风格的胶囊药丸输入栏。
+ *
+ * 包含：
+ * - 左侧 "+" 扩展操作按钮（预留附件/快捷操作）
+ * - 中间多行自适应文本输入区（带 "问问 AI 教练..." 占位提示）
+ * - 右侧语音输入按钮（预留语音转文字）
+ * - 最右侧圆形强调按钮（空闲态展示 Live 对话图标、输入态切换为发送按钮、生成态切换为停止按钮）
+ *
+ * @param input 当前输入的文本内容
+ * @param isSending 是否正在生成回复中
+ * @param onInputChange 输入内容变更回调
+ * @param onSend 发送消息回调
+ * @param onStop 停止生成回调
+ * @param onAttachClick 点击左侧 "+" 按钮回调
+ * @param onVoiceInputClick 点击麦克风按钮回调
+ * @param onLiveClick 点击 Live 实时对话按钮回调
+ * @param modifier 修饰符
+ */
+@Composable
+fun ChatInputBar(
+    input: String,
+    isSending: Boolean,
+    onInputChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+    onAttachClick: () -> Unit = {},
+    onVoiceInputClick: () -> Unit = {},
+    onLiveClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(percent = 50),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 2.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // ── 左侧 "+" 扩展按钮 ──
+            IconButton(
+                onClick = onAttachClick,
+                modifier = Modifier.size(44.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Add,
+                    contentDescription = "添加",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+
+            // ── 中间文本输入区 ──
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (input.isEmpty()) {
+                    Text(
+                        text = "问问 AI 教练...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
+                }
+                BasicTextField(
+                    value = input,
+                    onValueChange = onInputChange,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Default,
+                    ),
+                    maxLines = 5,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            // ── 右侧麦克风语音按钮 ──
+            IconButton(
+                onClick = onVoiceInputClick,
+                modifier = Modifier.size(44.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Mic,
+                    contentDescription = "语音输入",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+
+            Spacer(Modifier.width(2.dp))
+
+            // ── 最右侧圆形强调操作按钮（Live / 发送 / 停止）──
+            val hasInput = input.isNotBlank()
+            val actionState = when {
+                isSending -> InputActionState.STOP
+                hasInput -> InputActionState.SEND
+                else -> InputActionState.LIVE
+            }
+
+            FilledIconButton(
+                onClick = {
+                    when (actionState) {
+                        InputActionState.STOP -> onStop()
+                        InputActionState.SEND -> onSend()
+                        InputActionState.LIVE -> onLiveClick()
+                    }
+                },
+                shape = CircleShape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+                modifier = Modifier.size(42.dp),
+            ) {
+                AnimatedContent(
+                    targetState = actionState,
+                    transitionSpec = {
+                        fadeIn(animationSpec = tween(150)) togetherWith
+                            fadeOut(animationSpec = tween(150))
+                    },
+                    label = "InputActionTransition",
+                ) { target ->
+                    when (target) {
+                        InputActionState.STOP -> {
+                            Icon(
+                                imageVector = Icons.Filled.Stop,
+                                contentDescription = "停止生成",
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        InputActionState.SEND -> {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "发送",
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                        InputActionState.LIVE -> {
+                            Icon(
+                                imageVector = ChatLiveWaveIcon,
+                                contentDescription = "实时语音对话",
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 底部操作按钮的三态定义。
+ */
+private enum class InputActionState {
+    LIVE,
+    SEND,
+    STOP,
+}
+
+/**
+ * 实时语音/对话（Live）图标矢量数据：气泡外框内嵌 4 根动态声波柱。
+ */
+private val ChatLiveWaveIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "ChatLiveWave",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        // 气泡圆角外框与尾部
+        path(
+            fill = null,
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        ) {
+            moveTo(6.5f, 4.5f)
+            lineTo(17.5f, 4.5f)
+            arcTo(
+                horizontalEllipseRadius = 2.5f,
+                verticalEllipseRadius = 2.5f,
+                theta = 0f,
+                isMoreThanHalf = false,
+                isPositiveArc = true,
+                x1 = 20f,
+                y1 = 7f,
+            )
+            lineTo(20f, 13f)
+            arcTo(
+                horizontalEllipseRadius = 2.5f,
+                verticalEllipseRadius = 2.5f,
+                theta = 0f,
+                isMoreThanHalf = false,
+                isPositiveArc = true,
+                x1 = 17.5f,
+                y1 = 15.5f,
+            )
+            lineTo(8.5f, 15.5f)
+            lineTo(4.5f, 19f)
+            lineTo(4.5f, 7f)
+            arcTo(
+                horizontalEllipseRadius = 2.5f,
+                verticalEllipseRadius = 2.5f,
+                theta = 0f,
+                isMoreThanHalf = false,
+                isPositiveArc = true,
+                x1 = 7f,
+                y1 = 4.5f,
+            )
+            close()
+        }
+        // 声波 1
+        path(
+            fill = null,
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+        ) {
+            moveTo(8.5f, 9.5f)
+            lineTo(8.5f, 10.5f)
+        }
+        // 声波 2
+        path(
+            fill = null,
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+        ) {
+            moveTo(11f, 7.5f)
+            lineTo(11f, 12.5f)
+        }
+        // 声波 3
+        path(
+            fill = null,
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+        ) {
+            moveTo(13.5f, 8.5f)
+            lineTo(13.5f, 11.5f)
+        }
+        // 声波 4
+        path(
+            fill = null,
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+        ) {
+            moveTo(16f, 9.5f)
+            lineTo(16f, 10.5f)
+        }
+    }.build()
+}
+
