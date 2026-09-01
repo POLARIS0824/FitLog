@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.model.Exercise
 import com.example.fitlog.model.SetType
+import com.example.fitlog.ui.components.ExerciseThumbnail
 import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.theme.fitLogColors
 import com.example.fitlog.util.VolumeFormatter
@@ -105,8 +106,13 @@ fun ActiveSessionView(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(session.exercises, key = { it.logId }) { exercise ->
+                // 示范图来自动作库目录（assets 本地资源）；目录缺失/key 为空时优雅降级为图标
+                val imageUrl = exercise.exerciseKey?.let { key ->
+                    exerciseCatalog.firstOrNull { it.id == key }?.imageUrl
+                }
                 SessionExerciseCard(
                     exercise = exercise,
+                    imageUrl = imageUrl,
                     onRemove = { onRemoveExercise(exercise.logId) },
                     onAddSet = { onAddSet(exercise.logId) },
                     onUpdateSet = onUpdateSet,
@@ -235,6 +241,7 @@ private fun SessionHeader(session: ActiveSession) {
 @Composable
 private fun SessionExerciseCard(
     exercise: ActiveSessionExercise,
+    imageUrl: String?,
     onRemove: () -> Unit,
     onAddSet: () -> Unit,
     onUpdateSet: (Long, Float, Int, SetType) -> Unit,
@@ -246,6 +253,11 @@ private fun SessionExerciseCard(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+                ExerciseThumbnail(
+                    imageFileName = imageUrl,
+                    contentDescription = "${exercise.name} 示范图",
+                )
+                Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = exercise.name,
