@@ -442,6 +442,19 @@ class TodayViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 删除训练计划（计划选择弹层的删除入口，含确认弹窗语义）。
+     *
+     * 仓库侧联动：删的是激活计划时清除激活 ID；删光全部计划时置
+     * 「用户已主动清空」标记，预置播种器不再复活它们。
+     */
+    fun onDeletePlan(planId: String) {
+        viewModelScope.launch {
+            runCatching { workoutPlanRepository.delete(planId) }
+                .onFailure { Log.w(TAG, "删除计划失败：$planId", it) }
+        }
+    }
+
     /** 错误提示已展示，清除错误信息（写独立通道，combine 链始终存活，弹窗可正常关闭）。 */
     fun onErrorShown() {
         dataError.value = null

@@ -84,6 +84,7 @@ fun TodayRoute(
         onDisplayModeSelected = viewModel::onDisplayModeSelected,
         onToggleExerciseCheck = viewModel::onToggleExerciseCheck,
         onPlanSelected = viewModel::onPlanSelected,
+        onDeletePlan = viewModel::onDeletePlan,
         onErrorShown = viewModel::onErrorShown,
         modifier = modifier,
     )
@@ -107,6 +108,7 @@ fun TodayScreen(
     onDisplayModeSelected: (WeekProgressDisplayMode) -> Unit,
     onToggleExerciseCheck: (String) -> Unit = {},
     onPlanSelected: (String) -> Unit,
+    onDeletePlan: (String) -> Unit = {},
     onErrorShown: () -> Unit,
     onLogClick: () -> Unit = onNavigateToWorkout,
     onEditClick: (() -> Unit)? = null,
@@ -115,6 +117,10 @@ fun TodayScreen(
     val scrollState = rememberScrollState()
     // rememberSaveable：旋转/重建后弹层不静默消失
     var showPlanSheet by rememberSaveable { mutableStateOf(false) }
+
+    // 待删除计划（删除确认弹窗，transient UI 态；id 可 saveable，对象按 id 回查）
+    var pendingDeletePlanId by rememberSaveable { mutableStateOf<String?>(null) }
+    val pendingDeletePlan = allPlans.firstOrNull { it.id == pendingDeletePlanId }
 
     Scaffold(
         modifier = modifier,
@@ -190,7 +196,37 @@ fun TodayScreen(
                 onPlanSelected(it)
                 showPlanSheet = false
             },
+            onDelete = { pendingDeletePlanId = it.id },
             onDismiss = { showPlanSheet = false },
+        )
+    }
+
+    // 删除计划确认
+    pendingDeletePlan?.let { plan ->
+        AlertDialog(
+            onDismissRequest = { pendingDeletePlanId = null },
+            title = { Text("删除计划？") },
+            text = {
+                Text(
+                    "「${plan.name}」及其全部训练日将被删除。" +
+                        "已完成的训练记录不受影响；删除当前激活计划后 Today 将回到无计划状态。",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeletePlan(plan.id)
+                        pendingDeletePlanId = null
+                    },
+                ) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeletePlanId = null }) {
+                    Text("取消")
+                }
+            },
         )
     }
 
