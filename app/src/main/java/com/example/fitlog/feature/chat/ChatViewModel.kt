@@ -98,6 +98,26 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
+     * 语音识别结果回填输入框：追加语义（保留已输入草稿，以空格衔接）。
+     */
+    fun onVoiceInputResult(text: String) {
+        _uiState.update { state ->
+            val current = state.input
+            val merged = when {
+                current.isBlank() -> text
+                current.endsWith(" ") -> current + text
+                else -> "$current $text"
+            }
+            state.copy(input = merged)
+        }
+    }
+
+    /** 语音识别不可用（无识别器/启动失败）：走一次性错误通道提示。 */
+    fun onVoiceInputUnavailable() {
+        _uiState.update { it.copy(errorMessage = "语音识别不可用（设备缺少语音识别服务）") }
+    }
+
+    /**
      * 发送按钮点击事件：进入 ADK agent 管线，并开启一轮新的 Agent 运行。
      */
     fun send() {

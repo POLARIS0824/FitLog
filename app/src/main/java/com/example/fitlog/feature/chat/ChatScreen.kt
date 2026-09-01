@@ -1,7 +1,11 @@
 package com.example.fitlog.feature.chat
 
 import android.content.Context
+import android.speech.RecognizerIntent
+import android.content.Intent
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -34,7 +38,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -57,12 +60,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
@@ -95,6 +93,31 @@ fun ChatRoute(
         hiltViewModel()
     }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // 语音输入：系统识别器（RecognizerIntent）+ 结果追加回填。
+    // 设备无识别服务时启动失败 → 一次性错误提示，不静默
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val text = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+        if (!text.isNullOrBlank()) {
+            viewModel.onVoiceInputResult(text)
+        } else {
+            viewModel.onVoiceInputUnavailable()
+        }
+    }
+    val onVoiceInput: () -> Unit = {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "对 AI 教练说点什么")
+        }
+        runCatching { voiceLauncher.launch(intent) }
+            .onFailure { viewModel.onVoiceInputUnavailable() }
+    }
+
     ChatScreen(
         uiState = uiState,
         onInputChange = viewModel::onInputChange,
@@ -103,6 +126,7 @@ fun ChatRoute(
         onErrorShown = viewModel::onErrorShown,
         onConfirm = viewModel::respondToConfirmation,
         onClearChat = viewModel::onClearChat,
+        onVoiceInput = onVoiceInput,
         modifier = modifier,
     )
 }
@@ -121,9 +145,7 @@ fun ChatRoute(
  * @param onErrorShown 错误提示展示完毕回调
  * @param onConfirm 工具确认请求回调（参数为是否同意；同意才真正执行写操作）
  * @param onClearChat 清空对话事件（删除持久化历史并重置 UI）
- * @param onAttachClick 附加扩展按钮点击事件（预留能力）
- * @param onVoiceInputClick 语音输入按钮点击事件（预留能力）
- * @param onLiveClick 实时语音 Live 按钮点击事件（预留能力）
+ * @param onVoiceInput 发起语音识别回调（结果经系统识别器回填输入框）
  * @param modifier 修饰符
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -136,9 +158,7 @@ fun ChatScreen(
     onErrorShown: () -> Unit = {},
     onConfirm: (Boolean) -> Unit = {},
     onClearChat: () -> Unit = {},
-    onAttachClick: () -> Unit = {},
-    onVoiceInputClick: () -> Unit = {},
-    onLiveClick: () -> Unit = {},
+    onVoiceInput: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val stackedSnackbarHostState = rememberStackedSnackbarHostState()
@@ -266,9 +286,7 @@ fun ChatScreen(
                 onInputChange = onInputChange,
                 onSend = onSend,
                 onStop = onStop,
-                onAttachClick = onAttachClick,
-                onVoiceInputClick = onVoiceInputClick,
-                onLiveClick = onLiveClick,
+                onVoiceInputClick = onVoiceInput,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -426,9 +444,7 @@ fun UserMessageBubble(message: ChatThreadMessage) {
  * @param onInputChange 输入内容变更回调
  * @param onSend 发送消息回调
  * @param onStop 停止生成回调
- * @param onAttachClick 点击左侧 "+" 按钮回调
- * @param onVoiceInputClick 点击麦克风按钮回调
- * @param onLiveClick 点击 Live 实时对话按钮回调
+ * @param onVoiceInputClick 点击麦克风按钮回调（发起系统语音识别）
  * @param modifier 修饰符
  */
 @Composable
@@ -438,9 +454,7 @@ fun ChatInputBar(
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
-    onAttachClick: () -> Unit = {},
     onVoiceInputClick: () -> Unit = {},
-    onLiveClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -455,19 +469,6 @@ fun ChatInputBar(
                 .padding(start = 4.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // ── 左侧 "+" 扩展按钮 ──
-            IconButton(
-                onClick = onAttachClick,
-                modifier = Modifier.size(44.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Add,
-                    contentDescription = "添加",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-
             // ── 中间文本输入区 ──
             Box(
                 modifier = Modifier
@@ -513,12 +514,11 @@ fun ChatInputBar(
 
             Spacer(Modifier.width(2.dp))
 
-            // ── 最右侧圆形强调操作按钮（Live / 发送 / 停止）──
+            // ── 最右侧圆形强调操作按钮（发送 / 停止；空输入时禁用）──
             val hasInput = input.isNotBlank()
             val actionState = when {
                 isSending -> InputActionState.STOP
-                hasInput -> InputActionState.SEND
-                else -> InputActionState.LIVE
+                else -> InputActionState.SEND
             }
 
             FilledIconButton(
@@ -526,9 +526,9 @@ fun ChatInputBar(
                     when (actionState) {
                         InputActionState.STOP -> onStop()
                         InputActionState.SEND -> onSend()
-                        InputActionState.LIVE -> onLiveClick()
                     }
                 },
+                enabled = isSending || hasInput,
                 shape = CircleShape,
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -559,13 +559,6 @@ fun ChatInputBar(
                                 modifier = Modifier.size(20.dp),
                             )
                         }
-                        InputActionState.LIVE -> {
-                            Icon(
-                                imageVector = ChatLiveWaveIcon,
-                                contentDescription = "实时语音对话",
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
                     }
                 }
             }
@@ -577,105 +570,6 @@ fun ChatInputBar(
  * 底部操作按钮的三态定义。
  */
 private enum class InputActionState {
-    LIVE,
     SEND,
     STOP,
 }
-
-/**
- * 实时语音/对话（Live）图标矢量数据：气泡外框内嵌 4 根动态声波柱。
- */
-private val ChatLiveWaveIcon: ImageVector by lazy {
-    ImageVector.Builder(
-        name = "ChatLiveWave",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 24f,
-        viewportHeight = 24f,
-    ).apply {
-        // 气泡圆角外框与尾部
-        path(
-            fill = null,
-            stroke = SolidColor(Color.White),
-            strokeLineWidth = 1.8f,
-            strokeLineCap = StrokeCap.Round,
-            strokeLineJoin = StrokeJoin.Round,
-        ) {
-            moveTo(6.5f, 4.5f)
-            lineTo(17.5f, 4.5f)
-            arcTo(
-                horizontalEllipseRadius = 2.5f,
-                verticalEllipseRadius = 2.5f,
-                theta = 0f,
-                isMoreThanHalf = false,
-                isPositiveArc = true,
-                x1 = 20f,
-                y1 = 7f,
-            )
-            lineTo(20f, 13f)
-            arcTo(
-                horizontalEllipseRadius = 2.5f,
-                verticalEllipseRadius = 2.5f,
-                theta = 0f,
-                isMoreThanHalf = false,
-                isPositiveArc = true,
-                x1 = 17.5f,
-                y1 = 15.5f,
-            )
-            lineTo(8.5f, 15.5f)
-            lineTo(4.5f, 19f)
-            lineTo(4.5f, 7f)
-            arcTo(
-                horizontalEllipseRadius = 2.5f,
-                verticalEllipseRadius = 2.5f,
-                theta = 0f,
-                isMoreThanHalf = false,
-                isPositiveArc = true,
-                x1 = 7f,
-                y1 = 4.5f,
-            )
-            close()
-        }
-        // 声波 1
-        path(
-            fill = null,
-            stroke = SolidColor(Color.White),
-            strokeLineWidth = 1.8f,
-            strokeLineCap = StrokeCap.Round,
-        ) {
-            moveTo(8.5f, 9.5f)
-            lineTo(8.5f, 10.5f)
-        }
-        // 声波 2
-        path(
-            fill = null,
-            stroke = SolidColor(Color.White),
-            strokeLineWidth = 1.8f,
-            strokeLineCap = StrokeCap.Round,
-        ) {
-            moveTo(11f, 7.5f)
-            lineTo(11f, 12.5f)
-        }
-        // 声波 3
-        path(
-            fill = null,
-            stroke = SolidColor(Color.White),
-            strokeLineWidth = 1.8f,
-            strokeLineCap = StrokeCap.Round,
-        ) {
-            moveTo(13.5f, 8.5f)
-            lineTo(13.5f, 11.5f)
-        }
-        // 声波 4
-        path(
-            fill = null,
-            stroke = SolidColor(Color.White),
-            strokeLineWidth = 1.8f,
-            strokeLineCap = StrokeCap.Round,
-        ) {
-            moveTo(16f, 9.5f)
-            lineTo(16f, 10.5f)
-        }
-    }.build()
-}
-
