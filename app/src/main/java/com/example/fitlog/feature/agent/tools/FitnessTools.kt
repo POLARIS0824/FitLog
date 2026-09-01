@@ -6,14 +6,20 @@ import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.data.repository.WorkoutPlanRepository
 import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.model.Workout
+import com.example.fitlog.model.user.TrainingGoal
+import com.example.fitlog.model.WorkoutPlan
+import com.example.fitlog.model.PlannedSession
+import com.example.fitlog.model.PlannedExerciseItem
 import com.example.fitlog.model.user.UserProfile
 import com.example.fitlog.util.TrainingLevelCalculator
 import com.example.fitlog.util.VolumeAggregator
 import com.google.adk.kt.annotations.Param
 import com.google.adk.kt.annotations.Tool
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.json.Json
 import java.time.DayOfWeek
 import java.time.LocalDate
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
 /**
@@ -41,6 +47,10 @@ class FitnessTools @Inject constructor(
     private val exerciseRepository: ExerciseRepository,
     private val bodyMetricRepository: BodyMetricRepository,
 ) {
+
+    /** [createPlan] 训练日 JSON 的反序列化入口（忽略未知字段，向前兼容）。 */
+    private val json = Json { ignoreUnknownKeys = true }
+
 
     // ──────────────────────────────────────
     // 读工具：用户与训练数据
@@ -263,6 +273,117 @@ class FitnessTools @Inject constructor(
         return WriteResultDto(success = true, message = "已切换到计划：$planId")
     }
 
+    /**
+     * 创建一套完整训练计划并落库（AI 生成计划的落地出口）。
+     *
+     * 此前 AI 对计划的建议只能停留在对话里（只能切换既有计划，不能新建），
+     * "调整计划"的业务环到此闭环：模型给结构化参数 → 用户确认 → 校验
+     * exerciseKey 存在性 → 落库 → 可选立即激活。
+     *
+     * 训练日以 JSON 字符串承载（工具层反序列化）：嵌套结构在函数调用声明里
+     * 最难稳定表达，JSON 字符串参数对各家服务商的 function-call 兼容性最好；
+     * 解析失败以 success=false 回给模型重试，不抛异常。
+     *
+     * @param name 计划展示名
+     * @param sessionsJson 训练日数组 JSON，元素字段：
+     *   weekNumber/dayNumber/name(必填)，targetDurationMinutes/exercises(可选)；
+     *   exercises 元素字段：exerciseKey(必填)/targetSets(必填)/
+     *   targetRepsMin/targetRepsMax/notes(可选)
+     * @param durationWeeks 计划持续周数（默认按训练日最大周数推导）
+     * @param sessionsPerWeek 每周训练次数（默认按训练日数推导）
+     * @param goal 训练目标（HYPERTROPHY/FATLOSS/STRENGTH，可空）
+     * @param rawPlanText 计划原始文本（Markdown/自由格式），供后续调整参考
+     * @param activate 保存后立即设为激活计划（默认 false）
+     */
+    @Tool(requireConfirmation = true)
+    suspend fun createPlan(
+        @Param("计划名称，如「4 周上肢增肌」") name: String,
+        @Param("训练日 JSON 数组字符串，如 [{\"weekNumber\":1,\"dayNumber\":1,\"name\":\"Day 1 推\",\"exercises\":[{\"exerciseKey\":\"barbell-bench-press\",\"targetSets\":4,\"targetRepsMin\":8,\"targetRepsMax\":10}]}]") sessionsJson: String,
+        @Param("计划周数，缺省按训练日最大周数推导") durationWeeks: Int? = null,
+        @Param("每周训练次数，缺省按训练日数推导") sessionsPerWeek: Int? = null,
+        @Param("训练目标：HYPERTROPHY / FATLOSS / STRENGTH，可空") goal: String? = null,
+        @Param("计划原始文本（Markdown/自由格式），可空") rawPlanText: String? = null,
+        @Param("保存后是否立即激活该计划") activate: Boolean? = false,
+    ): WriteResultDto {
+        // 1) 解析训练日 JSON：失败回给模型（success=false），让模型自行修正重试
+        val sessions = try {
+            json.decodeFromString<List<PlannedSessionSpec>>(sessionsJson)
+        } catch (e: Exception) {
+            return WriteResultDto(
+                success = false,
+                message = "训练日 JSON 解析失败（${e.message}），请检查字段名与结构后重试",
+            )
+        }
+        if (sessions.isEmpty()) {
+            return WriteResultDto(success = false, message = "训练日列表为空，至少需要 1 个训练日")
+        }
+
+        // 2) exerciseKey 存在性校验：exercises 外键对未知 key 会整体回滚，
+        //    提前拦截并把未知 key 回给模型（模型可用 searchExercises 纠偏）
+        val known = exerciseRepository.getAll().map { it.id }.toSet()
+        val unknown = sessions.flatMap { it.exercises }
+            .map { it.exerciseKey }
+            .filter { it !in known }
+            .distinct()
+        if (unknown.isNotEmpty()) {
+            return WriteResultDto(
+                success = false,
+                message = "以下动作 key 不在动作库中：$unknown。请用 searchExercises 确认后重试",
+            )
+        }
+
+        // 3) 组装并落库：isCustom=true 标记 AI 生成；id 加时间戳避免与既有计划冲突
+        val planId = "plan-ai-${System.currentTimeMillis()}"
+        val maxWeek = sessions.maxOf { it.weekNumber }
+        val plan = WorkoutPlan(
+            id = planId,
+            name = name.trim(),
+            description = "AI 教练生成",
+            goal = goal?.let { runCatching { TrainingGoal.valueOf(it.trim().uppercase()) }.getOrNull() },
+            durationWeeks = durationWeeks ?: maxWeek,
+            sessionsPerWeek = sessionsPerWeek ?: sessions.size,
+            isCustom = true,
+            createdAt = LocalDate.now(),
+            rawPlanText = rawPlanText?.takeIf { it.isNotBlank() },
+            sessions = sessions.map { spec ->
+                PlannedSession(
+                    id = "$planId-w${spec.weekNumber}d${spec.dayNumber}",
+                    name = spec.name,
+                    description = null,
+                    dayNumber = spec.dayNumber,
+                    weekNumber = spec.weekNumber,
+                    targetDurationMinutes = spec.targetDurationMinutes,
+                    exercises = spec.exercises.mapIndexed { index, ex ->
+                        PlannedExerciseItem(
+                            exerciseKey = ex.exerciseKey,
+                            exerciseName = null,
+                            targetSets = ex.targetSets.coerceIn(1, 12),
+                            targetRepsMin = ex.targetRepsMin?.coerceIn(1, 50),
+                            targetRepsMax = ex.targetRepsMax?.coerceIn(1, 50),
+                            notes = ex.notes,
+                            order = index,
+                        )
+                    },
+                )
+            },
+        )
+        return try {
+            workoutPlanRepository.save(plan)
+            if (activate == true) {
+                workoutPlanRepository.setActivePlanId(planId)
+            }
+            WriteResultDto(
+                success = true,
+                message = "已创建计划「${plan.name}」（${plan.sessions.size} 个训练日）" +
+                    if (activate == true) " 并已激活" else "",
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            WriteResultDto(success = false, message = "计划落库失败：${e.message}")
+        }
+    }
+
     // ──────────────────────────────────────
     // DTO（KSP 可序列化：data class / 原始类型 / List / 枚举）
     // ──────────────────────────────────────
@@ -361,6 +482,26 @@ class FitnessTools @Inject constructor(
         val thisWeek: PeriodSummaryDto,
         val lastWeek: PeriodSummaryDto,
         val todayWorkouts: Int,
+    )
+
+    /** [createPlan] 的训练日参数规约（模型以 JSON 字符串传入，工具层反序列化）。 */
+    @kotlinx.serialization.Serializable
+    data class PlannedSessionSpec(
+        val weekNumber: Int,
+        val dayNumber: Int,
+        val name: String,
+        val targetDurationMinutes: Int? = null,
+        val exercises: List<PlannedExerciseSpec> = emptyList(),
+    )
+
+    /** [createPlan] 的动作参数规约。 */
+    @kotlinx.serialization.Serializable
+    data class PlannedExerciseSpec(
+        val exerciseKey: String,
+        val targetSets: Int = 3,
+        val targetRepsMin: Int? = null,
+        val targetRepsMax: Int? = null,
+        val notes: String? = null,
     )
 
     data class WriteResultDto(

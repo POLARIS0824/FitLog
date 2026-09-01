@@ -15,7 +15,7 @@ object AgentStepFormatter {
     private const val MAX_DETAIL_LENGTH = 40
 
     /** 需要确认的写工具（与 FitnessTools 中 requireConfirmation = true 的一致）。 */
-    private val WRITE_TOOLS = setOf("logBodyWeight", "setActivePlan")
+    private val WRITE_TOOLS = setOf("logBodyWeight", "setActivePlan", "createPlan")
 
     /**
      * 工具函数名 → 中文名；未登记的工具返回函数名本身。
@@ -33,6 +33,7 @@ object AgentStepFormatter {
         "getWeeklySummary" -> "本周训练对比"
         "logBodyWeight" -> "记录体重"
         "setActivePlan" -> "切换训练计划"
+        "createPlan" -> "创建训练计划"
         else -> toolKey
     }
 
