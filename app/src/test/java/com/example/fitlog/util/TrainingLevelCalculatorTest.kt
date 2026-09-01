@@ -190,4 +190,29 @@ class TrainingLevelCalculatorTest {
 
         assertTrue(result.exercises.isEmpty())
     }
+
+    /**
+     * 口径：reps ≤ 0 的占位/失败组不计入 1RM——Epley 公式在 reps=0 时退化为
+     * 重量本身，会把一次"没做成"的空杆试举误报成历史最佳（与 bestOneRMSet 同口径）。
+     */
+    @Test
+    fun `zero-rep sets are excluded from 1RM and set count`() {
+        val workouts = listOf(
+            workout(
+                LocalDate.of(2026, 5, 20),
+                exercise(
+                    "杠铃卧推", "barbell-bench-press",
+                    set(120f, 0), // 占位/失败组：不得按 Epley 退化为 120kg 的 1RM
+                    set(80f, 10), // Epley: 80 × (1 + 10/30) ≈ 106.67 ← 真实最佳
+                ),
+            ),
+        )
+
+        val result = TrainingLevelCalculator.calculate(workouts, bodyWeightKg = null)
+
+        val level = result.exercises.getValue("barbell-bench-press")
+        assertEquals(80.0 * (1 + 10 / 30.0), level.estimatedOneRMKg!!, 0.001)
+        // 容量不受 reps=0 影响（0×120 = 0），仅验证未被污染
+        assertEquals(800.0, level.bestVolumeLoadKg!!, 0.001)
+    }
 }

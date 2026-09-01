@@ -1,10 +1,10 @@
 package com.example.fitlog.model.ai
 
 import com.example.fitlog.model.Exercise
-import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.model.user.Gender
 import com.example.fitlog.model.user.TrainingGoal
+import com.example.fitlog.util.VolumeAggregator
 import com.example.fitlog.util.VolumeFormatter
 
 /**
@@ -117,12 +117,13 @@ object CoachInsightPrompt {
         workout.exercises.forEach { log ->
             val exercise = log.exerciseKey?.let { byKey[it] } ?: byName[log.name]
             val partName = exercise?.bodyPart?.displayName()
-            log.sets.filter { it.setType == SetType.WORKING }.forEach { set ->
-                workingSets++
-                volumeKg += set.weightKg * set.reps
-                if (partName != null) {
-                    setsByPart[partName] = (setsByPart[partName] ?: 0) + 1
-                }
+            // 组数/容量统一走 VolumeAggregator 口径（此前手写 filter+累加，
+            // 与 Today/Stats 的 reps>0 口径存在占位组计数漂移）
+            val logSets = VolumeAggregator.workingSetCountOf(log)
+            workingSets += logSets
+            volumeKg += VolumeAggregator.workingVolumeOf(log)
+            if (partName != null && logSets > 0) {
+                setsByPart[partName] = (setsByPart[partName] ?: 0) + logSets
             }
         }
 

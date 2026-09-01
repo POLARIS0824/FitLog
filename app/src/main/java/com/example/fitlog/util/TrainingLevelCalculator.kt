@@ -38,8 +38,10 @@ object TrainingLevelCalculator {
         for (workout in workouts) {
             for (exercise in workout.exercises) {
                 val key = exercise.exerciseKey ?: exercise.name
-                // 口径：只统计正式组，热身组不计入 1RM/容量
-                val workingSets = exercise.sets.filter { it.setType == SetType.WORKING }
+                // 口径：只统计有实际次数的正式组——热身组不计入 1RM/容量；
+                // reps ≤ 0 的占位/失败组同样不计（Epley 会退化为重量本身，
+                // 与 [bestOneRMSet] 的过滤口径同源，杜绝同文件两处实现漂移）
+                val workingSets = exercise.sets.filter { it.setType == SetType.WORKING && it.reps > 0 }
                 for (set in workingSets) {
                     // Epley 公式：1RM ≈ weight × (1 + reps / 30)
                     val epleyOneRM = set.weightKg * (1 + set.reps / 30.0)

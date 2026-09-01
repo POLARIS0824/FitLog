@@ -1,5 +1,6 @@
 package com.example.fitlog.util
 
+import com.example.fitlog.model.ExerciseLog
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import java.time.LocalDate
@@ -33,9 +34,28 @@ object VolumeAggregator {
      * 与 [workingVolumeOf] 同口径配对使用。
      */
     fun workingSetCountOf(workout: Workout): Int =
-        workout.exercises.sumOf { log ->
-            log.sets.count { it.setType == SetType.WORKING }
-        }
+        workout.exercises.sumOf(::workingSetCountOf)
+
+    /**
+     * 单个动作记录的正式组容量（kg）。
+     *
+     * AI 提示词（Prompt.summarizeWorkout）、会话实时统计（WorkoutSessionModels）、
+     * Today 周进度（WeekProgressCalculator）等"按动作粒度累计"的调用方统一走此出口。
+     */
+    fun workingVolumeOf(log: ExerciseLog): Double =
+        log.sets
+            .filter { it.setType == SetType.WORKING }
+            .sumOf { (it.weightKg * it.reps).toDouble() }
+
+    /**
+     * 单个动作记录的正式组数。
+     *
+     * 口径：热身组不计；reps ≤ 0 的占位/失败组同样不计——占位组是会话中
+     * 尚未录入的空行，计入会让"组数"随录入过程虚增（与 [workoutVolume] 中
+     * 0 次组天然零容量不同，组数必须显式过滤）。
+     */
+    fun workingSetCountOf(log: ExerciseLog): Int =
+        log.sets.count { it.setType == SetType.WORKING && it.reps > 0 }
 
     /**
      * 按日期聚合的正式组容量：同日多次训练合并，0 容量日不进 map

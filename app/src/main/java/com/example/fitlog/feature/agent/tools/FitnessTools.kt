@@ -5,7 +5,6 @@ import com.example.fitlog.data.repository.ExerciseRepository
 import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.data.repository.WorkoutPlanRepository
 import com.example.fitlog.data.repository.WorkoutRepository
-import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.model.user.UserProfile
 import com.example.fitlog.util.TrainingLevelCalculator
@@ -92,7 +91,15 @@ class FitnessTools @Inject constructor(
     ): String? {
         val workout = workoutRepository.getById(workoutId.toLong()) ?: return null
         // 结构化记录没有原文可读，返回空让模型直接走 getWorkoutDetail
-        return workout.rawContent?.takeIf { it.isNotBlank() }
+        val raw = workout.rawContent?.takeIf { it.isNotBlank() } ?: return null
+        // 载荷上限与 OpenAI 路径的 MAX_TOOL_CONTENT_CHARS 对齐：
+        // 导入的 Markdown 可能来自长篇日志，原生 Gemini 路径没有装配层截断
+        // （OpenAiAdapters 只覆盖 OpenAI 兼容请求），工具侧收口保证双路径同限
+        return if (raw.length <= MAX_TOOL_CONTENT_CHARS) {
+            raw
+        } else {
+            raw.take(MAX_TOOL_CONTENT_CHARS) + "\n…（原文过长已截断，可用 getWorkoutDetail 获取结构化摘要）"
+        }
     }
 
     /**
@@ -381,7 +388,8 @@ class FitnessTools @Inject constructor(
         val volumeKg = VolumeAggregator.workingVolumeOf(this)
         val setsByPart = mutableMapOf<String, Int>()
         exercises.forEach { log ->
-            log.sets.count { it.setType == SetType.WORKING }
+            // 单动作粒度同样走 VolumeAggregator 出口（占位组不计，与组数总数同口径）
+            VolumeAggregator.workingSetCountOf(log)
                 .takeIf { it > 0 }
                 ?.let { setsByPart.merge(log.name, it, Int::plus) }
         }
@@ -444,4 +452,9 @@ class FitnessTools @Inject constructor(
         workingSets = sumOf { VolumeAggregator.workingSetCountOf(it) },
         volumeKg = VolumeAggregator.workingVolume(this),
     )
+
+    private companion object {
+        /** 单个工具返回内容上限（与 OpenAiAdapters.MAX_TOOL_CONTENT_CHARS 同值）。 */
+        private const val MAX_TOOL_CONTENT_CHARS = 8_000
+    }
 }

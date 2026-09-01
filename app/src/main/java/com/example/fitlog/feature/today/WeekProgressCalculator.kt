@@ -145,7 +145,7 @@ object WeekProgressCalculator {
         latestWorkout.exercises.forEach { log ->
             val exercise = lookup.find(log.exerciseKey, log.name) ?: return@forEach
             // 只计已录入的正式组（reps>0）：占位组不参与主导部位推导
-            val workingSets = log.sets.count { it.setType == SetType.WORKING && it.reps > 0 }
+            val workingSets = VolumeAggregator.workingSetCountOf(log)
             if (workingSets > 0) {
                 counts[exercise.bodyPart] = (counts[exercise.bodyPart] ?: 0) + workingSets
             }
@@ -172,7 +172,7 @@ object WeekProgressCalculator {
         weekWorkouts.forEach { workout ->
             workout.exercises.forEach { log ->
                 // 只计已录入的正式组（reps>0）：进行中会话的占位组不虚增组数
-                val workingSets = log.sets.count { it.setType == SetType.WORKING && it.reps > 0 }
+                val workingSets = VolumeAggregator.workingSetCountOf(log)
                 totalWorkingSets += workingSets
                 val exercise = lookup.find(log.exerciseKey, log.name) ?: return@forEach
                 if (workingSets > 0 && exercise.bodyPart in MAJOR_BODY_PARTS) {
@@ -354,7 +354,9 @@ object WeekProgressCalculator {
             var cardioSets = 0
             workout.exercises.forEach { log ->
                 val exercise = lookup.find(log.exerciseKey, log.name) ?: return@forEach
-                val workingSets = log.sets.count { it.setType == SetType.WORKING }
+                // 组数走 VolumeAggregator 口径：reps ≤ 0 的占位组不计入分布
+                // （与本文件 148/175 行的过滤规则对齐，此前两套口径并存）
+                val workingSets = VolumeAggregator.workingSetCountOf(log)
                 if (exercise.isCardio()) {
                     cardioSets += workingSets
                 } else {
@@ -429,9 +431,7 @@ object WeekProgressCalculator {
         workouts.forEach { workout ->
             workout.exercises.forEach { log ->
                 val exercise = lookup.find(log.exerciseKey, log.name) ?: return@forEach
-                val volume = log.sets
-                    .filter { it.setType == SetType.WORKING }
-                    .sumOf { (it.weightKg * it.reps).toDouble() }
+                val volume = VolumeAggregator.workingVolumeOf(log)
                 if (volume > 0.0) {
                     volumes[exercise.bodyPart] = (volumes[exercise.bodyPart] ?: 0.0) + volume
                 }
