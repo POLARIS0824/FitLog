@@ -22,9 +22,13 @@ interface ReminderScheduler {
      * 运行，REPLACE 语义会取消运行中的任务（见实现类 KDoc），因此接力
      * 必须走非打断式的追加语义。
      *
+     * 实现必须**幂等**：Worker 重试或进程死亡重跑会再次进入本方法，
+     * 无条件追加会让链翻倍（每天重复通知且永不收敛）。
+     * 声明为 suspend：实现需查询既有任务状态（见实现类 KDoc）。
+     *
      * @param minutesOfDay 提醒时刻（一天中的分钟数，0–1439）
      */
-    fun scheduleSelfChainedNext(minutesOfDay: Int)
+    suspend fun scheduleSelfChainedNext(minutesOfDay: Int)
 
     /** 取消提醒。 */
     fun cancel()

@@ -318,8 +318,14 @@ class WorkoutViewModel @Inject constructor(
         }
     }
 
-    /** 更新一组的重量/次数/组类型（UI 逐键提交）。 */
-    fun updateSet(setId: Long, weightKg: Float, reps: Int, setType: SetType) {
+    /**
+     * 更新一组的重量/次数（UI 逐键提交）。
+     *
+     * 不携带组类型：UI 提交里的类型来自流投影快照，组类型切换（[toggleSetType]）
+     * 与流重发之间的打字会把旧类型整行写回、覆盖刚切换的值。类型只经
+     * [toggleSetType] 的 SQL 侧原子取反变更，数值提交不触碰该列。
+     */
+    fun updateSet(setId: Long, weightKg: Float, reps: Int) {
         viewModelScope.launch {
             sessionMutex.withLock {
                 runCatching {
@@ -327,7 +333,6 @@ class WorkoutViewModel @Inject constructor(
                         setId = setId,
                         weightKg = weightKg.coerceAtLeast(0f),
                         reps = reps.coerceAtLeast(0),
-                        setType = setType,
                     )
                 }.onFailure { Log.w(TAG, "更新组失败", it) }
             }

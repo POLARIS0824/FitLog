@@ -1,5 +1,6 @@
 package com.example.fitlog.feature.aisettings
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.AIChatRepository
@@ -42,6 +43,16 @@ class AISettingsViewModel @Inject constructor(
 
     /** 用户是否已手动交互（输入表单/切换 provider）；true 时 init 不再回填，避免清空用户输入或强切回激活 provider。 */
     private var userInteracted = false
+
+    /**
+     * 用户是否编辑过表单字段（API Key/模型/端点输入；切换明文可见性不算——
+     * 它是 UI 瞬态，回填写入走 [ApiKeyState.copy] 原样保留）。
+     * 回填协程在挂起查询启动前快照此标记，查询完成后若已翻转说明用户在
+     * 解析窗口内编辑了表单——回填是整体覆盖，写入会清掉刚敲入的内容，
+     * 必须放弃。启动前已有的编辑不阻止回填（手动切换服务商是显式操作，
+     * 理应覆盖旧表单），init 自动回填另有 [userInteracted] 前置拦截。
+     */
+    private var formEdited = false
     private val apiKeyState = MutableStateFlow(ApiKeyState())
     private val modelState = MutableStateFlow(ModelState(selectedModel = ""))
     private val endpointState = MutableStateFlow(EndpointState())
@@ -49,14 +60,22 @@ class AISettingsViewModel @Inject constructor(
     private val uiFlow = MutableStateFlow(UiState())
 
     init {
-        // 首帧定位：表单落在当前激活的 provider 上；没有激活项则保持默认。
+        // 首帧定位：表单落在当前激活的 provider 上；无激活项（首装）则回填
+        // 当前默认选中类型的默认值——ProviderSpec.defaultBaseUrl/defaultModel
+        // 的契约即"未保存配置时的回填值"，首装保持空表单会让保存按钮因
+        // baseUrl 非空校验卡死。
         // 竞态守卫：DataStore+Room 首读期间用户可能已手动交互（输入/切换 provider），
         // 此时放弃回填，避免清空用户输入或强切回 init 读到的 provider（见 userInteracted）。
         viewModelScope.launch {
             if (userInteracted) return@launch
-            val active = aiProviderConfigRepository.activeProvider.first()
+            // 一次性读取路径同样按 guard 约定降级（Room/DataStore IO 故障罕见但
+            // 直接崩溃）：失败按"无激活项"处理，走默认回填，不让异常击穿裸 launch
+            val active = runCatching { aiProviderConfigRepository.activeProvider.first() }
+                .onFailure { Log.w(TAG, "读取激活服务商失败，按无激活项回填默认值", it) }
+                .getOrNull()
             if (userInteracted) return@launch
-            active?.let { onProviderSelected(it.type) }
+            // 无激活项（首装/读取失败）时回填当前默认选中类型（初始即 DEEPSEEK）
+            onProviderSelected(active?.type ?: selectedTypeState.value)
         }
     }
 
@@ -124,14 +143,30 @@ class AISettingsViewModel @Inject constructor(
      */
     fun onProviderSelected(type: ProviderType) {
         userInteracted = true
+        // 快照启动时刻的编辑标记：挂起查询期间用户又编辑了表单则回填放弃（见 formEdited）
+        val formEditedAtStart = formEdited
         viewModelScope.launch {
             selectedTypeState.update { type }
             val spec = ProviderSpecs.of(type)
-            val saved = aiProviderConfigRepository.getById(type.name)
+            // 读取已保存配置按 guard 约定降级：失败上报一次性错误并保持表单
+            // 现状（视为"未保存"去回填默认值会清掉用户正在输入的 apiKey）
+            val saved = try {
+                aiProviderConfigRepository.getById(type.name)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "读取已保存配置失败：$type", e)
+                uiFlow.update { it.copy(errorMessage = "配置读取失败，请重试") }
+                return@launch
+            }
             // 竞态守卫：挂起查询期间用户又切换了 provider，丢弃本次回填结果，
             // 避免快速连点 A→B 时旧协程（A）覆写已选中 B 的表单。
             if (selectedTypeState.value != type) return@launch
-            apiKeyState.update { ApiKeyState(apiKey = saved?.apiKey.orEmpty()) }
+            // 竞态守卫：挂起查询期间用户编辑了表单字段，回填是整体覆盖，
+            // 写回会清掉刚敲入的内容（仅窗口内的新编辑算数，见 formEdited）
+            if (formEdited != formEditedAtStart) return@launch
+            // showApiKey 是 UI 瞬态（明文开关），不随回填重置
+            apiKeyState.update { it.copy(apiKey = saved?.apiKey.orEmpty()) }
             modelState.update {
                 ModelState(
                     selectedModel = saved?.model ?: spec.defaultModel,
@@ -157,6 +192,7 @@ class AISettingsViewModel @Inject constructor(
     /** API Key 输入框内容变化。 */
     fun onApiKeyChange(value: String) {
         userInteracted = true
+        formEdited = true
         apiKeyState.update { it.copy(apiKey = value) }
     }
 
@@ -169,24 +205,28 @@ class AISettingsViewModel @Inject constructor(
     /** 模型输入框内容变化 / 点击推荐 chip。 */
     fun onModelChange(value: String) {
         userInteracted = true
+        formEdited = true
         modelState.update { it.copy(selectedModel = value) }
     }
 
     /** Base URL 输入框内容变化。 */
     fun onBaseUrlChange(value: String) {
         userInteracted = true
+        formEdited = true
         endpointState.update { it.copy(baseUrl = value) }
     }
 
     /** 自定义 Endpoint 输入框内容变化。 */
     fun onCustomEndpointChange(value: String) {
         userInteracted = true
+        formEdited = true
         endpointState.update { it.copy(customEndpoint = value) }
     }
 
     /** API Version 输入框内容变化。 */
     fun onApiVersionChange(value: String) {
         userInteracted = true
+        formEdited = true
         endpointState.update { it.copy(apiVersion = value) }
     }
 
@@ -258,9 +298,16 @@ class AISettingsViewModel @Inject constructor(
                     }
                     // 仅当该配置已保存过（存在行）才把拉取结果并入其 cachedModels；
                     // 配置从未保存时绝不 insert——否则表单里尚未确认的 apiKey
-                    // 会随 tempConfig 被静默落库，与"保存"按钮语义冲突
-                    if (aiProviderConfigRepository.getById(type.name) != null) {
-                        aiProviderConfigRepository.updateCachedModels(type.name, models)
+                    // 会随 tempConfig 被静默落库，与"保存"按钮语义冲突。
+                    // 存在性查询/落库写按 guard 约定降级：失败留痕并跳过合并，
+                    // 不让异常击穿裸 launch 崩溃（模型列表已上屏，缓存落库仅是优化）
+                    val savedExists = runCatching {
+                        aiProviderConfigRepository.getById(type.name)
+                    }.onFailure { Log.w(TAG, "查询已保存配置失败，跳过缓存模型合并", it) }.getOrNull()
+                    if (savedExists != null) {
+                        runCatching {
+                            aiProviderConfigRepository.updateCachedModels(type.name, models)
+                        }.onFailure { Log.w(TAG, "缓存模型列表落库失败", it) }
                     }
                 }
                 .onFailure { e ->
@@ -367,4 +414,8 @@ class AISettingsViewModel @Inject constructor(
 
     /** 保存成功提示已展示，清除成功信息。 */
     fun onSuccessShown() = uiFlow.update { it.copy(successMessage = null) }
+
+    private companion object {
+        private const val TAG = "AISettingsViewModel"
+    }
 }

@@ -99,23 +99,32 @@ class AgentEngineImpl @Inject constructor(
 
     /** {@inheritDoc} */
     override suspend fun sendMessage(sessionId: String, text: String): Result<Flow<Event>> {
-        val config = providerConfigRepo.activeProvider.first()
-            ?: return Result.failure(
-                IllegalStateException("未配置 AI 服务商，请先在设置中配置 API Key"),
+        return try {
+            val config = providerConfigRepo.activeProvider.first()
+                ?: return Result.failure(
+                    IllegalStateException("未配置 AI 服务商，请先在设置中配置 API Key"),
+                )
+            config.checkUsableCredentials()?.let { return Result.failure(it) }
+
+            val runner = getOrCreateRunner(config) ?: return Result.failure(
+                IllegalStateException("Agent 引擎初始化失败"),
             )
-        config.checkUsableCredentials()?.let { return Result.failure(it) }
 
-        val runner = getOrCreateRunner(config) ?: return Result.failure(
-            IllegalStateException("Agent 引擎初始化失败"),
-        )
-
-        return Result.success(
-            runner.runAsync(
-                userId = USER_ID,
-                sessionId = sessionId,
-                newMessage = Content.fromText("user", text),
-            ),
-        )
+            Result.success(
+                runner.runAsync(
+                    userId = USER_ID,
+                    sessionId = sessionId,
+                    newMessage = Content.fromText("user", text),
+                ),
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // 契约是 Result：激活配置读取（DataStore/Room IO）、引擎构建等
+            // 中途异常必须折进 failure 由调用方展示，而非逃逸到调用方的
+            // 裸 launch 成为未捕获协程异常直接崩溃
+            Result.failure(e)
+        }
     }
 
     /**
@@ -127,36 +136,43 @@ class AgentEngineImpl @Inject constructor(
         confirmationCallId: String,
         confirmed: Boolean,
     ): Result<Flow<Event>> {
-        val config = providerConfigRepo.activeProvider.first()
-            ?: return Result.failure(
-                IllegalStateException("未配置 AI 服务商，请先在设置中配置 API Key"),
+        return try {
+            val config = providerConfigRepo.activeProvider.first()
+                ?: return Result.failure(
+                    IllegalStateException("未配置 AI 服务商，请先在设置中配置 API Key"),
+                )
+            config.checkUsableCredentials()?.let { return Result.failure(it) }
+
+            val runner = getOrCreateRunner(config) ?: return Result.failure(
+                IllegalStateException("Agent 引擎初始化失败"),
             )
-        config.checkUsableCredentials()?.let { return Result.failure(it) }
 
-        val runner = getOrCreateRunner(config) ?: return Result.failure(
-            IllegalStateException("Agent 引擎初始化失败"),
-        )
-
-        val newMessage = Content(
-            role = Role.USER,
-            parts = listOf(
-                Part(
-                    functionResponse = FunctionResponse(
-                        name = FunctionCall.REQUEST_CONFIRMATION_FUNCTION_CALL_NAME,
-                        id = confirmationCallId,
-                        response = mapOf(ToolConfirmation.CONFIRMED_KEY to confirmed),
+            val newMessage = Content(
+                role = Role.USER,
+                parts = listOf(
+                    Part(
+                        functionResponse = FunctionResponse(
+                            name = FunctionCall.REQUEST_CONFIRMATION_FUNCTION_CALL_NAME,
+                            id = confirmationCallId,
+                            response = mapOf(ToolConfirmation.CONFIRMED_KEY to confirmed),
+                        ),
                     ),
                 ),
-            ),
-        )
+            )
 
-        return Result.success(
-            runner.runAsync(
-                userId = USER_ID,
-                sessionId = sessionId,
-                newMessage = newMessage,
-            ),
-        )
+            Result.success(
+                runner.runAsync(
+                    userId = USER_ID,
+                    sessionId = sessionId,
+                    newMessage = newMessage,
+                ),
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // 同 sendMessage：Result 契约收口，中途异常不得逃逸出未捕获协程异常
+            Result.failure(e)
+        }
     }
 
     /**

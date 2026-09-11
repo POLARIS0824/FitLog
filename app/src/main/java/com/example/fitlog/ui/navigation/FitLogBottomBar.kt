@@ -71,7 +71,10 @@ fun FitLogBottomBar(
     ) {
         FitLogTabs.forEach { tab ->
             NavigationBarItem(
-                selected = tab.key == selectedTab,
+                // 选中态按类型比较（与 [isTabDestination] 同源）：栈顶是带参 key
+                // （如 ChatKey(prefill=…)）时底栏可见且对应 tab 照常高亮——
+                // 按值比较会因 prefill 非空而四个 tab 全部无高亮
+                selected = tab.key::class == selectedTab?.let { it::class },
                 onClick = { onTabSelected(tab.key) },
                 icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
                 label = { Text(text = tab.label) },

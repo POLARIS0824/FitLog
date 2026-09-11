@@ -128,6 +128,9 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToSettings = { backStack.add(SettingsKey) },
                                     onNavigateToWorkout = { backStack.add(WorkoutKey()) },
                                     onStartWorkout = { backStack.add(WorkoutKey(autoStart = true)) },
+                                    onNavigateToChatWithPrefill = { prefill ->
+                                        backStack.add(ChatKey(prefill = prefill))
+                                    },
                                 )
                             }
                             entry<ChatKey> { key ->

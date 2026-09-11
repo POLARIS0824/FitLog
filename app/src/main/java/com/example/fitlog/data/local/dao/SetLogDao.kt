@@ -32,14 +32,18 @@ interface SetLogDao {
     suspend fun update(setLogEntity: SetLogEntity)
 
     /**
-     * 按主键局部更新重量/次数/组类型。
+     * 按主键局部更新重量/次数（不动组类型）。
      *
      * 会话内逐键提交专用：[update] 是全列覆盖，要求构造完整实体（含
      * exerciseLogId/setNumber），而调用方（会话状态流投影）不持有这些列，
-     * 全列覆盖会把关联列清成 0。定向 UPDATE 只改训练字段。
+     * 全列覆盖会把关联列清成 0。定向 UPDATE 只改数值字段。
+     *
+     * 刻意不接受 setType：UI 文本框提交携带的是流投影快照里的类型，
+     * 组类型切换（[toggleTypeById]）与流重发之间的打字会把旧类型整行写回，
+     * 覆盖刚切换的值——类型只经 SQL 侧原子取反变更，不随数值提交。
      */
-    @Query("UPDATE set_logs SET weightKg = :weightKg, reps = :reps, setType = :setType WHERE id = :id")
-    suspend fun updateById(id: Long, weightKg: Float, reps: Int, setType: String)
+    @Query("UPDATE set_logs SET weightKg = :weightKg, reps = :reps WHERE id = :id")
+    suspend fun updateValuesById(id: Long, weightKg: Float, reps: Int)
 
     /**
      * 按主键删除一组记录（DELETE 仅按主键匹配）。

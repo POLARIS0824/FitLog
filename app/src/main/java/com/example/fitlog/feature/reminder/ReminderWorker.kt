@@ -50,7 +50,9 @@ class ReminderWorker(
             // 恰好重排的新任务"的竞态窗口（提醒刚响、用户顺手改时间正是
             // Worker 运行期）。残余窗口为毫秒级，无法根除，显式接受。
             // 走 APPEND_OR_REPLACE 语义（而非外部的 REPLACE）：REPLACE 会取消
-            // 正在运行的本任务自身，见 ReminderScheduler.scheduleSelfChainedNext
+            // 正在运行的本任务自身，见 ReminderScheduler.scheduleSelfChainedNext。
+            // 自链已幂等化（调度器跳过已有 ENQUEUED 后继）：本方法因通知环节
+            // 异常进入 Result.retry 或进程死亡重跑时，再次自链不会使链翻倍
             val minutes = preferences.reminderMinutes.first()
             entryPoint.reminderScheduler().scheduleSelfChainedNext(minutes)
             showNotification()

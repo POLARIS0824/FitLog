@@ -1,5 +1,6 @@
 package com.example.fitlog.ui.settings.profile
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.UserProfileRepository
@@ -21,6 +22,9 @@ import kotlin.coroutines.cancellation.CancellationException
  * 单用户 App：启动时通过 [UserProfileRepository.getFirst] 直接挂起查询回填表单
  * （不读 uiState.value，避免 combine 首发射时延导致的竞态），
  * 保存时按是否存在已有记录区分 insert / update。
+ *
+ * 回填读取按 guard 约定降级：Room IO 异常留痕后以空表单打开，
+ * 不让异常击穿裸 launch 崩溃（保存路径本身已有 try/catch）。
  */
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
@@ -35,7 +39,14 @@ class ProfileViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val profile = userProfileRepository.getFirst() ?: return@launch
+            val profile = try {
+                userProfileRepository.getFirst()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "读取用户资料失败，表单以空值打开", e)
+                null
+            } ?: return@launch
             existingId = profile.id
             _uiState.update {
                 it.copy(
@@ -115,4 +126,8 @@ class ProfileViewModel @Inject constructor(
 
     /** 错误提示已展示，清除一次性状态。 */
     fun onErrorShown() = _uiState.update { it.copy(errorMessage = null) }
+
+    private companion object {
+        private const val TAG = "ProfileViewModel"
+    }
 }

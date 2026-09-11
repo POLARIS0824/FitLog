@@ -139,7 +139,7 @@ class ReminderViewModelTest {
             scheduled += minutesOfDay
         }
 
-        override fun scheduleSelfChainedNext(minutesOfDay: Int) {
+        override suspend fun scheduleSelfChainedNext(minutesOfDay: Int) {
             selfChained += minutesOfDay
         }
 

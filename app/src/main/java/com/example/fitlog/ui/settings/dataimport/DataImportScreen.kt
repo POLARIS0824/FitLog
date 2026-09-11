@@ -245,6 +245,7 @@ private fun DataImportScreenPreview() {
                     fileName = "2026-05-07.md",
                     date = LocalDate.of(2026, 5, 7),
                     content = "",
+                    sourceKey = "2026-05-07.md",
                 ),
             ),
             failures = listOf(

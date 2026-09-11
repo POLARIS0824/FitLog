@@ -127,7 +127,7 @@ fun WorkoutScreen(
     onAddExercise: (Exercise) -> Unit = {},
     onRemoveExercise: (Long) -> Unit = {},
     onAddSet: (Long) -> Unit = {},
-    onUpdateSet: (Long, Float, Int, SetType) -> Unit = { _, _, _, _ -> },
+    onUpdateSet: (Long, Float, Int) -> Unit = { _, _, _ -> },
     onToggleSetType: (Long) -> Unit = {},
     onRemoveSet: (Long) -> Unit = {},
     onDeleteWorkout: (Workout) -> Unit = {},

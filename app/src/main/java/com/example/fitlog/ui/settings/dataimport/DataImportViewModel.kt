@@ -99,7 +99,9 @@ class DataImportViewModel @Inject constructor(
                             date = item.date,
                             exercises = emptyList(),
                             feelings = null,
-                            sourceFileName = item.fileName,
+                            // 入库唯一键：单记录文件为文件名，多天导出文件按节拆分后
+                            // 为「文件名::节序号」——同一文件重复导入时键稳定，幂等不破
+                            sourceFileName = item.sourceKey,
                             rawContent = item.content,
                         )
                     )

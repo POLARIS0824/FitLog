@@ -14,7 +14,6 @@ import com.example.fitlog.model.Exercise
 import com.example.fitlog.model.Muscle
 import com.example.fitlog.model.PlannedExerciseItem
 import com.example.fitlog.model.PlannedSession
-import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.testing.createTestPreferencesDataStore
@@ -177,7 +176,7 @@ class WorkoutViewModelTest {
         // 占位组（0 次）先就位，再录入 60kg×8
         val exercise = withExercise.exercises.first()
         assertEquals(1, exercise.sets.size)
-        viewModel.updateSet(exercise.sets.first().id, 60f, 8, SetType.WORKING)
+        viewModel.updateSet(exercise.sets.first().id, 60f, 8)
 
         viewModel.finishSession("状态很好")
 
@@ -288,7 +287,7 @@ class WorkoutViewModelTest {
         // toTargetText 只产出处方本体，"目标" 前缀由 UI 层拼接
         assertEquals("4组 × 8-10 次", session.exercises.first().targetText)
 
-        viewModel.updateSet(session.exercises.first().sets.first().id, 60f, 8, SetType.WORKING)
+        viewModel.updateSet(session.exercises.first().sets.first().id, 60f, 8)
         viewModel.finishSession(null)
 
         // 结束协程（含课次完成标记回写）异步落地：订阅计划流等待 DB 事实源更新，

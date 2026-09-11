@@ -283,9 +283,15 @@ class WorkoutRepository @Inject constructor(
         logId
     }
 
-    /** 更新会话内一组的重量/次数/组类型（逐键提交，频率高故走定向 UPDATE 而非全列覆盖）。 */
-    suspend fun updateSessionSet(setId: Long, weightKg: Float, reps: Int, setType: SetType) {
-        setLogDao.updateById(id = setId, weightKg = weightKg, reps = reps, setType = setType.name)
+    /**
+     * 更新会话内一组的重量/次数（逐键提交，频率高故走定向 UPDATE 而非全列覆盖）。
+     *
+     * 不接受 setType：文本框提交携带的是流投影快照里的类型，组类型切换与流重发
+     * 之间的打字会把旧类型写回、覆盖刚切换的值——类型只经 [toggleSessionSetType]
+     * 的 SQL 侧原子取反变更。
+     */
+    suspend fun updateSessionSet(setId: Long, weightKg: Float, reps: Int) {
+        setLogDao.updateValuesById(id = setId, weightKg = weightKg, reps = reps)
     }
 
     /** 翻转会话内一组的组类型（WORKING ⇄ WARMUP，SQL 侧原子取反）。 */

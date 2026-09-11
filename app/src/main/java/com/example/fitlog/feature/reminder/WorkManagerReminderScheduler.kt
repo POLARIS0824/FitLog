@@ -3,7 +3,9 @@ package com.example.fitlog.feature.reminder
 import android.content.Context
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import kotlinx.coroutines.flow.first
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Duration
 import java.time.LocalDate
@@ -55,8 +57,20 @@ class WorkManagerReminderScheduler @Inject constructor(
      * APPEND 把下一次任务挂为本任务的子节点，父任务正常完成后自动接力；
      * 用户改时间/开关时外部仍走 [schedule] 的 REPLACE，会取消整条 pending 链
      * 并以新时间重排，两条路径互不冲突、不产生重复提醒。
+     *
+     * **幂等守卫**：追加前查询唯一名下是否已存在 ENQUEUED 的后继——
+     * Worker 失败重试（自链成功后通知环节抛异常）或进程死亡重跑会再次
+     * 进入本方法，无条件 APPEND 会再追加一份后继，链从此翻倍（每天固定
+     * 弹两条通知且各自继续自链，永不收敛）。有等待中的后继即说明接力
+     * 已就位，跳过追加。
      */
-    override fun scheduleSelfChainedNext(minutesOfDay: Int) {
+    override suspend fun scheduleSelfChainedNext(minutesOfDay: Int) {
+        val hasPendingSuccessor = WorkManager.getInstance(context)
+            .getWorkInfosForUniqueWorkFlow(WORK_NAME)
+            .first()
+            .any { it.state == WorkInfo.State.ENQUEUED }
+        if (hasPendingSuccessor) return
+
         val request = OneTimeWorkRequestBuilder<ReminderWorker>()
             .setInitialDelay(delayUntilNextOccurrence(minutesOfDay), TimeUnit.MILLISECONDS)
             .addTag(TAG)

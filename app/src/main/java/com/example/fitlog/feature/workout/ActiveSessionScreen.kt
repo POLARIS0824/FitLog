@@ -70,7 +70,8 @@ import kotlinx.coroutines.delay
  * @param onAddExercise 添加动作
  * @param onRemoveExercise 移除动作（参数 exerciseLogId）
  * @param onAddSet 追加一组（参数 exerciseLogId）
- * @param onUpdateSet 更新一组（setId, 重量kg, 次数, 组类型）
+ * @param onUpdateSet 更新一组数值（setId, 重量kg, 次数；不携带组类型——
+ *        文本框提交里的类型是流投影快照，会把刚切换的组类型写回覆盖）
  * @param onToggleSetType 翻转一组类型（setId；SQL 侧按 DB 当前值原子取反）
  * @param onRemoveSet 删除一组（参数 setId）
  */
@@ -84,7 +85,7 @@ fun ActiveSessionView(
     onAddExercise: (Exercise) -> Unit,
     onRemoveExercise: (Long) -> Unit,
     onAddSet: (Long) -> Unit,
-    onUpdateSet: (Long, Float, Int, SetType) -> Unit,
+    onUpdateSet: (Long, Float, Int) -> Unit,
     onToggleSetType: (Long) -> Unit,
     onRemoveSet: (Long) -> Unit,
 ) {
@@ -280,7 +281,7 @@ private fun SessionExerciseCard(
     imageUrl: String?,
     onRemove: () -> Unit,
     onAddSet: () -> Unit,
-    onUpdateSet: (Long, Float, Int, SetType) -> Unit,
+    onUpdateSet: (Long, Float, Int) -> Unit,
     onToggleSetType: (Long) -> Unit,
     onRemoveSet: (Long) -> Unit,
 ) {
@@ -354,7 +355,7 @@ private fun SessionExerciseCard(
                 SessionSetRow(
                     index = index + 1,
                     set = set,
-                    onUpdate = { weightKg, reps, type -> onUpdateSet(set.id, weightKg, reps, type) },
+                    onUpdate = { weightKg, reps -> onUpdateSet(set.id, weightKg, reps) },
                     onToggleType = { onToggleSetType(set.id) },
                     onRemove = { onRemoveSet(set.id) },
                 )
@@ -370,12 +371,16 @@ private fun SessionExerciseCard(
 
 /**
  * 单组录入行：重量/次数文本框本地态 `remember(set.id)` + 逐键提交；类型 chip 切换。
+ *
+ * 文本框只提交数值（重量/次数），不携带组类型：提交值里的类型是上次流发射的
+ * 投影快照，chip 切换（SQL 侧原子取反）与流重发之间的打字会把旧类型写回 DB、
+ * 覆盖刚切换的组类型。
  */
 @Composable
 private fun SessionSetRow(
     index: Int,
     set: ActiveSessionSet,
-    onUpdate: (Float, Int, SetType) -> Unit,
+    onUpdate: (Float, Int) -> Unit,
     onToggleType: () -> Unit,
     onRemove: () -> Unit,
 ) {
@@ -400,7 +405,7 @@ private fun SessionSetRow(
             value = weightText,
             onValueChange = { text ->
                 weightText = text
-                onUpdate(text.toFloatOrNull() ?: 0f, repsText.toIntOrNull() ?: 0, set.setType)
+                onUpdate(text.toFloatOrNull() ?: 0f, repsText.toIntOrNull() ?: 0)
             },
             modifier = Modifier
                 .weight(1f)
@@ -414,7 +419,7 @@ private fun SessionSetRow(
             value = repsText,
             onValueChange = { text ->
                 repsText = text
-                onUpdate(weightText.toFloatOrNull() ?: 0f, text.toIntOrNull() ?: 0, set.setType)
+                onUpdate(weightText.toFloatOrNull() ?: 0f, text.toIntOrNull() ?: 0)
             },
             modifier = Modifier
                 .weight(1f)

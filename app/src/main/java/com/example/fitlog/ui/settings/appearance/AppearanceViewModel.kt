@@ -1,10 +1,13 @@
 package com.example.fitlog.ui.settings.appearance
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.data.repository.UserPreferencesRepository
+import com.example.fitlog.util.guard
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -17,6 +20,10 @@ import javax.inject.Inject
  *
  * 状态全部来自 [UserPreferencesRepository]（DataStore），
  * 修改即写盘，主题由 MainViewModel 收集后全局生效，无需手动刷新。
+ *
+ * 数据流异常按全项目 guard 约定降级：偏好 Flow 捕获后发射默认值，
+ * 不让 DataStore IO 异常击穿 `stateIn` 的共享协程崩溃（可重设的偏好
+ * 静默降级为默认值，与 MainViewModel 外观路径的 `.catch {}` 兜底同策略）。
  */
 @HiltViewModel
 class AppearanceViewModel @Inject constructor(
@@ -24,8 +31,8 @@ class AppearanceViewModel @Inject constructor(
 ) : ViewModel() {
 
     val uiState: StateFlow<AppearanceUiState> = combine(
-        userPreferencesRepository.themeMode,
-        userPreferencesRepository.dynamicColor,
+        userPreferencesRepository.themeMode.guard(ThemeMode.SYSTEM),
+        userPreferencesRepository.dynamicColor.guard(true),
         ::AppearanceUiState,
     ).stateIn(
         scope = viewModelScope,
@@ -35,11 +42,31 @@ class AppearanceViewModel @Inject constructor(
 
     /** 主题模式变化（跟随系统 / 浅色 / 深色）。 */
     fun onThemeModeChange(mode: ThemeMode) {
-        viewModelScope.launch { userPreferencesRepository.setThemeMode(mode) }
+        viewModelScope.launch {
+            try {
+                userPreferencesRepository.setThemeMode(mode)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "写入主题模式失败", e)
+            }
+        }
     }
 
     /** 动态取色开关变化。 */
     fun onDynamicColorChange(enabled: Boolean) {
-        viewModelScope.launch { userPreferencesRepository.setDynamicColor(enabled) }
+        viewModelScope.launch {
+            try {
+                userPreferencesRepository.setDynamicColor(enabled)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "写入动态取色开关失败", e)
+            }
+        }
+    }
+
+    private companion object {
+        private const val TAG = "AppearanceViewModel"
     }
 }

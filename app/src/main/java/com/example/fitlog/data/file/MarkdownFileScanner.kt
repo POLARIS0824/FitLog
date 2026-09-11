@@ -13,7 +13,9 @@ import javax.inject.Inject
  * Markdown 训练日志文件扫描器。
  *
  * 通过 Storage Access Framework (SAF) 遍历用户授权的文件夹，
- * 读取所有 `.md` 文件内容，从文件名提取日期，并调用 [MarkdownParser.preprocess] 做预处理。
+ * 读取所有 `.md` 文件内容，解析训练日期（多天导出文件按
+ * `# yyyy-MM-dd 训练` 节标题拆分取各节日期，单日文件取文件名日期），
+ * 并调用 [MarkdownParser.preprocess] 做预处理。
  *
  * 以 @Inject 类形式提供（而非 object），便于 ViewModel 构造注入、测试替换替身。
  */
@@ -31,16 +33,20 @@ class MarkdownFileScanner @Inject constructor() {
     )
 
     /**
-     * 单个成功扫描的 Markdown 文件。
+     * 单个成功扫描的 Markdown 文件（多天导出文件按节拆为多条）。
      *
-     * @property fileName 原始文件名（含后缀）
-     * @property date 从文件名解析的训练日期
-     * @property content 预处理后的文本内容
+     * @property fileName 原始文件名（含后缀），仅作展示
+     * @property date 训练日期：有日期节标题时取节标题日期，否则取文件名日期
+     * @property content 预处理后的文本内容（单节记录不含节标题行）
+     * @property sourceFileName 入库唯一键（`workouts.sourceFileName`）：单记录文件
+     *   即原始文件名；按节拆分的文件为 `文件名::节序号`——同一文件重复导入
+     *   时各节键稳定不变，唯一索引照常幂等
      */
     data class ScannedMarkdown(
         val fileName: String,
         val date: LocalDate,
         val content: String,
+        val sourceKey: String,
     )
 
     /**
@@ -119,11 +125,33 @@ class MarkdownFileScanner @Inject constructor() {
                 if (!fileName.endsWith(".md", ignoreCase = true)) continue
 
                 try {
-                    val date = parseDateFromFileName(fileName)
                     val fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
                     val content = readFileContent(contentResolver, fileUri)
                     val preprocessed = MarkdownParser.preprocess(content)
-                    successes.add(ScannedMarkdown(fileName, date, preprocessed))
+                    // 多天导出文件按节标题拆分（修复回环坍缩）；无节标题的
+                    // 手写单日文件保持旧语义（文件名日期 + 全文一条记录）
+                    val sections = splitDatedSections(preprocessed)
+                    if (sections == null) {
+                        successes.add(
+                            ScannedMarkdown(
+                                fileName = fileName,
+                                date = parseDateFromFileName(fileName),
+                                content = preprocessed,
+                                sourceKey = fileName,
+                            ),
+                        )
+                    } else {
+                        sections.forEachIndexed { index, section ->
+                            successes.add(
+                                ScannedMarkdown(
+                                    fileName = fileName,
+                                    date = section.date,
+                                    content = section.content,
+                                    sourceKey = "$fileName::$index",
+                                ),
+                            )
+                        }
+                    }
                 } catch (e: DateTimeParseException) {
                     failures.add(Failure(fileName, "文件名日期解析失败"))
                 } catch (e: Exception) {
@@ -170,5 +198,69 @@ class MarkdownFileScanner @Inject constructor() {
             stream.bufferedReader().use { it.readText() }
         }?.removePrefix("\uFEFF")
             ?: throw IllegalStateException("无法打开文件输入流")
+    }
+
+    /**
+     * 单节拆分结果（节标题日期 + 节体文本）。
+     */
+    internal data class DatedSection(val date: LocalDate, val content: String)
+
+    /**
+     * 按日期节标题把整份文件拆成多天记录（纯函数，独立可见以便 JVM 单测）。
+     *
+     * 背景：[MarkdownExporter] 把全部训练导出为**单文件多天**（`# yyyy-MM-dd 训练`
+     * 节标题分节），而导入日期传统上取自文件名——直接回导导出文件会把所有训练
+     * 坍缩成"文件名日期"的一条存档记录，结构化明细与真实日期全部丢失。拆分后
+     * 每节一条记录、以标题日期落库，导出→擦除→导入的备份回环成立。
+     *
+     * 规则：
+     * - 无任何合法节标题 → 返回 null，调用方保持旧语义（文件名日期 + 全文一条
+     *   记录），手写的单日 `yyyy-MM-dd.md` 不受影响；
+     * - 首个节标题之前的散行并入第一节（手写文件标题前可能带正文）；
+     * - 形似节标题但日期非法（如 2026-02-30）的行视作普通正文行；
+     * - 节体全空白的节不产出记录（避免入库"只有日期没有内容"的幽灵行）。
+     *
+     * @param content 预处理后的文件全文
+     * @return 按出现顺序的节列表；文件不含节标题时为 null
+     */
+    internal fun splitDatedSections(content: String): List<DatedSection>? {
+        val lines = content.lines()
+        if (lines.none { line -> headerDateOf(line) != null }) return null
+
+        val sections = mutableListOf<DatedSection>()
+        var currentDate: LocalDate? = null
+        val body = StringBuilder()
+
+        fun flushSection() {
+            val date = currentDate ?: return // 尚无节标题：散行留在 body 并入第一节
+            val trimmed = body.toString().trim()
+            if (trimmed.isNotEmpty()) {
+                sections += DatedSection(date, trimmed)
+            }
+            body.clear()
+        }
+
+        lines.forEach { line ->
+            val headerDate = headerDateOf(line)
+            if (headerDate != null) {
+                flushSection()
+                currentDate = headerDate
+            } else {
+                body.appendLine(line)
+            }
+        }
+        flushSection()
+        return sections.ifEmpty { null }
+    }
+
+    /** 行为日期节标题（`# yyyy-MM-dd 训练`）时返回其日期，否则 null。 */
+    private fun headerDateOf(line: String): LocalDate? {
+        val match = DATED_SECTION_HEADER.matchEntire(line.trim()) ?: return null
+        return runCatching { LocalDate.parse(match.groupValues[1]) }.getOrNull()
+    }
+
+    private companion object {
+        /** 导出格式（[MarkdownExporter.serializeStructured]）的节标题写法。 */
+        val DATED_SECTION_HEADER = Regex("^#\\s*(\\d{4}-\\d{2}-\\d{2})\\s+训练\\s*$")
     }
 }
