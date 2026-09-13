@@ -1,24 +1,26 @@
 *.iml
 .gradle
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
 .DS_Store
 /build
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+.kotlin/
+
+# IDE 本地配置（不再追踪）
+/.idea/
+
+# AI 工具本地目录（不再追踪）
+.claude/
 .qoder/
 .workbuddy/
-.kotlin/
-.claude/
 .orca/
 .zcode/
+.cursor/
+.windsurf/
+.gemini/
+.aider*
 
 # 构建产物与临时日志（历史上多次误提交，统一忽略）
 *.log
