@@ -2,7 +2,9 @@ package com.example.fitlog.ui.settings.dataimport
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -37,6 +39,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Inbox
@@ -57,6 +60,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -67,6 +71,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.WavyProgressIndicatorDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -79,8 +84,10 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,6 +101,7 @@ import com.example.fitlog.model.Exercise
 import com.example.fitlog.model.Muscle
 import com.example.fitlog.model.SetType
 import com.example.fitlog.ui.components.StackedSnackbarHost
+import com.example.fitlog.ui.components.SubpageIndicator
 import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 import com.example.fitlog.ui.theme.FitLogTheme
 import com.example.fitlog.ui.theme.fitLogColors
@@ -216,19 +224,62 @@ fun ImportReviewScreen(
                     }
                 },
                 actions = {
-                    TextButton(
-                        onClick = onSelectAll,
-                        enabled = uiState.items.any {
-                            it.status == ImportItemStatus.PARSED || it.status == ImportItemStatus.FAILED
-                        },
-                    ) {
-                        Text("全选", style = MaterialTheme.typography.labelLarge)
+                    val canSelectAll = uiState.items.any {
+                        it.status == ImportItemStatus.PARSED || it.status == ImportItemStatus.FAILED
                     }
-                    TextButton(
-                        onClick = onDeselectAll,
-                        enabled = uiState.checkedCount > 0,
+                    val canDeselect = uiState.checkedCount > 0
+
+                    Row(
+                        modifier = Modifier.padding(end = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("清空", style = MaterialTheme.typography.labelLarge)
+                        FilledTonalButton(
+                            onClick = onSelectAll,
+                            enabled = canSelectAll,
+                            shape = RoundedCornerShape(
+                                topStart = 16.dp,
+                                bottomStart = 16.dp,
+                                topEnd = 4.dp,
+                                bottomEnd = 4.dp,
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            modifier = Modifier.height(32.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f),
+                                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                            ),
+                        ) {
+                            Text(
+                                text = "全选",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                            )
+                        }
+                        FilledTonalButton(
+                            onClick = onDeselectAll,
+                            enabled = canDeselect,
+                            shape = RoundedCornerShape(
+                                topStart = 4.dp,
+                                bottomStart = 4.dp,
+                                topEnd = 16.dp,
+                                bottomEnd = 16.dp,
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            modifier = Modifier.height(32.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f),
+                                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                            ),
+                        ) {
+                            Text(
+                                text = "清空",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -268,19 +319,10 @@ fun ImportReviewScreen(
                     ),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
                 ) {
-                    if (uiState.isParseProgressHidden) {
-                        ParseProgressCompactRow(
-                            uiState = uiState,
-                            onToggleParseProgressHidden = onToggleParseProgressHidden,
-                            onCancelParse = onCancelParse,
-                        )
-                    } else {
-                        ParseProgressRow(
-                            uiState = uiState,
-                            onToggleParseProgressHidden = onToggleParseProgressHidden,
-                            onCancelParse = onCancelParse,
-                        )
-                    }
+                    ParseProgressRow(
+                        uiState = uiState,
+                        onCancelParse = onCancelParse,
+                    )
                 }
             }
 
@@ -633,24 +675,30 @@ private fun ImportReviewBottomBar(
                         text = "已选 ${uiState.checkedCount} / ${uiState.items.size} 项",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     )
-                    Surface(
-                        shape = CircleShape,
-                        color = if (failedChecked > 0) {
-                            MaterialTheme.colorScheme.tertiaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainerHighest
-                        },
-                    ) {
-                        Text(
-                            text = if (failedChecked > 0) "含 $failedChecked 项仅存档" else "全明细入库",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    if (uiState.checkedCount > 0) {
+                        Surface(
+                            shape = CircleShape,
                             color = if (failedChecked > 0) {
-                                MaterialTheme.colorScheme.onTertiaryContainer
+                                MaterialTheme.colorScheme.tertiaryContainer
                             } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                                MaterialTheme.colorScheme.surfaceContainerHighest
                             },
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                        )
+                        ) {
+                            Text(
+                                text = if (failedChecked > 0) {
+                                    "含 $failedChecked 篇仅存档原文"
+                                } else {
+                                    "含完整动作明细"
+                                },
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                color = if (failedChecked > 0) {
+                                    MaterialTheme.colorScheme.onTertiaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            )
+                        }
                     }
                 }
 
@@ -839,13 +887,23 @@ private fun ImportReviewBottomBar(
     }
 }
 
-/** 展开态的解析进度区（M3 Expressive）。 */
+/** 置顶常驻的 AI 解析进度卡片（M3 Expressive，带波浪进度条与平滑动效）。 */
 @Composable
 private fun ParseProgressRow(
     uiState: DataImportUiState,
-    onToggleParseProgressHidden: () -> Unit,
     onCancelParse: () -> Unit,
 ) {
+    val targetProgress = if (uiState.parseTotal > 0) {
+        uiState.parseCompleted.toFloat() / uiState.parseTotal
+    } else {
+        0f
+    }
+    val animatedProgress by animateFloatAsState(
+        targetValue = targetProgress,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "parseProgress",
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -883,82 +941,29 @@ private fun ParseProgressRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            TextButton(onClick = onToggleParseProgressHidden) {
-                Text("收起", style = MaterialTheme.typography.labelMedium)
-            }
-            TextButton(onClick = onCancelParse) {
+            TextButton(
+                onClick = onCancelParse,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+            ) {
                 Text(
                     "取消",
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.colorScheme.error,
                 )
             }
         }
-        LinearProgressIndicator(
-            progress = {
-                if (uiState.parseTotal > 0) {
-                    uiState.parseCompleted.toFloat() / uiState.parseTotal
-                } else {
-                    0f
-                }
-            },
-            strokeCap = StrokeCap.Round,
+        LinearWavyProgressIndicator(
+            progress = { animatedProgress },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(8.dp)
-                .clip(CircleShape),
+                .padding(vertical = 2.dp),
+            color = MaterialTheme.colorScheme.primary,
             trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            amplitude = { p ->
+                // 解析完成 (>= 1f) 或尚未开始 (<= 0f) 时拉直波形，避免无休止剧烈波动
+                if (p >= 1f || p <= 0f) 0f else WavyProgressIndicatorDefaults.indicatorAmplitude(p)
+            },
         )
-    }
-}
-
-/** 收起态的解析进度（M3 Expressive）。 */
-@Composable
-private fun ParseProgressCompactRow(
-    uiState: DataImportUiState,
-    onToggleParseProgressHidden: () -> Unit,
-    onCancelParse: () -> Unit,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-    ) {
-        if (LocalInspectionMode.current) {
-            CircularProgressIndicator(
-                progress = { 0.7f },
-                modifier = Modifier
-                    .padding(end = 12.dp)
-                    .size(18.dp),
-                strokeWidth = 2.5.dp,
-            )
-        } else {
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .padding(end = 12.dp)
-                    .size(18.dp),
-                strokeWidth = 2.5.dp,
-            )
-        }
-        Text(
-            text = "AI 解析中 (${uiState.parseCompleted}/${uiState.parseTotal})",
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-            modifier = Modifier.weight(1f),
-        )
-        IconButton(onClick = onToggleParseProgressHidden) {
-            Icon(
-                imageVector = Icons.Default.KeyboardArrowDown,
-                contentDescription = "展开解析进度",
-            )
-        }
-        IconButton(onClick = onCancelParse) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "取消解析",
-                tint = MaterialTheme.colorScheme.error,
-            )
-        }
     }
 }
 
@@ -975,6 +980,8 @@ internal fun ImportItemRow(
     modifier: Modifier = Modifier,
 ) {
     val isSelectable = item.status == ImportItemStatus.PARSED || item.status == ImportItemStatus.FAILED
+    val canExpand = (item.status == ImportItemStatus.PARSED && item.draft != null) ||
+        (item.status == ImportItemStatus.FAILED && !item.parseError.isNullOrBlank())
 
     val animatedContainerColor by animateColorAsState(
         targetValue = if (item.checked) {
@@ -1016,67 +1023,52 @@ internal fun ImportItemRow(
         Column(modifier = Modifier.fillMaxWidth()) {
             ListItem(
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 leadingContent = {
-                    when (item.status) {
-                        ImportItemStatus.PARSED, ImportItemStatus.FAILED -> {
-                            Checkbox(
-                                checked = item.checked,
-                                onCheckedChange = { onToggleChecked() },
-                            )
-                        }
-
-                        ImportItemStatus.PARSING -> {
-                            Box(
-                                modifier = Modifier.size(40.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                if (LocalInspectionMode.current) {
-                                    CircularProgressIndicator(
-                                        progress = { 0.7f },
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp,
-                                    )
-                                } else {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp,
-                                    )
-                                }
+                    Box(
+                        modifier = Modifier.size(40.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        when (item.status) {
+                            ImportItemStatus.PARSED, ImportItemStatus.FAILED -> {
+                                Checkbox(
+                                    checked = item.checked,
+                                    onCheckedChange = { onToggleChecked() },
+                                )
                             }
-                        }
 
-                        ImportItemStatus.IMPORTED -> {
-                            StatusBadge(
-                                icon = Icons.Default.Check,
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                description = "已导入",
-                            )
-                        }
+                            ImportItemStatus.PARSING -> {
+                                SubpageIndicator(modifier = Modifier.size(24.dp))
+                            }
 
-                        ImportItemStatus.ARCHIVED -> {
-                            StatusBadge(
-                                icon = Icons.Default.Archive,
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                description = "已存档",
-                            )
-                        }
+                            ImportItemStatus.IMPORTED -> {
+                                StatusBadge(
+                                    icon = Icons.Default.Check,
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    description = "已导入",
+                                )
+                            }
 
-                        ImportItemStatus.ALREADY_IMPORTED -> {
-                            StatusBadge(
-                                icon = Icons.Default.Check,
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                description = "已导入过",
-                            )
-                        }
+                            ImportItemStatus.ARCHIVED -> {
+                                StatusBadge(
+                                    icon = Icons.Default.Archive,
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    description = "已存档",
+                                )
+                            }
 
-                        ImportItemStatus.PENDING -> {
-                            Box(
-                                modifier = Modifier.size(40.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
+                            ImportItemStatus.ALREADY_IMPORTED -> {
+                                StatusBadge(
+                                    icon = Icons.Default.Check,
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    description = "已导入过",
+                                )
+                            }
+
+                            ImportItemStatus.PENDING -> {
                                 Surface(
                                     modifier = Modifier.size(10.dp),
                                     shape = CircleShape,
@@ -1142,12 +1134,12 @@ internal fun ImportItemRow(
                     }
                 },
                 trailingContent = {
-                    if (item.status == ImportItemStatus.PARSED && item.draft != null) {
+                    if (canExpand) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            if (expanded) {
+                            if (item.status == ImportItemStatus.PARSED && expanded) {
                                 FilledTonalButton(
                                     onClick = onEdit,
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
@@ -1170,7 +1162,7 @@ internal fun ImportItemRow(
                                 )
                                 Icon(
                                     imageVector = Icons.Default.KeyboardArrowDown,
-                                    contentDescription = if (expanded) "收起明细" else "展开明细",
+                                    contentDescription = if (expanded) "收起详情" else "展开详情",
                                     modifier = Modifier.rotate(rotation),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -1282,6 +1274,80 @@ internal fun ImportItemRow(
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // 展开的解析失败详细信息（长错误信息完整展示 + 一键复制 + 排查建议）
+            AnimatedVisibility(
+                visible = expanded && item.status == ImportItemStatus.FAILED && !item.parseError.isNullOrBlank(),
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                @Suppress("DEPRECATION")
+                val clipboardManager = LocalClipboardManager.current
+                val errorText = item.parseError.orEmpty()
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = "解析失败详细原因",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            FilledTonalButton(
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString(errorText))
+                                },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                modifier = Modifier.height(28.dp),
+                                shape = CircleShape,
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                ),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(12.dp),
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("复制错误", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = errorText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(10.dp),
+                            )
+                        }
+                        Text(
+                            text = "提示：可在 AI 设置中检查 API Key 与模型配置后重试；或直接勾选本条目，按纯文本归档入库。",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -1424,13 +1490,19 @@ internal fun ScanFailureRow(
     ) {
         ListItem(
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             leadingContent = {
-                StatusBadge(
-                    icon = Icons.Default.Close,
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    description = "扫描失败",
-                )
+                Box(
+                    modifier = Modifier.size(40.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    StatusBadge(
+                        icon = Icons.Default.Close,
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        description = "扫描失败",
+                    )
+                }
             },
             content = {
                 Text(
@@ -1514,7 +1586,7 @@ private fun detailTextOf(item: ImportItemState): String = when (item.status) {
         }
     }
 
-    ImportItemStatus.FAILED -> "解析失败：${item.parseError ?: "未知错误"}（勾选可仅存档原文）"
+    ImportItemStatus.FAILED -> "解析失败：${item.parseError ?: "未知错误"}（展开可查阅详情）"
     ImportItemStatus.ALREADY_IMPORTED -> "已存在同名记录（exercises 非空），跳过"
     ImportItemStatus.IMPORTED -> "已成功导入完整记录"
     ImportItemStatus.ARCHIVED -> "已作为纯文本存档导入（无动作明细）"
