@@ -5,11 +5,10 @@ coreSplashscreen = "1.0.1"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
-# lifecycle 三件套（runtime-ktx / viewmodel-ktx / runtime-compose）统一版本
 lifecycle = "2.11.0"
 activityCompose = "1.13.0"
 kotlin = "2.3.21"
-composeBom = "2026.05.00"
+composeBom = "2026.08.00"
 nav3Core = "1.1.1"
 room = "2.8.4"
 work = "2.10.0"
@@ -19,14 +18,16 @@ ksp = "2.3.7"
 coroutines = "1.10.2"
 datastore = "1.2.1"
 retrofit = "3.0.0"
-okhttp = "5.3.2"
+# okhttp 双件套（okhttp / logging-interceptor）由 okhttp-bom 统一管理
+okhttpBom = "5.3.2"
 kotlinx-serialization = "1.11.0"
 retrofit-kotlinx-serialization = "1.0.0"
 robolectric = "4.12.2"
 androidxTestCore = "1.6.1"
-# 有意绕过 BOM 钉在 alpha：Material Expressive 新 API（v1 取舍，升级 BOM 后应移除钉版）
 material3 = "1.5.0-alpha24"
-googleADK = "0.8.0"
+# icons-extended 已被 Google 冻结在 1.7.8,不再随版本演进;显式钉版,不依赖 BOM 供给
+materialIconsExtended = "1.7.8"
+googleADK = "1.0.1"
 
 
 [libraries]
@@ -35,8 +36,10 @@ androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscree
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
+
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 # 以下 compose 假名均不写版本，统一由 BOM 供给单一事实源
@@ -49,7 +52,7 @@ androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-te
 androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 
-androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIconsExtended" }
 
 androidx-navigation3-runtime = { group = "androidx.navigation3", name = "navigation3-runtime", version.ref = "nav3Core" }
 androidx-navigation3-ui = { group = "androidx.navigation3", name = "navigation3-ui", version.ref = "nav3Core" }
@@ -69,8 +72,10 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-converter-kotlinx-serialization = { group = "com.jakewharton.retrofit", name = "retrofit2-kotlinx-serialization-converter", version.ref = "retrofit-kotlinx-serialization" }
-okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
-okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
+# okhttp / logging-interceptor 不写版本，统一由 okhttp-bom 供给单一事实源
+okhttp-bom = { group = "com.squareup.okhttp3", name = "okhttp-bom", version.ref = "okhttpBom" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp" }
+okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }

@@ -254,12 +254,11 @@ class ChatViewModel @Inject constructor(
                     sawConfirmation = true
                     sawAssistantOutput = true
                     pauseRunTiming()
-                    val original = confirmationCall.args[FunctionCall.ORIGINAL_FUNCTION_CALL_KEY]
-                        as? Map<*, *>
-                    val toolName = original?.get(FunctionCall.NAME_KEY) as? String
-                        ?: confirmationCall.name
-                    val toolArgs = original?.get(FunctionCall.ARGS_KEY) as? Map<String, Any?>
-                        ?: emptyMap()
+                    // ADK 1.0.1 将这三个 JSON key 常量从 public 收为 internal（0.8.0 为
+                    // public），只能以字面量引用——值经 javap 对 1.0.1 构件反查确认一致
+                    val original = confirmationCall.args["originalFunctionCall"] as? Map<*, *>
+                    val toolName = original?.get("name") as? String ?: confirmationCall.name
+                    val toolArgs = original?.get("args") as? Map<String, Any?> ?: emptyMap()
                     addStep(
                         runId = runId,
                         order = stepOrder++,

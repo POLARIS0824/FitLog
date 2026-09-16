@@ -214,9 +214,10 @@ class ChatViewModelTest {
                         functionCall = FunctionCall(
                             name = FunctionCall.REQUEST_CONFIRMATION_FUNCTION_CALL_NAME,
                             args = mapOf(
-                                FunctionCall.ORIGINAL_FUNCTION_CALL_KEY to mapOf(
-                                    FunctionCall.NAME_KEY to toolName,
-                                    FunctionCall.ARGS_KEY to args,
+                                // ADK 1.0.1 收为 internal 的 JSON key 常量，字面量与构件内值一致
+                                "originalFunctionCall" to mapOf(
+                                    "name" to toolName,
+                                    "args" to args,
                                 ),
                             ),
                             id = callId,

@@ -28,11 +28,13 @@ import com.example.fitlog.ui.settings.SettingsRoute
 import com.example.fitlog.ui.settings.AboutRoute
 import com.example.fitlog.ui.settings.appearance.AppearanceRoute
 import com.example.fitlog.ui.settings.dataimport.DataImportRoute
+import com.example.fitlog.ui.settings.dataimport.ImportReviewRoute
 import com.example.fitlog.ui.navigation.AboutKey
 import com.example.fitlog.ui.navigation.AISettingsKey
 import com.example.fitlog.ui.navigation.AppearanceKey
 import com.example.fitlog.ui.navigation.ChatKey
 import com.example.fitlog.ui.navigation.DataImportKey
+import com.example.fitlog.ui.navigation.ImportReviewKey
 import com.example.fitlog.ui.navigation.FitLogBottomBar
 import com.example.fitlog.ui.navigation.ProfileKey
 import com.example.fitlog.ui.navigation.ReminderKey
@@ -165,7 +167,22 @@ class MainActivity : ComponentActivity() {
                                 AppearanceRoute(onBack = { backStack.removeLastOrNull() })
                             }
                             entry<DataImportKey> {
-                                DataImportRoute(onBack = { backStack.removeLastOrNull() })
+                                DataImportRoute(
+                                    onBack = { backStack.removeLastOrNull() },
+                                    // AI 解析前置检查未通过时的「去配置」直达 AI 设置页
+                                    onNavigateToAiSettings = { backStack.add(AISettingsKey) },
+                                    onNavigateToReview = { backStack.add(ImportReviewKey) },
+                                )
+                            }
+                            entry<ImportReviewKey> {
+                                ImportReviewRoute(
+                                    onBack = { backStack.removeLastOrNull() },
+                                    onNavigateToAiSettings = { backStack.add(AISettingsKey) },
+                                    onNavigateToToday = {
+                                        backStack.clear()
+                                        backStack.add(TodayKey)
+                                    },
+                                )
                             }
                             entry<ReminderKey> {
                                 ReminderRoute(onBack = { backStack.removeLastOrNull() })

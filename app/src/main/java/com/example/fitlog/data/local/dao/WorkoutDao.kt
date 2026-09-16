@@ -72,6 +72,17 @@ interface WorkoutDao {
     suspend fun getBySourceFileName(fileName: String): WorkoutEntity?
 
     /**
+     * 根据来源文件名查询单条训练（含动作与组）。
+     *
+     * AI 导入解析流程的"存档升级"判定入口：解析前查同 sourceKey 既有记录，
+     * 已是完整记录（exercises 非空）则跳过 AI 调用，空明细存档则解析后覆盖升级。
+     * 必须走级联查询——单实体映射会静默丢弃 exercises，无法判断是否已有明细。
+     */
+    @Transaction
+    @Query("SELECT * FROM workouts WHERE sourceFileName = :fileName")
+    suspend fun getBySourceFileNameWithDetails(fileName: String): WorkoutWithExerciseLogs?
+
+    /**
      * 按主键查询单条训练（含动作与组）。
      *
      * Agent 工具（getWorkoutDetail 等）的定点取数入口，

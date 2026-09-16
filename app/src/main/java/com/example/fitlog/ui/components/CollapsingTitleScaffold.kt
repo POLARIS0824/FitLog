@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
@@ -100,8 +101,9 @@ fun CollapsingTitleScaffold(
     }
 
     // 吸附效果：手势/惯性滚动停止后，若大标题处于半折叠的中间态，自动平滑吸附到最近的稳定边界
+    val isInspection = LocalInspectionMode.current
     LaunchedEffect(scrollState, headerHeightPx, isScrollable) {
-        if (!isScrollable) return@LaunchedEffect
+        if (!isScrollable || isInspection) return@LaunchedEffect
         snapshotFlow { scrollState.isScrollInProgress }
             .collect { inProgress ->
                 if (inProgress) return@collect

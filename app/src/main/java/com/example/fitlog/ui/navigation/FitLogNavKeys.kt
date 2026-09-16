@@ -49,6 +49,9 @@ data object AppearanceKey : NavKey
 data object DataImportKey : NavKey
 
 @Serializable
+data object ImportReviewKey : NavKey
+
+@Serializable
 data object ReminderKey : NavKey
 
 @Serializable

@@ -92,6 +92,15 @@ class WorkoutRepository @Inject constructor(
     suspend fun getById(id: Long): Workout? =
         workoutDao.getByIdWithDetails(id)?.toModel()
 
+    /**
+     * 按来源文件名取单条完整训练日志（AI 导入解析的存档升级判定入口）。
+     *
+     * @param sourceKey 导入时写入 [Workout.sourceFileName] 的唯一键
+     *   （单记录文件为文件名，多天导出文件按节拆分为「文件名::节序号」）
+     */
+    suspend fun getBySourceFileName(sourceKey: String): Workout? =
+        workoutDao.getBySourceFileNameWithDetails(sourceKey)?.toModel()
+
     suspend fun delete(workout: Workout) = workoutDao.delete(workout.toEntity())
 
     fun getByDate(date: LocalDate) = workoutDao.getByDateWithDetails(date).map { list ->

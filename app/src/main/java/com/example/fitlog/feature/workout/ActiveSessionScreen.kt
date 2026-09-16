@@ -29,7 +29,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -48,6 +47,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.model.Exercise
 import com.example.fitlog.model.SetType
+import com.example.fitlog.ui.components.ExercisePickerSheet
 import com.example.fitlog.ui.components.ExerciseThumbnail
 import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.theme.fitLogColors
@@ -447,91 +447,6 @@ private fun SessionSetRow(
                 contentDescription = "删除第 $index 组",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-    }
-}
-
-/** 动作选择器：底部弹层 + 名称过滤 + 单击添加（已在会话中的动作置灰）。 */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ExercisePickerSheet(
-    catalog: List<Exercise>,
-    addedKeys: Set<String>,
-    onSelect: (Exercise) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var query by rememberSaveable { mutableStateOf("") }
-    val filtered = if (query.isBlank()) {
-        catalog
-    } else {
-        catalog.filter { it.name.contains(query.trim(), ignoreCase = true) }
-    }
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-            Text("添加动作", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("搜索动作名称") },
-            )
-            Spacer(Modifier.height(8.dp))
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
-            ) {
-                items(filtered, key = { it.id }) { exercise ->
-                    val added = exercise.id in addedKeys
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = exercise.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (added) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
-                            )
-                            Text(
-                                text = exercise.bodyPart.name.lowercase().replace('_', ' '),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (added) {
-                            Text(
-                                text = "已添加",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        } else {
-                            TextButton(onClick = { onSelect(exercise) }) {
-                                Text("添加")
-                            }
-                        }
-                    }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                }
-                if (filtered.isEmpty()) {
-                    item {
-                        Text(
-                            text = "没有匹配的动作",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 24.dp),
-                        )
-                    }
-                }
-            }
         }
     }
 }

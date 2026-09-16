@@ -59,6 +59,28 @@ object ExerciseDisplayName {
         "crunch" to "卷腹",
     )
 
+    /** 中文名 → kebab-case key 反向索引：重复中文名（如"杠铃深蹲"对应两个 key）按声明顺序取首个，保证结果确定。 */
+    private val KEYS_BY_CHINESE_NAME: Map<String, String> by lazy {
+        buildMap {
+            CHINESE_NAMES.forEach { (key, chinese) -> putIfAbsent(chinese, key) }
+        }
+    }
+
+    /**
+     * 中文展示名反查动作库 key（如 "杠铃卧推" → "barbell-bench-press"）。
+     *
+     * AI 导入解析的动作名匹配首站；同义中文名按 [KEYS_BY_CHINESE_NAME] 约定
+     * 取首个。未命中返回 null，由调用方继续走英文名精确/模糊匹配。
+     *
+     * @param name 动作名（通常来自用户 Markdown 原文）
+     * @return 动作库 kebab-case key；未命中返回 null
+     */
+    fun keyForDisplayName(name: String): String? {
+        val normalized = name.trim()
+        if (normalized.isEmpty()) return null
+        return KEYS_BY_CHINESE_NAME[normalized]
+    }
+
     /**
      * 获取动作的中文友好展示名。
      *
