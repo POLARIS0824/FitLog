@@ -39,3 +39,4 @@ data class ChatCompletionRequestDto(
 data class ResponseFormatDto(
     val type: String,
 )
+

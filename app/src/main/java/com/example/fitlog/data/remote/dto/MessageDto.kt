@@ -15,6 +15,7 @@ import kotlinx.serialization.Serializable
  *
  * @param role 消息角色，如 "system"、"user"、"assistant"、"tool"
  * @param content 消息内容
+ * @param reasoningContent 思考/推理内容（DeepSeek / GLM / SiliconFlow 等推理模型返回）
  * @param toolCalls assistant 消息中模型请求的工具调用列表（仅 assistant 角色）
  * @param toolCallId 本条 tool 结果对应的工具调用 id（仅 role = "tool"）
  */
@@ -22,6 +23,8 @@ import kotlinx.serialization.Serializable
 data class MessageDto(
     val role: String,
     val content: String?,
+    @SerialName("reasoning_content") val reasoningContent: String? = null,
     @SerialName("tool_calls") val toolCalls: List<ToolCallDto>? = null,
     @SerialName("tool_call_id") val toolCallId: String? = null,
 )
+

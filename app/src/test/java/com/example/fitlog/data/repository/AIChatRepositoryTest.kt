@@ -224,6 +224,73 @@ class AIChatRepositoryTest {
     }
 
     /**
+     * 测试 AI 回复因达到 token 上限截断且正文为空时，返回包含明确指引的 failure。
+     */
+    @Test
+    fun testChat_emptyContentWithLengthFinishReason_returnsDescriptiveFailure() = runTest(testScheduler) {
+        fakeApi.chatHandler = {
+            ChatCompletionResponseDto(
+                choices = listOf(
+                    ChoiceDto(
+                        message = MessageDto(role = "assistant", content = null, reasoningContent = "正在思考训练计划..."),
+                        finishReason = "length",
+                    ),
+                ),
+            )
+        }
+
+        val result = repository.chat(config(), messages)
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message?.contains("达到 Token 上限截断") == true)
+    }
+
+    /**
+     * 测试 AI 仅生成思考未输出正文时，返回相应诊断提示。
+     */
+    @Test
+    fun testChat_emptyContentWithReasoning_returnsDescriptiveFailure() = runTest(testScheduler) {
+        fakeApi.chatHandler = {
+            ChatCompletionResponseDto(
+                choices = listOf(
+                    ChoiceDto(
+                        message = MessageDto(role = "assistant", content = "", reasoningContent = "思考完毕"),
+                        finishReason = "stop",
+                    ),
+                ),
+            )
+        }
+
+        val result = repository.chat(config(), messages)
+
+        assertTrue(result.isFailure)
+        assertEquals("AI 仅生成思考过程，未输出有效正文", result.exceptionOrNull()?.message)
+    }
+
+    /**
+     * 测试 AI 回复内容空白且无特殊原因时，拦截为空回复错误。
+     */
+    @Test
+    fun testChat_emptyContent_returnsFailure() = runTest(testScheduler) {
+        fakeApi.chatHandler = {
+            ChatCompletionResponseDto(
+                choices = listOf(
+                    ChoiceDto(
+                        message = MessageDto(role = "assistant", content = "   "),
+                        finishReason = "stop",
+                    ),
+                ),
+            )
+        }
+
+        val result = repository.chat(config(), messages)
+
+        assertTrue(result.isFailure)
+        assertEquals("AI 返回内容为空", result.exceptionOrNull()?.message)
+    }
+
+
+    /**
      * 测试网络异常被包装为 Result.failure（而非抛出），且错误信息经用户可读映射。
      */
     @Test

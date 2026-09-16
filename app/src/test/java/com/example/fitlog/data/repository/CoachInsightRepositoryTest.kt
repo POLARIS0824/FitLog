@@ -40,7 +40,8 @@ import java.time.LocalDate
  * [CoachInsightRepository] 的单元测试。
  *
  * 网络层用 [FakeAIApi] 替身，配置/缓存层用真实内存 Room + 临时 DataStore，
- * 验证 JSON mode 请求装配、容错解析、指纹缓存（命中零网络/变化重发）与错误兜底。
+ * 验证 JSON mode 请求装配（含 2048 maxTokens 容纳思考）、容错解析、指纹缓存（命中零网络/
+ * 变化重发）、失败冷却（同指纹不再烧 token / 指纹变化立即重试）与错误兜底。
  */
 @RunWith(RobolectricTestRunner::class)
 class CoachInsightRepositoryTest {
@@ -204,8 +205,8 @@ class CoachInsightRepositoryTest {
 
         val call = fakeApi.chatCalls[0]
         assertEquals("json_object", call.request.responseFormat?.type)
-        assertEquals(300, call.request.maxTokens)
-        assertEquals(0.7, call.request.temperature)
+        assertEquals(2048, call.request.maxTokens)
+        assertEquals(0.3, call.request.temperature)
         // system 约束 + user 上下文（含今日课次名）
         assertEquals("system", call.request.messages[0].role)
         assertEquals("user", call.request.messages[1].role)
@@ -239,7 +240,7 @@ class CoachInsightRepositoryTest {
     // ── 错误兜底 ──
 
     @Test
-    fun testGetAiInsight_unparseableResponse_returnsFailureAndDoesNotCache() = runTest(testScheduler) {
+    fun testGetAiInsight_unparseableResponse_failureTriggersCooldown() = runTest(testScheduler) {
         activateProvider()
         fakeApi.chatHandler = {
             ChatCompletionResponseDto(
@@ -252,7 +253,24 @@ class CoachInsightRepositoryTest {
 
         assertTrue(first.isFailure)
         assertTrue(second.isFailure)
-        // 未写缓存 → 第二次仍然走网络
+        // 失败冷却：未写正缓存，但同指纹 10 分钟内不再烧 token（第二次零网络）
+        assertEquals(1, fakeApi.chatCalls.size)
+    }
+
+    @Test
+    fun testGetAiInsight_fingerprintChangeAfterFailure_retriesImmediately() = runTest(testScheduler) {
+        activateProvider()
+        fakeApi.chatHandler = {
+            ChatCompletionResponseDto(
+                choices = listOf(ChoiceDto(message = MessageDto(role = "assistant", content = "今天加油练！"))),
+            )
+        }
+
+        repository.getAiInsight(insightContext(weekCompleted = 1))
+
+        // 指纹变化（记了一笔训练）→ 冷却只锁定同指纹，立即重试
+        repository.getAiInsight(insightContext(weekCompleted = 2))
+
         assertEquals(2, fakeApi.chatCalls.size)
     }
 }

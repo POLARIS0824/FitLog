@@ -8,6 +8,7 @@ import com.example.fitlog.data.remote.dto.ResponseFormatDto
 import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ChatMessage
 import com.example.fitlog.util.AiErrorMessages
+import com.example.fitlog.util.log.FitLog
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
@@ -96,6 +97,7 @@ class AIChatRepository @Inject constructor(
         // 密钥解密失败会降级为空串（换机恢复等场景）：拦截并给出明确指引，
         // 否则用户只会看到服务商 401「Invalid API key」，无从排查
         if (config.apiKey.isBlank()) {
+            FitLog.w(TAG, "AI 请求被拦截：API Key 为空（可能备份恢复后失效）")
             return Result.failure(
                 IllegalStateException(
                     "API Key 无法读取（可能因备份恢复或系统凭据变更失效），请到 AI 设置中重新保存密钥",
@@ -121,16 +123,59 @@ class AIChatRepository @Inject constructor(
                 request = body,
             )
 
-            // ── 步骤 4: 提取第一条回复 ──
+            // ── 步骤 4: 提取第一条回复并做诊断与空回复拦截 ──
             // HTTP 200 但 body 为错误体（配额/内容审查等）时透传服务商真实原因，
             // 否则只能报笼统的解析失败
             response.error?.message?.takeIf { it.isNotBlank() }?.let { message ->
+                FitLog.w(TAG, "AI 对话响应错误体：model=${config.model} 错误=$message")
                 return Result.failure(IllegalStateException(message))
             }
             val choice = response.choices?.firstOrNull()
                 ?: return Result.failure(
                     IllegalStateException("AI 未返回任何回复"),
                 )
+
+            val rawContent = choice.message.content
+            val finishReason = choice.finishReason
+            val reasoningLength = choice.message.reasoningContent?.length ?: 0
+            val usage = response.usage
+
+            FitLog.i(
+                TAG,
+                "AI 对话响应：model=${config.model} finish=${finishReason ?: "unknown"} " +
+                    "tokens（prompt/completion/total）=${usage?.promptTokens ?: 0}/${usage?.completionTokens ?: 0}/${usage?.totalTokens ?: 0} " +
+                    "contentLength=${rawContent?.length ?: 0} reasoningLength=$reasoningLength",
+            )
+
+            // 空回复诊断与拦截：区分 Token 截断、仅有思考无正文、审查拦截与未知空返回
+            if (rawContent.isNullOrBlank()) {
+                val errorMsg = when {
+                    finishReason.equals("length", ignoreCase = true) -> {
+                        FitLog.w(
+                            TAG,
+                            "AI 回复因达到 Token 上限截断：model=${config.model} " +
+                                "completionTokens=${usage?.completionTokens} reasoningLength=$reasoningLength",
+                        )
+                        "AI 回复达到 Token 上限截断（思考或正文超出限制，请增大 maxTokens）"
+                    }
+                    reasoningLength > 0 -> {
+                        FitLog.w(
+                            TAG,
+                            "AI 仅生成思考未输出正文：model=${config.model} reasoningLength=$reasoningLength",
+                        )
+                        "AI 仅生成思考过程，未输出有效正文"
+                    }
+                    finishReason.equals("content_filter", ignoreCase = true) -> {
+                        FitLog.w(TAG, "AI 内容被安全审查拦截：model=${config.model}")
+                        "AI 内容触发安全审查，已被拦截"
+                    }
+                    else -> {
+                        FitLog.w(TAG, "AI 返回内容为空：model=${config.model} finishReason=$finishReason")
+                        "AI 返回内容为空"
+                    }
+                }
+                return Result.failure(IllegalStateException(errorMsg))
+            }
 
             // ── 步骤 5: DTO 转领域模型并返回 ──
             Result.success(choice.message.toModel())
@@ -141,6 +186,7 @@ class AIChatRepository @Inject constructor(
         } catch (e: Exception) {
             // 网络异常、超时、JSON 解析失败等，统一映射为用户可读信息
             // （HttpException 提取服务商 error.message，与 Agent 路径行为一致）
+            FitLog.w(TAG, "AI 对话请求失败：model=${config.model}", e)
             Result.failure(IllegalStateException(AiErrorMessages.toUserFacingMessage(e), e))
         }
     }
@@ -172,7 +218,12 @@ class AIChatRepository @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            FitLog.w(TAG, "拉取模型列表失败", e)
             Result.failure(e)
         }
+    }
+
+    private companion object {
+        private const val TAG = "AIChatRepository"
     }
 }
