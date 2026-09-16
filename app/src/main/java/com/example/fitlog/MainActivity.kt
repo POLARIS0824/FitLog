@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -36,6 +37,7 @@ import com.example.fitlog.ui.navigation.ChatKey
 import com.example.fitlog.ui.navigation.DataImportKey
 import com.example.fitlog.ui.navigation.ImportReviewKey
 import com.example.fitlog.ui.navigation.FitLogBottomBar
+import com.example.fitlog.ui.navigation.LogsKey
 import com.example.fitlog.ui.navigation.ProfileKey
 import com.example.fitlog.ui.navigation.ReminderKey
 import com.example.fitlog.ui.navigation.SettingsKey
@@ -44,8 +46,10 @@ import com.example.fitlog.ui.navigation.TodayKey
 import com.example.fitlog.ui.navigation.WorkoutKey
 import com.example.fitlog.ui.navigation.isTabDestination
 import com.example.fitlog.ui.settings.profile.ProfileRoute
+import com.example.fitlog.ui.settings.logs.LogsRoute
 import com.example.fitlog.ui.settings.reminder.ReminderRoute
 import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -94,6 +98,11 @@ class MainActivity : ComponentActivity() {
                 // 设置族子页自 Settings 进入
                 val backStack = rememberNavBackStack(TodayKey)
                 val currentKey = backStack.lastOrNull()
+
+                // 页面导航留痕：currentKey 变化即页面切换，用户行为链路可回放
+                LaunchedEffect(currentKey) {
+                    currentKey?.let { FitLog.i("Navigation", "进入页面：${it::class.simpleName}") }
+                }
 
                 Scaffold(
                     // insets 全部下放给各页自行处理（与引入底栏前一致）；底栏占位经
@@ -154,6 +163,7 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToAISettings = { backStack.add(AISettingsKey) },
                                     onNavigateToDataImport = { backStack.add(DataImportKey) },
                                     onNavigateToReminder = { backStack.add(ReminderKey) },
+                                    onNavigateToLogs = { backStack.add(LogsKey) },
                                     onNavigateToAbout = { backStack.add(AboutKey) },
                                 )
                             }
@@ -186,6 +196,9 @@ class MainActivity : ComponentActivity() {
                             }
                             entry<ReminderKey> {
                                 ReminderRoute(onBack = { backStack.removeLastOrNull() })
+                            }
+                            entry<LogsKey> {
+                                LogsRoute(onBack = { backStack.removeLastOrNull() })
                             }
                             entry<AboutKey> {
                                 AboutRoute(onBack = { backStack.removeLastOrNull() })

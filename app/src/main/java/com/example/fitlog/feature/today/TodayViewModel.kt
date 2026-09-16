@@ -1,6 +1,5 @@
 package com.example.fitlog.feature.today
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.CoachInsightRepository
@@ -17,6 +16,7 @@ import com.example.fitlog.model.ai.CoachInsight
 import com.example.fitlog.model.ai.CoachInsightContext
 import com.example.fitlog.model.user.UserProfile
 import com.example.fitlog.util.guard as guardFlow
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -108,43 +108,53 @@ class TodayViewModel @Inject constructor(
      * 页面永久卡加载）。注意：出错的那条源流在此之后停止更新（直到页面重建），
      * 其余源流与 UI 事件不受影响。
      */
-    private fun <T> Flow<T>.guard(fallback: T): Flow<T> =
-        guardFlow(fallback) { e -> dataError.value = e.message ?: "数据加载失败，请重试" }
+    private fun <T> Flow<T>.guard(fallback: T, context: String = "Today 数据流"): Flow<T> =
+        guardFlow(fallback, context) { e -> dataError.value = e.message ?: "数据加载失败，请重试" }
 
     // ── 一次性加载：无默认值冷 Flow，combine 首发即真实值 ──
 
     /** 用户资料：失败降级匿名（null）。 */
     private val profileFlow: Flow<UserProfile?> = flow {
         emit(userProfileRepository.getFirst())
-    }.catch { emit(null) }
+    }.catch {
+        FitLog.w(TAG, "读取用户资料失败，降级为匿名", it)
+        emit(null)
+    }
 
     /** 动作目录：失败降级空目录。 */
     private val catalogFlow: Flow<List<Exercise>> = flow {
         emit(exerciseRepository.getAll())
-    }.catch { emit(emptyList()) }
+    }.catch {
+        FitLog.w(TAG, "读取动作目录失败，降级为空目录", it)
+        emit(emptyList())
+    }
 
     // ── 数据层响应式流 ──
     private val today: LocalDate = LocalDate.now()
     private val weekStart: LocalDate = today.with(DayOfWeek.MONDAY)
 
-    private val weekWorkouts = workoutRepository.getByDateRange(weekStart, today).guard(emptyList())
+    private val weekWorkouts = workoutRepository.getByDateRange(weekStart, today)
+        .guard(emptyList(), context = "本周训练记录")
     private val prevWeekWorkouts =
         workoutRepository.getByDateRange(weekStart.minusDays(7), weekStart.minusDays(1))
-            .guard(emptyList())
-    private val todayWorkouts = workoutRepository.getByDate(today).guard(emptyList())
-    private val latestWorkout = workoutRepository.getLatest().guard(null)
-    private val activePlan = workoutPlanRepository.activePlan.guard(null)
+            .guard(emptyList(), context = "上周训练记录")
+    private val todayWorkouts = workoutRepository.getByDate(today)
+        .guard(emptyList(), context = "今日训练记录")
+    private val latestWorkout = workoutRepository.getLatest().guard(null, context = "最近训练")
+    private val activePlan = workoutPlanRepository.activePlan.guard(null, context = "激活计划")
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val nextSession = activePlan.flatMapLatest { plan ->
         if (plan == null) {
             flowOf(null)
         } else {
-            workoutPlanRepository.getNextIncompleteSession(plan.id).guard(null)
+            workoutPlanRepository.getNextIncompleteSession(plan.id)
+                .guard(null, context = "计划下一课次")
         }
     }
 
-    private val allWorkouts = workoutRepository.getWorkouts().guard(emptyList())
+    private val allWorkouts = workoutRepository.getWorkouts()
+        .guard(emptyList(), context = "全部训练记录")
 
     /** 数据层五元快照（combine 单次最多 5 个 Flow 的一手组合）。 */
     private data class TodaySnapshot(
@@ -221,7 +231,7 @@ class TodayViewModel @Inject constructor(
                     checkedExerciseKeys = checked,
                 )
             }.getOrElse { e ->
-                Log.w(TAG, "今日计划状态组装失败", e)
+                FitLog.w(TAG, "今日计划状态组装失败", e)
                 TodayPlanState()
             },
         )
@@ -266,7 +276,10 @@ class TodayViewModel @Inject constructor(
             }
         }
         // AI 异常静默回退规则版（与 getAiInsight 失败同策略），不进错误弹窗
-        .catch { emit(AiPhase.Hidden) }
+        .catch {
+            FitLog.w(TAG, "AI 教练建议链路异常，回退规则版卡片", it)
+            emit(AiPhase.Hidden)
+        }
 
     /** 页面 UI 状态流，由数据层 Flow 与错误通道组合而成。 */
     val uiState: StateFlow<TodayUiState> = combine(
@@ -304,7 +317,7 @@ class TodayViewModel @Inject constructor(
 
     /** 计划选择弹层的数据源（与 uiState 平级暴露）。 */
     val allPlans: StateFlow<List<WorkoutPlan>> = workoutPlanRepository.getAllPlansFlow()
-        .guard(emptyList())
+        .guard(emptyList(), context = "计划列表")
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -438,7 +451,7 @@ class TodayViewModel @Inject constructor(
             // DataStore edit 是磁盘 IO：失败以未捕获协程异常击穿 viewModelScope 闪退，
             // 其余事件入口均有 guard/runCatching，此处保持一致（失败仅留痕，下次重选即可）
             runCatching { workoutPlanRepository.setActivePlanId(planId) }
-                .onFailure { Log.w(TAG, "切换激活计划失败", it) }
+                .onFailure { FitLog.w(TAG, "切换激活计划失败", it) }
         }
     }
 
@@ -451,7 +464,7 @@ class TodayViewModel @Inject constructor(
     fun onDeletePlan(planId: String) {
         viewModelScope.launch {
             runCatching { workoutPlanRepository.delete(planId) }
-                .onFailure { Log.w(TAG, "删除计划失败：$planId", it) }
+                .onFailure { FitLog.w(TAG, "删除计划失败：$planId", it) }
         }
     }
 

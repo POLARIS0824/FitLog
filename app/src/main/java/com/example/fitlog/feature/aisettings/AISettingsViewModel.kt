@@ -1,6 +1,5 @@
 package com.example.fitlog.feature.aisettings
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.AIChatRepository
@@ -8,6 +7,7 @@ import com.example.fitlog.data.repository.AIProviderConfigRepository
 import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ProviderType
 import com.example.fitlog.util.guard as guardFlow
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -71,7 +71,7 @@ class AISettingsViewModel @Inject constructor(
             // 一次性读取路径同样按 guard 约定降级（Room/DataStore IO 故障罕见但
             // 直接崩溃）：失败按"无激活项"处理，走默认回填，不让异常击穿裸 launch
             val active = runCatching { aiProviderConfigRepository.activeProvider.first() }
-                .onFailure { Log.w(TAG, "读取激活服务商失败，按无激活项回填默认值", it) }
+                .onFailure { FitLog.w(TAG, "读取激活服务商失败，按无激活项回填默认值", it) }
                 .getOrNull()
             if (userInteracted) return@launch
             // 无激活项（首装/读取失败）时回填当前默认选中类型（初始即 DEEPSEEK）
@@ -85,9 +85,9 @@ class AISettingsViewModel @Inject constructor(
             // Room/DataStore 上游异常按全项目 guard 约定降级（空列表/null 继续组链），
             // 并写一次性错误通道；否则异常击穿 stateIn 后整页表单状态（含未保存的
             // apiKey 输入）全部丢失
-            .guardFlow(emptyList()) { e -> reportDataFlowError(e) },
+            .guardFlow(emptyList(), context = "AI 配置列表") { e -> reportDataFlowError(e) },
         aiProviderConfigRepository.activeProviderId
-            .guardFlow(null) { e -> reportDataFlowError(e) },
+            .guardFlow(null, context = "AI 激活配置") { e -> reportDataFlowError(e) },
         selectedTypeState,
         apiKeyState,
         modelState,
@@ -155,7 +155,7 @@ class AISettingsViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "读取已保存配置失败：$type", e)
+                FitLog.w(TAG, "读取已保存配置失败：$type", e)
                 uiFlow.update { it.copy(errorMessage = "配置读取失败，请重试") }
                 return@launch
             }
@@ -303,14 +303,15 @@ class AISettingsViewModel @Inject constructor(
                     // 不让异常击穿裸 launch 崩溃（模型列表已上屏，缓存落库仅是优化）
                     val savedExists = runCatching {
                         aiProviderConfigRepository.getById(type.name)
-                    }.onFailure { Log.w(TAG, "查询已保存配置失败，跳过缓存模型合并", it) }.getOrNull()
+                    }.onFailure { FitLog.w(TAG, "查询已保存配置失败，跳过缓存模型合并", it) }.getOrNull()
                     if (savedExists != null) {
                         runCatching {
                             aiProviderConfigRepository.updateCachedModels(type.name, models)
-                        }.onFailure { Log.w(TAG, "缓存模型列表落库失败", it) }
+                        }.onFailure { FitLog.w(TAG, "缓存模型列表落库失败", it) }
                     }
                 }
                 .onFailure { e ->
+                    FitLog.w(TAG, "拉取模型列表失败：type=$type", e)
                     modelState.update {
                         it.copy(
                             isLoading = false,
@@ -355,6 +356,7 @@ class AISettingsViewModel @Inject constructor(
                     }
                 }
                 .onFailure { e ->
+                    FitLog.w(TAG, "测试连接失败：type=${tempConfig.type} model=${tempConfig.model}", e)
                     testState.update {
                         TestState(isTesting = false, lastResult = "❌ 连接失败：${e.message}")
                     }
@@ -400,10 +402,12 @@ class AISettingsViewModel @Inject constructor(
             try {
                 aiProviderConfigRepository.insert(config)
                 aiProviderConfigRepository.setActiveProviderId(config.id)
+                FitLog.i(TAG, "AI 配置已保存并启用：${config.name} model=${config.model}")
                 uiFlow.update { it.copy(successMessage = "已保存并启用 ${config.name}") }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                FitLog.w(TAG, "保存 AI 配置失败：${config.name}", e)
                 uiFlow.update { it.copy(errorMessage = e.message ?: "保存失败") }
             }
         }

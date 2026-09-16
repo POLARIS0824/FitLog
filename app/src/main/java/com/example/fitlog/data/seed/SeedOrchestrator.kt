@@ -1,7 +1,7 @@
 package com.example.fitlog.data.seed
 
-import android.util.Log
 import com.example.fitlog.data.repository.WorkoutPlanRepository
+import com.example.fitlog.util.log.FitLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -52,11 +52,11 @@ class SeedOrchestrator @Inject constructor(
                 exerciseSeeder.seedIfNeeded()
                 workoutPlanSeeder.seedIfNeeded()
                 runCatching { workoutPlanRepository.reconcileCompletedSessions() }
-                    .onFailure { Log.w(TAG, "课次完成对账失败（下次启动重试）", it) }
+                    .onFailure { FitLog.w(TAG, "课次完成对账失败（下次启动重试）", it) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "seedIfNeeded 失败（内容可能缺失，已放行启动）", e)
+                FitLog.e(TAG, "seedIfNeeded 失败（内容可能缺失，已放行启动）", e)
             } finally {
                 ran = true
                 _completed.value = true

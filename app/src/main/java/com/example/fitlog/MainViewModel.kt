@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.AppearanceSource
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.data.seed.SeedOrchestrator
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -58,7 +59,8 @@ class MainViewModel @Inject constructor(
     )
         // DataStore 读取异常兜底：吞掉异常并放行默认外观。
         // 不加 catch 时异常会击穿 stateIn(Eagerly) 的共享协程成为未捕获异常，启动即崩溃。
-        .catch { }
+        // 此前完全静默，现补留痕（仍放行默认外观，语义不变）
+        .catch { FitLog.w(TAG, "外观偏好读取失败，放行默认外观", it) }
         .onEach { appearanceLoaded.value = true }
         // 双保险：即使上游异常完成，也放行 Splash（onCompletion 对异常完成同样回调）
         .onCompletion { appearanceLoaded.value = true }
@@ -70,4 +72,8 @@ class MainViewModel @Inject constructor(
 
     /** 首帧放行条件：外观偏好已加载（种子不阻塞 Splash，见 [SeedOrchestrator]）。 */
     val isReady: StateFlow<Boolean> = appearanceLoaded
+
+    private companion object {
+        private const val TAG = "MainViewModel"
+    }
 }

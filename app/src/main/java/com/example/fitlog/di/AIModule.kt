@@ -1,7 +1,7 @@
 package com.example.fitlog.di
 
-import com.example.fitlog.BuildConfig
 import com.example.fitlog.data.remote.AIApi
+import com.example.fitlog.util.log.AiNetworkLogger
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Module
 import dagger.Provides
@@ -10,7 +10,6 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import java.util.concurrent.TimeUnit
 import javax.inject.Named
@@ -34,21 +33,9 @@ object AIModule {
     fun provideAIRetrofit(): Retrofit {
         val json = Json { ignoreUnknownKeys = true }
 
-        // OkHttp 拦截器——仅调试构建打印完整请求/响应到 Logcat；
-        // Release 关闭：BODY 会泄露 API Key 与 prompt 内容
-        val logging = HttpLoggingInterceptor().apply {
-            // BODY 级日志会原样打印认证头（明文 API Key），必须全部脱敏：
-            // "Authorization" 覆盖 Bearer 系（OpenAI/DeepSeek/Moonshot/...），
-            // "api-key" 是 Azure 的认证头，"x-api-key" 兜底常见网关变体
-            redactHeader("Authorization")
-            redactHeader("api-key")
-            redactHeader("x-api-key")
-            level = if (BuildConfig.DEBUG) {
-                HttpLoggingInterceptor.Level.BODY
-            } else {
-                HttpLoggingInterceptor.Level.NONE
-            }
-        }
+        // AI 网络日志：元数据（方法/脱敏 URL/状态码/耗时）全构建落盘，
+        // 请求/响应正文仅 debug 构建记录；认证头永不输出（详见 AiNetworkLogger）
+        val logging = AiNetworkLogger()
 
         val client = OkHttpClient.Builder()
             .addInterceptor(logging)

@@ -5,6 +5,7 @@ import com.example.fitlog.data.remote.dto.ChatCompletionRequestDto
 import com.example.fitlog.data.remote.dto.UsageDto
 import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.util.AiErrorMessages
+import com.example.fitlog.util.log.FitLog
 import com.google.adk.kt.models.LlmRequest
 import com.google.adk.kt.models.LlmResponse
 import com.google.adk.kt.models.Model
@@ -58,6 +59,10 @@ class OpenAiCompatibleModel(
 
     override val name: String get() = config.model
 
+    private companion object {
+        private const val TAG = "OpenAiCompatibleModel"
+    }
+
     override fun generateContent(request: LlmRequest, stream: Boolean): Flow<LlmResponse> = flow {
         val dto = ChatCompletionRequestDto(
             model = config.model,
@@ -72,14 +77,17 @@ class OpenAiCompatibleModel(
         // stream 参数 v1 忽略（见类注释）
 
         try {
+            val startMs = System.currentTimeMillis()
             val response = aiApi.chatCompletions(
                 url = config.type.buildUrl(config),
                 headers = config.type.buildHeaders(config.apiKey),
                 request = dto,
             )
+            val elapsedMs = System.currentTimeMillis() - startMs
             // 部分服务商以 HTTP 200 携带错误体（配额/内容审查/网关异常）：优先透传
             // 服务商真实原因，否则 choices 缺失只会表现为笼统的解析失败
             response.error?.message?.takeIf { it.isNotBlank() }?.let { message ->
+                FitLog.w(TAG, "LLM 往返失败（HTTP 200 错误体）：model=${config.model} 错误=$message")
                 emit(
                     LlmResponse(
                         errorMessage = message,
@@ -90,6 +98,7 @@ class OpenAiCompatibleModel(
             }
             val choice = response.choices?.firstOrNull()
             if (choice == null) {
+                FitLog.w(TAG, "LLM 往返失败（响应无 choices）：model=${config.model} 耗时=${elapsedMs}ms")
                 emit(
                     LlmResponse(
                         errorMessage = "AI 服务商未返回任何回复",
@@ -99,6 +108,13 @@ class OpenAiCompatibleModel(
                 return@flow
             }
 
+            val usage = response.usage
+            FitLog.i(
+                TAG,
+                "LLM 往返：model=${config.model} 耗时=${elapsedMs}ms " +
+                    "tokens（输入/输出）=${usage?.promptTokens ?: "?"}/${usage?.completionTokens ?: "?"} " +
+                    "finish=${choice.finishReason ?: "?"}",
+            )
             val message = choice.message
             emit(
                 LlmResponse(
@@ -106,7 +122,7 @@ class OpenAiCompatibleModel(
                         content = message.content,
                         toolCalls = message.toolCalls,
                     ),
-                    usageMetadata = response.usage?.toAdkUsageMetadata(),
+                    usageMetadata = usage?.toAdkUsageMetadata(),
                     finishReason = choice.finishReason?.toAdkFinishReason(),
                 ),
             )
@@ -115,6 +131,7 @@ class OpenAiCompatibleModel(
             throw e
         } catch (e: Exception) {
             // 网络层/解析异常：以 errorMessage 交给 LlmAgentTurn 包装成模型事件
+            FitLog.w(TAG, "LLM 往返失败（网络/解析）：model=${config.model}", e)
             emit(
                 LlmResponse(
                     errorMessage = AiErrorMessages.toUserFacingMessage(e),

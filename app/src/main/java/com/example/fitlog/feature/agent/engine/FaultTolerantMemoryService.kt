@@ -1,6 +1,6 @@
 package com.example.fitlog.feature.agent.engine
 
-import android.util.Log
+import com.example.fitlog.util.log.FitLog
 import com.google.adk.kt.memory.MemoryService
 import com.google.adk.kt.memory.SearchMemoryResponse
 import kotlin.coroutines.cancellation.CancellationException
@@ -32,7 +32,7 @@ class FaultTolerantMemoryService(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "长期记忆检索失败，本轮不注入记忆", e)
+            FitLog.w(TAG, "长期记忆检索失败，本轮不注入记忆", e)
             SearchMemoryResponse(emptyList())
         }
 

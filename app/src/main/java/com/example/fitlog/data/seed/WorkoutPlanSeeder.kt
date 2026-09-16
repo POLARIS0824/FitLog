@@ -1,6 +1,5 @@
 package com.example.fitlog.data.seed
 
-import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -9,6 +8,7 @@ import com.example.fitlog.data.local.dao.ExerciseDao
 import com.example.fitlog.data.local.dao.WorkoutPlanDao
 import com.example.fitlog.data.mapper.toEntity
 import com.example.fitlog.data.repository.WorkoutPlanRepository
+import com.example.fitlog.util.log.FitLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -67,7 +67,7 @@ class WorkoutPlanSeeder @Inject constructor(
                 .filter { exerciseDao.getById(it) == null }
 
             if (missingKeys.isNotEmpty()) {
-                Log.w(TAG, "预置计划 ${plan.id} 引用的动作不存在：$missingKeys，跳过该计划")
+                FitLog.w(TAG, "预置计划 ${plan.id} 引用的动作不存在：$missingKeys，跳过该计划")
                 return@forEach
             }
 

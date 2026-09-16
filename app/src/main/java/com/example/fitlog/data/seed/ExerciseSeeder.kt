@@ -1,7 +1,6 @@
 package com.example.fitlog.data.seed
 
 import android.content.Context
-import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -9,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import com.example.fitlog.R
 import com.example.fitlog.data.local.dao.ExerciseDao
 import com.example.fitlog.data.local.entity.ExerciseEntity
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -57,7 +57,7 @@ class ExerciseSeeder @Inject constructor(
         // 不对账时，未来数据集新增一个未知 target 就会永久缺席于动作库，
         // 且版本号照常置位、永不重试——至少要留痕（当前数据集实测零丢失）
         if (entities.size != seedList.size) {
-            Log.w(TAG, "动作库种子映射丢弃 ${seedList.size - entities.size}/${seedList.size} 条（疑似新增未映射字段）")
+            FitLog.w(TAG, "动作库种子映射丢弃 ${seedList.size - entities.size}/${seedList.size} 条（疑似新增未映射字段）")
         }
         exerciseDao.upsertAllPreservingRows(entities)
 

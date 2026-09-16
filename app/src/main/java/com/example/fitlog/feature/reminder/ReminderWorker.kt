@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -16,6 +15,7 @@ import androidx.work.WorkerParameters
 import com.example.fitlog.MainActivity
 import com.example.fitlog.R
 import com.example.fitlog.data.repository.UserPreferencesRepository
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -45,7 +45,10 @@ class ReminderWorker(
         val preferences = entryPoint.userPreferencesRepository()
 
         try {
-            if (!preferences.reminderEnabled.first()) return Result.success()
+            if (!preferences.reminderEnabled.first()) {
+                FitLog.i(TAG, "提醒触发跳过：用户已关闭提醒开关")
+                return Result.success()
+            }
             // 自链紧贴读取时间并先于发通知执行：缩小"读到旧值后覆盖用户
             // 恰好重排的新任务"的竞态窗口（提醒刚响、用户顺手改时间正是
             // Worker 运行期）。残余窗口为毫秒级，无法根除，显式接受。
@@ -56,13 +59,14 @@ class ReminderWorker(
             val minutes = preferences.reminderMinutes.first()
             entryPoint.reminderScheduler().scheduleSelfChainedNext(minutes)
             showNotification()
+            FitLog.i(TAG, "训练提醒已展示（下次 ${minutes / 60}:${"%02d".format(minutes % 60)}）")
             return Result.success()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             // DataStore IO 等异常若不处理会被判 failure：不重试也不自链，
             // 每日提醒从此静默断档。退避重试可恢复链路，超过上限放弃
-            Log.w(TAG, "训练提醒触发失败（第 ${runAttemptCount + 1} 次）", e)
+            FitLog.w(TAG, "训练提醒触发失败（第 ${runAttemptCount + 1} 次）", e)
             return if (runAttemptCount < MAX_RETRIES) Result.retry() else Result.failure()
         }
     }
@@ -86,6 +90,7 @@ class ReminderWorker(
                 android.Manifest.permission.POST_NOTIFICATIONS,
             ) != PackageManager.PERMISSION_GRANTED
         ) {
+            FitLog.i(TAG, "通知展示跳过：POST_NOTIFICATIONS 未授权（自链保持不断档）")
             return
         }
 

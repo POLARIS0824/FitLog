@@ -13,6 +13,7 @@ import com.example.fitlog.data.mapper.toEntity
 import com.example.fitlog.data.mapper.toModel
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
+import com.example.fitlog.util.log.FitLog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -48,7 +49,11 @@ class WorkoutRepository @Inject constructor(
      */
     suspend fun insert(workout: Workout): Long = db.withTransaction {
         val workoutId = workoutDao.insert(workout.toEntity())
-        if (workoutId == -1L) return@withTransaction -1L
+        if (workoutId == -1L) {
+            // 唯一索引命中的预期路径（重复导入/幂等重试），INFO 级即可
+            FitLog.i(TAG, "插入被唯一索引忽略：sourceFileName=${workout.sourceFileName}")
+            return@withTransaction -1L
+        }
         insertChildren(workoutId, workout)
         workoutId
     }
@@ -64,6 +69,9 @@ class WorkoutRepository @Inject constructor(
      */
     suspend fun update(workout: Workout) = db.withTransaction {
         val updatedRows = workoutDao.update(workout.toEntity())
+        if (updatedRows <= 0) {
+            FitLog.w(TAG, "更新失败：Workout id=${workout.id} 不存在")
+        }
         check(updatedRows > 0) { "Workout id=${workout.id} 不存在，无法更新" }
         exerciseLogDao.deleteByWorkoutId(workout.id)
         insertChildren(workout.id, workout)
@@ -342,8 +350,14 @@ class WorkoutRepository @Inject constructor(
     ): Boolean =
         db.withTransaction {
             val relation = workoutDao.getByIdWithDetails(workoutId)
-                ?: return@withTransaction false
-            if (relation.workout.endedAt != null) return@withTransaction false
+            if (relation == null) {
+                FitLog.w(TAG, "结束会话失败：workoutId=$workoutId 不存在")
+                return@withTransaction false
+            }
+            if (relation.workout.endedAt != null) {
+                FitLog.i(TAG, "结束会话跳过：workoutId=$workoutId 已结束（双击保存竞态）")
+                return@withTransaction false
+            }
             val cleaned = relation.exerciseLogs
                 .sortedBy { it.exerciseLog.sortOrder }
                 .mapNotNull { log ->
@@ -389,6 +403,15 @@ class WorkoutRepository @Inject constructor(
      *
      * @return true 放弃成功；false 会话已结束（拒绝删除已保存的训练）或不存在
      */
-    suspend fun discardSession(workoutId: Long): Boolean =
-        workoutDao.deleteInProgressById(workoutId) > 0
+    suspend fun discardSession(workoutId: Long): Boolean {
+        val deleted = workoutDao.deleteInProgressById(workoutId) > 0
+        if (!deleted) {
+            FitLog.i(TAG, "放弃会话被拒绝：workoutId=$workoutId 已结束或不存在")
+        }
+        return deleted
+    }
+
+    private companion object {
+        private const val TAG = "WorkoutRepository"
+    }
 }

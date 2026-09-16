@@ -1,12 +1,12 @@
 package com.example.fitlog.ui.settings.profile
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.model.user.Gender
 import com.example.fitlog.model.user.TrainingGoal
 import com.example.fitlog.model.user.UserProfile
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,7 +44,7 @@ class ProfileViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "读取用户资料失败，表单以空值打开", e)
+                FitLog.w(TAG, "读取用户资料失败，表单以空值打开", e)
                 null
             } ?: return@launch
             existingId = profile.id

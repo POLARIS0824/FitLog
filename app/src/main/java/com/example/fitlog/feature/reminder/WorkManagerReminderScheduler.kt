@@ -5,6 +5,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.example.fitlog.util.log.FitLog
 import kotlinx.coroutines.flow.first
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Duration
@@ -43,6 +44,7 @@ class WorkManagerReminderScheduler @Inject constructor(
             .setInitialDelay(delayUntilNextOccurrence(minutesOfDay), TimeUnit.MILLISECONDS)
             .addTag(TAG)
             .build()
+        FitLog.i(TAG, "提醒重排：$minutesOfDay 分钟档（REPLACE）")
         WorkManager.getInstance(context)
             .enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.REPLACE, request)
     }
@@ -69,18 +71,24 @@ class WorkManagerReminderScheduler @Inject constructor(
             .getWorkInfosForUniqueWorkFlow(WORK_NAME)
             .first()
             .any { it.state == WorkInfo.State.ENQUEUED }
-        if (hasPendingSuccessor) return
+        if (hasPendingSuccessor) {
+            // 幂等守卫触发说明 Worker 重试/进程死亡重跑——正是链翻倍被拦下的现场
+            FitLog.i(TAG, "自链跳过：已存在 ENQUEUED 后继（幂等守卫生效）")
+            return
+        }
 
         val request = OneTimeWorkRequestBuilder<ReminderWorker>()
             .setInitialDelay(delayUntilNextOccurrence(minutesOfDay), TimeUnit.MILLISECONDS)
             .addTag(TAG)
             .build()
+        FitLog.i(TAG, "提醒自链下一天：$minutesOfDay 分钟档（APPEND_OR_REPLACE）")
         WorkManager.getInstance(context)
             .enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
     }
 
     /** {@inheritDoc} */
     override fun cancel() {
+        FitLog.i(TAG, "提醒取消")
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
     }
 

@@ -1,7 +1,6 @@
 package com.example.fitlog.feature.chat
 
 import android.os.SystemClock
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.ChatRepository
@@ -9,6 +8,7 @@ import com.example.fitlog.feature.agent.engine.AgentEngine
 import com.example.fitlog.model.ai.AgentStep
 import com.example.fitlog.model.ai.AgentStepType
 import com.example.fitlog.model.ai.ChatThreadMessage
+import com.example.fitlog.util.log.FitLog
 import com.google.adk.kt.events.Event
 import com.google.adk.kt.types.FunctionCall
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -285,6 +285,7 @@ class ChatViewModel @Inject constructor(
                 event.errorMessage?.let { msg ->
                     sawError = true
                     sawAssistantOutput = true
+                    FitLog.e(TAG, "Agent 事件错误：$msg")
                     _uiState.update { it.copy(errorMessage = msg, isSending = false, activeRun = null) }
                     return@collect
                 }
@@ -339,6 +340,7 @@ class ChatViewModel @Inject constructor(
                 } else {
                     "本轮对话未产生回复（可能已达到工具调用步数上限），请重试或换个问法"
                 }
+                FitLog.w(TAG, "Agent 运行无最终回复：$reason")
                 _uiState.update { it.copy(errorMessage = reason) }
             }
             if (!sawConfirmation) {
@@ -478,6 +480,7 @@ class ChatViewModel @Inject constructor(
 
     /** 引擎初始化/发送失败（未配置服务商等）。[clearActiveRun]=false 用于确认续传失败（运行要恢复等待态）。 */
     private fun onEngineError(error: Throwable, clearActiveRun: Boolean = true) {
+        FitLog.w(TAG, "Agent 运行失败", error)
         stopRunTiming()
         _uiState.update {
             it.copy(
@@ -524,7 +527,7 @@ class ChatViewModel @Inject constructor(
                 .onSuccess {
                     // 本地历史与 ADK 会话一并清除，否则重启后消息"复活"而模型已失忆
                     runCatching { chatRepository.clearAll() }
-                        .onFailure { Log.w(TAG, "聊天记录本地清理失败", it) }
+                        .onFailure { FitLog.w(TAG, "聊天记录本地清理失败", it) }
                 }
                 .onFailure { error ->
                     // 回滚以 DB 为准重载，而非用快照整体覆盖：清空在途期间用户可能
@@ -532,7 +535,7 @@ class ChatViewModel @Inject constructor(
                     // 重启后"复活"，界面与持久层分叉
                     viewModelScope.launch {
                         val reloaded = runCatching { chatRepository.loadThread() }
-                            .onFailure { Log.w(TAG, "清空回滚重载失败", it) }
+                            .onFailure { FitLog.w(TAG, "清空回滚重载失败", it) }
                             .getOrDefault(previous.messages)
                         _uiState.update {
                             it.copy(
@@ -561,12 +564,12 @@ class ChatViewModel @Inject constructor(
     /** 启动恢复：本地库优先；本地为空且 ADK 有历史时做一次性 seed（老版本升级路径）。 */
     private suspend fun restoreHistory() {
         val localCount = runCatching { chatRepository.count() }
-            .onFailure { Log.w(TAG, "读取聊天记录数失败", it) }
+            .onFailure { FitLog.w(TAG, "读取聊天记录数失败", it) }
             .getOrDefault(0L)
         if (localCount == 0L) seedFromAdkHistory()
 
         val restored = runCatching { chatRepository.loadThread() }
-            .getOrElse { Log.w(TAG, "读取聊天历史失败", it); emptyList() }
+            .getOrElse { FitLog.w(TAG, "读取聊天历史失败", it); emptyList() }
         _uiState.update { state ->
             // init 与 send 并发的防御：若用户已发出新消息，不覆盖现场
             if (state.messages.isNotEmpty()) return@update state
@@ -579,7 +582,7 @@ class ChatViewModel @Inject constructor(
         val history: List<com.example.fitlog.model.ai.ChatMessage> = runCatching {
             agentEngine.replayHistory(sessionId)
         }
-            .onFailure { Log.w(TAG, "ADK 历史回放失败", it) }
+            .onFailure { FitLog.w(TAG, "ADK 历史回放失败", it) }
             .getOrDefault(emptyList())
         if (history.isEmpty()) return
         // 时间戳整体回溯一个消息数区间（而非从"现在"起算）：seed 进行期间用户可能已
@@ -611,7 +614,7 @@ class ChatViewModel @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, logMessage, e)
+            FitLog.w(TAG, logMessage, e)
             nextFallbackId()
         }
 

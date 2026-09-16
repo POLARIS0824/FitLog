@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import androidx.annotation.RequiresApi
+import com.example.fitlog.util.log.FitLog
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import javax.inject.Inject
@@ -88,6 +89,7 @@ class MarkdownFileScanner @Inject constructor() {
             null,
         )
         if (cursor == null) {
+            FitLog.w(TAG, "目录无法枚举（provider 拒绝查询）：$treeUri")
             return ScanResult(
                 successes = emptyList(),
                 failures = listOf(
@@ -102,6 +104,7 @@ class MarkdownFileScanner @Inject constructor() {
             val idColumn = try {
                 cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
             } catch (e: IllegalArgumentException) {
+                FitLog.w(TAG, "目录缺文档 ID 列，跳过本次枚举", e)
                 return ScanResult(
                     successes = emptyList(),
                     failures = listOf(Failure(treeUri.lastPathSegment ?: "", "目录不支持枚举：缺少文档 ID 列")),
@@ -110,6 +113,7 @@ class MarkdownFileScanner @Inject constructor() {
             val nameColumn = try {
                 cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
             } catch (e: IllegalArgumentException) {
+                FitLog.w(TAG, "目录缺文件名列，跳过本次枚举", e)
                 return ScanResult(
                     successes = emptyList(),
                     failures = listOf(Failure(treeUri.lastPathSegment ?: "", "目录不支持枚举：缺少文件名列")),
@@ -153,8 +157,10 @@ class MarkdownFileScanner @Inject constructor() {
                         }
                     }
                 } catch (e: DateTimeParseException) {
+                    FitLog.w(TAG, "文件名日期解析失败：$fileName")
                     failures.add(Failure(fileName, "文件名日期解析失败"))
                 } catch (e: Exception) {
+                    FitLog.w(TAG, "文件读取失败：$fileName", e)
                     failures.add(Failure(fileName, "读取失败: ${e.message}"))
                 }
             }
@@ -262,5 +268,6 @@ class MarkdownFileScanner @Inject constructor() {
     private companion object {
         /** 导出格式（[MarkdownExporter.serializeStructured]）的节标题写法。 */
         val DATED_SECTION_HEADER = Regex("^#\\s*(\\d{4}-\\d{2}-\\d{2})\\s+训练\\s*$")
+        private const val TAG = "MarkdownFileScanner"
     }
 }

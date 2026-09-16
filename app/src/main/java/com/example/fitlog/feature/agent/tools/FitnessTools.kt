@@ -13,6 +13,7 @@ import com.example.fitlog.model.PlannedExerciseItem
 import com.example.fitlog.model.user.UserProfile
 import com.example.fitlog.util.TrainingLevelCalculator
 import com.example.fitlog.util.VolumeAggregator
+import com.example.fitlog.util.log.FitLog
 import com.google.adk.kt.annotations.Param
 import com.google.adk.kt.annotations.Tool
 import kotlinx.coroutines.flow.first
@@ -246,10 +247,12 @@ class FitnessTools @Inject constructor(
         )
         // 钳制发生时必须在结果里告知，否则模型拿到 success 会向用户复述被无声扭曲的数值
         val clampNote = if (sanitized != weightKg) {
+            FitLog.w(TAG, "Agent 工具记体重：原值 $weightKg kg 超出范围，已钳制为 $sanitized kg")
             "（原值 $weightKg kg 超出有效范围，已按上下限钳制）"
         } else {
             ""
         }
+        FitLog.i(TAG, "Agent 工具记体重：$date ${sanitized}kg")
         return WriteResultDto(
             success = true,
             message = "已记录 ${date} 体重 ${sanitized} kg$clampNote",
@@ -267,9 +270,11 @@ class FitnessTools @Inject constructor(
     ): WriteResultDto {
         val exists = workoutPlanRepository.getAllPlans().any { it.id == planId }
         if (!exists) {
+            FitLog.w(TAG, "Agent 工具切换计划失败：计划不存在 $planId")
             return WriteResultDto(success = false, message = "计划不存在：$planId")
         }
         workoutPlanRepository.setActivePlanId(planId)
+        FitLog.i(TAG, "Agent 工具切换激活计划：$planId")
         return WriteResultDto(success = true, message = "已切换到计划：$planId")
     }
 
@@ -309,12 +314,14 @@ class FitnessTools @Inject constructor(
         val sessions = try {
             json.decodeFromString<List<PlannedSessionSpec>>(sessionsJson)
         } catch (e: Exception) {
+            FitLog.w(TAG, "Agent 工具创建计划：训练日 JSON 解析失败", e)
             return WriteResultDto(
                 success = false,
                 message = "训练日 JSON 解析失败（${e.message}），请检查字段名与结构后重试",
             )
         }
         if (sessions.isEmpty()) {
+            FitLog.w(TAG, "Agent 工具创建计划：训练日列表为空")
             return WriteResultDto(success = false, message = "训练日列表为空，至少需要 1 个训练日")
         }
 
@@ -326,6 +333,7 @@ class FitnessTools @Inject constructor(
             .filter { it !in known }
             .distinct()
         if (unknown.isNotEmpty()) {
+            FitLog.w(TAG, "Agent 工具创建计划：${unknown.size} 个动作 key 不在动作库中：$unknown")
             return WriteResultDto(
                 success = false,
                 message = "以下动作 key 不在动作库中：$unknown。请用 searchExercises 确认后重试",
@@ -372,6 +380,7 @@ class FitnessTools @Inject constructor(
             if (activate == true) {
                 workoutPlanRepository.setActivePlanId(planId)
             }
+            FitLog.i(TAG, "Agent 工具创建计划：「${plan.name}」${plan.sessions.size} 个训练日" + if (activate == true) "（已激活）" else "")
             WriteResultDto(
                 success = true,
                 message = "已创建计划「${plan.name}」（${plan.sessions.size} 个训练日）" +
@@ -380,6 +389,7 @@ class FitnessTools @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            FitLog.w(TAG, "Agent 工具创建计划落库失败：「$name」", e)
             WriteResultDto(success = false, message = "计划落库失败：${e.message}")
         }
     }
@@ -597,5 +607,6 @@ class FitnessTools @Inject constructor(
     private companion object {
         /** 单个工具返回内容上限（与 OpenAiAdapters.MAX_TOOL_CONTENT_CHARS 同值）。 */
         private const val MAX_TOOL_CONTENT_CHARS = 8_000
+        private const val TAG = "FitnessTools"
     }
 }

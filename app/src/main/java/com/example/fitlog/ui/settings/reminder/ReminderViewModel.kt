@@ -1,11 +1,11 @@
 package com.example.fitlog.ui.settings.reminder
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.UserPreferencesRepository
 import com.example.fitlog.feature.reminder.ReminderScheduler
 import com.example.fitlog.util.guard
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,8 +35,8 @@ class ReminderViewModel @Inject constructor(
 ) : ViewModel() {
 
     val uiState: StateFlow<ReminderUiState> = combine(
-        userPreferencesRepository.reminderEnabled.guard(false),
-        userPreferencesRepository.reminderMinutes.guard(18 * 60),
+        userPreferencesRepository.reminderEnabled.guard(false, context = "提醒开关偏好"),
+        userPreferencesRepository.reminderMinutes.guard(18 * 60, context = "提醒时间偏好"),
         ::ReminderUiState,
     ).stateIn(
         scope = viewModelScope,
@@ -57,7 +57,7 @@ class ReminderViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "更新提醒开关失败", e)
+                FitLog.w(TAG, "更新提醒开关失败", e)
             }
         }
     }
@@ -75,7 +75,7 @@ class ReminderViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "重排提醒时间失败", e)
+                FitLog.w(TAG, "重排提醒时间失败", e)
             }
         }
     }

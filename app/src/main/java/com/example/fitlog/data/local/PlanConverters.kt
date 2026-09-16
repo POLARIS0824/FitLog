@@ -1,8 +1,8 @@
 package com.example.fitlog.data.local
 
-import android.util.Log
 import androidx.room.TypeConverter
 import com.example.fitlog.model.PlannedExerciseItem
+import com.example.fitlog.util.log.FitLog
 import kotlinx.serialization.json.Json
 
 /**
@@ -28,7 +28,7 @@ class PlanConverters {
         } else {
             runCatching { json.decodeFromString<List<PlannedExerciseItem>>(value) }
                 .onFailure {
-                    Log.w(
+                    FitLog.w(
                         "PlanConverters",
                         "planned_sessions.exercises JSON 解析失败，降级为空列表：$value",
                         it,

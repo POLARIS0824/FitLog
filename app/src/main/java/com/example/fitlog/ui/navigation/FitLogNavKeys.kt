@@ -54,5 +54,9 @@ data object ImportReviewKey : NavKey
 @Serializable
 data object ReminderKey : NavKey
 
+/** 日志查看页（日志与诊断）。 */
+@Serializable
+data object LogsKey : NavKey
+
 @Serializable
 data object AboutKey : NavKey

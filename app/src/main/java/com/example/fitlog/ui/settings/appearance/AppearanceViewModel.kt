@@ -1,11 +1,11 @@
 package com.example.fitlog.ui.settings.appearance
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.ThemeMode
 import com.example.fitlog.data.repository.UserPreferencesRepository
 import com.example.fitlog.util.guard
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,8 +31,8 @@ class AppearanceViewModel @Inject constructor(
 ) : ViewModel() {
 
     val uiState: StateFlow<AppearanceUiState> = combine(
-        userPreferencesRepository.themeMode.guard(ThemeMode.SYSTEM),
-        userPreferencesRepository.dynamicColor.guard(true),
+        userPreferencesRepository.themeMode.guard(ThemeMode.SYSTEM, context = "主题模式偏好"),
+        userPreferencesRepository.dynamicColor.guard(true, context = "动态取色偏好"),
         ::AppearanceUiState,
     ).stateIn(
         scope = viewModelScope,
@@ -48,7 +48,7 @@ class AppearanceViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "写入主题模式失败", e)
+                FitLog.w(TAG, "写入主题模式失败", e)
             }
         }
     }
@@ -61,7 +61,7 @@ class AppearanceViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "写入动态取色开关失败", e)
+                FitLog.w(TAG, "写入动态取色开关失败", e)
             }
         }
     }

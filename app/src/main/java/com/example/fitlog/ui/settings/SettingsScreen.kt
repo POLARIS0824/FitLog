@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
@@ -43,6 +44,7 @@ import com.example.fitlog.ui.components.TonalIcon
  * @param onNavigateToAISettings 跳转 AI 配置回调
  * @param onNavigateToDataImport 跳转数据导入回调
  * @param onNavigateToReminder 跳转训练提醒回调
+ * @param onNavigateToLogs 跳转日志与诊断回调
  * @param onNavigateToAbout 跳转关于页面回调
  * @param modifier 修饰符
  */
@@ -53,6 +55,7 @@ fun SettingsRoute(
     onNavigateToAISettings: () -> Unit = {},
     onNavigateToDataImport: () -> Unit = {},
     onNavigateToReminder: () -> Unit = {},
+    onNavigateToLogs: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -62,6 +65,7 @@ fun SettingsRoute(
         onNavigateToAISettings = onNavigateToAISettings,
         onNavigateToDataImport = onNavigateToDataImport,
         onNavigateToReminder = onNavigateToReminder,
+        onNavigateToLogs = onNavigateToLogs,
         onNavigateToAbout = onNavigateToAbout,
         modifier = modifier,
     )
@@ -78,6 +82,7 @@ fun SettingsRoute(
  * @param onNavigateToAISettings 导航至 AI 配置
  * @param onNavigateToDataImport 导航至数据导入
  * @param onNavigateToReminder 导航至训练提醒
+ * @param onNavigateToLogs 导航至日志与诊断
  * @param onNavigateToAbout 导航至关于
  * @param modifier 修饰符
  */
@@ -88,6 +93,7 @@ fun SettingsScreen(
     onNavigateToAISettings: () -> Unit,
     onNavigateToDataImport: () -> Unit,
     onNavigateToReminder: () -> Unit,
+    onNavigateToLogs: () -> Unit,
     onNavigateToAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -172,6 +178,17 @@ fun SettingsScreen(
                 tonalIndex = 0,
                 onClick = onNavigateToAbout,
             )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                thickness = 1.dp,
+            )
+            SettingsEntryRow(
+                icon = Icons.Default.BugReport,
+                title = "日志与诊断",
+                subtitle = "查看、导出、清空应用日志",
+                tonalIndex = 1,
+                onClick = onNavigateToLogs,
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -246,6 +263,7 @@ private fun SettingsScreenPreview() {
         onNavigateToAISettings = {},
         onNavigateToDataImport = {},
         onNavigateToReminder = {},
+        onNavigateToLogs = {},
         onNavigateToAbout = {},
     )
 }

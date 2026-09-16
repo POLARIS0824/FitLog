@@ -1,6 +1,5 @@
 package com.example.fitlog.feature.stats
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.repository.BodyMetricRepository
@@ -8,6 +7,7 @@ import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.model.BodyMetric
 import com.example.fitlog.model.Workout
 import com.example.fitlog.util.guard as guardFlow
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -67,8 +67,8 @@ class StatsViewModel @Inject constructor(
      * 绑定本页的错误通道；上游异常时写入 [dataError] 并发射 [fallback]，
      * 保证 combine 链存活。
      */
-    private fun <T> Flow<T>.guard(fallback: T): Flow<T> =
-        guardFlow(fallback) { e -> dataError.value = e.message ?: "数据加载失败，请重试" }
+    private fun <T> Flow<T>.guard(fallback: T, context: String = "Stats 数据流"): Flow<T> =
+        guardFlow(fallback, context) { e -> dataError.value = e.message ?: "数据加载失败，请重试" }
 
     private val today: LocalDate = LocalDate.now()
 
@@ -82,18 +82,18 @@ class StatsViewModel @Inject constructor(
         val range = StatsChartDataBuilder.rangeOf(p, today)
         workoutRepository.getByDateRange(range.start, range.endInclusive)
             .map { workouts -> PeriodWorkouts(p, workouts) }
-            .guard(PeriodWorkouts(p, emptyList()))
+            .guard(PeriodWorkouts(p, emptyList()), context = "周期训练记录")
     }
 
     private val yearWorkouts = workoutRepository.getByDateRange(
         StatsHeatmapBuilder.windowStart(today),
         today,
-    ).guard(emptyList())
+    ).guard(emptyList(), context = "热力图窗口训练记录")
 
     private val weightMetrics = bodyMetricRepository.getByDateRange(
         StatsWeightBuilder.windowStart(today),
         today,
-    ).guard(emptyList())
+    ).guard(emptyList(), context = "体重记录")
 
     /** 页面 UI 状态流：三流组合 + 错误通道 → 纯函数装配。 */
     val uiState: StateFlow<StatsUiState> = combine(
@@ -143,7 +143,7 @@ class StatsViewModel @Inject constructor(
             val existing = runCatching {
                 bodyMetricRepository.getByDateRange(now, now).map { it.firstOrNull() }.first()
             }.getOrElse { e ->
-                Log.w(TAG, "读取今日体重失败，弹层以空值打开", e)
+                FitLog.w(TAG, "读取今日体重失败，弹层以空值打开", e)
                 null
             }
             _weightSheetState.update {
@@ -181,6 +181,7 @@ class StatsViewModel @Inject constructor(
                 } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    FitLog.w(TAG, "保存体重失败：$parsed kg", e)
                     _weightSheetState.update { it.copy(error = "保存失败，请重试") }
                 }
             }

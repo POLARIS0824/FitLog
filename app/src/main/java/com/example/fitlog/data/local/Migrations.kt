@@ -2,6 +2,7 @@ package com.example.fitlog.data.local
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.fitlog.util.log.FitLog
 
 /**
  * AppDatabase 的 Migration 清单（按版本递增排列）。
@@ -29,6 +30,7 @@ object Migrations {
      */
     private val MIGRATION_6_7 = object : Migration(6, 7) {
         override fun migrate(db: SupportSQLiteDatabase) {
+            FitLog.i(TAG, "执行数据库迁移 6 → 7（sourceFileName 唯一索引）")
             val duplicateWorkoutIds =
                 "SELECT id FROM workouts WHERE sourceFileName IS NOT NULL " +
                     "AND id NOT IN (" +
@@ -61,6 +63,7 @@ object Migrations {
      */
     private val MIGRATION_7_8 = object : Migration(7, 8) {
         override fun migrate(db: SupportSQLiteDatabase) {
+            FitLog.i(TAG, "执行数据库迁移 7 → 8（chat_messages / agent_steps 两表）")
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS `chat_messages` (" +
                     "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -103,6 +106,7 @@ object Migrations {
      */
     private val MIGRATION_8_9 = object : Migration(8, 9) {
         override fun migrate(db: SupportSQLiteDatabase) {
+            FitLog.i(TAG, "执行数据库迁移 8 → 9（workouts.planSessionId 列）")
             db.execSQL("ALTER TABLE `workouts` ADD COLUMN `planSessionId` TEXT")
         }
     }
@@ -112,4 +116,6 @@ object Migrations {
      * `DatabaseModule` 经 `addMigrations(*ALL_MIGRATIONS)` 挂载。
      */
     val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+
+    private const val TAG = "Migrations"
 }

@@ -1,7 +1,7 @@
 package com.example.fitlog.data.local
 
-import android.util.Log
 import androidx.room.TypeConverter
+import com.example.fitlog.util.log.FitLog
 import java.time.LocalDate
 
 /**
@@ -25,7 +25,7 @@ class LocalDateConverters {
         if (value == null) return null
         return runCatching { LocalDate.parse(value) }
             .onFailure {
-                Log.w("LocalDateConverters", "日期解析失败，降级为 epoch：$value", it)
+                FitLog.w("LocalDateConverters", "日期解析失败，降级为 epoch：$value", it)
             }
             .getOrDefault(LocalDate.EPOCH)
     }

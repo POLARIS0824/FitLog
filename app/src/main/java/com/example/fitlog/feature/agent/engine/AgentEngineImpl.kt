@@ -9,6 +9,7 @@ import com.example.fitlog.feature.agent.tools.FitnessTools
 import com.example.fitlog.feature.agent.tools.generatedTools
 import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ChatMessage
+import com.example.fitlog.util.log.FitLog
 import com.google.adk.kt.agents.Instruction
 import com.google.adk.kt.agents.LlmAgent
 import com.google.adk.kt.apps.App
@@ -104,12 +105,16 @@ class AgentEngineImpl @Inject constructor(
                 ?: return Result.failure(
                     IllegalStateException("未配置 AI 服务商，请先在设置中配置 API Key"),
                 )
-            config.checkUsableCredentials()?.let { return Result.failure(it) }
+            config.checkUsableCredentials()?.let {
+                FitLog.w(TAG, "Agent 发送被拦截：${it.message}")
+                return Result.failure(it)
+            }
 
             val runner = getOrCreateRunner(config) ?: return Result.failure(
                 IllegalStateException("Agent 引擎初始化失败"),
             )
 
+            FitLog.i(TAG, "Agent 发送消息：sessionId=$sessionId model=${config.model}")
             Result.success(
                 runner.runAsync(
                     userId = USER_ID,
@@ -123,6 +128,7 @@ class AgentEngineImpl @Inject constructor(
             // 契约是 Result：激活配置读取（DataStore/Room IO）、引擎构建等
             // 中途异常必须折进 failure 由调用方展示，而非逃逸到调用方的
             // 裸 launch 成为未捕获协程异常直接崩溃
+            FitLog.w(TAG, "Agent 发送消息失败", e)
             Result.failure(e)
         }
     }
@@ -141,12 +147,16 @@ class AgentEngineImpl @Inject constructor(
                 ?: return Result.failure(
                     IllegalStateException("未配置 AI 服务商，请先在设置中配置 API Key"),
                 )
-            config.checkUsableCredentials()?.let { return Result.failure(it) }
+            config.checkUsableCredentials()?.let {
+                FitLog.w(TAG, "Agent 确认回复被拦截：${it.message}")
+                return Result.failure(it)
+            }
 
             val runner = getOrCreateRunner(config) ?: return Result.failure(
                 IllegalStateException("Agent 引擎初始化失败"),
             )
 
+            FitLog.i(TAG, "Agent 回复工具确认：sessionId=$sessionId confirmed=$confirmed")
             val newMessage = Content(
                 role = Role.USER,
                 parts = listOf(
@@ -171,6 +181,7 @@ class AgentEngineImpl @Inject constructor(
             throw e
         } catch (e: Exception) {
             // 同 sendMessage：Result 契约收口，中途异常不得逃逸出未捕获协程异常
+            FitLog.w(TAG, "Agent 回复工具确认失败", e)
             Result.failure(e)
         }
     }
@@ -184,11 +195,11 @@ class AgentEngineImpl @Inject constructor(
     override suspend fun clearSession(sessionId: String): Result<Unit> = runCatching {
         val key = SessionKey(APP_NAME, USER_ID, sessionId)
         val session = runCatching { sessionService.getSession(key) }
-            .onFailure { android.util.Log.w(TAG, "归档前读取会话失败，跳过记忆归档", it) }
+            .onFailure { FitLog.w(TAG, "归档前读取会话失败，跳过记忆归档", it) }
             .getOrNull()
         if (session != null && session.events.isNotEmpty()) {
             runCatching { memoryService.addSessionToMemory(session) }
-                .onFailure { android.util.Log.w(TAG, "会话归档进长期记忆失败", it) }
+                .onFailure { FitLog.w(TAG, "会话归档进长期记忆失败", it) }
         }
         sessionService.deleteSession(key)
     }.let { result ->
@@ -279,6 +290,7 @@ class AgentEngineImpl @Inject constructor(
             val key = configKey(config)
             currentRunner?.takeIf { currentConfigKey == key }?.let { return it }
             val runner = buildRunner(config) ?: return null
+            FitLog.i(TAG, "Agent runner 重建：model=${config.model}（首次构建或配置变更）")
             currentRunner = runner
             currentConfigKey = key
             runner
@@ -291,7 +303,7 @@ class AgentEngineImpl @Inject constructor(
         val tools = fitnessTools.generatedTools()
         if (tools.isEmpty()) {
             // KSP 产物为空几乎必然是构建配置问题（processor 未生效），必须留痕定位
-            android.util.Log.w(TAG, "generatedTools() 为空：检查 ksp(google-adk-processor) 配置")
+            FitLog.w(TAG, "generatedTools() 为空：检查 ksp(google-adk-processor) 配置")
             return null
         }
 
@@ -332,7 +344,7 @@ class AgentEngineImpl @Inject constructor(
         appendLine("今天是 ${java.time.LocalDate.now()}")
 
         runCatching { userProfileRepository.getFirst() }
-            .onFailure { android.util.Log.w(TAG, "读取用户资料失败，指令缺少用户上下文", it) }
+            .onFailure { FitLog.w(TAG, "读取用户资料失败，指令缺少用户上下文", it) }
             .getOrNull()?.let { p ->
                 val parts = buildList {
                     p.name?.takeIf { it.isNotBlank() }?.let { add("名字:$it") }
@@ -343,7 +355,7 @@ class AgentEngineImpl @Inject constructor(
             }
 
         runCatching { workoutPlanRepository.activePlan.first() }
-            .onFailure { android.util.Log.w(TAG, "读取激活计划失败，指令缺少计划上下文", it) }
+            .onFailure { FitLog.w(TAG, "读取激活计划失败，指令缺少计划上下文", it) }
             .getOrNull()?.let { plan ->
                 appendLine("当前激活计划：「${plan.name}」（每周 ${plan.sessionsPerWeek} 次，共 ${plan.durationWeeks} 周）")
             }

@@ -13,6 +13,7 @@ import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.model.Exercise
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -64,9 +65,15 @@ class DataImportViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isScanning = true, message = null) }
             try {
+                val startMs = System.currentTimeMillis()
                 val result = withContext(Dispatchers.IO) {
                     markdownFileScanner.scanFolder(context.contentResolver, treeUri)
                 }
+                FitLog.i(
+                    TAG,
+                    "文件夹扫描完成：成功 ${result.successes.size} 个、失败 ${result.failures.size} 个" +
+                        "（耗时${System.currentTimeMillis() - startMs}ms）",
+                )
                 _uiState.update {
                     it.copy(
                         isScanning = false,
@@ -96,6 +103,7 @@ class DataImportViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                FitLog.w(TAG, "文件夹扫描失败", e)
                 // 清掉上一文件夹的扫描结果：否则界面仍展示旧列表且"解析"按钮
                 // 可点，用户以为在解析新选的文件夹，实际重放的是旧快照
                 _uiState.update {
@@ -142,12 +150,14 @@ class DataImportViewModel @Inject constructor(
             // 预检：未配置/密钥不可读直接弹引导框，不发任何请求（文案与 AIChatRepository 一致）
             val config = providerConfigRepository.activeProvider.first()
             if (config == null) {
+                FitLog.w(TAG, "导入解析被拦截：未配置 AI 服务商")
                 _uiState.update {
                     it.copy(aiNotConfiguredMessage = "未设置 AI 服务商，请先在设置中配置 API Key")
                 }
                 return@launch
             }
             if (config.apiKey.isBlank()) {
+                FitLog.w(TAG, "导入解析被拦截：API Key 为空（可能备份恢复后失效）")
                 _uiState.update {
                     it.copy(
                         aiNotConfiguredMessage =
@@ -160,6 +170,7 @@ class DataImportViewModel @Inject constructor(
             val targets = _uiState.value.items.filter(targetFilter).map { it.sourceKey }
             if (targets.isEmpty()) return@launch
             val scannedByKey = _uiState.value.successes.associateBy { it.sourceKey }
+            FitLog.i(TAG, "开始 AI 解析：共 ${targets.size} 条（model=${config.model}）")
 
             _uiState.update { it.copy(isParsing = true, parseCompleted = 0, parseTotal = targets.size) }
             try {
@@ -169,12 +180,19 @@ class DataImportViewModel @Inject constructor(
 
                     val existing = workoutRepository.getBySourceFileName(scanned.sourceKey)
                     if (existing != null && existing.exercises.isNotEmpty()) {
+                        FitLog.d(TAG, "跳过已导入：$sourceKey")
                         updateItem(sourceKey) {
                             it.copy(status = ImportItemStatus.ALREADY_IMPORTED, checked = false)
                         }
                     } else {
+                        val itemStartMs = System.currentTimeMillis()
                         workoutParseRepository.parse(scanned.content, scanned.date).fold(
                             onSuccess = { parsed ->
+                                FitLog.i(
+                                    TAG,
+                                    "解析成功：$sourceKey（耗时${System.currentTimeMillis() - itemStartMs}ms，" +
+                                        "${parsed.exercises.size} 个动作）",
+                                )
                                 updateItem(sourceKey) {
                                     it.copy(
                                         status = ImportItemStatus.PARSED,
@@ -185,6 +203,7 @@ class DataImportViewModel @Inject constructor(
                                 }
                             },
                             onFailure = { error ->
+                                FitLog.w(TAG, "解析失败：$sourceKey", error)
                                 updateItem(sourceKey) {
                                     it.copy(
                                         status = ImportItemStatus.FAILED,
@@ -201,6 +220,7 @@ class DataImportViewModel @Inject constructor(
                     val parsed = state.items.count { it.status == ImportItemStatus.PARSED }
                     val failed = state.items.count { it.status == ImportItemStatus.FAILED }
                     val already = state.items.count { it.status == ImportItemStatus.ALREADY_IMPORTED }
+                    FitLog.i(TAG, "AI 解析完成：成功 $parsed 条，已导入过 $already 条，失败 $failed 条")
                     state.copy(
                         isParsing = false,
                         message = buildString {
@@ -229,6 +249,7 @@ class DataImportViewModel @Inject constructor(
                 }
                 throw e
             } catch (e: Exception) {
+                FitLog.w(TAG, "AI 解析中断", e)
                 _uiState.update {
                     it.copy(isParsing = false, message = "解析中断：${e.message}")
                 }
@@ -515,6 +536,10 @@ class DataImportViewModel @Inject constructor(
                         }
                     }
                 }
+                FitLog.i(
+                    TAG,
+                    "导入完成：新增 $imported、升级 $upgraded、存档 $archived、跳过 $skipped、无效 $invalid",
+                )
                 _uiState.update {
                     it.copy(
                         isImporting = false,
@@ -544,6 +569,11 @@ class DataImportViewModel @Inject constructor(
             } catch (e: Exception) {
                 // 每个文件是独立事务：中途失败时前面的文件已落库（唯一索引保证
                 // 重试不重复），提示必须带上已成功的计数，否则用户不知道实际进度
+                FitLog.w(
+                    TAG,
+                    "导入中断（已新增 $imported、升级 $upgraded、存档 $archived、跳过 $skipped）",
+                    e,
+                )
                 _uiState.update {
                     it.copy(
                         isImporting = false,
@@ -592,6 +622,7 @@ class DataImportViewModel @Inject constructor(
                 val workouts = workoutRepository.getWorkouts().first()
                 val markdown = MarkdownExporter.export(workouts)
                 if (markdown.isBlank()) {
+                    FitLog.i(TAG, "导出跳过：没有可导出的训练记录")
                     _uiState.update {
                         it.copy(isExporting = false, message = "没有可导出的训练记录")
                     }
@@ -602,16 +633,22 @@ class DataImportViewModel @Inject constructor(
                         out.write(markdown.toByteArray(Charsets.UTF_8))
                     } ?: throw IllegalStateException("无法打开导出文件")
                 }
+                FitLog.i(TAG, "导出完成：${workouts.size} 条训练记录 → $uri")
                 _uiState.update {
                     it.copy(isExporting = false, message = "导出完成：共 ${workouts.size} 条训练记录")
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                FitLog.w(TAG, "导出失败", e)
                 _uiState.update {
                     it.copy(isExporting = false, message = "导出失败：${e.message}")
                 }
             }
         }
+    }
+
+    private companion object {
+        private const val TAG = "DataImportViewModel"
     }
 }

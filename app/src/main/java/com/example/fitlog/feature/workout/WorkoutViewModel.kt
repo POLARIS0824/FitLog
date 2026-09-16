@@ -1,6 +1,5 @@
 package com.example.fitlog.feature.workout
 
-import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,6 +12,7 @@ import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.util.VolumeAggregator
 import com.example.fitlog.util.guard
+import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
@@ -108,7 +108,7 @@ class WorkoutViewModel @Inject constructor(
             WorkoutUiState.Success(workouts.filter { it.startedAt == null || it.endedAt != null })
         }
         .catch { e ->
-            Log.w(TAG, "训练记录加载失败", e)
+            FitLog.w(TAG, "训练记录加载失败", e)
             _message.update { "训练记录加载失败，请重试" }
             emit(WorkoutUiState.Success(emptyList()))
         }
@@ -123,7 +123,7 @@ class WorkoutViewModel @Inject constructor(
     val exerciseCatalog: StateFlow<List<Exercise>> = kotlinx.coroutines.flow.flow {
         emit(exerciseRepository.getAll())
     }
-        .guard(emptyList()) { e -> Log.w(TAG, "动作库加载失败", e) }
+        .guard(emptyList(), context = "动作库目录")
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     /**
@@ -136,8 +136,7 @@ class WorkoutViewModel @Inject constructor(
     val activeSession: StateFlow<ActiveSession?> = workoutRepository
         .getInProgressWorkoutEntity()
         .map { relation -> relation?.let { buildActiveSession(it) } }
-        .guard(null) { e ->
-            Log.w(TAG, "进行中会话加载失败", e)
+        .guard(null, context = "进行中会话") { e ->
             _message.update { "会话加载失败，请重试" }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -180,12 +179,19 @@ class WorkoutViewModel @Inject constructor(
 
                     val workoutId = workoutRepository.createSessionWorkout(planSession)
                     if (workoutId == -1L) {
+                        FitLog.w(TAG, "会话启动失败：插入返回 -1（workoutId 冲突）")
                         _message.update { "会话启动失败，请重试" }
+                    } else {
+                        FitLog.i(
+                            TAG,
+                            "训练会话启动：workoutId=$workoutId " +
+                                "planSessionId=${planSession?.id ?: "无（自由训练）"}",
+                        )
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.w(TAG, "启动训练会话失败", e)
+                    FitLog.w(TAG, "启动训练会话失败", e)
                     _message.update { "会话启动失败：${e.message}" }
                 }
             }
@@ -216,14 +222,21 @@ class WorkoutViewModel @Inject constructor(
                         )
                     }
                     if (!ended) {
+                        FitLog.i(TAG, "会话结束跳过：无可保存内容（workoutId=${session.workoutId}）")
                         _message.update { "还没有可保存的训练内容，请至少完成一组" }
                         return@withLock
                     }
+                    FitLog.i(
+                        TAG,
+                        "训练会话结束：workoutId=${session.workoutId} " +
+                            "时长${(System.currentTimeMillis() - (session.startedAtMs)) / 60000} 分钟" +
+                            (session.planSessionId?.let { " planSessionId=$it" } ?: ""),
+                    )
                     session.planSessionId?.let { planSessionCache.remove(it) }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.w(TAG, "结束训练会话失败", e)
+                    FitLog.w(TAG, "结束训练会话失败", e)
                     _message.update { "保存失败：${e.message}" }
                 }
             }
@@ -241,11 +254,12 @@ class WorkoutViewModel @Inject constructor(
                         .first()?.workout
                     if (current == null || current.id != session.workoutId) return@withLock
                     workoutRepository.discardSession(session.workoutId)
+                    FitLog.i(TAG, "训练会话放弃：workoutId=${session.workoutId}")
                     planSessionCache.remove(session.planSessionId)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.w(TAG, "放弃训练会话失败", e)
+                    FitLog.w(TAG, "放弃训练会话失败", e)
                     _message.update { "操作失败，请重试" }
                 }
             }
@@ -276,7 +290,7 @@ class WorkoutViewModel @Inject constructor(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.w(TAG, "添加动作失败", e)
+                    FitLog.w(TAG, "添加动作失败", e)
                     _message.update { "添加动作失败，请重试" }
                 }
             }
@@ -288,7 +302,7 @@ class WorkoutViewModel @Inject constructor(
         viewModelScope.launch {
             sessionMutex.withLock {
                 runCatching { workoutRepository.deleteSessionExercise(logId) }
-                    .onFailure { Log.w(TAG, "移除动作失败", it) }
+                    .onFailure { FitLog.w(TAG, "移除动作失败", it) }
             }
         }
     }
@@ -311,7 +325,7 @@ class WorkoutViewModel @Inject constructor(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.w(TAG, "添加组失败", e)
+                    FitLog.w(TAG, "添加组失败", e)
                     _message.update { "添加组失败，请重试" }
                 }
             }
@@ -334,7 +348,7 @@ class WorkoutViewModel @Inject constructor(
                         weightKg = weightKg.coerceAtLeast(0f),
                         reps = reps.coerceAtLeast(0),
                     )
-                }.onFailure { Log.w(TAG, "更新组失败", it) }
+                }.onFailure { FitLog.w(TAG, "更新组失败", it) }
             }
         }
     }
@@ -344,7 +358,7 @@ class WorkoutViewModel @Inject constructor(
         viewModelScope.launch {
             sessionMutex.withLock {
                 runCatching { workoutRepository.toggleSessionSetType(setId) }
-                    .onFailure { Log.w(TAG, "切换组类型失败", it) }
+                    .onFailure { FitLog.w(TAG, "切换组类型失败", it) }
             }
         }
     }
@@ -354,7 +368,7 @@ class WorkoutViewModel @Inject constructor(
         viewModelScope.launch {
             sessionMutex.withLock {
                 runCatching { workoutRepository.deleteSessionSet(setId) }
-                    .onFailure { Log.w(TAG, "删除组失败", it) }
+                    .onFailure { FitLog.w(TAG, "删除组失败", it) }
             }
         }
     }
@@ -367,7 +381,7 @@ class WorkoutViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "删除训练记录失败：${workout.date}", e)
+                FitLog.w(TAG, "删除训练记录失败：${workout.date}", e)
             }
         }
     }
@@ -389,7 +403,7 @@ class WorkoutViewModel @Inject constructor(
         val planSession = planSessionId?.let { id ->
             planSessionCache.getOrPut(id) {
                 runCatching { workoutPlanRepository.getSessionById(id) }
-                    .onFailure { Log.w(TAG, "读取计划课次失败：$id", it) }
+                    .onFailure { FitLog.w(TAG, "读取计划课次失败：$id", it) }
                     .getOrNull()
             }
         }

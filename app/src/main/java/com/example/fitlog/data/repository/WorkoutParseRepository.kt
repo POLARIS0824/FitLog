@@ -9,6 +9,7 @@ import com.example.fitlog.model.ai.ParsedSetDto
 import com.example.fitlog.model.ai.WorkoutParsePrompt
 import com.example.fitlog.model.ai.parseWorkoutJson
 import com.example.fitlog.util.ExerciseDisplayName
+import com.example.fitlog.util.log.FitLog
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -41,14 +42,22 @@ class WorkoutParseRepository @Inject constructor(
             temperature = 0.1,
             maxTokens = 2000,
             jsonMode = true,
-        ).getOrElse { return Result.failure(it) }
+        ).getOrElse {
+            FitLog.w(TAG, "导入解析 AI 请求失败", it)
+            return Result.failure(it)
+        }
         val dto = parseWorkoutJson(reply.content)
-            ?: return Result.failure(IllegalStateException("AI 返回内容无法解析为训练记录"))
+        if (dto == null) {
+            FitLog.w(TAG, "导入解析失败：AI 返回内容无法解析为 JSON（回复长度=${reply.content.length}）")
+            return Result.failure(IllegalStateException("AI 返回内容无法解析为训练记录"))
+        }
         if (dto.exercises.isEmpty()) {
+            FitLog.w(TAG, "导入解析失败：AI 未能从原文解析出动作明细")
             return Result.failure(IllegalStateException("AI 未能从原文解析出动作明细"))
         }
         val exercises = dto.exercises.mapNotNull { it.toExerciseLog() }
         if (exercises.isEmpty()) {
+            FitLog.w(TAG, "导入解析失败：动作名全部为空白，无有效动作")
             return Result.failure(IllegalStateException("AI 未能从原文解析出有效的动作"))
         }
         return Result.success(
@@ -88,7 +97,15 @@ class WorkoutParseRepository @Inject constructor(
         // 2. 英文展示名精确匹配（编辑弹层从动作库选择、或 AI 直接输出了库内英文名）
         exerciseRepository.getByName(trimmed)?.let { return it.id }
         // 3. 模糊搜索兜底：LIKE 命中多条时取首条（导入场景足够，用户可在编辑弹层修正）
-        return exerciseRepository.searchByName(trimmed).firstOrNull()?.id
+        val fuzzy = exerciseRepository.searchByName(trimmed).firstOrNull()?.id
+        if (fuzzy == null) {
+            // 全部匹配层级落空：动作将以自由文本名入库（合法但无关联统计），
+            // 此前完全不可见——补一条留痕供事后核对数据质量
+            FitLog.w(TAG, "动作名未匹配到动作库，将以自由文本入库：\"$trimmed\"")
+        } else {
+            FitLog.d(TAG, "动作名模糊匹配命中：\"$trimmed\" → $fuzzy")
+        }
+        return fuzzy
     }
 
     /** 单条解析动作 → [ExerciseLog]：name 为空/空白的条目丢弃。 */
@@ -116,4 +133,8 @@ class WorkoutParseRepository @Inject constructor(
     private fun String.toEpochMillis(date: LocalDate): Long? = runCatching {
         LocalTime.parse(trim()).atDate(date).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     }.getOrNull()
+
+    private companion object {
+        private const val TAG = "WorkoutParseRepository"
+    }
 }
