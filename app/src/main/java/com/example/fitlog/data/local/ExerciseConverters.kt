@@ -68,7 +68,9 @@ class ExerciseConverters {
             try {
                 json.decodeFromString<List<String>>(value)
             } catch (e: Exception) {
-                value.split(" ")
+                // 损坏数据降级为空列表：空格切分会把一句完整指导语拆成碎片词，
+                // 作为"动作指导步骤"喂给用户与 AI 提示词（同 PlanConverters 容错风格）
+                emptyList()
             }
         }
 }

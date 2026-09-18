@@ -60,16 +60,25 @@ class WorkoutParseRepository @Inject constructor(
             FitLog.w(TAG, "导入解析失败：动作名全部为空白，无有效动作")
             return Result.failure(IllegalStateException("AI 未能从原文解析出有效的动作"))
         }
+        // 时间自洽性：模型可能输出 endTime < startTime（笔误/12 小时制混乱），
+        // 倒挂的时间轴会产出负时长与"结束早于开始"的脏数据——单边时间戳没有
+        // 意义，两端一并弃用，endedAt 走当日 23:59 兜底（缺失时的既有语义）
+        val parsedStart = dto.startTime?.toEpochMillis(dateHint)
+        val parsedEnd = dto.endTime?.toEpochMillis(dateHint)
+        val timeInverted = parsedStart != null && parsedEnd != null && parsedEnd < parsedStart
+        if (timeInverted) {
+            FitLog.w(TAG, "导入解析时间倒挂：start=$parsedStart end=$parsedEnd，两端时间戳弃用")
+        }
         return Result.success(
             Workout(
                 id = 0,
                 userId = 0,
                 date = dateHint,
                 feelings = dto.feelings?.trim()?.takeIf { it.isNotBlank() },
-                startedAt = dto.startTime?.toEpochMillis(dateHint),
+                startedAt = parsedStart?.takeIf { !timeInverted },
                 // 结束时间缺失时取当日 23:59：导入的历史记录无真实结束时刻可考，
                 // 但 endedAt 为空会让 isCountable=false，整段历史不计入完成次数
-                endedAt = dto.endTime?.toEpochMillis(dateHint) ?: defaultEndedAt(dateHint),
+                endedAt = if (timeInverted) defaultEndedAt(dateHint) else (parsedEnd ?: defaultEndedAt(dateHint)),
                 exercises = exercises,
                 rawContent = content,
             ),

@@ -147,8 +147,17 @@ class DataImportViewModel @Inject constructor(
     private fun startParsing(targetFilter: (ImportItemState) -> Boolean) {
         if (parseJob?.isActive == true) return
         parseJob = viewModelScope.launch {
-            // 预检：未配置/密钥不可读直接弹引导框，不发任何请求（文案与 AIChatRepository 一致）
-            val config = providerConfigRepository.activeProvider.first()
+            // 预检：未配置/密钥不可读直接弹引导框，不发任何请求（文案与 AIChatRepository 一致）。
+            // DataStore IO 故障按 guard 约定降级为引导框——不致以未捕获异常
+            // 击穿裸 launch（本 VM 其余入口均有防护）；取消必须原样上抛
+            val config = try {
+                providerConfigRepository.activeProvider.first()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                FitLog.w(TAG, "读取 AI 服务商配置失败，按未配置拦截", e)
+                null
+            }
             if (config == null) {
                 FitLog.w(TAG, "导入解析被拦截：未配置 AI 服务商")
                 _uiState.update {
@@ -319,8 +328,16 @@ class DataImportViewModel @Inject constructor(
     fun onStartEdit(sourceKey: String) {
         viewModelScope.launch {
             if (_uiState.value.exerciseCatalog.isEmpty()) {
-                val catalog = exerciseRepository.getAll()
-                _uiState.update { it.copy(exerciseCatalog = catalog) }
+                // Room 查询异常按 guard 约定降级：弹层仍可打开（仅选择器无候选），
+                // 不致以未捕获异常击穿裸 launch 崩溃
+                runCatching { exerciseRepository.getAll() }
+                    .onSuccess { catalog ->
+                        _uiState.update { it.copy(exerciseCatalog = catalog) }
+                    }
+                    .onFailure {
+                        FitLog.w(TAG, "动作库目录加载失败", it)
+                        _uiState.update { state -> state.copy(message = "动作库加载失败，重试请重新打开编辑") }
+                    }
             }
             _uiState.update { it.copy(editingSourceKey = sourceKey) }
         }
@@ -333,25 +350,35 @@ class DataImportViewModel @Inject constructor(
     fun onSaveEdit() {
         val sourceKey = _uiState.value.editingSourceKey ?: return
         viewModelScope.launch {
-            val draft = _uiState.value.items.firstOrNull { it.sourceKey == sourceKey }?.draft
-            if (draft != null) {
-                val rematched = draft.copy(
-                    exercises = draft.exercises.map { exercise ->
-                        val name = exercise.name.trim()
-                        if (name.isEmpty()) {
-                            // 空名保留原样：确认导入清洗时随无组动作一并剔除
-                            exercise.copy(name = name)
-                        } else {
-                            exercise.copy(
-                                name = name,
-                                exerciseKey = workoutParseRepository.resolveExerciseKey(name),
-                            )
-                        }
-                    },
-                )
-                updateItem(sourceKey) { it.copy(draft = rematched) }
+            try {
+                val draft = _uiState.value.items.firstOrNull { it.sourceKey == sourceKey }?.draft
+                if (draft != null) {
+                    val rematched = draft.copy(
+                        exercises = draft.exercises.map { exercise ->
+                            val name = exercise.name.trim()
+                            if (name.isEmpty()) {
+                                // 空名保留原样：确认导入清洗时随无组动作一并剔除
+                                exercise.copy(name = name)
+                            } else {
+                                exercise.copy(
+                                    name = name,
+                                    exerciseKey = workoutParseRepository.resolveExerciseKey(name),
+                                )
+                            }
+                        },
+                    )
+                    updateItem(sourceKey) { it.copy(draft = rematched) }
+                }
+                _uiState.update { it.copy(editingSourceKey = null) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 匹配查询（Room IO）失败不静默：弹层保持打开让用户重试保存
+                FitLog.w(TAG, "保存编辑失败", e)
+                _uiState.update {
+                    it.copy(message = "保存编辑失败：${e.message ?: "请重试"}")
+                }
             }
-            _uiState.update { it.copy(editingSourceKey = null) }
         }
     }
 

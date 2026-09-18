@@ -62,7 +62,8 @@ class MarkdownExporterTest {
 
         val md = MarkdownExporter.export(listOf(workout))
 
-        assertTrue(md.contains("- **哑铃飞鸟**（热身） 10kg x 12"))
+        // 热身标记在组尾（不黏在动作名内：重导入的动作名匹配不受污染）
+        assertTrue(md.contains("- **哑铃飞鸟** 10kg x 12（热身组）"))
         assertTrue(md.contains("- **哑铃飞鸟** 7.5kg x 15"))
     }
 

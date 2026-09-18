@@ -2,13 +2,18 @@ package com.example.fitlog.data.file
 
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
+import com.example.fitlog.util.VolumeFormatter
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * 训练记录 → Markdown 的导出序列化器。
  *
  * 与 [MarkdownParser]（导入链路的文本清洗器）保持格式对称：
- * 动作行使用 `- **名称** 重量kg x 次数` 的写法，热身组追加「（热身）」标记；
+ * 动作行使用 `- **名称** 重量kg x 次数` 的写法，热身组在组尾追加
+ * 「（热身组）」标记（[WorkoutParsePrompt] 已约定该标记 → type=WARMUP）；
+ * 开始/结束时间以 `- 时间：HH:mm–HH:mm` 元信息行携带，重导入链路可还原。
  * 导入存档行（仅原文、无结构化明细的记录）直接原样输出 rawContent。
  *
  * 单文件可承载多天记录（按日期升序、`# 日期 训练` 分节）——
@@ -42,15 +47,30 @@ object MarkdownExporter {
         val header = "# ${workout.date} 训练"
         val meta = buildList {
             workout.feelings?.let { add("- 感受：$it") }
+            timeWindowText(workout)?.let { add("- 时间：$it") }
         }
         val exerciseLines = workout.exercises.flatMap { log ->
             log.sets.map { set ->
-                val warmupMark = if (set.setType == SetType.WARMUP) "（热身）" else ""
-                "- **${log.name}**${warmupMark} ${formatKg(set.weightKg)} x ${set.reps}"
+                // 热身标记放组尾而非动作名内：黏在名称里（"卧推（热身）"）会让
+                // 重导入的动作名匹配落空（resolveExerciseKey 失配降级为自由文本）
+                val warmupMark = if (set.setType == SetType.WARMUP) "（热身组）" else ""
+                "- **${log.name}** ${formatKg(set.weightKg)} x ${set.reps}$warmupMark"
             }
         }
         return (listOf(header) + meta + exerciseLines).joinToString("\n")
     }
+
+    /** 开始/结束时间窗口文案（"08:30–09:45"）；任一端缺失返回 null。 */
+    private fun timeWindowText(workout: Workout): String? {
+        val start = workout.startedAt?.let(::formatTime) ?: return null
+        val end = workout.endedAt?.let(::formatTime) ?: return null
+        return "$start–$end"
+    }
+
+    /** epoch millis → 当日 "HH:mm"（本地时区，与录入侧换算对称）。 */
+    private fun formatTime(epochMs: Long): String =
+        Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).toLocalTime()
+            .let { "%02d:%02d".format(it.hour, it.minute) }
 
     /** 导入存档（rawContent 原文，无结构化明细）。 */
     private fun serializeArchive(workout: Workout): String =
@@ -59,9 +79,9 @@ object MarkdownExporter {
             append(workout.rawContent!!.trim())
         }
 
-    /** 重量格式：整数去尾零（80kg 而非 80.0kg）。 */
+    /** 重量格式：整数去尾零（80kg 而非 80.0kg），格式化统一委托 VolumeFormatter。 */
     private fun formatKg(weightKg: Float): String =
-        if (weightKg % 1f == 0f) "${weightKg.toInt()}kg" else "${weightKg}kg"
+        VolumeFormatter.formatWeightKg(weightKg) + "kg"
 
     /**
      * SAF 导出目标文件的默认建议名（当天日期，避免覆盖历史导出）。

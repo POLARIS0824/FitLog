@@ -27,18 +27,22 @@ object MarkdownParser {
             .filter { it.isNotEmpty() }
             .map { line ->
                 line
+                    // 符号归一化必须先于列表前缀剥离：`➕ 动作` 归一为 `+ 动作`
+                    // 后 `+ ` 前缀剥离才能命中（顺序颠倒会在 rawContent 留下
+                    // `+` 开头的伪列表标记）
+                    .replace("➕", "+")
+                    .replace("✖️", "x")
+                    // 裸 ✖（无 VS16 变体选择符）：多数输入法直接产出该码点
+                    .replace("✖", "x")
+                    .replace("×", "x")
                     .removePrefix("- ")
                     // 前缀移除后再修剪："-  两空格" 粘贴排版会把首空格带进
                     // rawContent（此前只在行级入口 trim 一次）
                     .trim()
                     .removePrefix("* ")
                     .removePrefix("+ ")
+                    .trim()
                     .replace("**", "")
-                    .replace("➕", "+")
-                    .replace("✖️", "x")
-                    // 裸 ✖（无 VS16 变体选择符）：多数输入法直接产出该码点
-                    .replace("✖", "x")
-                    .replace("×", "x")
             }
             .joinToString("\n")
     }

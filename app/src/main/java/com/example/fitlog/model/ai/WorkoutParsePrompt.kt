@@ -26,11 +26,14 @@ object WorkoutParsePrompt {
             - 只输出一个 JSON 对象，禁止输出 markdown 代码块、解释或任何其他文字
             - JSON 结构：{"feelings": "...", "startTime": "...", "endTime": "...", "exercises": [{"name": "...", "sets": [{"weightKg": 60, "reps": 10, "type": "WORKING"}]}]}
             - feelings：原文中的训练感受/备注（如状态、体重、RPE），没有则 null
-            - startTime/endTime：训练开始/结束时间，格式 "HH:mm"，原文没有则 null
-            - exercises：动作列表，顺序与原文一致；name 保留原文写法（通常为中文）
+            - startTime/endTime：训练开始/结束时间，格式 "HH:mm"，原文没有则 null；
+              「- 时间：HH:mm–HH:mm」元信息行（本应用导出格式）的两端即开始/结束时间
+            - exercises：动作列表，顺序与原文一致；name 保留原文写法（通常为中文），
+              不要把「（热身）」等修饰词并入动作名
             - sets：每组一条，顺序与原文一致；weightKg 为数字（单位 kg，自重/无负重为 0，
               原文未写重量时为 0）；reps 为正整数；type 只能是 "WARMUP"（热身组）或
-              "WORKING"（正式组），默认 WORKING
+              "WORKING"（正式组），默认 WORKING；组尾「（热身组）」标记（本应用
+              导出格式）表示该组为热身组
 
             【忠实性约束】
             - 只提取原文明确写出的动作与组，不杜撰、不合并、不拆分、不换算单位

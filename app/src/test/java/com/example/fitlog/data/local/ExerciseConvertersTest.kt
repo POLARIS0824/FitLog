@@ -118,12 +118,12 @@ class ExerciseConvertersTest {
     }
 
     @Test
-    fun `old space separated list fallback`() {
+    fun `corrupt json list degrades to empty list`() {
+        // 非 JSON 的遗留脏数据：旧版空格切分回退会把整句指导语拆成碎片词，
+        // 作为"步骤"喂给用户与 AI 提示词——现按 PlanConverters 同款容错降级为空
         val oldString = "Lie down push up"
         val restored = converters.toStringList(oldString)
-        assertEquals(4, restored.size)
-        assertEquals("Lie", restored[0])
-        assertEquals("down", restored[1])
+        assertEquals(0, restored.size)
     }
 
     /**

@@ -105,6 +105,7 @@ import com.example.fitlog.ui.components.SubpageIndicator
 import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 import com.example.fitlog.ui.theme.FitLogTheme
 import com.example.fitlog.ui.theme.fitLogColors
+import com.example.fitlog.util.VolumeAggregator
 import com.example.fitlog.util.VolumeFormatter
 import com.example.fitlog.util.findActivity
 import java.time.LocalDate
@@ -1101,10 +1102,10 @@ internal fun ImportItemRow(
                         if (item.status == ImportItemStatus.PARSED && item.draft != null) {
                             val draft = item.draft
                             val totalSets = draft.exercises.sumOf { it.sets.size }
-                            val volume = draft.exercises.sumOf { ex ->
-                                ex.sets.filter { it.setType == SetType.WORKING }
-                                    .sumOf { (it.weightKg * it.reps).toDouble() }
-                            }
+                            // 容量统一走 VolumeAggregator 口径（经 toExerciseLogs 出口，
+                            // 与保存后记录的容量统计同源，见 ImportDraftModels）
+                            val volume = draft.toExerciseLogs()
+                                .sumOf { VolumeAggregator.workingVolumeOf(it) }
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -1577,10 +1578,9 @@ private fun detailTextOf(item: ImportItemState): String = when (item.status) {
             "未解析出有效动作"
         } else {
             val totalSets = draft.exercises.sumOf { it.sets.size }
-            val volume = draft.exercises.sumOf { ex ->
-                ex.sets.filter { it.setType == SetType.WORKING }
-                    .sumOf { (it.weightKg * it.reps).toDouble() }
-            }
+            // 容量统一走 VolumeAggregator 口径（经 toExerciseLogs 出口，同上）
+            val volume = draft.toExerciseLogs()
+                .sumOf { VolumeAggregator.workingVolumeOf(it) }
             val volumeText = if (volume > 0.0) " · ${VolumeFormatter.formatVolume(volume)}" else ""
             "${draft.exercises.size} 个动作 · $totalSets 组$volumeText"
         }

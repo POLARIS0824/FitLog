@@ -83,6 +83,7 @@ class MarkdownFileScanner @Inject constructor() {
             arrayOf(
                 DocumentsContract.Document.COLUMN_DOCUMENT_ID,
                 DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_MIME_TYPE,
             ),
             null,
             null,
@@ -98,6 +99,8 @@ class MarkdownFileScanner @Inject constructor() {
             )
         }
 
+        // use 块外可见：目录是否含子文件夹的提示在块外给出
+        var sawSubdirectory = false
         cursor.use { cursor ->
             // 游标列读取也纳入单文件容错：个别 provider 返回缺列时跳过该 provider
             // 的本次枚举，而不是把整个扫描炸掉（调用方只看到一个失败而非全部文件）
@@ -119,12 +122,20 @@ class MarkdownFileScanner @Inject constructor() {
                     failures = listOf(Failure(treeUri.lastPathSegment ?: "", "目录不支持枚举：缺少文件名列")),
                 )
             }
+            // MIME 列缺失（个别 provider 裁剪列）时降级为不识别子目录，而非
+            // getColumnIndexOrThrow 使整个扫描中止——子目录提示仅是增强信息
+            val mimeTypeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
 
             while (cursor.moveToNext()) {
                 //个别 provider 异常返回 null 值列（列存在但值为 null）：直接跳过该行，
                 //避免平台类型上调用 endsWith 抛 NPE 中断整次扫描（与既有单文件容错一致）
                 val docId = cursor.getString(idColumn) ?: continue
                 val fileName = cursor.getString(nameColumn) ?: continue
+                if (mimeTypeColumn >= 0 &&
+                    cursor.getString(mimeTypeColumn) == DocumentsContract.Document.MIME_TYPE_DIR
+                ) {
+                    sawSubdirectory = true
+                }
 
                 if (!fileName.endsWith(".md", ignoreCase = true)) continue
 
@@ -164,6 +175,15 @@ class MarkdownFileScanner @Inject constructor() {
                     failures.add(Failure(fileName, "读取失败: ${e.message}"))
                 }
             }
+        }
+
+        // 全空结果但目录含子文件夹：明确告知子文件夹不扫描——否则用户指向
+        // "文件夹套文件夹"时只看到"没有找到可导入的训练日志文件"，无从得知
+        // 需要直接选择存放 .md 的那一层
+        if (successes.isEmpty() && failures.isEmpty() && sawSubdirectory) {
+            failures.add(
+                Failure(treeUri.lastPathSegment ?: "", "未找到 .md 文件；注意：子文件夹不会被扫描，请直接选择存放日志文件的文件夹"),
+            )
         }
 
         return ScanResult(successes, failures)
