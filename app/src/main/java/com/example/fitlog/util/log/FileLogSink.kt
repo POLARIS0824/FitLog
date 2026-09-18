@@ -107,10 +107,20 @@ class FileLogSink(
         }
     }
 
-    /** 全部日志文件，按文件名（即日期）新→旧排序；导出时倒序拼接即得时间正序。 */
+    /**
+     * 全部日志文件，按日期新→旧排序；同日分卷排在该日基础文件之后
+     * （`.1` 是更早的半段，基础文件是更晚的半段）。纯按文件名字典序排时
+     * "log-2026-09-16.txt.1" > "log-2026-09-16.txt"，同日两半会颠倒，
+     * 导出倒序拼接即不再时间正序。导出时倒序拼接即得时间正序。
+     */
     fun logFiles(): List<File> =
         directory.listFiles { f -> f.isFile && f.name.startsWith(FILE_PREFIX) }
-            ?.sortedByDescending { it.name }
+            ?.sortedWith(
+                compareByDescending<File> { parseFileDate(it.name) ?: LocalDate.MIN }
+                    // 同日：基础文件（新半段）在前，.1 分卷（旧半段）在后
+                    .thenBy { if (it.name.endsWith(FILE_SUFFIX)) 0 else 1 }
+                    .thenByDescending { it.name },
+            )
             .orEmpty()
 
     // ---- 内部实现 ----

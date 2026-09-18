@@ -249,7 +249,13 @@ fun LogsScreen(
                     }
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        itemsIndexed(uiState.entries) { index, entry ->
+                        // 稳定 key（进程内唯一自增序号）：新日志行插入会让纯位置索引
+                        // 的行整体移位，展开态因行号变化丢失；timeMillis+message 作 key
+                        // 会因同毫秒重复日志碰撞而崩溃，seq 由 FitLog 构造时分配保证唯一
+                        itemsIndexed(
+                            uiState.entries,
+                            key = { _, entry -> entry.seq },
+                        ) { index, entry ->
                             LogEntryItem(entry = entry)
                             if (index < uiState.entries.lastIndex) {
                                 HorizontalDivider(
@@ -274,7 +280,7 @@ fun LogsScreen(
  */
 @Composable
 private fun LogEntryItem(entry: LogEntry) {
-    var expanded by rememberSaveable(entry.timeMillis, entry.message) { mutableStateOf(false) }
+    var expanded by rememberSaveable(entry.seq) { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
