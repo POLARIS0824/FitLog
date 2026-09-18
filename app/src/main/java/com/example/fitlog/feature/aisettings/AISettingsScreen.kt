@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -69,6 +71,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
@@ -542,7 +545,12 @@ private fun ProviderPickerSheet(
             val spec = ProviderSpecs.of(type)
             val configured = providers.any { it.id == type.name && it.apiKey.isNotBlank() }
             ListItem(
-                modifier = Modifier.clickable { onSelect(type) },
+                // 单选语义：TalkBack 朗读"单选/已选中"，触控目标为整行
+                modifier = Modifier.selectable(
+                    selected = type == selectedType,
+                    role = Role.RadioButton,
+                    onClick = { onSelect(type) },
+                ),
                 leadingContent = { ProviderIcon(spec = spec, size = 40.dp) },
                 trailingContent = {
                                 if (type == selectedType) {
@@ -665,7 +673,10 @@ private fun HelpLink(url: String) {
             }
         },
         style = MaterialTheme.typography.bodySmall,
-        modifier = Modifier.clickable { uriHandler.openUri(url) },
+        modifier = Modifier
+            // 链接行高较小（bodySmall）：扩展至 48dp 最小触控并声明按钮语义
+            .minimumInteractiveComponentSize()
+            .clickable(role = Role.Button) { uriHandler.openUri(url) },
     )
 }
 

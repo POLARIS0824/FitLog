@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -231,38 +232,43 @@ private fun WeeklyDaySlot(
     val isFuture = day.status == DayWorkoutStatus.FUTURE || day.status == DayWorkoutStatus.PLANNED
     val textAlpha = if (isFuture) 0.30f else 1.0f
 
+    // 触控槽填满 weight 单元（≈47dp，接近 M3 48dp 最小触控目标）；
+    // 视觉胶囊保持 36dp 不变（内层 Box）
     Box(
         modifier = modifier
-            .width(36.dp)
             .height(68.dp)
-            .then(
-                if (showCapsule) {
-                    Modifier
-                        .clip(CircleShape)
-                        .background(capsuleColor)
-                } else {
-                    Modifier
-                }
-            )
             .semantics {
                 role = Role.Button
                 contentDescription = a11yDesc
             }
             .then(
                 if (onClick != null) {
-                    Modifier
-                        .clip(CircleShape)
-                        .clickable(onClick = onClick)
+                    Modifier.clickable(onClick = onClick)
                 } else Modifier
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .padding(vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween,
+                .width(36.dp)
+                .fillMaxHeight()
+                .then(
+                    if (showCapsule) {
+                        Modifier
+                            .clip(CircleShape)
+                            .background(capsuleColor)
+                    } else {
+                        Modifier
+                    }
+                ),
+            contentAlignment = Alignment.Center,
         ) {
+            Column(
+                modifier = Modifier
+                    .padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
             // ── 顶部状态指示区 (固定 18dp 槽位，确保基线绝对水平对齐) ──
             Box(
                 modifier = Modifier.size(18.dp),
@@ -345,6 +351,7 @@ private fun WeeklyDaySlot(
                     MaterialTheme.colorScheme.onSurface.copy(alpha = textAlpha)
                 },
             )
+        }
         }
     }
 }

@@ -12,7 +12,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -82,6 +82,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -1009,7 +1010,13 @@ internal fun ImportItemRow(
             .clip(RoundedCornerShape(16.dp))
             .then(
                 if (isSelectable) {
-                    Modifier.clickable(onClick = onToggleChecked)
+                    // 整卡承载 toggleable(Checkbox) 语义：TalkBack 朗读勾选态，
+                    // 触控目标为整卡；内部 Checkbox 降级为纯视觉，避免双焦点
+                    Modifier.toggleable(
+                        value = item.checked,
+                        role = Role.Checkbox,
+                        onValueChange = { onToggleChecked() },
+                    )
                 } else {
                     Modifier
                 }
@@ -1034,7 +1041,7 @@ internal fun ImportItemRow(
                             ImportItemStatus.PARSED, ImportItemStatus.FAILED -> {
                                 Checkbox(
                                     checked = item.checked,
-                                    onCheckedChange = { onToggleChecked() },
+                                    onCheckedChange = null, // 勾选由卡片级 toggleable 承载
                                 )
                             }
 

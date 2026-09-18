@@ -14,9 +14,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.minimumInteractiveComponentSize
 import com.example.fitlog.BuildConfig
 import com.example.fitlog.ui.components.CollapsingTitleScaffold
 import com.example.fitlog.ui.components.FitLogCard
@@ -97,13 +99,16 @@ fun AboutScreen(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
                 textDecoration = TextDecoration.Underline,
-                modifier = Modifier.clickable {
-                    // 无任何浏览器的设备上 openUri 抛 ActivityNotFoundException：
-                    // 非核心功能，吞掉即可，不必崩溃
-                    runCatching {
-                        uriHandler.openUri("https://github.com/POLARIS0824/FitLog")
-                    }
-                },
+                modifier = Modifier
+                    // 链接目标小（titleMedium 单行）：扩展至 48dp 最小触控并声明按钮语义
+                    .minimumInteractiveComponentSize()
+                    .clickable(role = Role.Button) {
+                        // 无任何浏览器的设备上 openUri 抛 ActivityNotFoundException：
+                        // 非核心功能，吞掉即可，不必崩溃
+                        runCatching {
+                            uriHandler.openUri("https://github.com/POLARIS0824/FitLog")
+                        }
+                    },
             )
             Text(
                 text = "AI 驱动的训练记录与分析，个人项目",

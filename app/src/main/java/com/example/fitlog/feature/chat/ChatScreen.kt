@@ -507,10 +507,8 @@ fun ChatInputBar(
             }
 
             // ── 右侧麦克风语音按钮 ──
-            IconButton(
-                onClick = onVoiceInputClick,
-                modifier = Modifier.size(44.dp),
-            ) {
+            // 不显式收窄尺寸：M3 IconButton 默认 40dp 视觉 + 48dp 最小触控目标
+            IconButton(onClick = onVoiceInputClick) {
                 Icon(
                     imageVector = Icons.Rounded.Mic,
                     contentDescription = "语音输入",
@@ -541,7 +539,7 @@ fun ChatInputBar(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
-                modifier = Modifier.size(42.dp),
+                // 不显式收窄尺寸：默认 40dp 视觉 + 48dp 最小触控目标
             ) {
                 AnimatedContent(
                     targetState = actionState,

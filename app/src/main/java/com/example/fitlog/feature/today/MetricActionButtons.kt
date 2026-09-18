@@ -161,7 +161,7 @@ internal fun MetricActionButtons(
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier
                 .weight(animatedLogWeight)
-                .height(44.dp),
+                .height(48.dp),
         )
 
         // Start 按钮
@@ -174,7 +174,7 @@ internal fun MetricActionButtons(
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier
                 .weight(animatedStartWeight)
-                .height(44.dp),
+                .height(48.dp),
         )
 
         // 编辑图标按钮
@@ -182,7 +182,7 @@ internal fun MetricActionButtons(
             onClick = onEditClick,
             interactionSource = editInteractionSource,
             modifier = Modifier
-                .height(44.dp)
+                .height(48.dp)
                 .width(animatedEditWidth),
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceContainerHighest,

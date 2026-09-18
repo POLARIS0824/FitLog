@@ -76,7 +76,10 @@ fun FitLogBottomBar(
                 // 按值比较会因 prefill 非空而四个 tab 全部无高亮
                 selected = tab.key::class == selectedTab?.let { it::class },
                 onClick = { onTabSelected(tab.key) },
-                icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
+                icon = {
+                    // 无障碍：label 已由 NavigationBarItem 朗读，图标描述置空避免重复播报
+                    Icon(imageVector = tab.icon, contentDescription = null)
+                },
                 label = { Text(text = tab.label) },
             )
         }

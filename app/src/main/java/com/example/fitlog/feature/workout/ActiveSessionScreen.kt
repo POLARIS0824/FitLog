@@ -453,7 +453,7 @@ private fun SessionSetRow(
             },
             modifier = Modifier.width(64.dp),
         )
-        IconButton(onClick = onRemove, modifier = Modifier.width(40.dp)) {
+        IconButton(onClick = onRemove) {
             Icon(
                 Icons.Filled.Close,
                 contentDescription = "删除第 $index 组",

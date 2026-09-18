@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.ui.components.FitLogCard
@@ -166,32 +168,42 @@ private fun ExerciseItemRow(
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 左侧圆形打卡框
+        // 左侧圆形打卡框：48dp 触控槽承载 toggleable(Checkbox) 语义，
+        // 视觉圆点保持 24dp（M3 最小触控目标约束 + TalkBack 可朗读勾选态）
         Box(
             modifier = Modifier
-                .size(24.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onToggleCheck)
-                .then(
-                    if (exercise.isCompleted) {
-                        Modifier.background(MaterialTheme.colorScheme.primary)
-                    } else {
-                        Modifier.border(
-                            width = 1.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                            shape = CircleShape,
-                        )
-                    },
+                .size(48.dp)
+                .toggleable(
+                    value = exercise.isCompleted,
+                    role = Role.Checkbox,
+                    onValueChange = { onToggleCheck() },
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            if (exercise.isCompleted) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "已打卡",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(16.dp),
-                )
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .then(
+                        if (exercise.isCompleted) {
+                            Modifier.background(MaterialTheme.colorScheme.primary)
+                        } else {
+                            Modifier.border(
+                                width = 1.5.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                shape = CircleShape,
+                            )
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (exercise.isCompleted) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null, // 勾选态由 toggleable 语义朗读
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
             }
         }
 

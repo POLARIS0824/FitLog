@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -110,8 +112,16 @@ fun ReminderScreen(
     ) {
         SectionLabel("提醒")
         FitLogCard {
+            // 整行承载 toggleable(Switch) 语义：TalkBack 可朗读开关名与状态；
+            // 状态翻转仍走 requestEnable（通知运行时权限门控）
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = uiState.enabled,
+                        role = Role.Switch,
+                        onValueChange = ::requestEnable,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -124,7 +134,7 @@ fun ReminderScreen(
                 }
                 Switch(
                     checked = uiState.enabled,
-                    onCheckedChange = ::requestEnable,
+                    onCheckedChange = null, // 状态由行级 toggleable 承载，避免双焦点
                 )
             }
 

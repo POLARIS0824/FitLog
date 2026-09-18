@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -15,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -88,8 +90,16 @@ fun AppearanceScreen(
 
         SectionLabel("颜色")
         FitLogCard {
+            // 整行承载 toggleable(Switch) 语义：TalkBack 可朗读开关名与状态，
+            // 触控目标为整行而非仅开关本体
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = uiState.dynamicColor,
+                        role = Role.Switch,
+                        onValueChange = onDynamicColorChange,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -102,7 +112,7 @@ fun AppearanceScreen(
                 }
                 Switch(
                     checked = uiState.dynamicColor,
-                    onCheckedChange = onDynamicColorChange,
+                    onCheckedChange = null, // 状态由行级 toggleable 承载，避免双焦点
                 )
             }
         }
