@@ -1,5 +1,6 @@
 package com.example.fitlog.feature.chat
 
+import com.example.fitlog.model.ai.AgentToolContract
 import java.util.Locale
 
 /**
@@ -13,9 +14,6 @@ object AgentStepFormatter {
 
     /** 参数摘要的最大长度，超长截断（防模型传超长 query 撑爆时间线）。 */
     private const val MAX_DETAIL_LENGTH = 40
-
-    /** 需要确认的写工具（与 FitnessTools 中 requireConfirmation = true 的一致）。 */
-    private val WRITE_TOOLS = setOf("logBodyWeight", "setActivePlan", "createPlan")
 
     /**
      * 工具函数名 → 中文名；未登记的工具返回函数名本身。
@@ -40,7 +38,7 @@ object AgentStepFormatter {
     /**
      * 是否为需要确认的写工具（时间线上用不同图标提示"改数据"性质）。
      */
-    fun isWriteTool(toolKey: String): Boolean = toolKey in WRITE_TOOLS
+    fun isWriteTool(toolKey: String): Boolean = toolKey in AgentToolContract.WRITE_TOOLS
 
     /**
      * 生成工具参数摘要（时间线副文本）。

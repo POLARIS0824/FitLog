@@ -6,6 +6,7 @@ import com.example.fitlog.data.repository.UserProfileRepository
 import com.example.fitlog.data.repository.WorkoutPlanRepository
 import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.model.Workout
+import com.example.fitlog.model.ai.AgentToolContract
 import com.example.fitlog.model.user.TrainingGoal
 import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.model.PlannedSession
@@ -103,13 +104,14 @@ class FitnessTools @Inject constructor(
         val workout = workoutRepository.getById(workoutId.toLong()) ?: return null
         // 结构化记录没有原文可读，返回空让模型直接走 getWorkoutDetail
         val raw = workout.rawContent?.takeIf { it.isNotBlank() } ?: return null
-        // 载荷上限与 OpenAI 路径的 MAX_TOOL_CONTENT_CHARS 对齐：
+        // 载荷上限与 OpenAI 路径的 AgentToolContract.MAX_TOOL_CONTENT_CHARS 对齐：
         // 导入的 Markdown 可能来自长篇日志，原生 Gemini 路径没有装配层截断
         // （OpenAiAdapters 只覆盖 OpenAI 兼容请求），工具侧收口保证双路径同限
-        return if (raw.length <= MAX_TOOL_CONTENT_CHARS) {
+        return if (raw.length <= AgentToolContract.MAX_TOOL_CONTENT_CHARS) {
             raw
         } else {
-            raw.take(MAX_TOOL_CONTENT_CHARS) + "\n…（原文过长已截断，可用 getWorkoutDetail 获取结构化摘要）"
+            raw.take(AgentToolContract.MAX_TOOL_CONTENT_CHARS) +
+                "\n…（原文过长已截断，可用 getWorkoutDetail 获取结构化摘要）"
         }
     }
 
@@ -175,9 +177,14 @@ class FitnessTools @Inject constructor(
     ): List<ExerciseDto> {
         // 入参归一化：模型可能传小写或带空格的部位名，统一大写去空白后再等值匹配
         val normalizedPart = bodyPart?.trim()?.uppercase()?.takeIf { it.isNotBlank() }
+        // query 与 bodyPart 同时提供时取交集过滤：短路取第一个分支会让部位筛选
+        // 被静默忽略，模型基于跨部位结果作答（如"腿部卧推变式"返回胸部动作）
         val results = when {
+            !query.isNullOrBlank() && normalizedPart != null ->
+                exerciseRepository.searchByName(query)
+                    .filter { it.bodyPart.name == normalizedPart }
             !query.isNullOrBlank() -> exerciseRepository.searchByName(query)
-            !normalizedPart.isNullOrBlank() -> exerciseRepository.getByBodyPart(normalizedPart)
+            normalizedPart != null -> exerciseRepository.getByBodyPart(normalizedPart)
             else -> exerciseRepository.getAll()
         }
         return results.take(30).map { it.toDto() }
@@ -325,10 +332,57 @@ class FitnessTools @Inject constructor(
             return WriteResultDto(success = false, message = "训练日列表为空，至少需要 1 个训练日")
         }
 
-        // 2) exerciseKey 存在性校验：exercises 外键对未知 key 会整体回滚，
+        // 2) 结构规整与校验：
+        //    a. week/day 越界钳制（模型幻觉出 0 或负数周/天会污染计划结构）；
+        //    b. 同周同天重复训练日必须拒绝——DAO 对 session id 用 REPLACE 策略，
+        //       重复 (weekNumber, dayNumber) 生成的 id 相同，后一条会静默覆盖前一条，
+        //       确认落库的计划凭空少一个训练日且无任何反馈；以 success=false 把
+        //       冲突明细回给模型自行合并重试
+        val clamped = sessions.map { spec ->
+            spec.copy(
+                weekNumber = spec.weekNumber.coerceIn(1, 52),
+                dayNumber = spec.dayNumber.coerceIn(1, 7),
+                name = spec.name.trim().ifEmpty { "Day ${spec.dayNumber}" },
+                exercises = spec.exercises.map { ex ->
+                    val min = ex.targetRepsMin?.coerceIn(1, 50)
+                    val max = ex.targetRepsMax?.coerceIn(1, 50)
+                    // 次数区间倒置（min > max）静默交换而非拒绝：钳制后仍倒置
+                    // 属于模型口误，交换语义无损，拒绝反而增加无谓重试轮次
+                    ex.copy(
+                        targetRepsMin = min,
+                        targetRepsMax = max,
+                        targetSets = ex.targetSets.coerceIn(1, 12),
+                    ).let { fixed ->
+                        if (min != null && max != null && min > max) {
+                            fixed.copy(targetRepsMin = max, targetRepsMax = min)
+                        } else {
+                            fixed
+                        }
+                    }
+                },
+            )
+        }
+        val duplicates = clamped
+            .groupingBy { it.weekNumber to it.dayNumber }
+            .eachCount()
+            .filterValues { it > 1 }
+            .keys
+        if (duplicates.isNotEmpty()) {
+            // Pair 未实现 Comparable，须按分量显式排序
+            val detail = duplicates.sortedWith(compareBy({ it.first }, { it.second }))
+                .joinToString("、") { (week, day) -> "第${week}周第${day}天" }
+            FitLog.w(TAG, "Agent 工具创建计划：训练日重复：$detail")
+            return WriteResultDto(
+                success = false,
+                message = "存在重复的训练日（$detail），同一周的同一天只能有一个训练日，" +
+                    "请合并重复项后重试",
+            )
+        }
+
+        // 3) exerciseKey 存在性校验：exercises 外键对未知 key 会整体回滚，
         //    提前拦截并把未知 key 回给模型（模型可用 searchExercises 纠偏）
         val known = exerciseRepository.getAll().map { it.id }.toSet()
-        val unknown = sessions.flatMap { it.exercises }
+        val unknown = clamped.flatMap { it.exercises }
             .map { it.exerciseKey }
             .filter { it !in known }
             .distinct()
@@ -340,20 +394,24 @@ class FitnessTools @Inject constructor(
             )
         }
 
-        // 3) 组装并落库：isCustom=true 标记 AI 生成；id 加时间戳避免与既有计划冲突
+        // 4) 组装并落库：isCustom=true 标记 AI 生成；id 加时间戳避免与既有计划冲突。
+        //    计划级字段与训练日同规格钳制：durationWeeks 幻觉出 0/负数/天文数字、
+        //    空白计划名都会原样落库进 PlanPickerSheet 与 AI 上下文
         val planId = "plan-ai-${System.currentTimeMillis()}"
-        val maxWeek = sessions.maxOf { it.weekNumber }
+        val maxWeek = clamped.maxOf { it.weekNumber }
         val plan = WorkoutPlan(
             id = planId,
-            name = name.trim(),
+            name = name.trim().ifEmpty { "AI 训练计划" },
             description = "AI 教练生成",
             goal = goal?.let { runCatching { TrainingGoal.valueOf(it.trim().uppercase()) }.getOrNull() },
-            durationWeeks = durationWeeks ?: maxWeek,
-            sessionsPerWeek = sessionsPerWeek ?: sessions.size,
+            durationWeeks = durationWeeks?.coerceIn(1, 52) ?: maxWeek,
+            sessionsPerWeek = sessionsPerWeek?.coerceIn(1, 14)
+                // 缺省按"有训练日的周数"推导而非总训练日数（4 周×3 天 ≠ 每周 12 次）
+                ?: clamped.map { it.weekNumber }.distinct().size,
             isCustom = true,
             createdAt = LocalDate.now(),
             rawPlanText = rawPlanText?.takeIf { it.isNotBlank() },
-            sessions = sessions.map { spec ->
+            sessions = clamped.map { spec ->
                 PlannedSession(
                     id = "$planId-w${spec.weekNumber}d${spec.dayNumber}",
                     name = spec.name,
@@ -365,9 +423,9 @@ class FitnessTools @Inject constructor(
                         PlannedExerciseItem(
                             exerciseKey = ex.exerciseKey,
                             exerciseName = null,
-                            targetSets = ex.targetSets.coerceIn(1, 12),
-                            targetRepsMin = ex.targetRepsMin?.coerceIn(1, 50),
-                            targetRepsMax = ex.targetRepsMax?.coerceIn(1, 50),
+                            targetSets = ex.targetSets,
+                            targetRepsMin = ex.targetRepsMin,
+                            targetRepsMax = ex.targetRepsMax,
                             notes = ex.notes,
                             order = index,
                         )
@@ -605,8 +663,6 @@ class FitnessTools @Inject constructor(
     )
 
     private companion object {
-        /** 单个工具返回内容上限（与 OpenAiAdapters.MAX_TOOL_CONTENT_CHARS 同值）。 */
-        private const val MAX_TOOL_CONTENT_CHARS = 8_000
         private const val TAG = "FitnessTools"
     }
 }

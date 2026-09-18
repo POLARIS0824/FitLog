@@ -93,6 +93,25 @@ class RoomChatRepository @Inject constructor(
     override suspend fun count(): Long = chatMessageDao.count()
 
     /** {@inheritDoc} */
+    override suspend fun insertMessages(messages: List<ChatRepository.SeedMessage>): List<Long> =
+        db.withTransaction {
+            chatMessageDao.insertAll(
+                messages.map { seed ->
+                    ChatMessageEntity(
+                        role = seed.role,
+                        content = seed.content,
+                        runId = null,
+                        durationMs = null,
+                        createdAt = seed.createdAt,
+                    )
+                },
+            )
+        }
+
+    /** {@inheritDoc} */
+    override suspend fun deleteStepsByRun(runId: String) = agentStepDao.deleteByRun(runId)
+
+    /** {@inheritDoc} */
     override suspend fun clearAll() = db.withTransaction {
         // 两表"同批"清空须在一个事务内：步骤行只经消息行的 runId 挂载，
         // 消息已删而步骤残留时孤儿数据永久无法恢复（全库唯一未入事务的

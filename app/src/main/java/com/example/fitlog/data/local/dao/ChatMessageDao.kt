@@ -24,6 +24,13 @@ interface ChatMessageDao {
     suspend fun insert(entity: ChatMessageEntity): Long
 
     /**
+     * 批量写入消息（历史回放一次性 seed 用），返回与入参顺序一致的自增 id 列表。
+     * 必须在调用方事务内执行，保证 seed 原子性。
+     */
+    @Insert
+    suspend fun insertAll(entities: List<ChatMessageEntity>): List<Long>
+
+    /**
      * 消息总数（判断是否需要从 ADK 历史做一次性 seed）。
      */
     @Query("SELECT COUNT(*) FROM chat_messages")

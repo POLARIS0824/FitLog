@@ -11,7 +11,6 @@ import com.example.fitlog.model.ai.AIProviderConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -110,9 +109,16 @@ class AIProviderConfigRepository @Inject constructor(
      * 是否允许删除预设配置由 UI 层控制（预设配置不显示删除按钮）。
      */
     suspend fun delete(config: AIProviderConfig) {
-        aiProviderConfigDao.deleteById(config.id)
-        if (activeProviderId.first() == config.id) {
-            clearActiveProviderId()
+        withContext(Dispatchers.IO) {
+            aiProviderConfigDao.deleteById(config.id)
+        }
+        // 检查-清除必须收进同一次原子 edit：先 first() 读再 remove 的话，
+        // 两步之间并发的 setActiveProviderId(其他配置) 会被误清，
+        // 落得"无激活服务商"的悬空状态
+        dataStore.edit { prefs ->
+            if (prefs[ACTIVE_PROVIDER_KEY] == config.id) {
+                prefs.remove(ACTIVE_PROVIDER_KEY)
+            }
         }
     }
 

@@ -165,8 +165,12 @@ class ChatViewModel @Inject constructor(
             }
             agentEngine.sendMessage(sessionId, input)
                 .onSuccess { collectAgentEvents(it, runId) }
-                .onFailure { onEngineError(it) }
-        }.also { runJob = it }
+                .onFailure { onEngineError(it, runId = runId) }
+        }.also {
+            // 防御性取消：isSending 刚翻转 false 的窗口内旧收集可能尚未完全收尾
+            runJob?.cancel()
+            runJob = it
+        }
     }
 
     /**
@@ -178,12 +182,17 @@ class ChatViewModel @Inject constructor(
      */
     fun respondToConfirmation(confirmed: Boolean) {
         val pending = _uiState.value.pendingConfirmation ?: return
-        val runId = _uiState.value.activeRun?.runId ?: startNewRun()
+        val currentRun = _uiState.value.activeRun
+        val runId = currentRun?.runId ?: startNewRun()
         _uiState.update {
             it.copy(
                 pendingConfirmation = null,
                 isSending = true,
-                activeRun = it.activeRun?.copy(awaitingConfirmation = false),
+                // activeRun 为空（错误事件先于确认请求的异常序列）时以新 runId 建档：
+                // 事件收集的 runId 守卫以 activeRun.runId 放行，否则本轮事件全被
+                // 丢弃且流结束收尾跳过，isSending 永久卡在发送态
+                activeRun = (currentRun ?: ActiveRun(runId = runId))
+                    .copy(awaitingConfirmation = false),
             )
         }
         resumeRunTiming()
@@ -204,7 +213,12 @@ class ChatViewModel @Inject constructor(
                     // 会话毒化且只能手动清空）
                     _uiState.update { it.copy(pendingConfirmation = pending) }
                 }
-        }.also { runJob = it }
+        }.also {
+            // 上一段事件收集若仍在收尾（极端竞态），先取消再开确认续传，
+            // 避免旧收集与新收集并发改全局状态
+            runJob?.cancel()
+            runJob = it
+        }
     }
 
     /**
@@ -217,10 +231,15 @@ class ChatViewModel @Inject constructor(
      */
     fun stopRun() {
         if (!_uiState.value.isSending) return
+        val runId = _uiState.value.activeRun?.runId
         runJob?.cancel()
         runJob = null
         stopRunTiming()
         _uiState.update { it.copy(isSending = false, activeRun = null) }
+        // 中断运行的已记步骤永远失去挂载点（最终回答不会落库），就地删除防孤儿累积
+        if (runId != null) {
+            viewModelScope.launch { runCatching { chatRepository.deleteStepsByRun(runId) } }
+        }
     }
 
     /**
@@ -247,6 +266,11 @@ class ChatViewModel @Inject constructor(
         var stepOrder = stepOrderStart
         try {
             events.collect { event ->
+                // 过期运行防御：stopRun/清空/新开始不会立刻终止已入队的事件，
+                // 旧 runId 的事件若继续改全局状态，会污染新一轮运行或复活已被
+                // 清空的界面。所有状态变更只在 runId 仍是当前运行时生效。
+                if (_uiState.value.activeRun?.runId != runId) return@collect
+
                 // 1) 确认请求：ADK 已暂停本轮，记步骤 + 弹确认框 + 暂停计时
                 val confirmationCall = event.functionCalls()
                     .firstOrNull { it.name == FunctionCall.REQUEST_CONFIRMATION_FUNCTION_CALL_NAME }
@@ -286,6 +310,19 @@ class ChatViewModel @Inject constructor(
                     sawError = true
                     sawAssistantOutput = true
                     FitLog.e(TAG, "Agent 事件错误：$msg")
+                    // 计时就地收尾：activeRun 已置空，流结束块的 runId 守卫不会再走收尾。
+                    // 已记步骤随之失去挂载点，就地删除防孤儿累积（确认挂起时保留——
+                    // 用户重试确认后同一 runId 仍要挂载）
+                    if (_uiState.value.pendingConfirmation == null) {
+                        try {
+                            chatRepository.deleteStepsByRun(runId)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            FitLog.w(TAG, "错误运行的孤儿步骤清理失败", e)
+                        }
+                    }
+                    stopRunTiming()
                     _uiState.update { it.copy(errorMessage = msg, isSending = false, activeRun = null) }
                     return@collect
                 }
@@ -331,26 +368,48 @@ class ChatViewModel @Inject constructor(
             }
 
             // 流结束：确认中 → 等用户决定（计时已暂停，运行保持）；其余收尾。
-            // 已有过程输出但无最终回答 = 达到步数上限被静默截断，同样要给用户解释，
-            // 否则只有时间线没有回复、界面无声结束，用户不知道发生了什么。
+            // 已有过程输出但无最终回答 = 达到步数上限或回复被截断，同样要给用户
+            // 解释，否则只有时间线没有回复、界面无声结束，用户不知道发生了什么。
             // 已有错误提示时不再覆盖（服务商 429 等真实原因优先于推测性兜底文案）
-            if (!sawConfirmation && !sawFinalAnswer && !sawError) {
+            if (!sawConfirmation && !sawFinalAnswer && !sawError &&
+                _uiState.value.activeRun?.runId == runId
+            ) {
                 val reason = if (sawAssistantOutput) {
-                    "本轮已执行多个步骤但达到工具调用步数上限，未能生成最终回复，请重试或换个问法"
+                    "本轮已执行多个步骤但未生成最终回复（可能达到工具调用步数上限或回复被截断），请重试或换个问法"
                 } else {
-                    "本轮对话未产生回复（可能已达到工具调用步数上限），请重试或换个问法"
+                    "本轮对话未产生回复（可能已达到工具调用步数上限或回复被截断），请重试或换个问法"
                 }
                 FitLog.w(TAG, "Agent 运行无最终回复：$reason")
                 _uiState.update { it.copy(errorMessage = reason) }
             }
-            if (!sawConfirmation) {
+            if (!sawConfirmation && _uiState.value.activeRun?.runId == runId) {
+                // 运行作废（错误/无最终回答）时已记步骤永远失去挂载点，
+                // 就地删除防孤儿步骤无限累积；确认挂起时步骤仍待续传挂载。
+                // 挂起删除期间运行可能被 stop 取消并发起新运行——刻意不用
+                // runCatching（会吞 CancellationException 让收尾代码继续执行，
+                // 把新一轮运行的 isSending/activeRun 清掉）；CE 原样上抛即，
+                // 新运行由其自身路径收尾
+                if (!sawFinalAnswer && !sawError) {
+                    try {
+                        chatRepository.deleteStepsByRun(runId)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        FitLog.w(TAG, "孤儿步骤清理失败", e)
+                    }
+                }
                 stopRunTiming()
                 _uiState.update { it.copy(isSending = false, activeRun = null) }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            onEngineError(e)
+            // 过期运行的异常不进全局错误状态（会覆盖新一轮运行/清空后的界面）
+            if (_uiState.value.activeRun?.runId == runId) {
+                onEngineError(e, runId = runId)
+            } else {
+                FitLog.w(TAG, "已失效运行 $runId 的异常被丢弃", e)
+            }
         }
     }
 
@@ -479,9 +538,14 @@ class ChatViewModel @Inject constructor(
     }
 
     /** 引擎初始化/发送失败（未配置服务商等）。[clearActiveRun]=false 用于确认续传失败（运行要恢复等待态）。 */
-    private fun onEngineError(error: Throwable, clearActiveRun: Boolean = true) {
+    private fun onEngineError(error: Throwable, clearActiveRun: Boolean = true, runId: String? = null) {
         FitLog.w(TAG, "Agent 运行失败", error)
         stopRunTiming()
+        // 作废运行的已记步骤永远失去挂载点，就地删除防孤儿累积；
+        // clearActiveRun=false 是确认续传失败，运行待重试，步骤仍要复用
+        if (clearActiveRun && runId != null) {
+            viewModelScope.launch { runCatching { chatRepository.deleteStepsByRun(runId) } }
+        }
         _uiState.update {
             it.copy(
                 isSending = false,
@@ -510,8 +574,10 @@ class ChatViewModel @Inject constructor(
      */
     fun onClearChat() {
         if (_uiState.value.isSending) return
-        // 待确认等待期间清空可达：一并停掉计时，防协程泄漏
+        // 待确认等待期间清空可达：一并停掉计时与在途事件收集，防协程泄漏
         stopRunTiming()
+        runJob?.cancel()
+        runJob = null
         val previous = _uiState.value
         _uiState.update {
             it.copy(
@@ -525,9 +591,19 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             agentEngine.clearSession(sessionId)
                 .onSuccess {
-                    // 本地历史与 ADK 会话一并清除，否则重启后消息"复活"而模型已失忆
+                    // 本地历史与 ADK 会话一并清除，否则重启后消息"复活"而模型已失忆。
+                    // 本地清理失败必须显式报错：静默吞掉会让模型侧已失忆而消息表
+                    // 仍在，重启后历史"复活"，两边永久分叉且用户毫无感知
                     runCatching { chatRepository.clearAll() }
-                        .onFailure { FitLog.w(TAG, "聊天记录本地清理失败", it) }
+                        .onFailure { e ->
+                            FitLog.w(TAG, "聊天记录本地清理失败", e)
+                            _uiState.update {
+                                it.copy(
+                                    errorMessage = "会话已清空，但本地聊天记录删除失败，" +
+                                        "重启应用前历史消息可能重新显示",
+                                )
+                            }
+                        }
                 }
                 .onFailure { error ->
                     // 回滚以 DB 为准重载，而非用快照整体覆盖：清空在途期间用户可能
@@ -571,9 +647,14 @@ class ChatViewModel @Inject constructor(
         val restored = runCatching { chatRepository.loadThread() }
             .getOrElse { FitLog.w(TAG, "读取聊天历史失败", it); emptyList() }
         _uiState.update { state ->
-            // init 与 send 并发的防御：若用户已发出新消息，不覆盖现场
-            if (state.messages.isNotEmpty()) return@update state
-            state.copy(messages = restored)
+            if (state.messages.isEmpty()) {
+                state.copy(messages = restored)
+            } else {
+                // init 与 send 并发的防御：恢复结果重读自 DB、已包含并发新消息，
+                // 按 id 去重后前置合并而非整体丢弃（丢弃会让老历史直到重启才出现）
+                val restoredIds = restored.mapTo(HashSet()) { it.id }
+                state.copy(messages = restored + state.messages.filterNot { it.id in restoredIds })
+            }
         }
     }
 
@@ -588,14 +669,22 @@ class ChatViewModel @Inject constructor(
         // 时间戳整体回溯一个消息数区间（而非从"现在"起算）：seed 进行期间用户可能已
         // 发出新消息（createdAt 为当下），回溯可保证 seed 的旧历史始终排在新消息之前
         val base = System.currentTimeMillis() - history.size
-        history.forEachIndexed { index, message ->
-            insertOrFallback("历史消息 seed 落库失败") {
-                chatRepository.insertMessage(
-                    role = message.role,
-                    content = message.content,
-                    createdAt = base + index,
-                )
-            }
+        // 整批事务落库：逐条插入中途崩溃会留下半截历史，本地非空的判断
+        // 从此永久跳过补种，残缺被固化
+        try {
+            chatRepository.insertMessages(
+                history.mapIndexed { index, message ->
+                    ChatRepository.SeedMessage(
+                        role = message.role,
+                        content = message.content,
+                        createdAt = base + index,
+                    )
+                },
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            FitLog.w(TAG, "历史消息 seed 落库失败", e)
         }
     }
 

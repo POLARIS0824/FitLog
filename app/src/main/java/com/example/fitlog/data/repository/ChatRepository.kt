@@ -11,6 +11,11 @@ import com.example.fitlog.model.ai.ChatThreadMessage
 interface ChatRepository {
 
     /**
+     * 批量 seed 的消息载荷（历史回放一次性落库用，无 runId/时长）。
+     */
+    data class SeedMessage(val role: String, val content: String, val createdAt: Long)
+
+    /**
      * 写入一条消息（用户消息 / assistant 最终回答 / 历史回放 seed 共用）。
      *
      * @return 自增 id（LazyColumn 稳定 key 的事实源）
@@ -44,6 +49,20 @@ interface ChatRepository {
      * runId 对应的全部步骤（按步骤序号升序）。
      */
     suspend fun loadThread(): List<ChatThreadMessage>
+
+    /**
+     * 事务性批量写入 seed 消息（ADK 历史一次性回放）。必须整批原子：
+     * 中途崩溃留下半截历史时，本地非空的判断会永久跳过补种，残缺被固化。
+     *
+     * @return 与入参顺序一致的自增 id 列表
+     */
+    suspend fun insertMessages(messages: List<SeedMessage>): List<Long>
+
+    /**
+     * 删除某轮运行的全部步骤行。运行作废（错误/停止/无最终回答）后，
+     * 其步骤永远失去挂载点，保留只会无限累积成孤儿数据。
+     */
+    suspend fun deleteStepsByRun(runId: String)
 
     /** 消息总数（判断是否需要从 ADK 历史做一次性 seed）。 */
     suspend fun count(): Long

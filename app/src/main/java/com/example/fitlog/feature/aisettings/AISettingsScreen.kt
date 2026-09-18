@@ -41,7 +41,6 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -301,10 +300,6 @@ fun AISettingsScreen(
                         style = MaterialTheme.typography.headlineMedium,
                     )
                 }
-            }
-
-            if (uiState.ui.isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
 
             SectionLabel("AI Provider")

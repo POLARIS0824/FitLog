@@ -5,6 +5,7 @@ import com.example.fitlog.data.remote.dto.FunctionDefinitionDto
 import com.example.fitlog.data.remote.dto.MessageDto
 import com.example.fitlog.data.remote.dto.ToolCallDto
 import com.example.fitlog.data.remote.dto.ToolDefinitionDto
+import com.example.fitlog.model.ai.AgentToolContract
 import com.google.adk.kt.types.Content
 import com.google.adk.kt.types.FunctionCall
 import com.google.adk.kt.types.FunctionResponse
@@ -85,8 +86,10 @@ object OpenAiAdapters {
      * 单条 tool 结果内容的字符上限：`getImportedWorkoutContent` 等工具会把整篇
      * 导入原文塞进 tool 消息，一条即可挤爆预算。超限截断并标注，模型至少
      * 能看到结果开头并知晓被截断。
+     *
+     * 值的事实源在 [AgentToolContract]（Gemini 原生路径的工具侧收口必须同值）。
      */
-    const val MAX_TOOL_CONTENT_CHARS = 8_000
+    const val MAX_TOOL_CONTENT_CHARS = AgentToolContract.MAX_TOOL_CONTENT_CHARS
 
     /** 悬空 tool_call 自愈时注入的合成 tool 结果。 */
     private const val DANGLING_TOOL_RESULT_JSON = """{"error":"运行被中断，工具未执行"}"""
@@ -291,13 +294,17 @@ object OpenAiAdapters {
         val systemMessages = messages.takeWhile { it.role == "system" }
         val rest = messages.drop(systemMessages.size)
         val budget = maxChars - systemMessages.sumOf { it.approximateChars() }
+        val userBoundaries = rest.withIndex().filter { it.value.role == "user" }
         // 最早的、使保留部分 ≤ 预算的 user 边界（越晚保留越少）
-        val boundary = rest.withIndex()
-            .filter { it.value.role == "user" }
+        val boundary = userBoundaries
             .firstOrNull { (index, _) ->
                 rest.subList(index, rest.size).sumOf { it.approximateChars() } <= budget
             }?.index
-            ?: return messages // 连最后一个完整轮次都超预算：不硬截，交给服务商报错
+            // 连最后一个完整轮次都超预算（system 注入记忆后可能吃掉大半预算）：
+            // 退化为仅保留最新一轮。原样放行会让整段超限历史每轮必 400 且除
+            // 清空对话外无自愈；user 边界切开不拆散调用/结果对，会话得以自愈延续
+            ?: userBoundaries.lastOrNull()?.index
+            ?: return messages // 全历史无 user 文本消息（理论不可达）：不硬截，交给服务商报错
         val kept = systemMessages + rest.subList(boundary, rest.size)
         return if (kept.size == messages.size) messages else kept
     }

@@ -13,8 +13,10 @@ import com.google.adk.kt.types.Part
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -104,6 +106,9 @@ private class FakeChatRepository : ChatRepository {
     var stepCount = 0
         private set
 
+    /** deleteStepsByRun 收到的 runId（孤儿清理断言用）。 */
+    val deletedRunIds = mutableListOf<String>()
+
     /** clearAll 被调用的次数。 */
     var clearCount = 0
         private set
@@ -166,6 +171,21 @@ private class FakeChatRepository : ChatRepository {
 
     override suspend fun count(): Long = stored.size.toLong()
 
+    override suspend fun insertMessages(
+        messages: List<ChatRepository.SeedMessage>,
+    ): List<Long> = messages.map { seed ->
+        // 假实现逐条委托即可：事务性由真实现（Room withTransaction）保证
+        insertMessage(role = seed.role, content = seed.content, createdAt = seed.createdAt)
+    }
+
+    override suspend fun deleteStepsByRun(runId: String) {
+        deletedRunIds += runId
+        storedSteps.removeAll { it.runId == runId }
+    }
+
+    /** 按 runId 统计现存的步骤行数（孤儿清理断言用：删除后应为全零/空）。 */
+    fun stepCountForRuns(): Map<String, Int> = storedSteps.groupingBy { it.runId }.eachCount()
+
     override suspend fun clearAll() {
         clearCount++
         stored.clear()
@@ -203,8 +223,31 @@ class ChatViewModelTest {
         turnComplete = true,
     )
 
-    /** 构造一条 ADK 工具确认请求事件（adk_request_confirmation 合成调用）。 */
-    private fun confirmationEvent(callId: String, toolName: String, args: Map<String, Any?>): Event =
+    /**
+     * 构造一条中间工具调用事件（记 TOOL_CALL 步骤）。
+     *
+     * 必须携带 functionCall：ADK 的 isFinalResponse 只看 skipSummarization/
+     * longRunningToolIds/无函数 part/非 partial——纯文本事件天然是 final，
+     * 唯有工具调用轮才构成"中间步骤"。
+     */
+    private fun toolCallStepEvent(): Event = Event(
+        author = "model",
+        content = Content(
+            role = "model",
+            parts = listOf(
+                Part(
+                    functionCall = FunctionCall(
+                        name = "getUserProfile",
+                        args = emptyMap(),
+                        id = "call-1",
+                    ),
+                ),
+            ),
+        ),
+        partial = false,
+    )
+
+    /** 构造一条 ADK 工具确认请求事件（adk_request_confirmation 合成调用）。 */    private fun confirmationEvent(callId: String, toolName: String, args: Map<String, Any?>): Event =
         Event(
             author = "model",
             content = Content(
@@ -305,6 +348,72 @@ class ChatViewModelTest {
 
         assertEquals("HTTP 429", viewModel.uiState.value.errorMessage)
         assertFalse(viewModel.uiState.value.isSending)
+    }
+
+    /**
+     * 错误事件作废运行：错误前已记的步骤就地删除（防孤儿步骤永久累积）。
+     * 错误分支置空 activeRun 后流结束块的 runId 守卫不会再走收尾，
+     * 删除必须在错误分支内完成。
+     */
+    @Test
+    fun testSend_errorEvent_deletesOrphanSteps() = runTest(mainDispatcher.scheduler) {
+        fakeEngine.sendHandler = {
+            Result.success(
+                flow<Event> {
+                    emit(toolCallStepEvent())
+                    emit(Event(author = "model", errorMessage = "HTTP 429"))
+                },
+            )
+        }
+
+        viewModel.onInputChange("你好")
+        viewModel.send()
+
+        assertEquals("HTTP 429", viewModel.uiState.value.errorMessage)
+        // 步骤确实落过库（stepCount=1）且其 runId 已被删除清理
+        assertEquals(1, fakeChatRepository.stepCount)
+        assertEquals(1, fakeChatRepository.deletedRunIds.size)
+        assertEquals(0, fakeChatRepository.stepCountForRuns().values.sum())
+    }
+
+    /** 流无声结束且无最终回答：兜底提示落位，孤儿步骤删除。 */
+    @Test
+    fun testSend_noFinalAnswer_deletesOrphanStepsAndExplains() = runTest(mainDispatcher.scheduler) {
+        fakeEngine.sendHandler = {
+            Result.success(flowOf(toolCallStepEvent()))
+        }
+
+        viewModel.onInputChange("你好")
+        viewModel.send()
+
+        assertTrue(viewModel.uiState.value.errorMessage?.contains("未生成最终回复") == true)
+        assertEquals(1, fakeChatRepository.deletedRunIds.size)
+        assertEquals(0, fakeChatRepository.stepCountForRuns().values.sum())
+        assertFalse(viewModel.uiState.value.isSending)
+    }
+
+    /** 停止运行：挂起中已记的步骤就地删除（该 runId 永远不会再挂到消息上）。 */
+    @Test
+    fun testStopRun_deletesStepsOfInterruptedRun() = runTest(mainDispatcher.scheduler) {
+        fakeEngine.sendHandler = {
+            Result.success(
+                flow<Event> {
+                    emit(toolCallStepEvent())
+                    awaitCancellation()
+                },
+            )
+        }
+
+        viewModel.onInputChange("你好")
+        viewModel.send()
+        assertTrue(viewModel.uiState.value.isSending)
+        assertEquals(1, fakeChatRepository.stepCount)
+
+        viewModel.stopRun()
+
+        assertFalse(viewModel.uiState.value.isSending)
+        assertEquals(1, fakeChatRepository.deletedRunIds.size)
+        assertEquals(0, fakeChatRepository.stepCountForRuns().values.sum())
     }
 
     /** 发送过程中再次发送被忽略（防重复并发请求）。 */

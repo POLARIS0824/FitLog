@@ -59,6 +59,19 @@ class AISettingsViewModel @Inject constructor(
     private val testState = MutableStateFlow(TestState())
     private val uiFlow = MutableStateFlow(UiState())
 
+    /**
+     * 表单纪元令牌：任何表单编辑 / provider 切换 / 新的 fetch·test 发起都会递增。
+     * 在途网络响应按发起时的纪元值校验，不一致即作废——仅靠
+     * `selectedTypeState != type` 判断串台有漏洞：切走再切回同类型时类型相等，
+     * 旧请求（用已失效凭据发出）的结果会被重新采纳并污染表单/缓存。
+     */
+    private var formRequestEpoch = 0L
+
+    /** 最新一次发起 fetch/test 时的纪元值：加载态只归最新请求所有，
+     *  旧响应的作废路径不得把新请求的加载指示清掉。 */
+    private var activeFetchEpoch = 0L
+    private var activeTestEpoch = 0L
+
     init {
         // 首帧定位：表单落在当前激活的 provider 上；无激活项（首装）则回填
         // 当前默认选中类型的默认值——ProviderSpec.defaultBaseUrl/defaultModel
@@ -119,7 +132,7 @@ class AISettingsViewModel @Inject constructor(
             model = ModelState(selectedModel = ""),
             endpoint = EndpointState(),
             test = TestState(),
-            ui = UiState(isLoading = true),
+            ui = UiState(),
         ),
     )
 
@@ -143,6 +156,7 @@ class AISettingsViewModel @Inject constructor(
      */
     fun onProviderSelected(type: ProviderType) {
         userInteracted = true
+        formRequestEpoch++
         // 快照启动时刻的编辑标记：挂起查询期间用户又编辑了表单则回填放弃（见 formEdited）
         val formEditedAtStart = formEdited
         viewModelScope.launch {
@@ -193,6 +207,7 @@ class AISettingsViewModel @Inject constructor(
     fun onApiKeyChange(value: String) {
         userInteracted = true
         formEdited = true
+        formRequestEpoch++
         apiKeyState.update { it.copy(apiKey = value) }
     }
 
@@ -206,6 +221,7 @@ class AISettingsViewModel @Inject constructor(
     fun onModelChange(value: String) {
         userInteracted = true
         formEdited = true
+        formRequestEpoch++
         modelState.update { it.copy(selectedModel = value) }
     }
 
@@ -213,6 +229,7 @@ class AISettingsViewModel @Inject constructor(
     fun onBaseUrlChange(value: String) {
         userInteracted = true
         formEdited = true
+        formRequestEpoch++
         endpointState.update { it.copy(baseUrl = value) }
     }
 
@@ -220,6 +237,7 @@ class AISettingsViewModel @Inject constructor(
     fun onCustomEndpointChange(value: String) {
         userInteracted = true
         formEdited = true
+        formRequestEpoch++
         endpointState.update { it.copy(customEndpoint = value) }
     }
 
@@ -227,6 +245,7 @@ class AISettingsViewModel @Inject constructor(
     fun onApiVersionChange(value: String) {
         userInteracted = true
         formEdited = true
+        formRequestEpoch++
         endpointState.update { it.copy(apiVersion = value) }
     }
 
@@ -282,11 +301,22 @@ class AISettingsViewModel @Inject constructor(
             }
 
         viewModelScope.launch {
+            // 新请求发起即递增纪元：同类型重复点击时旧在途请求也会被作废；
+            // activeFetchEpoch 归最新请求所有，旧响应的丢弃路径不得清它的加载态
+            val epochAtStart = ++formRequestEpoch
+            activeFetchEpoch = epochAtStart
             modelState.update { it.copy(isLoading = true, fetchResult = "") }
             val result = aiChatRepository.fetchModels(tempConfig)
-            // 串台守卫：请求在途期间用户切换了 provider，丢弃过期结果，
-            // 避免 A 的模型列表渲染进 B 的表单（用户误把 A 的模型保存到 B）。
-            if (selectedTypeState.value != type) return@launch
+            // 串台守卫：请求在途期间表单被编辑/切换/重新发起（纪元变化）或
+            // 已切换 provider 时，丢弃过期结果并复位在途标记（否则加载态卡死），
+            // 避免 A 的模型列表渲染进 B 的表单（用户误把 A 的模型保存到 B），
+            // 或把旧凭据拉到的列表并进新凭据的缓存
+            if (formRequestEpoch != epochAtStart || selectedTypeState.value != type) {
+                if (activeFetchEpoch == epochAtStart) {
+                    modelState.update { it.copy(isLoading = false) }
+                }
+                return@launch
+            }
             result
                 .onSuccess { models ->
                     modelState.update {
@@ -344,11 +374,20 @@ class AISettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            val epochAtStart = ++formRequestEpoch
+            activeTestEpoch = epochAtStart
             testState.update { TestState(isTesting = true) }
             val type = tempConfig.type
             val result = aiChatRepository.testConnection(tempConfig)
-            // 串台守卫：请求在途期间用户切换了 provider，丢弃过期结果。
-            if (selectedTypeState.value != type) return@launch
+            // 串台守卫：请求在途期间表单被编辑/切换/重新发起（纪元变化）或
+            // 已切换 provider 时，丢弃过期结果并复位在途标记（同 onFetchModels
+            // 的纪元说明；加载态只归最新请求所有）
+            if (formRequestEpoch != epochAtStart || selectedTypeState.value != type) {
+                if (activeTestEpoch == epochAtStart) {
+                    testState.update { it.copy(isTesting = false) }
+                }
+                return@launch
+            }
             result
                 .onSuccess {
                     testState.update {
@@ -401,7 +440,19 @@ class AISettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 aiProviderConfigRepository.insert(config)
-                aiProviderConfigRepository.setActiveProviderId(config.id)
+                try {
+                    aiProviderConfigRepository.setActiveProviderId(config.id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // 配置已落库但激活指针未写入：如实区分两步结果——笼统报
+                    // "保存失败"会让用户以为配置没存上而反复重填；提示手动启用即可恢复
+                    FitLog.w(TAG, "AI 配置已保存但激活失败：${config.name}", e)
+                    uiFlow.update {
+                        it.copy(successMessage = "已保存 ${config.name}，但启用失败，请手动选择启用")
+                    }
+                    return@launch
+                }
                 FitLog.i(TAG, "AI 配置已保存并启用：${config.name} model=${config.model}")
                 uiFlow.update { it.copy(successMessage = "已保存并启用 ${config.name}") }
             } catch (e: CancellationException) {
