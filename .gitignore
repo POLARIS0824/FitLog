@@ -21,7 +21,6 @@
 .windsurf/
 .gemini/
 .aider*
-.agents/
 .codebuddy/
 
 # 构建产物与临时日志（历史上多次误提交，统一忽略）
