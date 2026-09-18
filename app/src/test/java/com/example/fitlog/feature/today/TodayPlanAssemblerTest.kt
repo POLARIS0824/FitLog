@@ -224,7 +224,8 @@ class TodayPlanAssemblerTest {
         val state = assemble(
             activePlan = testPlan,
             nextSession = next,
-            checkedExerciseKeys = setOf("ex-1"),
+            // 打卡 key 是行唯一键（exerciseKey#order）
+            checkedExerciseKeys = setOf("ex-1#0"),
         )
 
         assertEquals(PlanStatus.IN_PROGRESS, state.status)

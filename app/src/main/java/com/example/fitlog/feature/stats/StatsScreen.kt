@@ -29,6 +29,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -114,9 +115,21 @@ fun StatsScreen(
     // rememberSaveable：旋转/重建后弹层不静默消失
     var showWeightSheet by rememberSaveable { mutableStateOf(false) }
 
-    // 保存成功信号：savedTick 单调递增，>0 即关弹层（再次打开不会误触发）
+    // 保存成功信号：savedTick 单调递增。必须只消费比已见水位更大的 tick——
+    // 配置重建/重进组合时 LaunchedEffect 会以旧 tick 重放，无水位的话
+    // 恢复中的弹层会被旧信号误关，用户正在输入的体重直接丢失。
+    // 水位随弹层打开同步为 VM 当前值：VM 的 tick 进程死亡后从 0 重新计数，
+    // 而 rememberSaveable 水位跨进程存活，不同步的话恢复后的前几次保存
+    // （tick ≤ 旧水位）永远无法触发自动关弹层
+    var consumedSavedTick by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(showWeightSheet) {
+        if (showWeightSheet) consumedSavedTick = weightSheetState.savedTick
+    }
     LaunchedEffect(weightSheetState.savedTick) {
-        if (weightSheetState.savedTick > 0) showWeightSheet = false
+        if (weightSheetState.savedTick > consumedSavedTick) {
+            consumedSavedTick = weightSheetState.savedTick
+            showWeightSheet = false
+        }
     }
 
     Scaffold(

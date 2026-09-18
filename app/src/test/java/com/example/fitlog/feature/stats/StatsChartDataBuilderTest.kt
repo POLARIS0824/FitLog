@@ -99,6 +99,9 @@ class StatsChartDataBuilderTest {
                 ),
             ),
             feelings = null,
+            // 已结束：满足 isCountable 口径（进行中会话不计入图表）
+            startedAt = 0L,
+            endedAt = 3_600_000L,
         )
         val state = build(StatsPeriod.WEEK, mixed, workout(today, 520.0))
 
@@ -195,7 +198,7 @@ class StatsChartDataBuilderTest {
 
     // ── 辅助方法 ──
 
-    /** 单动作单组正式组，重量×次数 = [volumeKg]。 */
+    /** 单动作单组正式组，重量×次数 = [volumeKg]（已结束：满足 isCountable 口径）。 */
     private fun workout(date: LocalDate, volumeKg: Double): Workout = Workout(
         id = 0L,
         userId = 0L,
@@ -213,6 +216,8 @@ class StatsChartDataBuilderTest {
             ),
         ),
         feelings = null,
+        startedAt = 0L,
+        endedAt = 3_600_000L,
     )
 
     private fun build(period: StatsPeriod, vararg workouts: Workout): StatsChartState =

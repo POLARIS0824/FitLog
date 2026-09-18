@@ -444,8 +444,8 @@ class TodayViewModelTest {
             !it.uiState.isLoading && it.todayPlan.status == PlanStatus.NOT_STARTED
         }
 
-        // 打卡第 1 个动作
-        viewModel.onToggleExerciseCheck("barbell-full-squat")
+        // 打卡第 1 个动作（行唯一键 = exerciseKey#order）
+        viewModel.onToggleExerciseCheck("barbell-full-squat#0")
 
         val state1 = viewModel.uiState.first {
             it.todayPlan.exercises.isNotEmpty() && it.todayPlan.exercises[0].isCompleted
@@ -456,7 +456,7 @@ class TodayViewModelTest {
         assertFalse(state1.todayPlan.exercises[1].isCompleted)
 
         // 打卡第 2 个动作 -> 全部完成
-        viewModel.onToggleExerciseCheck("barbell-romanian-deadlift")
+        viewModel.onToggleExerciseCheck("barbell-romanian-deadlift#1")
 
         val state2 = viewModel.uiState.first {
             it.todayPlan.status == PlanStatus.COMPLETED

@@ -132,7 +132,9 @@ internal fun TodayPlanCard(
                 todayPlan.exercises.forEachIndexed { index, exercise ->
                     ExerciseItemRow(
                         exercise = exercise,
-                        onToggleCheck = { onToggleExerciseCheck(exercise.exerciseKey) },
+                        // 打卡按行唯一 key（id）寻址：同课次重复出现同一动作时
+                        // 两行各自独立勾选；exerciseKey 留给点击跳转做动作匹配
+                        onToggleCheck = { onToggleExerciseCheck(exercise.id) },
                         onItemClick = { onExerciseClick(exercise.exerciseKey) },
                     )
                     if (index < todayPlan.exercises.lastIndex) {

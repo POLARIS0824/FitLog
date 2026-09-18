@@ -341,7 +341,9 @@ class TodayViewModel @Inject constructor(
             profile = materials.profile,
             weekCompleted = weekCompleted,
             weekTarget = weekTarget,
-            latestWorkout = materials.latestWorkout,
+            // 排除进行中会话（endedAt 为空）：刚启动会话就把卡片翻成"今天已练"，
+            // 与 WeekProgressCalculator 的"最近一次训练"口径（仅已结束）不一致
+            latestWorkout = materials.latestWorkout?.takeIf { it.endedAt != null },
             nextSession = snapshot.nextSession,
             // 自由训练（无计划）今日有记录同样视为已完成（口径与 isTodayCompleted 一致）
             todayCompleted = todayPlan.status == PlanStatus.COMPLETED ||

@@ -111,7 +111,7 @@ class StatsHeatmapBuilderTest {
 
     // ── 辅助方法 ──
 
-    /** 单动作单组正式组，重量×次数 = [volumeKg]。 */
+    /** 单动作单组正式组，重量×次数 = [volumeKg]（已结束：满足 isCountable 口径）。 */
     private fun workout(date: LocalDate, volumeKg: Double): Workout = Workout(
         id = 0L,
         userId = 0L,
@@ -129,5 +129,7 @@ class StatsHeatmapBuilderTest {
             ),
         ),
         feelings = null,
+        startedAt = 0L,
+        endedAt = 3_600_000L,
     )
 }

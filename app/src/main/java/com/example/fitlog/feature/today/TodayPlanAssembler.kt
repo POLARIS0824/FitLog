@@ -28,7 +28,8 @@ object TodayPlanAssembler {
      * @param todayWorkouts 今日训练记录
      * @param allWorkouts 全部训练历史（用于提取动作最近使用重量）
      * @param catalog 动作库目录
-     * @param checkedExerciseKeys 手动打卡选中的动作 key 集合
+     * @param checkedExerciseKeys 手动打卡选中的动作行唯一 key 集合
+     *   （exerciseKey#order，见 [buildExerciseStates]）
      */
     fun assemble(
         activePlan: WorkoutPlan?,
@@ -182,14 +183,17 @@ object TodayPlanAssembler {
         return session.exercises
             .sortedBy { it.order }
             .map { item ->
+                // 行唯一 key：计划课次允许同一动作出现多次（如同动作两个不同处方），
+                // 以 exerciseKey 作行 id/打卡 key 会让一次点击同时勾掉两行
+                val rowKey = exerciseRowKey(item)
                 val isChecked = isAllCompleted ||
-                    item.exerciseKey in checkedKeys ||
+                    rowKey in checkedKeys ||
                     hasCompletedSetsInWorkout(inProgressWorkout, item.exerciseKey)
 
                 val weightText = findRecentWeight(allWorkouts, item.exerciseKey, item.exerciseName)
 
                 TodayPlanExerciseState(
-                    id = item.exerciseKey,
+                    id = rowKey,
                     exerciseKey = item.exerciseKey,
                     name = ExerciseDisplayName.getDisplayName(item.exerciseKey, item.exerciseName),
                     setsRepsText = formatSetsReps(item),
@@ -198,6 +202,13 @@ object TodayPlanAssembler {
                 )
             }
     }
+
+    /**
+     * 动作行唯一 key（exerciseKey + 行序）：打卡集合与渲染 id 的统一寻址键。
+     * exerciseKey 只用于动作匹配（进行中会话完成推导、历史重量查找、点击跳转）。
+     */
+    private fun exerciseRowKey(item: PlannedExerciseItem): String =
+        "${item.exerciseKey}#${item.order}"
 
     /** 格式化组数与次数处方。 */
     private fun formatSetsReps(item: PlannedExerciseItem): String {
