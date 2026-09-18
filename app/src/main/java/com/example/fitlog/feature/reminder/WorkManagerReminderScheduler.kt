@@ -9,9 +9,10 @@ import com.example.fitlog.util.log.FitLog
 import kotlinx.coroutines.flow.first
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,7 +29,8 @@ import javax.inject.Singleton
  *
  * 选择 OneTime 自链而非 Periodic(24h)：每日触发时刻随日光节约/跨天偏移
  * 的累积漂移更小，且时间变更重排语义简单（替换唯一任务即可）。
- * WorkManager 的任务队列跨进程死亡与重启持久化，无需 Application 启动兜底。
+ * WorkManager 的任务队列跨进程死亡与重启持久化；但 force-stop 会被系统
+ * 整队清除，启动兜底补排程见 FitLogApplication.rescheduleReminderIfNeeded。
  *
  * 时间精度说明：WorkManager 非精确闹钟（不打 SCHEDULE_EXACT_ALARM），触发
  * 可能晚于设定时刻数分钟（系统 batching）——训练提醒场景可接受。
@@ -95,11 +97,16 @@ class WorkManagerReminderScheduler @Inject constructor(
     /** 距下一次到达提醒时刻（今天未到取今天，已过取明天）的毫秒数。 */
     private fun delayUntilNextOccurrence(minutesOfDay: Int): Long {
         val time = LocalTime.of(minutesOfDay / 60, minutesOfDay % 60)
-        var next = LocalDateTime.of(LocalDate.now(), time)
-        if (!next.isAfter(LocalDateTime.now())) {
+        // 必须以即时（Instant）差计算而非 LocalDateTime 墙上时间差：delay 窗口
+        // 横跨日光节约切换时（用户旅行/系统时区变化），墙上差值会让提醒
+        // 偏早/偏晚一小时——类注释声明的"每日触发时刻随日光节约偏移更小"
+        // 依赖本处锚定时区换算才成立
+        val zone = ZoneId.systemDefault()
+        var next = LocalDate.now(zone).atTime(time).atZone(zone)
+        if (!next.toInstant().isAfter(Instant.now())) {
             next = next.plusDays(1)
         }
-        return Duration.between(LocalDateTime.now(), next).toMillis().coerceAtLeast(0L)
+        return Duration.between(Instant.now(), next.toInstant()).toMillis().coerceAtLeast(0L)
     }
 
     private companion object {

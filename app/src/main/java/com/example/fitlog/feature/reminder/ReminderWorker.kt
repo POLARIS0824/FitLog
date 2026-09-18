@@ -58,8 +58,21 @@ class ReminderWorker(
             // 异常进入 Result.retry 或进程死亡重跑时，再次自链不会使链翻倍
             val minutes = preferences.reminderMinutes.first()
             entryPoint.reminderScheduler().scheduleSelfChainedNext(minutes)
-            showNotification()
-            FitLog.i(TAG, "训练提醒已展示（下次 ${minutes / 60}:${"%02d".format(minutes % 60)}）")
+            val shown = try {
+                showNotification()
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 通知展示失败不判任务失败：自链已就位，此环节异常进入
+                // retry/failure 的话，APPEND 语义下 failure 会连坐取消已排队的
+                // 明日任务——一次通知渠道异常就让每日提醒永久断档
+                FitLog.w(TAG, "训练提醒通知展示失败（自链保持）", e)
+                false
+            }
+            if (shown) {
+                FitLog.i(TAG, "训练提醒已展示（下次 ${minutes / 60}:${"%02d".format(minutes % 60)}）")
+            }
             return Result.success()
         } catch (e: CancellationException) {
             throw e
