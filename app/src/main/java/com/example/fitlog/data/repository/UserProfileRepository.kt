@@ -22,6 +22,9 @@ class UserProfileRepository @Inject constructor(
 
     suspend fun update(userProfile: UserProfile) = userProfileDao.update(userProfile.toEntity())
 
+    /**
+     * 按主键查询用户资料。
+     */
     suspend fun getById(id: Long) = userProfileDao.getById(id)?.toModel()
 
     /**

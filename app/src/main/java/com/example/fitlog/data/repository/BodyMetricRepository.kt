@@ -23,13 +23,6 @@ class BodyMetricRepository @Inject constructor(
     suspend fun upsert(metric: BodyMetric) = bodyMetricDao.upsert(metric.toEntity())
 
     /**
-     * 观察全部体重记录，按日期升序。
-     */
-    fun getAll(): Flow<List<BodyMetric>> = bodyMetricDao.getAll().map { list ->
-        list.map { it.toModel() }
-    }
-
-    /**
      * 观察日期区间内的体重记录，按日期升序。
      *
      * @param from 起始日期（含）
@@ -39,14 +32,4 @@ class BodyMetricRepository @Inject constructor(
         bodyMetricDao.getByDateRange(from, to).map { list ->
             list.map { it.toModel() }
         }
-
-    /**
-     * 观察最新一条体重记录。
-     */
-    fun getLatest(): Flow<BodyMetric?> = bodyMetricDao.getLatest().map { it?.toModel() }
-
-    /**
-     * 删除某天的体重记录。
-     */
-    suspend fun deleteByDate(date: LocalDate) = bodyMetricDao.deleteByDate(date)
 }
