@@ -37,10 +37,14 @@ class WorkoutPlanSeeder @Inject constructor(
     /**
      * 检查并执行预置计划导入。
      *
-     * 跳过条件：seed 版本已最新，且（计划表非空 **或** 用户已主动删光全部计划）。
-     * 版本号存在但计划表为空且无删光标记（如 destructive 迁移后版本号残留）时
-     * 强制重灌，避免预置计划永久缺失——与 [ExerciseSeeder] 的"版本最新且动作表非空"
-     * 短路条件保持一致。
+     * 跳过条件（按序）：
+     * 1. **用户已主动删光全部计划**（repository 标记）→ 无论版本是否更新都跳过，
+     *    预置计划永不复活——标记是一次性决定，后续版本 bump 不推翻用户意图
+     *    （用户想要新预置计划可重装或等未来提供恢复入口）；
+     * 2. seed 版本已最新且计划表非空 → 无需重灌；
+     * 3. 版本号存在但计划表为空且无删光标记（如 destructive 迁移后版本号残留）→
+     *    强制重灌，避免预置计划永久缺失——与 [ExerciseSeeder] 的"版本最新且
+     *    动作表非空"短路条件保持一致。
      *
      * 注意：**仅在真正写入过计划后才标记版本**——动作库缺失导致整体跳过时
      * 不标记，下次启动（动作库就绪后）可自动重试，避免版本号被错误置位后卡死。
@@ -50,10 +54,16 @@ class WorkoutPlanSeeder @Inject constructor(
             .map { it[SEED_VERSION_KEY] ?: 0 }
             .first()
 
+        // 用户主动删光全部计划：无论版本是否 bump 都尊重用户意图，不复活预置计划。
+        // 该检查必须先于版本判断——此前只在版本最新时读取标记，版本号更新会把
+        // 用户清空的计划整体灌回，直接推翻用户决策
+        if (workoutPlanRepository.isPresetPlansCleared()) {
+            return@withContext
+        }
+
         if (currentSeedVersion >= SEED_VERSION) {
-            // 表非空 → 无需重灌；用户主动删光全部计划（repository 标记）→ 尊重用户
-            // 意图不复活预置计划。仅"表空且无标记"（清库残留）才继续重灌
-            if (workoutPlanDao.getPlanCount() > 0 || workoutPlanRepository.isPresetPlansCleared()) {
+            // 表非空 → 无需重灌；仅"表空且无标记"（清库残留）才继续重灌
+            if (workoutPlanDao.getPlanCount() > 0) {
                 return@withContext
             }
         }

@@ -35,6 +35,9 @@ class SeedOrchestrator @Inject constructor(
     val completed: StateFlow<Boolean> = _completed
 
     private val mutex = Mutex()
+
+    /** 进程内幂等标记：mutex 外快速路径读取，@Volatile 保证可见性。 */
+    @Volatile
     private var ran = false
 
     /**
@@ -54,13 +57,18 @@ class SeedOrchestrator @Inject constructor(
                 runCatching { workoutPlanRepository.reconcileCompletedSessions() }
                     .onFailure { FitLog.w(TAG, "课次完成对账失败（下次启动重试）", it) }
             } catch (e: CancellationException) {
+                // 被取消（调用方作用域销毁）不算"已跑完"：完成标记不置位，
+                // ran 不落 true，下次触发（如进程内重新进入 Today）可重试
                 throw e
             } catch (e: Exception) {
                 FitLog.e(TAG, "seedIfNeeded 失败（内容可能缺失，已放行启动）", e)
-            } finally {
+                // 仅真实失败走 fail-open：放行首帧，本进程不再重试
                 ran = true
                 _completed.value = true
             }
+            // 正常完成路径置位（在锁内，保证与 ran 检查的互斥语义成对）
+            ran = true
+            _completed.value = true
         }
     }
 
