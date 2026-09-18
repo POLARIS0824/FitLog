@@ -38,6 +38,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.FitLogShapes
 import com.example.fitlog.ui.theme.fitLogColors
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -127,7 +128,7 @@ fun WeeklyWorkoutTracker(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = FitLogShapes.Card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.fitLogColors.card,
         ),

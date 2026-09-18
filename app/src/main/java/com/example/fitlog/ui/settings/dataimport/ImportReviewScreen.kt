@@ -233,20 +233,16 @@ fun ImportReviewScreen(
 
                     Row(
                         modifier = Modifier.padding(end = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         FilledTonalButton(
                             onClick = onSelectAll,
                             enabled = canSelectAll,
-                            shape = RoundedCornerShape(
-                                topStart = 16.dp,
-                                bottomStart = 16.dp,
-                                topEnd = 4.dp,
-                                bottomEnd = 4.dp,
-                            ),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                            modifier = Modifier.height(32.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                            // 40dp：M3 按钮触控下限附近且与顶栏比例协调（原 32dp
+                            // 与相邻按钮的扩展触控区重叠、11sp 标签过小）
+                            modifier = Modifier.height(40.dp),
                             colors = ButtonDefaults.filledTonalButtonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 contentColor = MaterialTheme.colorScheme.onSurface,
@@ -256,20 +252,14 @@ fun ImportReviewScreen(
                         ) {
                             Text(
                                 text = "全选",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                                style = MaterialTheme.typography.labelLarge,
                             )
                         }
                         FilledTonalButton(
                             onClick = onDeselectAll,
                             enabled = canDeselect,
-                            shape = RoundedCornerShape(
-                                topStart = 4.dp,
-                                bottomStart = 4.dp,
-                                topEnd = 16.dp,
-                                bottomEnd = 16.dp,
-                            ),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                            modifier = Modifier.height(32.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                            modifier = Modifier.height(40.dp),
                             colors = ButtonDefaults.filledTonalButtonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 contentColor = MaterialTheme.colorScheme.onSurface,
@@ -279,7 +269,7 @@ fun ImportReviewScreen(
                         ) {
                             Text(
                                 text = "清空",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                                style = MaterialTheme.typography.labelLarge,
                             )
                         }
                     }
@@ -654,7 +644,7 @@ private fun ImportReviewBottomBar(
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         tonalElevation = 3.dp,
-        shadowElevation = 8.dp,
+        // MD3 层级以色调表达（surfaceContainer 已承担），不再叠加投影
     ) {
         Column(
             modifier = Modifier
@@ -1150,17 +1140,17 @@ internal fun ImportItemRow(
                             if (item.status == ImportItemStatus.PARSED && expanded) {
                                 FilledTonalButton(
                                     onClick = onEdit,
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(40.dp),
                                     shape = CircleShape,
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Edit,
                                         contentDescription = null,
-                                        modifier = Modifier.size(14.dp),
+                                        modifier = Modifier.size(16.dp),
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("编辑", style = MaterialTheme.typography.labelSmall)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("编辑", style = MaterialTheme.typography.labelLarge)
                                 }
                             }
                             IconButton(onClick = onToggleExpand) {
@@ -1322,8 +1312,8 @@ internal fun ImportItemRow(
                                 onClick = {
                                     clipboardManager.setText(AnnotatedString(errorText))
                                 },
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                modifier = Modifier.height(28.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                                modifier = Modifier.height(40.dp),
                                 shape = CircleShape,
                                 colors = ButtonDefaults.filledTonalButtonColors(
                                     containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -1336,7 +1326,7 @@ internal fun ImportItemRow(
                                     modifier = Modifier.size(12.dp),
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("复制错误", style = MaterialTheme.typography.labelSmall)
+                                Text("复制错误", style = MaterialTheme.typography.labelLarge)
                             }
                         }
                         Surface(
@@ -1383,8 +1373,10 @@ private fun ItemStatusPill(
             "解析失败",
         )
         ImportItemStatus.IMPORTED -> Triple(
-            MaterialTheme.colorScheme.tertiaryContainer,
-            MaterialTheme.colorScheme.onTertiaryContainer,
+            // 与行首"已导入"徽章同一 tonal 对（此前徽章 primaryContainer、
+            // 药丸 tertiaryContainer 两种角色描述同一状态）
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.onPrimaryContainer,
             "已入库",
         )
         ImportItemStatus.ARCHIVED -> Triple(
@@ -1403,8 +1395,9 @@ private fun ItemStatusPill(
             "待解析",
         )
         ImportItemStatus.PARSING -> Triple(
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-            MaterialTheme.colorScheme.primary,
+            // 完整容器对：alpha 混合在部分动态取色下对比度不可保证
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.onPrimaryContainer,
             "解析中",
         )
     }

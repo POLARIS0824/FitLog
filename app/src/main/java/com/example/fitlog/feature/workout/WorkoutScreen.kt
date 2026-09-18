@@ -151,6 +151,8 @@ fun WorkoutScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        // 与 Today/Stats 一致的页面底色（缺省会回落到 surface，静默偏离统一口径）
+        containerColor = MaterialTheme.fitLogColors.pageBackground,
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(

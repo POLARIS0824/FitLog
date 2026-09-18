@@ -49,6 +49,10 @@ import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.model.ai.CoachAction
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.GoogleBlue
+import com.example.fitlog.ui.theme.GoogleGreen
+import com.example.fitlog.ui.theme.GoogleRed
+import com.example.fitlog.ui.theme.GoogleYellow
 import com.example.fitlog.ui.theme.fitLogColors
 
 /** 「AI 分析」小卡跳转 AI 教练时预填的分析请求。 */
@@ -284,13 +288,14 @@ private fun TodayTopBar(
                         .size(36.dp)
                         .border(
                             width = 2.dp,
+                            // Google 品牌四色（theme/Color.kt 中文档化的品牌例外）
                             brush = Brush.sweepGradient(
                                 colors = listOf(
-                                    Color(0xFF4285F4),
-                                    Color(0xFFEA4335),
-                                    Color(0xFFFBBC05),
-                                    Color(0xFF34A853),
-                                    Color(0xFF4285F4),
+                                    GoogleBlue,
+                                    GoogleRed,
+                                    GoogleYellow,
+                                    GoogleGreen,
+                                    GoogleBlue,
                                 ),
                             ),
                             shape = CircleShape,

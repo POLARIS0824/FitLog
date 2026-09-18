@@ -59,6 +59,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fitlog.ui.theme.FitLogShapes
 import com.example.fitlog.ui.theme.FitLogTheme
 import kotlin.math.min
 import kotlin.math.sin
@@ -115,7 +116,7 @@ fun LargeMetricCard(
     badgeContentColor: Color = contentColor,
     onClick: (() -> Unit)? = null,
 ) {
-    val cardShape = RoundedCornerShape(22.dp)
+    val cardShape = FitLogShapes.Card
     // 可点击走外部 modifier（clip 后涟漪被裁进圆角），不用 Card 的 enabled=false
     // 可点击重载：该重载对 enabled=false 的卡片强制渲染 disabledContainerColor
     //（Material3 固定灰），会覆盖调用方显式传入的 containerColor
@@ -448,7 +449,7 @@ fun SmallMetricCard(
     badgeContentColor: Color = contentColor,
     onClick: (() -> Unit)? = null,
 ) {
-    val cardShape = RoundedCornerShape(18.dp)
+    val cardShape = FitLogShapes.CardSmall
     // 同 LargeMetricCard：外部 clickable + clip，避免 enabled=false 的禁用灰覆盖
     Card(
         modifier = modifier

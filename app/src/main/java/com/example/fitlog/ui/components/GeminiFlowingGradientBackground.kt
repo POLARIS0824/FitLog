@@ -10,7 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.fitlog.ui.theme.FitLogShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,6 +45,10 @@ import kotlin.math.sin
  * 浮层覆盖期间 entry 生命周期被压到 RESUMED 之下，此时把动画从组合中移除，
  * [androidx.compose.animation.core.InfiniteTransition] 无活跃动画即停止帧回调。
  * （稳态下被压栈的 entry 会整体移出组合；此门控覆盖瞬态窗口并防御未来 OverlayScene。）
+ *
+ * 色彩口径：渐变四色为**刻意保留的固定品牌色板**（Gemini 视觉隐喻，浅/深双
+ * 变体齐备），不随动态取色变化——与 theme/Color.kt 的 Google 四色同属文档化
+ * 的硬编码例外；本组件外的彩色装饰一律走 ColorScheme 角色。
  *
  * @param modifier 外部 Modifier 修饰符
  * @param isDarkTheme 当前是否处于深色主题模式。默认从**生效主题**推导
@@ -89,7 +93,7 @@ fun GeminiFlowingGradientBackground(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(FitLogShapes.Card)
             .background(surfaceContainerColor)
             .drawBehind {
                 val width = size.width

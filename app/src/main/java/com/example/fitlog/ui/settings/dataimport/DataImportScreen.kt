@@ -172,62 +172,62 @@ fun DataImportScreen(
                     }
                 }
 
-                    uiState.hasActiveBatch -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("当前导入批次", style = MaterialTheme.typography.titleMedium)
-                                val total = uiState.items.size + uiState.failures.size
-                                Text(
-                                    "共 $total 篇日志 · 就绪 ${uiState.readyCount} · 待解析 ${uiState.pendingCount} · 失败 ${uiState.failedCount + uiState.failures.size}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            FilledTonalButton(onClick = onNavigateToReview) {
-                                Text("进入工作台")
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
+                uiState.hasActiveBatch -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("当前导入批次", style = MaterialTheme.typography.titleMedium)
+                            val total = uiState.items.size + uiState.failures.size
+                            Text(
+                                "共 $total 篇日志 · 就绪 ${uiState.readyCount} · 待解析 ${uiState.pendingCount} · 失败 ${uiState.failedCount + uiState.failures.size}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.padding(vertical = 12.dp),
-                        )
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            OutlinedButton(onClick = onSelectFolder) {
-                                Text("重新选择文件夹")
-                            }
-                            TextButton(onClick = onClearBatch) {
-                                Text("清空批次", color = MaterialTheme.colorScheme.error)
-                            }
+                        FilledTonalButton(onClick = onNavigateToReview) {
+                            Text("进入工作台")
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
                         }
                     }
 
-                    else -> {
-                        Text("选择日志文件夹", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "点击下方按钮选择文件夹。系统将自动扫描并跳转至全屏导入审核工作台，提供分类筛选、明细修改与批量入库。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        FilledTonalButton(onClick = onSelectFolder) {
-                            Text("选择文件夹并扫描")
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(vertical = 12.dp),
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedButton(onClick = onSelectFolder) {
+                            Text("重新选择文件夹")
+                        }
+                        TextButton(onClick = onClearBatch) {
+                            Text("清空批次", color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
+
+                else -> {
+                    Text("选择日志文件夹", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "点击下方按钮选择文件夹。系统将自动扫描并跳转至全屏导入审核工作台，提供分类筛选、明细修改与批量入库。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    FilledTonalButton(onClick = onSelectFolder) {
+                        Text("选择文件夹并扫描")
+                    }
+                }
+            }
             }
 
             SectionLabel("导出")
@@ -245,7 +245,7 @@ fun DataImportScreen(
                 ) {
                     Text(if (uiState.isExporting) "导出中…" else "选择位置并导出")
                 }
-        }
+            }
         Spacer(modifier = Modifier.height(16.dp))
     }
 

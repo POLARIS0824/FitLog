@@ -487,7 +487,7 @@ fun ChatInputBar(
                     Text(
                         text = "问问 AI 教练...",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 BasicTextField(

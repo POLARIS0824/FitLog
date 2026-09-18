@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.fitlog.ui.theme.FitLogShapes
 import com.example.fitlog.ui.theme.fitLogColors
 
 /**
@@ -36,7 +37,7 @@ fun FitLogCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.fitLogColors.card,
         ),
-        shape = RoundedCornerShape(24.dp),
+        shape = FitLogShapes.Card,
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(

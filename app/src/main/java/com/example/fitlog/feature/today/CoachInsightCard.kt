@@ -67,8 +67,10 @@ internal fun CoachInsightCard(
             // 左侧：仅在左上角放置一个 AI Coach 圆形图标
             Surface(
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
-                contentColor = MaterialTheme.colorScheme.primary,
+                // 完整 tonal 对：primaryContainer + onPrimaryContainer（alpha 混合
+                // 会让动态取色/高对比模式下的配对失去保证）
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier.size(42.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -76,7 +78,6 @@ internal fun CoachInsightCard(
                         imageVector = Icons.Default.AutoAwesome,
                         contentDescription = null,
                         modifier = Modifier.size(22.dp),
-                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
             }

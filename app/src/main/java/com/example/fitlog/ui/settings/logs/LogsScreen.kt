@@ -30,8 +30,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -54,6 +52,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.ui.components.FitLogCard
+import com.example.fitlog.ui.components.StackedSnackbarHost
+import com.example.fitlog.ui.components.StackedSnackbarHostState
+import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 import com.example.fitlog.ui.theme.FitLogTheme
 import com.example.fitlog.ui.theme.fitLogColors
 import com.example.fitlog.util.log.LogEntry
@@ -75,10 +76,10 @@ fun LogsRoute(
     val viewModel: LogsViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    val snackbarHostState = remember { SnackbarHostState() }
+    val stackedSnackbarHostState = rememberStackedSnackbarHostState()
     LaunchedEffect(uiState.message) {
         uiState.message?.let {
-            snackbarHostState.showSnackbar(it)
+            stackedSnackbarHostState.showSnackbar(it)
             viewModel.onMessageShown()
         }
     }
@@ -116,7 +117,7 @@ fun LogsRoute(
         onLevelSelected = viewModel::onLevelSelected,
         onExport = { exportLauncher.launch("fitlog-logs.txt") },
         onClear = { showClearDialog = true },
-        snackbarHostState = snackbarHostState,
+        snackbarHostState = stackedSnackbarHostState,
         modifier = modifier,
     )
 }
@@ -141,13 +142,13 @@ fun LogsScreen(
     onLevelSelected: (LogLevel?) -> Unit,
     onExport: () -> Unit,
     onClear: () -> Unit,
-    snackbarHostState: SnackbarHostState,
+    snackbarHostState: StackedSnackbarHostState,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.fitLogColors.pageBackground,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { StackedSnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Logs") },
@@ -381,7 +382,7 @@ private fun LogsScreenEmptyPreview() {
             onLevelSelected = {},
             onExport = {},
             onClear = {},
-            snackbarHostState = remember { SnackbarHostState() },
+            snackbarHostState = rememberStackedSnackbarHostState(),
         )
     }
 }

@@ -365,7 +365,8 @@ private fun WeightCard(
             accentColor = if (weight.hasData) {
                 MaterialTheme.colorScheme.tertiary
             } else {
-                MaterialTheme.colorScheme.outline
+                // outline 语义是"重要边界"而非文本强调色，空态引导改用 onSurfaceVariant
+                MaterialTheme.colorScheme.onSurfaceVariant
             },
         ),
         onClick = onClick,
