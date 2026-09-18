@@ -93,6 +93,16 @@ interface WorkoutPlanDao {
     suspend fun unmarkSessionCompleted(sessionId: String)
 
     /**
+     * 解除所有"完成标记指向指定训练行"的课次（删除训练记录时同事务调用）。
+     *
+     * 训练行删除后 completedWorkoutId 成为悬空 id：课次仍被视为已完成，
+     * getNextIncompleteSession 永久跳过该课次，且 reconcileCompletedFromWorkouts
+     * 只补 NULL 不校验悬空，无任何自愈路径——必须与删除同批解除。
+     */
+    @Query("UPDATE planned_sessions SET completedWorkoutId = NULL WHERE completedWorkoutId = :workoutId")
+    suspend fun unmarkSessionsCompletedByWorkout(workoutId: Long)
+
+    /**
      * 课次完成对账：把"已完成训练行（endedAt 非空）经 planSessionId 关联、
      * 但 completedWorkoutId 仍为空"的课次补齐完成标记。
      *

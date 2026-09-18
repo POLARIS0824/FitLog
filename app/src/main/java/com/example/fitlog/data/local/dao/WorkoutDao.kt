@@ -124,6 +124,24 @@ interface WorkoutDao {
     fun getRecentWithDetails(limit: Int): Flow<List<WorkoutWithExerciseLogs>>
 
     /**
+     * 观察最近一次**已结束**的训练（endedAt 非空），含动作与组。
+     *
+     * 排除进行中会话行：会话进行中它是 date/id 排序的第一行，会把
+     * "最近一次训练"顶掉——Today「最近训练」的部位推导与 Coach 卡的
+     * "距上次训练"都会退化为计划推导名/占位。
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM workouts
+        WHERE endedAt IS NOT NULL
+        ORDER BY date DESC, id DESC
+        LIMIT 1
+        """,
+    )
+    fun getLatestEndedWithDetails(): Flow<WorkoutWithExerciseLogs?>
+
+    /**
      * 放弃会话的条件删除：仅当该行仍处于进行中（endedAt 为空）时删除。
      *
      * 防止"结束落库后放弃"的双操作竞态把已保存的训练整体删掉。
@@ -134,10 +152,19 @@ interface WorkoutDao {
     suspend fun deleteInProgressById(id: Long): Int
 
     /**
+     * 进行中会话行数（与 [getInProgressWithDetails] 同口径）。
+     *
+     * "全库至多一条进行中会话"的不变量靠本查询在创建会话的事务内复查保证：
+     * caller 侧先查后插是 check-then-act，两个并发启动都能通过检查。
+     */
+    @Query("SELECT COUNT(*) FROM workouts WHERE startedAt IS NOT NULL AND endedAt IS NULL")
+    suspend fun countInProgress(): Int
+
+    /**
      * 查询进行中的训练（startedAt 已写、endedAt 为空），含动作与组。
      *
      * 训练执行流以 DB 为会话状态源：进程死亡/页面销毁后，本查询仍是
-     * 恢复入口（"继续训练"）。全库至多一条（启动会话前有防御），LIMIT 1 兜底。
+     * 恢复入口（"继续训练"）。全库至多一条（启动会话事务内有复查），LIMIT 1 兜底。
      */
     @Transaction
     @Query(

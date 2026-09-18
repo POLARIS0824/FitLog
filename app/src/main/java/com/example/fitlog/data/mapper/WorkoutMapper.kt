@@ -9,6 +9,7 @@ import com.example.fitlog.model.ExerciseLog
 import com.example.fitlog.model.SetLog
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
+import com.example.fitlog.model.WorkoutSessionSnapshot
 
 // 注意：刻意不提供 WorkoutEntity → Workout 的单实体映射——它会静默丢弃
 // exercises（信息损失在类型上不可见），曾被 getLatest 误用导致「最近训练」
@@ -46,6 +47,43 @@ fun ExerciseLogWithSets.toModel(): ExerciseLog {
                     .getOrDefault(SetType.WORKING),
             )
         },
+    )
+}
+
+/**
+ * 进行中会话 relation → 会话态快照（训练执行流专用出口）。
+ *
+ * 与 [toModel] 的差异：携带 exerciseLog/setLog 数据库主键（组编辑按此寻址）
+ * 与 sortOrder/setNumber 原始序号（新增行取 max+1 防删除后重复），
+ * 但不含 sourceFileName/rawContent 等会话态用不到的存档字段。
+ */
+fun WorkoutWithExerciseLogs.toSessionSnapshot(): WorkoutSessionSnapshot {
+    return WorkoutSessionSnapshot(
+        workoutId = workout.id,
+        startedAtMs = workout.startedAt ?: 0L,
+        planSessionId = workout.planSessionId,
+        exercises = exerciseLogs
+            .sortedBy { it.exerciseLog.sortOrder }
+            .map { log ->
+                WorkoutSessionSnapshot.ExerciseSnapshot(
+                    logId = log.exerciseLog.id,
+                    exerciseKey = log.exerciseLog.exerciseKey,
+                    name = log.exerciseLog.name,
+                    sortOrder = log.exerciseLog.sortOrder,
+                    sets = log.sets
+                        .sortedBy { it.setNumber }
+                        .map { set ->
+                            WorkoutSessionSnapshot.SetSnapshot(
+                                id = set.id,
+                                setNumber = set.setNumber,
+                                weightKg = set.weightKg,
+                                reps = set.reps,
+                                setType = runCatching { SetType.valueOf(set.setType) }
+                                    .getOrDefault(SetType.WORKING),
+                            )
+                        },
+                )
+            },
     )
 }
 

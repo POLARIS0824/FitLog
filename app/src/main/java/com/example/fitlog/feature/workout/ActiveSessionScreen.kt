@@ -191,6 +191,18 @@ fun ActiveSessionView(
                 Text("结束训练")
             }
         }
+        // 禁用解释：纯热身会话不能保存为可计数训练（0 容量虚增统计口径），
+        // 按钮灰着不说原因会让用户以为界面坏了
+        if (!session.hasLoggableContent) {
+            Text(
+                text = "至少完成一组正式组后才能保存（仅热身组不计）",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+            )
+        }
     }
 
     if (showPicker) {

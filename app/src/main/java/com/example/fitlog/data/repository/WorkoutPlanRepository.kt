@@ -62,8 +62,13 @@ class WorkoutPlanRepository @Inject constructor(
      */
     suspend fun delete(id: String) {
         workoutPlanDao.deletePlan(id)
-        if (activePlanId.first() == id) {
-            clearActivePlanId()
+        // 激活清除必须收进同一次原子 edit：先 first() 读再 remove 的话，
+        // 两步之间并发的 setActivePlanId(其他计划) 会被误清，
+        // 落得"无激活计划"的悬空状态（同 AIProviderConfigRepository.delete 的处理）
+        dataStore.edit { prefs ->
+            if (prefs[ACTIVE_PLAN_KEY] == id) {
+                prefs.remove(ACTIVE_PLAN_KEY)
+            }
         }
         if (workoutPlanDao.getPlanCount() == 0) {
             dataStore.edit { prefs ->
@@ -109,6 +114,13 @@ class WorkoutPlanRepository @Inject constructor(
     suspend fun markSessionCompleted(sessionId: String, workoutId: Long) =
         workoutPlanDao.markSessionCompleted(sessionId, workoutId)
 
+    /**
+     * 取消单个课次的完成标记。
+     *
+     * ⚠️ 业务路径上完成标记的解除只发生在"删除训练"上（[WorkoutRepository.delete]
+     * 同事务批量解除）——直接调用本方法绕开同事务约束会留下悬空标记，
+     * 仅限测试与对账类工具使用。
+     */
     suspend fun unmarkSessionCompleted(sessionId: String) =
         workoutPlanDao.unmarkSessionCompleted(sessionId)
 

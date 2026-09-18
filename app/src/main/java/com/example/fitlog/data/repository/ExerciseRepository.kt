@@ -4,6 +4,8 @@ import com.example.fitlog.data.local.dao.ExerciseDao
 import com.example.fitlog.data.mapper.toEntity
 import com.example.fitlog.data.mapper.toModel
 import com.example.fitlog.model.Exercise
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 /**
@@ -39,17 +41,32 @@ class ExerciseRepository @Inject constructor(
 
     suspend fun getAll() = exerciseDao.getAll().map { it.toModel() }
 
+    /**
+     * 观察全部动作库目录（响应式）：自定义动作增删后订阅方自动刷新，
+     * 会话"添加动作"选择器用，替代一次性读取 + 永不更新的旧方案。
+     */
+    fun getAllFlow(): Flow<List<Exercise>> =
+        exerciseDao.getAllFlow().map { list -> list.map { it.toModel() } }
+
     suspend fun getByBodyPart(bodyPart: String) =
         exerciseDao.getByBodyPart(bodyPart).map { it.toModel() }
 
     suspend fun getByMuscle(muscle: String) =
-        exerciseDao.getByMuscle(muscle).map { it.toModel() }
+        exerciseDao.getByMuscle(escapeLike(muscle)).map { it.toModel() }
 
     suspend fun getCustomExercises() = exerciseDao.getCustomExercises().map { it.toModel() }
 
     suspend fun getByName(name: String) = exerciseDao.getByName(name)?.toModel()
 
-    suspend fun searchByName(name: String) = exerciseDao.searchByName(name).map { it.toModel() }
+    suspend fun searchByName(name: String) = exerciseDao.searchByName(escapeLike(name)).map { it.toModel() }
 
     suspend fun getCount() = exerciseDao.getCount()
+
+    /**
+     * LIKE 通配符转义：`%` `_` `\` 按字面量匹配。用户/AI 输入的关键词
+     * （如 "100%"、`bench_press`）不转义会被当作任意串通配符，
+     * 搜索/筛选结果与直觉不符。
+     */
+    private fun escapeLike(raw: String): String =
+        raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 }

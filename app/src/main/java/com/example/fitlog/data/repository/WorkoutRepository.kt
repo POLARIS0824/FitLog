@@ -8,11 +8,12 @@ import com.example.fitlog.data.local.dao.WorkoutDao
 import com.example.fitlog.data.local.dao.WorkoutPlanDao
 import com.example.fitlog.data.local.entity.workout.ExerciseLogEntity
 import com.example.fitlog.data.local.entity.workout.SetLogEntity
-import com.example.fitlog.data.local.relation.WorkoutWithExerciseLogs
 import com.example.fitlog.data.mapper.toEntity
 import com.example.fitlog.data.mapper.toModel
+import com.example.fitlog.data.mapper.toSessionSnapshot
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
+import com.example.fitlog.model.WorkoutSessionSnapshot
 import com.example.fitlog.util.log.FitLog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -24,9 +25,9 @@ import javax.inject.Inject
  * 训练日志仓库。
  *
  * 协调 [WorkoutDao]、[ExerciseLogDao]、[SetLogDao] 与计划域的 [WorkoutPlanDao]
- * （仅限会话落库时的课次完成回写），通过 [androidx.room.withTransaction]
- * 完成 3 层训练日志（Workout → ExerciseLog → SetLog）的事务级联存储、
- * 删除以及联表查询聚合。
+ * （会话落库时的课次完成回写、删除训练时的完成标记解除），通过
+ * [androidx.room.withTransaction] 完成 3 层训练日志（Workout → ExerciseLog →
+ * SetLog）的事务级联存储、删除以及联表查询聚合。
  */
 class WorkoutRepository @Inject constructor(
     private val workoutDao: WorkoutDao,
@@ -109,7 +110,20 @@ class WorkoutRepository @Inject constructor(
     suspend fun getBySourceFileName(sourceKey: String): Workout? =
         workoutDao.getBySourceFileNameWithDetails(sourceKey)?.toModel()
 
-    suspend fun delete(workout: Workout) = workoutDao.delete(workout.toEntity())
+    /**
+     * 事务级联删除训练日志，并在同一事务内解除计划课次完成标记。
+     *
+     * 课次回写与训练行必须同批处理：finishSession 把 workouts.id 写进
+     * planned_sessions.completedWorkoutId，删除训练行后若标记保留，
+     * 课次永久"已完成"却指向不存在的训练（悬空 id），getNextIncompleteSession
+     * 从此跳过该课次，且对账查询只补 NULL 不校验悬空，无自愈路径。
+     *
+     * @param workout 待删除的训练日志
+     */
+    suspend fun delete(workout: Workout) = db.withTransaction {
+        workoutDao.delete(workout.toEntity())
+        workoutPlanDao.unmarkSessionsCompletedByWorkout(workout.id)
+    }
 
     fun getByDate(date: LocalDate) = workoutDao.getByDateWithDetails(date).map { list ->
         list.map { it.toModel() }
@@ -127,10 +141,11 @@ class WorkoutRepository @Inject constructor(
      * 必须走级联查询：单实体映射会静默丢弃 exercises，导致
      * WeekProgressCalculator.resolveLastSessionName 的主导部位推导不可达，
      * 最近训练永远显示"自由训练"。
+     *
+     * 只取已结束行（[WorkoutDao.getLatestEndedWithDetails]）：进行中会话
+     * 的 date/id 排序必然第一，不过滤会把"最近一次训练"顶成当前会话。
      */
-    fun getLatest(): Flow<Workout?> = workoutDao.getRecentWithDetails(1).map { list ->
-        list.firstOrNull()?.toModel()
-    }
+    fun getLatest(): Flow<Workout?> = workoutDao.getLatestEndedWithDetails().map { it?.toModel() }
 
     /**
      * 观察最近 N 条完整训练日志（Today「最近训练」列表）。
@@ -166,10 +181,17 @@ class WorkoutRepository @Inject constructor(
      * 且中途失败会留下进行中会话与"启动失败"提示并存的矛盾）。
      *
      * @param planSession 来源计划课次（null = 自由训练，不预填动作）
-     * @return 新会话的 workouts 主键；写入失败返回 -1
+     * @return 新会话的 workouts 主键；事务内复查发现已有进行中会话时返回 -1
+     *     （自增主键 + sourceFileName 为 null 的插入不会触发 IGNORE，-1 只来自
+     *     该复查——调用方应引导用户回到既有会话而非盲目重试）
      */
     suspend fun createSessionWorkout(planSession: com.example.fitlog.model.PlannedSession?): Long =
         db.withTransaction {
+            // 单例不变量在事务内复查：caller 侧 hasInProgressWorkout 先查后插是
+            // check-then-act，两个并发启动都能通过检查后各自插入进行中行；
+            // getInProgressWithDetails 的 LIMIT 1 会永久隐藏旧的那条，
+            // hasInProgressWorkout 从此恒真，startSession 被永久堵死且无 UI 出口
+            if (workoutDao.countInProgress() > 0) return@withTransaction -1L
             val workoutId = workoutDao.insert(
                 Workout(
                     id = 0,
@@ -211,38 +233,18 @@ class WorkoutRepository @Inject constructor(
         }
 
     /**
-     * 观察进行中的训练（startedAt 已写、endedAt 为空）。
+     * 观察进行中的训练（startedAt 已写、endedAt 为空），输出会话态快照。
      *
-     * 刻意返回 relation 包装而非 domain [Workout]：会话内的组编辑
-     * （updateSet/deleteSet）需要 exerciseLog/setLog 的数据库主键，
-     * domain 模型不含 id。仅限训练执行流使用。
+     * 快照携带 exerciseLog/setLog 的数据库主键（会话内组编辑按此寻址），
+     * 以域模型 [WorkoutSessionSnapshot] 为出口：feature 层不感知 Room relation
+     * 类型（此前返回 relation 包装迫使 ViewModel 全限定引用 data.local 类型）。
      */
-    fun getInProgressWorkoutEntity(): Flow<WorkoutWithExerciseLogs?> =
-        workoutDao.getInProgressWithDetails()
+    fun getInProgressSessionSnapshot(): Flow<WorkoutSessionSnapshot?> =
+        workoutDao.getInProgressWithDetails().map { it?.toSessionSnapshot() }
 
     /** 进行中会话是否已存在（启动新会话的防御检查）。 */
     suspend fun hasInProgressWorkout(): Boolean =
         workoutDao.getInProgressWithDetails().map { it != null }.first()
-
-    /**
-     * 向进行中会话添加动作（不预建组）。
-     *
-     * @param exerciseKey 动作库 id；调用方必须保证其存在于 exercises 表
-     *   （exercise_logs 外键对未知 key 会触发约束异常整体回滚），
-     *   计划种子与动作选择器均已校验
-     * @param sortOrder 动作排序序号
-     * @return 新插入动作记录的主键
-     */
-    suspend fun addExerciseToSession(
-        workoutId: Long,
-        exerciseKey: String?,
-        name: String,
-        sortOrder: Int,
-    ): Long = db.withTransaction {
-        exerciseLogDao.insert(
-            ExerciseLogEntity(workoutId = workoutId, exerciseKey = exerciseKey, name = name, sortOrder = sortOrder),
-        )
-    }
 
     /**
      * 向动作记录追加一组（会话内"添加一组"，默认值由调用方按上一组复制）。
@@ -331,22 +333,23 @@ class WorkoutRepository @Inject constructor(
      * 并在同一事务内回写计划课次完成标记。
      *
      * 清洗规则：reps ≤ 0 的组剔除（占位行）；清洗后无任何有效组的动作剔除；
-     * 清洗后不存在任何有效动作时结束失败（返回 false，会话保持进行中）。
-     * 已结束的行直接拒绝（双击"保存"的第二击不改写 endedAt）。
+     * 全库不存在任何 reps > 0 的正式组（WORKING）时结束失败（返回 false，
+     * 会话保持进行中）——纯热身会话保存后是 0 容量的可计数训练，会虚增
+     * Today/Stats 的训练次数口径。已结束的行直接拒绝（双击"保存"的第二击
+     * 不改写 endedAt）。
      *
      * 课次回写必须与本事务合并：此前"保存训练 → 另一事务 markSessionCompleted"
      * 的两步写在进程死亡落在中间时，会留下"训练已保存、计划进度未推进"的
      * 永久缺口（残余场景由启动期 [WorkoutPlanDao.reconcileCompletedFromWorkouts]
-     * 对账兜底）。
+     * 对账兜底）。planSessionId 以 DB 行内持久化值为事实源——调用方传入的
+     * 投影快照可能滞后于行内实际值，沿用参数会让完成回写被静默跳过。
      *
-     * @param planSessionId 会话来源计划课次 id（自由训练为 null，不回写）
      * @return true 结束成功；false 无有效训练内容或会话已结束，不能结束
      */
     suspend fun finishSession(
         workoutId: Long,
         feelings: String?,
         endedAt: Long,
-        planSessionId: String? = null,
     ): Boolean =
         db.withTransaction {
             val relation = workoutDao.getByIdWithDetails(workoutId)
@@ -366,7 +369,10 @@ class WorkoutRepository @Inject constructor(
                     log to log.sets.sortedBy { it.setNumber }.filter { it.reps > 0 }
                 }
                 .filter { (_, sets) -> sets.isNotEmpty() }
-            if (cleaned.isEmpty()) return@withTransaction false
+            val hasWorkingSet = cleaned.any { (_, sets) ->
+                sets.any { it.setType == SetType.WORKING.name }
+            }
+            if (cleaned.isEmpty() || !hasWorkingSet) return@withTransaction false
 
             // 删除旧子行并按清洗结果重插（组号重新连续编号），再补 endedAt/feelings
             exerciseLogDao.deleteByWorkoutId(workoutId)
@@ -392,8 +398,8 @@ class WorkoutRepository @Inject constructor(
                 )
             }
             workoutDao.update(relation.workout.copy(feelings = feelings, endedAt = endedAt))
-            if (planSessionId != null) {
-                workoutPlanDao.markSessionCompleted(planSessionId, workoutId)
+            relation.workout.planSessionId?.let { persistedSessionId ->
+                workoutPlanDao.markSessionCompleted(persistedSessionId, workoutId)
             }
             true
         }

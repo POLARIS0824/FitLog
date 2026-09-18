@@ -277,7 +277,7 @@ class WorkoutRepositoryTest {
         )
 
         val ended = repository.finishSession(
-            workoutId = workoutId, feelings = null, endedAt = 1_000L, planSessionId = "session-1",
+            workoutId = workoutId, feelings = null, endedAt = 1_000L,
         )
         assertTrue(ended)
         assertEquals(

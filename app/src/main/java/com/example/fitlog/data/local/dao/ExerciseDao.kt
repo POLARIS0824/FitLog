@@ -8,6 +8,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import com.example.fitlog.data.local.entity.ExerciseEntity
+import kotlinx.coroutines.flow.Flow
 
 /**
  * [ExerciseEntity] 的数据访问对象。
@@ -28,8 +29,17 @@ interface ExerciseDao {
     /**
      * 批量插入动作记录。若 ID 冲突则替换。
      *
+     * ⚠️ 生产代码禁用：REPLACE 在 SQLite 中是 DELETE+INSERT，对已存在 id 执行会
+     * 先 DELETE 父行，触发 exercise_logs.exerciseKey 外键 SET_NULL，把历史训练
+     * 日志与动作库的关联静默断开。生产写入一律走 [upsertAllPreservingRows]
+     * （UPDATE 优先、不触发行删除）。当前仅 DAO 级测试引用本方法。
+     *
      * @param exercises 待插入的动作实体列表
      */
+    @Deprecated(
+        message = "REPLACE 会 DELETE 父行并触发 exercise_logs 外键 SET_NULL，" +
+            "生产代码请使用 upsertAllPreservingRows",
+    )
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(exercises: List<ExerciseEntity>)
 
@@ -94,6 +104,14 @@ interface ExerciseDao {
     suspend fun getAll(): List<ExerciseEntity>
 
     /**
+     * 观察所有动作记录（响应式：自定义动作增删后订阅方自动刷新）。
+     *
+     * @return 动作实体列表 Flow
+     */
+    @Query("SELECT * FROM exercises ORDER BY name ASC")
+    fun getAllFlow(): Flow<List<ExerciseEntity>>
+
+    /**
      * 按身体部位查询动作。
      *
      * @param bodyPart 身体部位枚举名称
@@ -105,10 +123,10 @@ interface ExerciseDao {
     /**
      * 按主要肌群查询动作（LIKE 模糊匹配逗号分隔的枚举值）。
      *
-     * @param muscle 肌群枚举名称
+     * @param muscle 肌群枚举名称（调用方须先做 LIKE 转义，见仓库侧 [escape][com.example.fitlog.data.repository.ExerciseRepository]）
      * @return 匹配的动作实体列表
      */
-    @Query("SELECT * FROM exercises WHERE primaryMuscles LIKE '%' || :muscle || '%' ORDER BY name ASC")
+    @Query("SELECT * FROM exercises WHERE primaryMuscles LIKE '%' || :muscle || '%' ESCAPE '\\' ORDER BY name ASC")
     suspend fun getByMuscle(muscle: String): List<ExerciseEntity>
 
     /**
@@ -131,10 +149,10 @@ interface ExerciseDao {
     /**
      * 搜索动作名称（模糊匹配）。
      *
-     * @param query 搜索关键词
+     * @param query 搜索关键词（调用方须先做 LIKE 转义，见仓库侧 escapeLike）
      * @return 名称包含关键词的动作实体列表
      */
-    @Query("SELECT * FROM exercises WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
+    @Query("SELECT * FROM exercises WHERE name LIKE '%' || :query || '%' ESCAPE '\\' ORDER BY name ASC")
     suspend fun searchByName(query: String): List<ExerciseEntity>
 
     /**

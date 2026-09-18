@@ -134,8 +134,12 @@ fun WorkoutScreen(
     onMessageShown: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    // 待删除确认的记录（瞬时 UI 状态）：删除会级联清空动作与组数明细，必须二次确认
-    var pendingDelete by remember { mutableStateOf<Workout?>(null) }
+    // 待删除确认的记录（瞬时 UI 状态，rememberSaveable：旋转后确认弹窗不静默消失）：
+    // 删除会级联清空动作与组数明细，必须二次确认
+    var pendingDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val pendingDelete = uiState.let { state ->
+        (state as? WorkoutUiState.Success)?.workouts?.firstOrNull { it.id == pendingDeleteId }
+    }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(message) {
@@ -202,7 +206,7 @@ fun WorkoutScreen(
                         } else {
                             WorkoutHistoryList(
                                 workouts = uiState.workouts,
-                                onDeleteWorkout = { pendingDelete = it },
+                                onDeleteWorkout = { pendingDeleteId = it.id },
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -215,7 +219,7 @@ fun WorkoutScreen(
     // 删除确认对话框
     pendingDelete?.let { target ->
         AlertDialog(
-            onDismissRequest = { pendingDelete = null },
+            onDismissRequest = { pendingDeleteId = null },
             title = { Text("删除训练记录") },
             text = {
                 Text("将删除 ${target.date} 的训练记录及其全部动作与组数明细，此操作无法恢复。")
@@ -223,7 +227,7 @@ fun WorkoutScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        pendingDelete = null
+                        pendingDeleteId = null
                         onDeleteWorkout(target)
                     },
                 ) {
@@ -231,7 +235,7 @@ fun WorkoutScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) {
+                TextButton(onClick = { pendingDeleteId = null }) {
                     Text("取消")
                 }
             },
@@ -304,10 +308,12 @@ private fun WorkoutHistoryCard(
     onToggleExpanded: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    // 组数统一走 VolumeAggregator 收口：手写 count 缺 reps>0 过滤，
+    // 0 次占位/失败组会虚增"N 组"摘要（与全 App 组数口径一致）
     val workingSets = workout.exercises.sumOf { log ->
-        log.sets.count { it.setType == SetType.WORKING }
+        VolumeAggregator.workingSetCountOf(log)
     }
-    val volumeKg = VolumeAggregator.workingVolume(listOf(workout))
+    val volumeKg = VolumeAggregator.workingVolumeOf(workout)
     val durationMinutes = if (workout.startedAt != null && workout.endedAt != null) {
         ((workout.endedAt - workout.startedAt) / 60_000L).coerceAtLeast(0)
     } else {

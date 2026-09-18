@@ -7,7 +7,6 @@ import com.example.fitlog.data.repository.ExerciseRepository
 import com.example.fitlog.data.repository.WorkoutPlanRepository
 import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.model.Exercise
-import com.example.fitlog.model.PlannedSession
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.util.VolumeAggregator
@@ -38,7 +37,7 @@ import kotlinx.coroutines.withContext
  *
  * 会话的**状态源是 DB**：启动会话插入 workouts 行（startedAt 已写、endedAt 空），
  * 此后加动作/录组逐条落库，[activeSession] 从
- * [WorkoutRepository.getInProgressWorkoutEntity] 投影——进程死亡或页面销毁后
+ * [WorkoutRepository.getInProgressSessionSnapshot] 投影——进程死亡或页面销毁后
  * 重进仍可恢复（Today「继续训练」/ 本页自动恢复），组数进度对 Today 卡片实时可见。
  *
  * 计划目标元数据（目标组数/次数区间）不在 workouts 表中：会话行经
@@ -83,9 +82,6 @@ class WorkoutViewModel @Inject constructor(
             savedStateHandle[KEY_AUTO_START_CONSUMED] = value
         }
 
-    /** 计划课次 id → 课次对象缓存（目标元数据投影用，会话生命周期内最多几条）。 */
-    private val planSessionCache = java.util.concurrent.ConcurrentHashMap<String, PlannedSession?>()
-
     /**
      * 会话写操作互斥锁：逐键提交的 updateSet 与 finishSession/discard 在
      * Room 的不同执行器上运行，无锁时"最后一键 + 立即结束"可能被结束事务
@@ -94,7 +90,7 @@ class WorkoutViewModel @Inject constructor(
     private val sessionMutex = Mutex()
 
     /**
-     * 页面 UI 状态流：Room 变更驱动（进行中会话行已过滤）。
+     * 页面 UI 状态流：Room 变更驱动（进行中的会话行已过滤）。
      *
      * 异常按全项目 guard 约定降级：捕获后写一次性提示通道并发射空列表，
      * 不在流末端发射错误态终结链路——否则后续 DB 变化不再驱动 UI，直到
@@ -119,12 +115,16 @@ class WorkoutViewModel @Inject constructor(
             initialValue = WorkoutUiState.Loading,
         )
 
-    /** 动作库目录（会话内"添加动作"选择器数据源；启动期已由 Seeder 灌库）。 */
-    val exerciseCatalog: StateFlow<List<Exercise>> = kotlinx.coroutines.flow.flow {
-        emit(exerciseRepository.getAll())
-    }
+    /**
+     * 动作库目录（会话内"添加动作"选择器数据源；启动期已由 Seeder 灌库）。
+     *
+     * 响应式走 Room Flow：自定义动作增删后选择器自动刷新——此前是一次性
+     * 读取配 Lazily，目录永远停留在 VM 创建时刻，新增自定义动作不可选。
+     */
+    val exerciseCatalog: StateFlow<List<Exercise>> = exerciseRepository
+        .getAllFlow()
         .guard(emptyList(), context = "动作库目录")
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
      * 进行中的训练会话投影（null = 无会话，页面显示历史列表）。
@@ -134,8 +134,8 @@ class WorkoutViewModel @Inject constructor(
      * 无法恢复，录入中的组数进度对 Today 卡片也不再可见）。
      */
     val activeSession: StateFlow<ActiveSession?> = workoutRepository
-        .getInProgressWorkoutEntity()
-        .map { relation -> relation?.let { buildActiveSession(it) } }
+        .getInProgressSessionSnapshot()
+        .map { snapshot -> snapshot?.let { buildActiveSession(it) } }
         .guard(null, context = "进行中会话") { e ->
             _message.update { "会话加载失败，请重试" }
         }
@@ -175,12 +175,13 @@ class WorkoutViewModel @Inject constructor(
                             ?: return@runCatching null
                         workoutPlanRepository.getNextIncompleteSession(plan.id).first()
                     }.getOrNull()
-                    planSession?.let { planSessionCache[it.id] = it }
 
                     val workoutId = workoutRepository.createSessionWorkout(planSession)
                     if (workoutId == -1L) {
-                        FitLog.w(TAG, "会话启动失败：插入返回 -1（workoutId 冲突）")
-                        _message.update { "会话启动失败，请重试" }
+                        // -1 = 事务内复查发现已有进行中会话（自增主键 + null sourceFileName
+                        // 下插入不会触发 IGNORE），防御性给出"继续训练"导向而非笼统重试
+                        FitLog.w(TAG, "会话启动被拒：已存在进行中会话（事务内复查）")
+                        _message.update { "已有进行中的训练，可直接继续或放弃后重开" }
                     } else {
                         FitLog.i(
                             TAG,
@@ -206,19 +207,19 @@ class WorkoutViewModel @Inject constructor(
                 try {
                     // 锁内存活复核：双击保存/保存后立即放弃时，第一次操作可能
                     // 已让会话终结，快照里的 workoutId 不能再动
-                    val current = workoutRepository.getInProgressWorkoutEntity()
-                        .first()?.workout
-                    if (current == null || current.id != session.workoutId) return@withLock
+                    val current = workoutRepository.getInProgressSessionSnapshot()
+                        .first()?.workoutId
+                    if (current == null || current != session.workoutId) return@withLock
 
                     // 返回键销毁 VM 会取消协程：落库段包 NonCancellable，
                     // 保证用户已确认的"保存"不因页面退出而静默回滚。
-                    // 课次完成回写在保存的同一事务内完成（仓库侧），无中途缺口
+                    // 课次完成回写在保存的同一事务内完成（仓库侧，planSessionId
+                    // 以 DB 行内持久化值为事实源），无中途缺口
                     val ended = withContext(NonCancellable) {
                         workoutRepository.finishSession(
                             workoutId = session.workoutId,
                             feelings = feelings?.trim()?.takeIf { it.isNotEmpty() },
                             endedAt = System.currentTimeMillis(),
-                            planSessionId = session.planSessionId,
                         )
                     }
                     if (!ended) {
@@ -232,7 +233,6 @@ class WorkoutViewModel @Inject constructor(
                             "时长${(System.currentTimeMillis() - (session.startedAtMs)) / 60000} 分钟" +
                             (session.planSessionId?.let { " planSessionId=$it" } ?: ""),
                     )
-                    session.planSessionId?.let { planSessionCache.remove(it) }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -250,12 +250,11 @@ class WorkoutViewModel @Inject constructor(
             sessionMutex.withLock {
                 try {
                     // 锁内存活复核：拒绝删除已结束落库的训练（保存后立即放弃的竞态）
-                    val current = workoutRepository.getInProgressWorkoutEntity()
-                        .first()?.workout
-                    if (current == null || current.id != session.workoutId) return@withLock
+                    val current = workoutRepository.getInProgressSessionSnapshot()
+                        .first()?.workoutId
+                    if (current == null || current != session.workoutId) return@withLock
                     workoutRepository.discardSession(session.workoutId)
                     FitLog.i(TAG, "训练会话放弃：workoutId=${session.workoutId}")
-                    planSessionCache.remove(session.planSessionId)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -285,7 +284,11 @@ class WorkoutViewModel @Inject constructor(
                         workoutId = session.workoutId,
                         exerciseKey = exercise.id,
                         name = exercise.name,
-                        sortOrder = session.exercises.size,
+                        // max+1 而非 size：删除中间动作后 size 会与既有 sortOrder 撞号，
+                        // @Relation 读取无稳定次序，撞号会让动作行展示顺序漂移
+                        sortOrder = (session.exercises.maxOfOrNull { ex ->
+                            ex.sortOrder
+                        } ?: -1) + 1,
                     )
                 } catch (e: CancellationException) {
                     throw e
@@ -301,8 +304,14 @@ class WorkoutViewModel @Inject constructor(
     fun removeExercise(logId: Long) {
         viewModelScope.launch {
             sessionMutex.withLock {
-                runCatching { workoutRepository.deleteSessionExercise(logId) }
-                    .onFailure { FitLog.w(TAG, "移除动作失败", it) }
+                try {
+                    workoutRepository.deleteSessionExercise(logId)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    FitLog.w(TAG, "移除动作失败", e)
+                    _message.update { "操作失败，请重试" }
+                }
             }
         }
     }
@@ -317,7 +326,9 @@ class WorkoutViewModel @Inject constructor(
                 try {
                     workoutRepository.addSetToExercise(
                         exerciseLogId = exerciseLogId,
-                        setNumber = exercise.sets.size + 1,
+                        // max+1 而非 size：删除中间组后 size 会与既有组号撞号，
+                        // 结束清洗按组号稳定排序，撞号会让两组的相对顺序漂移
+                        setNumber = (exercise.sets.maxOfOrNull { it.setNumber } ?: 0) + 1,
                         weightKg = lastSet?.weightKg ?: 0f,
                         reps = lastSet?.reps ?: 0,
                         setType = SetType.WORKING,
@@ -342,13 +353,18 @@ class WorkoutViewModel @Inject constructor(
     fun updateSet(setId: Long, weightKg: Float, reps: Int) {
         viewModelScope.launch {
             sessionMutex.withLock {
-                runCatching {
+                try {
                     workoutRepository.updateSessionSet(
                         setId = setId,
                         weightKg = weightKg.coerceAtLeast(0f),
                         reps = reps.coerceAtLeast(0),
                     )
-                }.onFailure { FitLog.w(TAG, "更新组失败", it) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    FitLog.w(TAG, "更新组失败", e)
+                    _message.update { "操作失败，请重试" }
+                }
             }
         }
     }
@@ -357,8 +373,14 @@ class WorkoutViewModel @Inject constructor(
     fun toggleSetType(setId: Long) {
         viewModelScope.launch {
             sessionMutex.withLock {
-                runCatching { workoutRepository.toggleSessionSetType(setId) }
-                    .onFailure { FitLog.w(TAG, "切换组类型失败", it) }
+                try {
+                    workoutRepository.toggleSessionSetType(setId)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    FitLog.w(TAG, "切换组类型失败", e)
+                    _message.update { "操作失败，请重试" }
+                }
             }
         }
     }
@@ -367,13 +389,19 @@ class WorkoutViewModel @Inject constructor(
     fun removeSet(setId: Long) {
         viewModelScope.launch {
             sessionMutex.withLock {
-                runCatching { workoutRepository.deleteSessionSet(setId) }
-                    .onFailure { FitLog.w(TAG, "删除组失败", it) }
+                try {
+                    workoutRepository.deleteSessionSet(setId)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    FitLog.w(TAG, "删除组失败", e)
+                    _message.update { "操作失败，请重试" }
+                }
             }
         }
     }
 
-    /** 删除训练记录（失败仅记录日志，列表由 Room Flow 驱动，无需手动刷新）。 */
+    /** 删除训练记录（同事务解除计划课次完成标记，见仓库侧说明；列表由 Room Flow 驱动）。 */
     fun deleteWorkout(workout: Workout) {
         viewModelScope.launch {
             try {
@@ -382,6 +410,7 @@ class WorkoutViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 FitLog.w(TAG, "删除训练记录失败：${workout.date}", e)
+                _message.update { "删除失败，请重试" }
             }
         }
     }
@@ -393,45 +422,45 @@ class WorkoutViewModel @Inject constructor(
     // 投影
     // ──────────────────────────────────────
 
-    /** relation → 会话投影：合并计划课次的目标元数据（课次已删则降级为无目标）。 */
+    /**
+     * 会话快照 → UI 投影：合并计划课次的目标元数据（课次已删则降级为无目标）。
+     *
+     * 目标元数据每次投影直查而非缓存：计划编辑/删除在会话进行中完全可能发生，
+     * 按 id 缓存会让"目标组数"一直展示编辑前的旧值、已删课次仍展示旧目标
+     * （主键查询开销可忽略，正确性优先）。
+     */
     private suspend fun buildActiveSession(
-        relation: com.example.fitlog.data.local.relation.WorkoutWithExerciseLogs,
+        snapshot: com.example.fitlog.model.WorkoutSessionSnapshot,
     ): ActiveSession {
-        // planSessionId 以 DB 行为事实源（v9 列）：页面退出/进程死亡后关联不丢，
-        // 结束训练仍能按行内值回写课次完成标记
-        val planSessionId = relation.workout.planSessionId
-        val planSession = planSessionId?.let { id ->
-            planSessionCache.getOrPut(id) {
-                runCatching { workoutPlanRepository.getSessionById(id) }
-                    .onFailure { FitLog.w(TAG, "读取计划课次失败：$id", it) }
-                    .getOrNull()
-            }
+        val planSession = snapshot.planSessionId?.let { id ->
+            runCatching { workoutPlanRepository.getSessionById(id) }
+                .onFailure { FitLog.w(TAG, "读取计划课次失败：$id", it) }
+                .getOrNull()
         }
 
         return ActiveSession(
-            workoutId = relation.workout.id,
-            startedAtMs = relation.workout.startedAt ?: System.currentTimeMillis(),
-            planSessionId = planSessionId,
+            workoutId = snapshot.workoutId,
+            startedAtMs = snapshot.startedAtMs,
+            planSessionId = snapshot.planSessionId,
             planSessionName = planSession?.name,
-            exercises = relation.exerciseLogs
-                .sortedBy { it.exerciseLog.sortOrder }
+            exercises = snapshot.exercises
                 .map { log ->
                     val planItem = planSession?.exercises
-                        ?.firstOrNull { it.exerciseKey == log.exerciseLog.exerciseKey }
+                        ?.firstOrNull { it.exerciseKey == log.exerciseKey }
                     ActiveSessionExercise(
-                        logId = log.exerciseLog.id,
-                        exerciseKey = log.exerciseLog.exerciseKey,
-                        name = log.exerciseLog.name,
+                        logId = log.logId,
+                        exerciseKey = log.exerciseKey,
+                        name = log.name,
+                        sortOrder = log.sortOrder,
                         targetText = planItem?.toTargetText(),
                         sets = log.sets
-                            .sortedBy { it.setNumber }
                             .map { set ->
                                 ActiveSessionSet(
                                     id = set.id,
+                                    setNumber = set.setNumber,
                                     weightKg = set.weightKg,
                                     reps = set.reps,
-                                    setType = runCatching { SetType.valueOf(set.setType) }
-                                        .getOrDefault(SetType.WORKING),
+                                    setType = set.setType,
                                 )
                             },
                     )
