@@ -1,7 +1,5 @@
 package com.example.fitlog.feature.aisettings
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -10,19 +8,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -48,31 +42,22 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
@@ -90,14 +75,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.model.ai.AIProviderConfig
 import com.example.fitlog.model.ai.ProviderType
+import com.example.fitlog.ui.components.CollapsingTitleScaffold
 import com.example.fitlog.ui.components.SectionLabel
 import com.example.fitlog.ui.components.FitLogCard
 import com.example.fitlog.ui.components.StackedSnackbarHost
 import com.example.fitlog.ui.components.SubpageIndicator
 import com.example.fitlog.ui.components.rememberStackedSnackbarHostState
 import com.example.fitlog.ui.theme.fitLogColors
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.ensureActive
 
 /**
  * 1. 容器层 (Stateful)
@@ -137,10 +121,9 @@ fun AISettingsRoute(
  * 单配置页：页面只服务"当前选中的那一个服务商"，
  * 切换服务商通过底部弹层完成，不加号、无列表。
  *
- * 顶栏为 Google 风格双标题：顶行常驻小标题（父级板块 Settings），大标题置于滚动内容顶部；
- * 滚动时大标题自然没入不透明的顶栏之下，顶行标题按滚动进度交叉淡化为本页标题
- * （pinned TopAppBar + graphicsLayer alpha 联动滚动进度）；
- * 滚动停止在半折叠态时自动吸附到最近的稳定态（对齐 M3 顶栏内置的 snap 行为）。
+ * 动态双标题/滚动吸附/顶栏渐变由 [CollapsingTitleScaffold] 共享实现
+ * （与设置族其余页面同一契约），本页只注入 imePadding 与点按清焦点的
+ * 内容列修饰符。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -163,53 +146,10 @@ fun AISettingsScreen(
     onSuccessShown: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val scrollState = rememberScrollState()
     // rememberSaveable：旋转/重建后弹层不静默消失（与其他设置页弹层约定一致）
     var showProviderSheet by rememberSaveable { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val stackedSnackbarHostState = rememberStackedSnackbarHostState()
-
-    val density = LocalDensity.current
-    val extraSpacingPx = remember(density) { with(density) { 12.dp.roundToPx() } }
-
-    // 自适应双态：动态检测页面内容是否能够产生滚动
-    val isScrollable by remember { derivedStateOf { scrollState.maxValue > 0 } }
-
-    // 双标题切换进度：0 = 完全展开（显示父级板块标题 Settings），1 = 大标题刚好完全滚入顶栏之下。
-    var headerHeightPx by remember { mutableIntStateOf(0) }
-    val titleFraction by remember {
-        derivedStateOf {
-            if (!isScrollable || headerHeightPx <= 0) 0f
-            else (scrollState.value.toFloat() / headerHeightPx.toFloat()).coerceIn(0f, 1f)
-        }
-    }
-
-    // 吸附效果：手势/惯性滚动停止后，若大标题处于半折叠的中间态，自动平滑吸附到最近的稳定边界（0 或 headerHeightPx）。
-    LaunchedEffect(scrollState, headerHeightPx, isScrollable) {
-        if (!isScrollable) return@LaunchedEffect
-        snapshotFlow { scrollState.isScrollInProgress }
-            .collect { inProgress ->
-                if (inProgress) return@collect
-                val currentScroll = scrollState.value
-                if (headerHeightPx > 0 && currentScroll in 1 until headerHeightPx) {
-                    val target = if (currentScroll < headerHeightPx / 2) 0 else headerHeightPx
-                    try {
-                        scrollState.animateScrollTo(
-                            value = target,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            )
-                        )
-                    } catch (e: CancellationException) {
-                        // 仅当 LaunchedEffect 自身仍活跃（即动画是被新手势打断）才吞掉；
-                        // 若父协程已取消，ensureActive() 会重新抛出，让 collect 立即终止
-                        coroutineContext.ensureActive()
-                    }
-                }
-            }
-    }
 
     val selectedType = uiState.provider.selectedType
     val spec = ProviderSpecs.of(selectedType)
@@ -217,147 +157,73 @@ fun AISettingsScreen(
     // 该类型已保存的配置（用于 ProviderCard 展示配置状态）
     val savedConfig = uiState.provider.providers.firstOrNull { it.id == selectedType.name }
 
-    // 顶栏背景色随滚动进度在页面背景 (展开) 与折叠色 (折叠) 之间平滑过渡
-    val topAppBarContainerColor = androidx.compose.ui.graphics.lerp(
-        MaterialTheme.fitLogColors.pageBackground,
-        MaterialTheme.fitLogColors.topBarScrolled,
-        titleFraction
-    )
-
-    Scaffold(
-        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = MaterialTheme.fitLogColors.pageBackground,
+    // 动态双标题/吸附/顶栏渐变全部由共享脚手架承载（此前 ~140 行逐字复制
+    // 自 CollapsingTitleScaffold，与 6 个设置页漂移成两处需同步维护的实现）
+    CollapsingTitleScaffold(
+        title = "AI Configuration",
+        onBack = onBack,
+        parentTitle = "Settings",
+        modifier = modifier,
         snackbarHost = { StackedSnackbarHost(hostState = stackedSnackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    // - 可滚动页面：共享轴向过渡（展开 "Settings" ↔ 折叠 "AI Configuration"）
-                    // - 不可滚动页面：顶栏直接显示本页标题 "AI Configuration"，避免双标题混淆与空间浪费
-                    Box(contentAlignment = Alignment.CenterStart) {
-                        if (isScrollable) {
-                            Text(
-                                text = "Settings",
-                                style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.graphicsLayer {
-                                    alpha = 1f - titleFraction
-                                    translationY = -titleFraction * 12.dp.toPx()
-                                },
-                            )
-                            Text(
-                                text = "AI Configuration",
-                                style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.graphicsLayer {
-                                    alpha = titleFraction
-                                    translationY = (1f - titleFraction) * 12.dp.toPx()
-                                },
-                            )
-                        } else {
-                            Text(
-                                text = "AI Configuration",
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = topAppBarContainerColor,
-                    scrolledContainerColor = topAppBarContainerColor,
-                ),
-                scrollBehavior = scrollBehavior
-            )
-        },
-    ) { innerPadding ->
-        Column(
+        contentColumnModifier = Modifier
+            // 点击输入框以外的区域时清除焦点，收起软键盘
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { focusManager.clearFocus() })
+            }
+            .imePadding(),
+    ) {
+    SectionLabel("AI Provider")
+        ProviderCard(
+            spec = spec,
+            savedConfig = savedConfig,
+            onClick = { showProviderSheet = true },
+        )
+
+        SectionLabel("Credentials")
+        CredentialsCard(
+            spec = spec,
+            uiState = uiState,
+            baseUrl = uiState.endpoint.baseUrl,
+            onBaseUrlChange = onBaseUrlChange,
+            customEndpoint = uiState.endpoint.customEndpoint,
+            onCustomEndpointChange = onCustomEndpointChange,
+            apiVersion = uiState.endpoint.apiVersion,
+            onApiVersionChange = onApiVersionChange,
+            onApiKeyChange = onApiKeyChange,
+            onToggleApiKeyVisibility = onToggleApiKeyVisibility,
+        )
+
+        SectionLabel("Model")
+        ModelCard(
+            spec = spec,
+            model = uiState.model,
+            apiKeyReady = uiState.apiKey.apiKey.isNotBlank(),
+            onModelChange = onModelChange,
+            onFetchModels = onFetchModels,
+        )
+
+        SectionLabel("Test")
+        TestCard(
+            test = uiState.test,
+            formReady = uiState.apiKey.apiKey.isNotBlank() &&
+                uiState.model.selectedModel.isNotBlank() &&
+                uiState.endpoint.baseUrl.isNotBlank(),
+            onTest = onTestConnection,
+        )
+
+        // 保存按钮在页面底部：provider + 凭据 + 模型是同一条记录，一次保存原子完成
+        Button(
+            onClick = onSaveClick,
+            enabled = uiState.apiKey.apiKey.isNotBlank() &&
+                uiState.model.selectedModel.isNotBlank() &&
+                uiState.endpoint.baseUrl.isNotBlank(),
             modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
-                // 点击输入框以外的区域时清除焦点，收起软键盘
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { focusManager.clearFocus() })
-                }
-                .imePadding()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
         ) {
-            // 可滚动页面渲染大标题 Header；不可滚动页面隐藏 Body 重复大标题
-            if (isScrollable) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 8.dp, top = 8.dp, bottom = 4.dp)
-                        .onSizeChanged { size ->
-                            headerHeightPx = size.height + extraSpacingPx
-                        }
-                ) {
-                    Text(
-                        text = "AI Configuration",
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                }
-            }
-
-            SectionLabel("AI Provider")
-            ProviderCard(
-                spec = spec,
-                savedConfig = savedConfig,
-                onClick = { showProviderSheet = true },
-            )
-
-            SectionLabel("Credentials")
-            CredentialsCard(
-                spec = spec,
-                uiState = uiState,
-                baseUrl = uiState.endpoint.baseUrl,
-                onBaseUrlChange = onBaseUrlChange,
-                customEndpoint = uiState.endpoint.customEndpoint,
-                onCustomEndpointChange = onCustomEndpointChange,
-                apiVersion = uiState.endpoint.apiVersion,
-                onApiVersionChange = onApiVersionChange,
-                onApiKeyChange = onApiKeyChange,
-                onToggleApiKeyVisibility = onToggleApiKeyVisibility,
-            )
-
-            SectionLabel("Model")
-            ModelCard(
-                spec = spec,
-                model = uiState.model,
-                apiKeyReady = uiState.apiKey.apiKey.isNotBlank(),
-                onModelChange = onModelChange,
-                onFetchModels = onFetchModels,
-            )
-
-            SectionLabel("Test")
-            TestCard(
-                test = uiState.test,
-                formReady = uiState.apiKey.apiKey.isNotBlank() &&
-                    uiState.model.selectedModel.isNotBlank() &&
-                    uiState.endpoint.baseUrl.isNotBlank(),
-                onTest = onTestConnection,
-            )
-
-            // 保存按钮在页面底部：provider + 凭据 + 模型是同一条记录，一次保存原子完成
-            Button(
-                onClick = onSaveClick,
-                enabled = uiState.apiKey.apiKey.isNotBlank() &&
-                    uiState.model.selectedModel.isNotBlank() &&
-                    uiState.endpoint.baseUrl.isNotBlank(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-            ) {
-                Text("保存")
-            }
-            Spacer(modifier = Modifier.height(16.dp))
+            Text("保存")
         }
+            Spacer(modifier = Modifier.height(16.dp))
     }
 
     // Provider 选择弹层
@@ -575,7 +441,7 @@ private fun ProviderPickerSheet(
                 content = { Text(spec.displayName) },
             )
         }
-        Spacer(modifier = Modifier.height(32.dp)) // 避开底部手势区
+        // 底部安全区由 ModalBottomSheet 的 contentWindowInsets 自行处理，无需占位 Spacer
     }
 }
 
