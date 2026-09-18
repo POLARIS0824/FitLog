@@ -113,8 +113,11 @@ class MainActivity : ComponentActivity() {
                             FitLogBottomBar(
                                 selectedTab = currentKey,
                                 onTabSelected = { key ->
-                                    // 切 tab = 回到该 tab 根部：清栈只留目标 tab，不保留其下二级页
-                                    if (backStack.lastOrNull() != key) {
+                                    // 切 tab = 回到该 tab 根部：清栈只留目标 tab，不保留其下二级页。
+                                    // 按类型而非实例比较：栈顶可能带参数（如 ChatKey(prefill=…)），
+                                    // 与新构造的默认 key 实例不相等——点击已高亮的 tab 若因此
+                                    // 清栈重建，ChatViewModel 会销毁，未发送的草稿随之丢失
+                                    if (backStack.lastOrNull()?.let { it::class == key::class } != true) {
                                         backStack.clear()
                                         backStack.add(key)
                                     }
