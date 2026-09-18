@@ -115,12 +115,17 @@ fun LargeMetricCard(
     badgeContentColor: Color = contentColor,
     onClick: (() -> Unit)? = null,
 ) {
+    val cardShape = RoundedCornerShape(22.dp)
+    // 可点击走外部 modifier（clip 后涟漪被裁进圆角），不用 Card 的 enabled=false
+    // 可点击重载：该重载对 enabled=false 的卡片强制渲染 disabledContainerColor
+    //（Material3 固定灰），会覆盖调用方显式传入的 containerColor
     Card(
         modifier = modifier
+            .clip(cardShape)
             .then(
                 if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
             ),
-        shape = RoundedCornerShape(22.dp),
+        shape = cardShape,
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
             contentColor = contentColor,
@@ -443,12 +448,15 @@ fun SmallMetricCard(
     badgeContentColor: Color = contentColor,
     onClick: (() -> Unit)? = null,
 ) {
+    val cardShape = RoundedCornerShape(18.dp)
+    // 同 LargeMetricCard：外部 clickable + clip，避免 enabled=false 的禁用灰覆盖
     Card(
         modifier = modifier
+            .clip(cardShape)
             .then(
                 if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
             ),
-        shape = RoundedCornerShape(18.dp),
+        shape = cardShape,
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
             contentColor = contentColor,

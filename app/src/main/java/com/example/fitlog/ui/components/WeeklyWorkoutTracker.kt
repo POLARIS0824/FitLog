@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.sp
 import com.example.fitlog.ui.theme.FitLogTheme
 import com.example.fitlog.ui.theme.fitLogColors
 import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 
 /**
  * 单日训练状态枚举。
@@ -213,7 +215,10 @@ private fun WeeklyDaySlot(
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    val a11yDesc = "${if (day.isToday) "今天 " else ""}周${day.dayLabel}, ${describeStatus(day.status)}"
+    // 无障碍描述用本地化完整星期名（dayLabel 是单字符展示符，英文下 "周S"
+    // 对 TalkBack 无意义）；dayLabel 仅供视觉展示
+    val weekdayName = day.date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
+    val a11yDesc = "${if (day.isToday) "今天 " else ""}$weekdayName, ${describeStatus(day.status)}"
 
     // 是否需要呈现为胶囊实体：
     // 1. 已完成打卡 (COMPLETED)
@@ -229,7 +234,7 @@ private fun WeeklyDaySlot(
     Box(
         modifier = modifier
             .width(36.dp)
-            .height(58.dp)
+            .height(68.dp)
             .then(
                 if (showCapsule) {
                     Modifier
@@ -254,7 +259,7 @@ private fun WeeklyDaySlot(
     ) {
         Column(
             modifier = Modifier
-                .padding(vertical = 6.dp),
+                .padding(vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
