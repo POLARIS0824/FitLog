@@ -42,7 +42,7 @@ import com.example.fitlog.ui.theme.FitLogShapes
 import com.example.fitlog.ui.theme.fitLogColors
 import java.time.LocalDate
 import java.time.format.TextStyle
-import java.util.Locale
+import androidx.compose.ui.platform.LocalLocale
 
 /**
  * 单日训练状态枚举。
@@ -219,7 +219,7 @@ private fun WeeklyDaySlot(
 ) {
     // 无障碍描述用本地化完整星期名（dayLabel 是单字符展示符，英文下 "周S"
     // 对 TalkBack 无意义）；dayLabel 仅供视觉展示
-    val weekdayName = day.date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
+    val weekdayName = day.date.dayOfWeek.getDisplayName(TextStyle.FULL, LocalLocale.current.platformLocale)
     val a11yDesc = "${if (day.isToday) "今天 " else ""}$weekdayName, ${describeStatus(day.status)}"
 
     // 是否需要呈现为胶囊实体：
