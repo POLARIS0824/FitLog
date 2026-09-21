@@ -45,6 +45,9 @@ class FakeAgentEngine : AgentEngine {
     /** respondToConfirmation 的可编程响应；未设置时返回空事件流。 */
     var confirmHandler: (suspend (String, String, Boolean) -> Result<Flow<Event>>)? = null
 
+    /** clearSession 的可编程响应；未设置时默认成功。 */
+    var clearSessionHandler: (suspend (String) -> Result<Unit>)? = null
+
     /** clearSession 收到的会话 id（按调用顺序）。 */
     val clearedSessions = mutableListOf<String>()
 
@@ -69,7 +72,7 @@ class FakeAgentEngine : AgentEngine {
 
     override suspend fun clearSession(sessionId: String): Result<Unit> {
         clearedSessions += sessionId
-        return Result.success(Unit)
+        return clearSessionHandler?.invoke(sessionId) ?: Result.success(Unit)
     }
 
     override suspend fun replayHistory(sessionId: String): List<com.example.fitlog.model.ai.ChatMessage> =
@@ -113,6 +116,12 @@ private class FakeChatRepository : ChatRepository {
     var clearCount = 0
         private set
 
+    /** clearAll 的可编程挂起/异常处理器。 */
+    var clearAllHandler: (suspend () -> Unit)? = null
+
+    /** loadThread 的可编程挂起/返回值处理器。 */
+    var loadThreadHandler: (suspend () -> List<ChatThreadMessage>?)? = null
+
     private val stored = mutableListOf<StoredMessage>()
     private val storedSteps = mutableListOf<StoredStep>()
     private var nextId = 1L
@@ -146,8 +155,9 @@ private class FakeChatRepository : ChatRepository {
     }
 
     /** 全部消息按写入顺序（createdAt 升序）返回，步骤按 runId 挂载。 */
-    override suspend fun loadThread(): List<ChatThreadMessage> =
-        stored.map { message ->
+    override suspend fun loadThread(): List<ChatThreadMessage> {
+        loadThreadHandler?.invoke()?.let { return it }
+        return stored.map { message ->
             ChatThreadMessage(
                 id = message.id,
                 role = message.role,
@@ -168,6 +178,7 @@ private class FakeChatRepository : ChatRepository {
                     },
             )
         }
+    }
 
     override suspend fun count(): Long = stored.size.toLong()
 
@@ -188,6 +199,7 @@ private class FakeChatRepository : ChatRepository {
 
     override suspend fun clearAll() {
         clearCount++
+        clearAllHandler?.invoke()
         stored.clear()
         storedSteps.clear()
     }
@@ -549,5 +561,196 @@ class ChatViewModelTest {
         assertEquals(1, fakeChatRepository.clearCount)
         assertEquals(0L, fakeChatRepository.count())
         assertEquals(0, fakeChatRepository.stepCount)
+    }
+
+    /**
+     * 清空中发送：发送操作被拦截忽略，不发往引擎也不产生新消息，清空完成后不误删新消息。
+     */
+    @Test
+    fun testClearChat_sendDuringClear_ignored() = runTest(mainDispatcher.scheduler) {
+        fakeEngine.sendHandler = { Result.success(flowOf(finalTextEvent("第一条回复"))) }
+        viewModel.onInputChange("第一条消息")
+        viewModel.send()
+        assertEquals(2, viewModel.uiState.value.messages.size)
+
+        // 挂起清空操作，模拟清空在途
+        val clearLatch = CompletableDeferred<Unit>()
+        fakeEngine.clearSessionHandler = {
+            clearLatch.await()
+            Result.success(Unit)
+        }
+
+        viewModel.onClearChat()
+        assertTrue(viewModel.uiState.value.isClearing)
+
+        // 清空中尝试发送新消息
+        viewModel.onInputChange("清空中发送的新消息")
+        viewModel.send()
+
+        // 验证：新发送被忽略，未向引擎发送，也未进入发送态
+        assertFalse(viewModel.uiState.value.isSending)
+        assertEquals(1, fakeEngine.sentTexts.size)
+
+        // 放行清空完成
+        clearLatch.complete(Unit)
+
+        // 验证：清空正常完成，旧消息清空，且 isClearing 复位
+        val state = viewModel.uiState.value
+        assertFalse(state.isClearing)
+        assertTrue(state.messages.isEmpty())
+        assertEquals(1, fakeChatRepository.clearCount)
+    }
+
+    /**
+     * 重复清空：清空在途期间再次触发清空被忽略，防止并发重复清空。
+     */
+    @Test
+    fun testClearChat_duplicateClear_ignored() = runTest(mainDispatcher.scheduler) {
+        val clearLatch = CompletableDeferred<Unit>()
+        fakeEngine.clearSessionHandler = {
+            clearLatch.await()
+            Result.success(Unit)
+        }
+
+        viewModel.onClearChat()
+        assertTrue(viewModel.uiState.value.isClearing)
+        assertEquals(1, fakeEngine.clearedSessions.size)
+
+        // 再次触发清空
+        viewModel.onClearChat()
+        assertEquals(1, fakeEngine.clearedSessions.size)
+
+        // 放行第一次清空
+        clearLatch.complete(Unit)
+        assertFalse(viewModel.uiState.value.isClearing)
+        assertEquals(1, fakeEngine.clearedSessions.size)
+        assertEquals(1, fakeChatRepository.clearCount)
+    }
+
+    /**
+     * 清空成功：旧消息与状态清空，且清空后可继续正常发送新消息。
+     */
+    @Test
+    fun testClearChat_success_clearsMessagesAndEnablesNewOperations() = runTest(mainDispatcher.scheduler) {
+        fakeEngine.sendHandler = { Result.success(flowOf(finalTextEvent("回复 1"))) }
+        viewModel.onInputChange("消息 1")
+        viewModel.send()
+        assertEquals(2, viewModel.uiState.value.messages.size)
+
+        viewModel.onClearChat()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.messages.isEmpty())
+        assertFalse(state.isClearing)
+        assertFalse(state.isSending)
+        assertNull(state.errorMessage)
+        assertNull(state.pendingConfirmation)
+        assertEquals("", state.input)
+        assertEquals(1, fakeChatRepository.clearCount)
+        assertEquals(0L, fakeChatRepository.count())
+
+        // 清空后可继续使用
+        fakeEngine.sendHandler = { Result.success(flowOf(finalTextEvent("清空后的新回复"))) }
+        viewModel.onInputChange("清空后的新消息")
+        viewModel.send()
+
+        val afterState = viewModel.uiState.value
+        assertEquals(2, afterState.messages.size)
+        assertEquals("清空后的新消息", afterState.messages[0].content)
+        assertEquals("清空后的新回复", afterState.messages[1].content)
+    }
+
+    /**
+     * ADK 失败：界面不误清空，保留已有消息并提示错误，清空态复位且后继可继续使用。
+     */
+    @Test
+    fun testClearChat_adkFailure_retainsMessagesAndShowsError() = runTest(mainDispatcher.scheduler) {
+        fakeEngine.sendHandler = { Result.success(flowOf(finalTextEvent("回复 1"))) }
+        viewModel.onInputChange("消息 1")
+        viewModel.send()
+        assertEquals(2, viewModel.uiState.value.messages.size)
+
+        fakeEngine.clearSessionHandler = {
+            Result.failure(IOException("ADK 服务不可用"))
+        }
+
+        viewModel.onClearChat()
+
+        val state = viewModel.uiState.value
+        // 界面状态与实际状态一致：未清空本地数据，消息保留
+        assertEquals(2, state.messages.size)
+        assertFalse(state.isClearing)
+        assertEquals(0, fakeChatRepository.clearCount)
+        assertNotNull(state.errorMessage)
+        assertTrue(state.errorMessage!!.contains("ADK 服务不可用"))
+
+        // 错误后可继续使用
+        viewModel.onErrorShown()
+        assertNull(viewModel.uiState.value.errorMessage)
+        fakeEngine.sendHandler = { Result.success(flowOf(finalTextEvent("错误后的回复"))) }
+        viewModel.onInputChange("新消息")
+        viewModel.send()
+        assertEquals(4, viewModel.uiState.value.messages.size)
+    }
+
+    /**
+     * 本地删除失败：界面反馈与实际数据一致（保留消息），提示错误，清空态复位且后继可继续使用。
+     */
+    @Test
+    fun testClearChat_localDeleteFailure_retainsMessagesAndShowsError() = runTest(mainDispatcher.scheduler) {
+        fakeEngine.sendHandler = { Result.success(flowOf(finalTextEvent("回复 1"))) }
+        viewModel.onInputChange("消息 1")
+        viewModel.send()
+        assertEquals(2, viewModel.uiState.value.messages.size)
+
+        fakeChatRepository.clearAllHandler = {
+            throw java.sql.SQLException("本地数据库写入失败")
+        }
+
+        viewModel.onClearChat()
+
+        val state = viewModel.uiState.value
+        // 界面消息保留，与本地 DB 实际数据一致（未被假清空）
+        assertEquals(2, state.messages.size)
+        assertFalse(state.isClearing)
+        assertEquals(1, fakeChatRepository.clearCount)
+        assertEquals(2L, fakeChatRepository.count())
+        assertNotNull(state.errorMessage)
+        assertTrue(state.errorMessage!!.contains("本地聊天记录删除失败"))
+
+        // 错误后可继续使用
+        viewModel.onErrorShown()
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    /**
+     * 历史恢复在途时清空对话，恢复完成不会覆盖清空后的会话状态。
+     */
+    @Test
+    fun testRestoreHistory_doesNotOverwriteClearedSession() = runTest(mainDispatcher.scheduler) {
+        fakeEngine.history = listOf(
+            com.example.fitlog.model.ai.ChatMessage(role = "user", content = "旧历史消息"),
+            com.example.fitlog.model.ai.ChatMessage(role = "assistant", content = "旧历史回复"),
+        )
+        val restoreLatch = CompletableDeferred<Unit>()
+        val repo = FakeChatRepository().apply {
+            loadThreadHandler = {
+                restoreLatch.await()
+                null
+            }
+        }
+        val vm = ChatViewModel(fakeEngine, repo)
+
+        // 在恢复历史挂起期间执行清空
+        vm.onClearChat()
+        assertTrue(vm.uiState.value.messages.isEmpty())
+
+        // 放行历史恢复
+        restoreLatch.complete(Unit)
+
+        // 历史恢复不得覆盖清空后的状态
+        val state = vm.uiState.value
+        assertTrue(state.messages.isEmpty())
+        assertFalse(state.isClearing)
     }
 }

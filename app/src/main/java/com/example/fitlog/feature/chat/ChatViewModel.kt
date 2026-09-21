@@ -14,6 +14,7 @@ import com.google.adk.kt.types.FunctionCall
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -72,6 +73,15 @@ class ChatViewModel @Inject constructor(
     /** 当前运行的收集协程（send / respondToConfirmation 共用），供 [stopRun] 取消。 */
     private var runJob: Job? = null
 
+    /** 当前清空会话与本地记录的协程，供并发与重入协调。 */
+    private var clearJob: Job? = null
+
+    /** 历史恢复协程，供清空对话时及时取消，防止老历史覆盖更新后的会话状态。 */
+    private var restoreJob: Job? = null
+
+    /** 会话代数计数器，清空时递增，防止在途历史恢复覆盖清空后的状态。 */
+    private var sessionEpoch = 0L
+
     // ── 运行计时（暂停感知：分段累计，确认等待期间不计入）──
 
     /** 已完成时间段的累计活跃耗时。 */
@@ -87,7 +97,7 @@ class ChatViewModel @Inject constructor(
         // 进程重启后恢复历史：本地库优先（含时间线）；
         // 本地为空而 ADK 有历史（老版本升级首启）时做一次性 seed。
         // 首帧不等 DB：先渲染空列表，恢复完成后补上（与旧行为一致的异步恢复）。
-        viewModelScope.launch { restoreHistory() }
+        restoreJob = viewModelScope.launch { restoreHistory() }
     }
 
     /**
@@ -133,10 +143,10 @@ class ChatViewModel @Inject constructor(
      * 发送按钮点击事件：进入 ADK agent 管线，并开启一轮新的 Agent 运行。
      */
     fun send() {
-        // 空白或者正在发送中不可发送
+        // 空白、正在发送中或正在清空中不可发送
         val input = _uiState.value.input.trim()
         if (input.isEmpty()) return
-        if (_uiState.value.isSending) return
+        if (_uiState.value.isSending || _uiState.value.isClearing) return
         // 待确认期间不可发起新运行：悬空的确认调用必须先被回答（允许/拒绝），
         // 直接丢弃会毒化会话（模态弹框下正常不可达，此为键盘/无障碍等旁路的防御）
         if (_uiState.value.pendingConfirmation != null) return
@@ -181,6 +191,7 @@ class ChatViewModel @Inject constructor(
      * @param confirmed true=允许执行工具；false=拒绝（模型会向用户解释）
      */
     fun respondToConfirmation(confirmed: Boolean) {
+        if (_uiState.value.isClearing) return
         val pending = _uiState.value.pendingConfirmation ?: return
         val currentRun = _uiState.value.activeRun
         val runId = currentRun?.runId ?: startNewRun()
@@ -569,62 +580,68 @@ class ChatViewModel @Inject constructor(
      * 也是协议坏历史（悬空 tool_call 等）的唯一自愈入口——用户遇到持续报错时
      * 可借此恢复可用状态。
      *
-     * 删除失败时回滚 UI：否则界面已清空而模型上下文仍在，下一条消息
-     * AI 仍"记得"被"清空"的对话，界面与模型状态分叉。
+     * 清空期间排斥发送与重复清空；删除失败时界面反馈与实际状态一致（保留已有消息），
+     * 并在发生异常、取消或完成时复位清空态，保证错误后可继续使用。
      */
     fun onClearChat() {
-        if (_uiState.value.isSending) return
-        // 待确认等待期间清空可达：一并停掉计时与在途事件收集，防协程泄漏
+        if (_uiState.value.isSending || _uiState.value.isClearing) return
+        // 待确认等待期间清空可达：一并停掉计时、在途事件收集与历史恢复，防协程泄漏与状态覆盖
         stopRunTiming()
         runJob?.cancel()
         runJob = null
-        val previous = _uiState.value
+        restoreJob?.cancel()
+        restoreJob = null
+        sessionEpoch++
+
         _uiState.update {
             it.copy(
-                messages = emptyList(),
+                isClearing = true,
                 errorMessage = null,
-                pendingConfirmation = null,
-                input = "",
-                activeRun = null,
             )
         }
-        viewModelScope.launch {
-            agentEngine.clearSession(sessionId)
-                .onSuccess {
-                    // 本地历史与 ADK 会话一并清除，否则重启后消息"复活"而模型已失忆。
-                    // 本地清理失败必须显式报错：静默吞掉会让模型侧已失忆而消息表
-                    // 仍在，重启后历史"复活"，两边永久分叉且用户毫无感知
-                    runCatching { chatRepository.clearAll() }
-                        .onFailure { e ->
-                            FitLog.w(TAG, "聊天记录本地清理失败", e)
-                            _uiState.update {
-                                it.copy(
-                                    errorMessage = "会话已清空，但本地聊天记录删除失败，" +
-                                        "重启应用前历史消息可能重新显示",
-                                )
-                            }
-                        }
-                }
-                .onFailure { error ->
-                    // 回滚以 DB 为准重载，而非用快照整体覆盖：清空在途期间用户可能
-                    // 已发出新消息（已落库），快照覆盖会让新消息从 UI 消失但 DB 仍在，
-                    // 重启后"复活"，界面与持久层分叉
-                    viewModelScope.launch {
-                        val reloaded = runCatching { chatRepository.loadThread() }
-                            .onFailure { FitLog.w(TAG, "清空回滚重载失败", it) }
-                            .getOrDefault(previous.messages)
-                        _uiState.update {
-                            it.copy(
-                                messages = reloaded,
-                                // 清空窗口内的新状态（若用户已重新发消息/输入）优先于旧快照
-                                pendingConfirmation = it.pendingConfirmation
-                                    ?: previous.pendingConfirmation,
-                                activeRun = it.activeRun ?: previous.activeRun,
-                                errorMessage = error.message ?: "清空会话失败，请重试",
-                            )
-                        }
+        clearJob = viewModelScope.launch {
+            try {
+                val clearResult = agentEngine.clearSession(sessionId)
+                if (clearResult.isFailure) {
+                    val error = clearResult.exceptionOrNull()
+                    FitLog.w(TAG, "ADK 会话清理失败", error)
+                    _uiState.update {
+                        it.copy(
+                            errorMessage = error?.message ?: "清空会话失败，请重试",
+                        )
                     }
+                    return@launch
                 }
+
+                // 本地历史与 ADK 会话一并清除，否则重启后消息"复活"而模型已失忆。
+                // 本地清理失败必须显式报错且保留消息上屏，与持久层实际状态保持一致
+                try {
+                    chatRepository.clearAll()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    FitLog.w(TAG, "聊天记录本地清理失败", e)
+                    _uiState.update {
+                        it.copy(
+                            errorMessage = "会话已清空，但本地聊天记录删除失败，请重试",
+                        )
+                    }
+                    return@launch
+                }
+
+                _uiState.update {
+                    it.copy(
+                        messages = emptyList(),
+                        errorMessage = null,
+                        pendingConfirmation = null,
+                        input = "",
+                        activeRun = null,
+                    )
+                }
+            } finally {
+                _uiState.update { it.copy(isClearing = false) }
+                clearJob = null
+            }
         }
     }
 
@@ -639,14 +656,32 @@ class ChatViewModel @Inject constructor(
 
     /** 启动恢复：本地库优先；本地为空且 ADK 有历史时做一次性 seed（老版本升级路径）。 */
     private suspend fun restoreHistory() {
-        val localCount = runCatching { chatRepository.count() }
-            .onFailure { FitLog.w(TAG, "读取聊天记录数失败", it) }
-            .getOrDefault(0L)
-        if (localCount == 0L) seedFromAdkHistory()
+        val currentEpoch = sessionEpoch
+        val localCount = try {
+            chatRepository.count()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            FitLog.w(TAG, "读取聊天记录数失败", e)
+            0L
+        }
+        if (!coroutineContext.isActive || currentEpoch != sessionEpoch) return
 
-        val restored = runCatching { chatRepository.loadThread() }
-            .getOrElse { FitLog.w(TAG, "读取聊天历史失败", it); emptyList() }
+        if (localCount == 0L) seedFromAdkHistory()
+        if (!coroutineContext.isActive || currentEpoch != sessionEpoch) return
+
+        val restored = try {
+            chatRepository.loadThread()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            FitLog.w(TAG, "读取聊天历史失败", e)
+            emptyList()
+        }
+        if (!coroutineContext.isActive || currentEpoch != sessionEpoch) return
+
         _uiState.update { state ->
+            if (currentEpoch != sessionEpoch || state.isClearing) return@update state
             if (state.messages.isEmpty()) {
                 state.copy(messages = restored)
             } else {
@@ -660,11 +695,14 @@ class ChatViewModel @Inject constructor(
 
     /** 从 ADK 会话回放 seed 本地消息表（时间线功能上线前的历史无步骤可挂）。 */
     private suspend fun seedFromAdkHistory() {
-        val history: List<com.example.fitlog.model.ai.ChatMessage> = runCatching {
+        val history: List<com.example.fitlog.model.ai.ChatMessage> = try {
             agentEngine.replayHistory(sessionId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            FitLog.w(TAG, "ADK 历史回放失败", e)
+            emptyList()
         }
-            .onFailure { FitLog.w(TAG, "ADK 历史回放失败", it) }
-            .getOrDefault(emptyList())
         if (history.isEmpty()) return
         // 时间戳整体回溯一个消息数区间（而非从"现在"起算）：seed 进行期间用户可能已
         // 发出新消息（createdAt 为当下），回溯可保证 seed 的旧历史始终排在新消息之前

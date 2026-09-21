@@ -26,6 +26,7 @@ data class PendingConfirmation(
  * @property messages 消息列表（[ChatThreadMessage]，assistant 消息自带过程时间线步骤，按时间升序）
  * @property input 输入框文本
  * @property isSending 是否正在等待 Agent 产出（控制发送按钮与滚动）
+ * @property isClearing 是否正在执行清空会话与本地数据（互斥发送与重复清空）
  * @property activeRun 进行中/待确认的 Agent 运行；非空时列表尾部渲染展开的时间线卡片
  * @property errorMessage 一次性错误提示（Snackbar 展示后清除）
  * @property pendingConfirmation 非空时展示确认对话框；确认/拒绝后由 ViewModel 清除
@@ -34,6 +35,7 @@ data class ChatUiState(
     val messages: List<ChatThreadMessage> = emptyList(),
     val input: String = "",
     val isSending: Boolean = false,
+    val isClearing: Boolean = false,
     val activeRun: ActiveRun? = null,
     val errorMessage: String? = null,
     val pendingConfirmation: PendingConfirmation? = null,

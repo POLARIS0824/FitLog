@@ -224,7 +224,7 @@ fun ChatScreen(
                 actions = {
                     IconButton(
                         onClick = { showClearDialog = true },
-                        enabled = uiState.messages.isNotEmpty() && !uiState.isSending,
+                        enabled = uiState.messages.isNotEmpty() && !uiState.isSending && !uiState.isClearing,
                     ) {
                         Icon(
                             imageVector = Icons.Filled.DeleteOutline,
@@ -290,6 +290,7 @@ fun ChatScreen(
             ChatInputBar(
                 input = uiState.input,
                 isSending = uiState.isSending,
+                isClearing = uiState.isClearing,
                 onInputChange = onInputChange,
                 onSend = onSend,
                 onStop = onStop,
@@ -462,6 +463,7 @@ fun ChatInputBar(
     onSend: () -> Unit,
     onStop: () -> Unit,
     onVoiceInputClick: () -> Unit = {},
+    isClearing: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -508,7 +510,10 @@ fun ChatInputBar(
 
             // ── 右侧麦克风语音按钮 ──
             // 不显式收窄尺寸：M3 IconButton 默认 40dp 视觉 + 48dp 最小触控目标
-            IconButton(onClick = onVoiceInputClick) {
+            IconButton(
+                onClick = onVoiceInputClick,
+                enabled = !isClearing,
+            ) {
                 Icon(
                     imageVector = Icons.Rounded.Mic,
                     contentDescription = "语音输入",
@@ -519,7 +524,7 @@ fun ChatInputBar(
 
             Spacer(Modifier.width(2.dp))
 
-            // ── 最右侧圆形强调操作按钮（发送 / 停止；空输入时禁用）──
+            // ── 最右侧圆形强调操作按钮（发送 / 停止；空输入或清空中禁用）──
             val hasInput = input.isNotBlank()
             val actionState = when {
                 isSending -> InputActionState.STOP
@@ -533,7 +538,7 @@ fun ChatInputBar(
                         InputActionState.SEND -> onSend()
                     }
                 },
-                enabled = isSending || hasInput,
+                enabled = !isClearing && (isSending || hasInput),
                 shape = CircleShape,
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
