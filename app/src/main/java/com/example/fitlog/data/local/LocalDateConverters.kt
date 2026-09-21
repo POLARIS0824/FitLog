@@ -27,6 +27,16 @@ class LocalDateConverters {
             .onFailure {
                 FitLog.w("LocalDateConverters", "日期解析失败，降级为 epoch：$value", it)
             }
-            .getOrDefault(LocalDate.EPOCH)
+            .getOrDefault(EPOCH_FALLBACK)
+    }
+
+    companion object {
+        /**
+         * 降级使用的 Epoch 日期（1970-01-01）。
+         * 注意：[LocalDate.EPOCH] 在 Android 上需要 API 34+（Java 9+），
+         * 在 minSdk=26 环境下使用会因字段缺失抛出 NoSuchFieldError。
+         * 此处使用 [LocalDate.of] 保证在 minSdk 26 下的安全与等价语义。
+         */
+        private val EPOCH_FALLBACK: LocalDate = LocalDate.of(1970, 1, 1)
     }
 }

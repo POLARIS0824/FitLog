@@ -49,4 +49,15 @@ class LocalDateConvertersTest {
         val roundTripped = converters.toLocalDate(converters.fromLocalDate(original))
         assertEquals(original, roundTripped)
     }
+
+    /**
+     * 测试非法日期格式反序列化时安全降级为 Epoch（1970-01-01），避免解析异常中断查询流。
+     */
+    @Test
+    fun testToLocalDateWithInvalidStringDegradesToEpoch() {
+        val epoch = LocalDate.of(1970, 1, 1)
+        assertEquals(epoch, converters.toLocalDate("not-a-date"))
+        assertEquals(epoch, converters.toLocalDate("2026-02-30"))
+        assertEquals(epoch, converters.toLocalDate(""))
+    }
 }
