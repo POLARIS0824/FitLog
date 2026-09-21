@@ -37,20 +37,20 @@ object PresetPlans {
 
     /** 课 A：下肢 + 推。 */
     private val fullBodyWorkoutA = listOf(
-        ex("barbell-full-squat", "Barbell full squat", sets = 4, min = 6, max = 8, order = 0),
-        ex("barbell-bench-press", "Barbell bench press", sets = 4, min = 6, max = 8, order = 1),
-        ex("barbell-seated-overhead-press", "Barbell seated overhead press", sets = 3, min = 8, max = 10, order = 2),
-        ex("lever-leg-extension", "Lever leg extension", sets = 3, min = 10, max = 12, order = 3),
-        ex("weighted-front-plank", "Weighted front plank", sets = 3, min = null, max = null, order = 4, notes = "每组 30-60 秒"),
+        ex("preset:fullbody:a:squat", "barbell-full-squat", "Barbell full squat", sets = 4, min = 6, max = 8, order = 0),
+        ex("preset:fullbody:a:bench", "barbell-bench-press", "Barbell bench press", sets = 4, min = 6, max = 8, order = 1),
+        ex("preset:fullbody:a:ohp", "barbell-seated-overhead-press", "Barbell seated overhead press", sets = 3, min = 8, max = 10, order = 2),
+        ex("preset:fullbody:a:leg-ext", "lever-leg-extension", "Lever leg extension", sets = 3, min = 10, max = 12, order = 3),
+        ex("preset:fullbody:a:plank", "weighted-front-plank", "Weighted front plank", sets = 3, min = null, max = null, order = 4, notes = "每组 30-60 秒"),
     )
 
     /** 课 B：拉 + 铰链。 */
     private val fullBodyWorkoutB = listOf(
-        ex("barbell-deadlift", "Barbell deadlift", sets = 3, min = 5, max = 5, order = 0),
-        ex("barbell-bent-over-row", "Barbell bent over row", sets = 4, min = 6, max = 8, order = 1),
-        ex("assisted-pull-up", "Assisted pull-up", sets = 3, min = 6, max = 10, order = 2),
-        ex("dumbbell-lateral-raise", "Dumbbell lateral raise", sets = 3, min = 12, max = 15, order = 3),
-        ex("barbell-curl", "Barbell curl", sets = 3, min = 10, max = 12, order = 4),
+        ex("preset:fullbody:b:deadlift", "barbell-deadlift", "Barbell deadlift", sets = 3, min = 5, max = 5, order = 0),
+        ex("preset:fullbody:b:row", "barbell-bent-over-row", "Barbell bent over row", sets = 4, min = 6, max = 8, order = 1),
+        ex("preset:fullbody:b:pull-up", "assisted-pull-up", "Assisted pull-up", sets = 3, min = 6, max = 10, order = 2),
+        ex("preset:fullbody:b:lat-raise", "dumbbell-lateral-raise", "Dumbbell lateral raise", sets = 3, min = 12, max = 15, order = 3),
+        ex("preset:fullbody:b:curl", "barbell-curl", "Barbell curl", sets = 3, min = 10, max = 12, order = 4),
     )
 
     /**
@@ -89,30 +89,30 @@ object PresetPlans {
 
     /** 推日：胸 + 肩 + 三头。 */
     private val pplPushDay = listOf(
-        ex("barbell-bench-press", "Barbell bench press", sets = 4, min = 6, max = 8, order = 0),
-        ex("dumbbell-incline-bench-press", "Dumbbell incline bench press", sets = 3, min = 8, max = 10, order = 1),
-        ex("dumbbell-seated-shoulder-press", "Dumbbell seated shoulder press", sets = 3, min = 8, max = 10, order = 2),
-        ex("cable-lateral-raise", "Cable lateral raise", sets = 3, min = 12, max = 15, order = 3),
-        ex("cable-pushdown", "Cable pushdown", sets = 3, min = 10, max = 12, order = 4),
+        ex("preset:ppl:push:bench", "barbell-bench-press", "Barbell bench press", sets = 4, min = 6, max = 8, order = 0),
+        ex("preset:ppl:push:incline-bench", "dumbbell-incline-bench-press", "Dumbbell incline bench press", sets = 3, min = 8, max = 10, order = 1),
+        ex("preset:ppl:push:shoulder-press", "dumbbell-seated-shoulder-press", "Dumbbell seated shoulder press", sets = 3, min = 8, max = 10, order = 2),
+        ex("preset:ppl:push:lateral-raise", "cable-lateral-raise", "Cable lateral raise", sets = 3, min = 12, max = 15, order = 3),
+        ex("preset:ppl:push:pushdown", "cable-pushdown", "Cable pushdown", sets = 3, min = 10, max = 12, order = 4),
     )
 
     /** 拉日：背 + 二头。 */
     private val pplPullDay = listOf(
-        ex("pull-up", "Pull-up", sets = 4, min = null, max = null, order = 0, notes = "自重，力竭前 1-2 次停"),
-        ex("barbell-bent-over-row", "Barbell bent over row", sets = 4, min = 6, max = 8, order = 1),
-        ex("cable-low-seated-row", "Cable low seated row", sets = 3, min = 8, max = 10, order = 2),
-        ex("ez-barbell-curl", "Ez barbell curl", sets = 3, min = 10, max = 12, order = 3),
-        ex("barbell-lying-triceps-extension-skull-crusher", "Barbell lying triceps extension skull crusher", sets = 3, min = 10, max = 12, order = 4),
+        ex("preset:ppl:pull:pull-up", "pull-up", "Pull-up", sets = 4, min = null, max = null, order = 0, notes = "自重，力竭前 1-2 次停"),
+        ex("preset:ppl:pull:row", "barbell-bent-over-row", "Barbell bent over row", sets = 4, min = 6, max = 8, order = 1),
+        ex("preset:ppl:pull:cable-row", "cable-low-seated-row", "Cable low seated row", sets = 3, min = 8, max = 10, order = 2),
+        ex("preset:ppl:pull:ez-curl", "ez-barbell-curl", "Ez barbell curl", sets = 3, min = 10, max = 12, order = 3),
+        ex("preset:ppl:pull:skull-crusher", "barbell-lying-triceps-extension-skull-crusher", "Barbell lying triceps extension skull crusher", sets = 3, min = 10, max = 12, order = 4),
     )
 
     /** 腿日：股四头 + 后侧链 + 小腿。 */
     private val pplLegDay = listOf(
-        ex("barbell-full-squat", "Barbell full squat", sets = 4, min = 6, max = 8, order = 0),
-        ex("barbell-romanian-deadlift", "Barbell romanian deadlift", sets = 3, min = 8, max = 10, order = 1),
-        ex("smith-leg-press", "Smith leg press", sets = 3, min = 10, max = 12, order = 2),
-        ex("lever-lying-leg-curl", "Lever lying leg curl", sets = 3, min = 10, max = 12, order = 3),
-        ex("lever-standing-calf-raise", "Lever standing calf raise", sets = 4, min = 12, max = 15, order = 4),
-        ex("hanging-leg-raise", "Hanging leg raise", sets = 3, min = 10, max = 15, order = 5),
+        ex("preset:ppl:leg:squat", "barbell-full-squat", "Barbell full squat", sets = 4, min = 6, max = 8, order = 0),
+        ex("preset:ppl:leg:rdl", "barbell-romanian-deadlift", "Barbell romanian deadlift", sets = 3, min = 8, max = 10, order = 1),
+        ex("preset:ppl:leg:press", "smith-leg-press", "Smith leg press", sets = 3, min = 10, max = 12, order = 2),
+        ex("preset:ppl:leg:curl", "lever-lying-leg-curl", "Lever lying leg curl", sets = 3, min = 10, max = 12, order = 3),
+        ex("preset:ppl:leg:calf-raise", "lever-standing-calf-raise", "Lever standing calf raise", sets = 4, min = 12, max = 15, order = 4),
+        ex("preset:ppl:leg:leg-raise", "hanging-leg-raise", "Hanging leg raise", sets = 3, min = 10, max = 15, order = 5),
     )
 
     /**
@@ -156,6 +156,7 @@ object PresetPlans {
     // ──────────────────────────────────────
 
     private fun ex(
+        id: String,
         key: String,
         name: String,
         sets: Int,
@@ -164,6 +165,7 @@ object PresetPlans {
         order: Int,
         notes: String? = null,
     ) = PlannedExerciseItem(
+        id = id,
         exerciseKey = key,
         exerciseName = name,
         targetSets = sets,

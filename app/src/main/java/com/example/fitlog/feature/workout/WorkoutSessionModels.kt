@@ -20,6 +20,9 @@ import com.example.fitlog.model.SetType
  * @property name 动作展示名
  * @property sortOrder 动作排序序号（新增动作取 max+1 用）
  * @property targetText 目标处方摘要（如 "4 组 × 8-10 次"），自由训练为 null
+ * @property targetSets 计划目标组数，自由训练为 null
+ * @property targetRepsMin 计划目标次数下限，自由训练为 null
+ * @property targetRepsMax 计划目标次数上限，自由训练为 null
  * @property sets 已录入的组（按组号升序）
  */
 data class ActiveSessionExercise(
@@ -28,6 +31,9 @@ data class ActiveSessionExercise(
     val name: String,
     val sortOrder: Int,
     val targetText: String?,
+    val targetSets: Int? = null,
+    val targetRepsMin: Int? = null,
+    val targetRepsMax: Int? = null,
     val sets: List<ActiveSessionSet>,
 )
 

@@ -43,6 +43,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -450,18 +451,23 @@ class TodayViewModelTest {
         val state1 = viewModel.uiState.first {
             it.todayPlan.exercises.isNotEmpty() && it.todayPlan.exercises[0].isCompleted
         }
-        assertEquals(PlanStatus.IN_PROGRESS, state1.todayPlan.status)
-        assertEquals(0.5f, state1.todayPlan.progress)
+        // 领域状态与进度不受手动打卡影响，无进行中记录时保持 NOT_STARTED 与 0f
+        assertEquals(PlanStatus.NOT_STARTED, state1.todayPlan.status)
+        assertEquals(0f, state1.todayPlan.progress)
         assertTrue(state1.todayPlan.exercises[0].isCompleted)
+        assertTrue(state1.todayPlan.exercises[0].displayChecked)
+        assertTrue(state1.todayPlan.exercises[0].manuallyChecked)
         assertFalse(state1.todayPlan.exercises[1].isCompleted)
 
-        // 打卡第 2 个动作 -> 全部完成
+        // 打卡第 2 个动作 -> 全部勾选，但无进行中/完成训练时依然是 NOT_STARTED, progress = 0f
         viewModel.onToggleExerciseCheck("barbell-romanian-deadlift#1")
 
         val state2 = viewModel.uiState.first {
-            it.todayPlan.status == PlanStatus.COMPLETED
+            it.todayPlan.exercises.isNotEmpty() && it.todayPlan.exercises.all { ex -> ex.isCompleted }
         }
-        assertEquals(1f, state2.todayPlan.progress)
+        assertEquals(PlanStatus.NOT_STARTED, state2.todayPlan.status)
+        assertEquals(0f, state2.todayPlan.progress)
+        assertNull(state2.todayPlan.workoutId)
         assertTrue(state2.todayPlan.exercises.all { it.isCompleted })
     }
 

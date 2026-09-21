@@ -14,6 +14,7 @@ import com.example.fitlog.data.mapper.toSessionSnapshot
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.model.WorkoutSessionSnapshot
+import com.example.fitlog.model.resolvedId
 import com.example.fitlog.util.log.FitLog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -215,6 +216,7 @@ class WorkoutRepository @Inject constructor(
                             exerciseKey = item.exerciseKey,
                             name = item.exerciseName ?: item.exerciseKey,
                             sortOrder = index,
+                            plannedExerciseId = item.resolvedId(planSession.id),
                         ),
                     )
                     if (logId != -1L) {
@@ -383,6 +385,7 @@ class WorkoutRepository @Inject constructor(
                         exerciseKey = log.exerciseLog.exerciseKey,
                         name = log.exerciseLog.name,
                         sortOrder = index,
+                        plannedExerciseId = log.exerciseLog.plannedExerciseId,
                     ),
                 )
                 setLogDao.insertAll(

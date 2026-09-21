@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
@@ -421,6 +422,7 @@ class FitnessTools @Inject constructor(
                     targetDurationMinutes = spec.targetDurationMinutes,
                     exercises = spec.exercises.mapIndexed { index, ex ->
                         PlannedExerciseItem(
+                            id = UUID.randomUUID().toString(),
                             exerciseKey = ex.exerciseKey,
                             exerciseName = null,
                             targetSets = ex.targetSets,

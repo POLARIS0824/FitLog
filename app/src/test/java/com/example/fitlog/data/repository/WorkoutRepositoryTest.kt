@@ -308,4 +308,51 @@ class WorkoutRepositoryTest {
         assertEquals(0f, sets[0].weightKg)
         assertEquals(0, sets[0].reps)
     }
+
+    /**
+     * 测试预填计划课次时，[PlannedExerciseItem.resolvedId] 作为 plannedExerciseId 落库，
+     * 且在 [WorkoutRepository.finishSession] 清洗重插时完整保留。
+     */
+    @Test
+    fun testCreateSessionWorkout_withPlanExercises_persistsPlannedExerciseId() = runTest {
+        db.exerciseDao().insertAll(
+            listOf(ExerciseEntity(id = "barbell-bench-press", name = "Barbell bench press")),
+        )
+        val plannedExercises = listOf(
+            com.example.fitlog.model.PlannedExerciseItem(
+                id = "plan-ex-bench-1",
+                exerciseKey = "barbell-bench-press",
+                exerciseName = "杠铃卧推",
+                targetSets = 4,
+                order = 0,
+            ),
+        )
+        val session = PlannedSession(
+            id = "session-test-1",
+            name = "Day 1",
+            description = null,
+            dayNumber = 1,
+            weekNumber = 1,
+            targetDurationMinutes = 60,
+            exercises = plannedExercises,
+        )
+
+        val workoutId = repository.createSessionWorkout(session)
+        assertTrue(workoutId > 0)
+
+        val logs = db.exerciseLogDao().getByWorkoutId(workoutId)
+        assertEquals(1, logs.size)
+        assertEquals("plan-ex-bench-1", logs[0].plannedExerciseId)
+
+        // 验证 finishSession 清洗重排后仍完整保留 plannedExerciseId
+        db.setLogDao().insert(
+            SetLogEntity(exerciseLogId = logs[0].id, setNumber = 2, weightKg = 80f, reps = 10),
+        )
+        val ended = repository.finishSession(workoutId = workoutId, feelings = null, endedAt = 1_000L)
+        assertTrue(ended)
+
+        val logsAfterFinish = db.exerciseLogDao().getByWorkoutId(workoutId)
+        assertEquals(1, logsAfterFinish.size)
+        assertEquals("plan-ex-bench-1", logsAfterFinish[0].plannedExerciseId)
+    }
 }

@@ -174,7 +174,7 @@ private fun ExerciseItemRow(
             modifier = Modifier
                 .size(48.dp)
                 .toggleable(
-                    value = exercise.isCompleted,
+                    value = exercise.displayChecked,
                     role = Role.Checkbox,
                     onValueChange = { onToggleCheck() },
                 ),
@@ -184,7 +184,7 @@ private fun ExerciseItemRow(
                 modifier = Modifier
                     .size(24.dp)
                     .then(
-                        if (exercise.isCompleted) {
+                        if (exercise.displayChecked) {
                             Modifier.background(MaterialTheme.colorScheme.primary)
                         } else {
                             Modifier.border(
@@ -196,7 +196,7 @@ private fun ExerciseItemRow(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                if (exercise.isCompleted) {
+                if (exercise.displayChecked) {
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = null, // 勾选态由 toggleable 语义朗读

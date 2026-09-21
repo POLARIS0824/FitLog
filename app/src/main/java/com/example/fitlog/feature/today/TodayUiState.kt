@@ -71,15 +71,33 @@ data class ProgressItemState(
     val ringSegments: List<RingSegment>? = null,
 )
 
-/** 今日训练计划中单个动作的状态模型 */
+/**
+ * 今日训练计划中单个动作的状态模型。
+ *
+ * @property id 动作行唯一键（如 exerciseKey#order），打卡集合与渲染寻址统一用此键
+ * @property exerciseKey 关联动作库 key（kebab-case）
+ * @property name 动作展示名
+ * @property setsRepsText 组数与次数处方文本（如 "4 组 × 8-10"）
+ * @property weightText 最近历史重量或建议重量文本，可选
+ * @property loggedWorkingSets 进行中会话已录入的有效正式组数（reps > 0）
+ * @property targetSets 计划目标组数
+ * @property targetReached 目标组数是否已达成（targetSets > 0 && loggedWorkingSets >= targetSets）
+ * @property manuallyChecked 用户是否手动在 UI 勾选了该动作（纯 UI 临时态，不影响领域完成状态）
+ */
 data class TodayPlanExerciseState(
     val id: String,
     val exerciseKey: String,
     val name: String,
     val setsRepsText: String,
     val weightText: String? = null,
-    val isCompleted: Boolean = false,
-)
+    val loggedWorkingSets: Int = 0,
+    val targetSets: Int = 0,
+    val targetReached: Boolean = false,
+    val manuallyChecked: Boolean = false,
+) {
+    val displayChecked: Boolean get() = targetReached || manuallyChecked
+    val isCompleted: Boolean get() = displayChecked
+}
 
 /** 今日训练计划 */
 data class TodayPlanState(

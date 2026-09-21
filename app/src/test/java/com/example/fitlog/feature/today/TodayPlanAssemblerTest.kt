@@ -8,7 +8,9 @@ import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
 import com.example.fitlog.model.WorkoutPlan
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
@@ -56,7 +58,7 @@ class TodayPlanAssemblerTest {
                 session(id = "s2", name = "课 B"),
             ),
         )
-        val todayWorkouts = listOf(workout(id = 42L))
+        val todayWorkouts = listOf(workout(id = 42L, startedAt = 1000L, endedAt = 2000L))
 
         val state = assemble(
             activePlan = plan,
@@ -115,7 +117,7 @@ class TodayPlanAssemblerTest {
     }
 
     @Test
-    fun `IN_PROGRESS progress coerced into 1 to 99 percent`() {
+    fun `IN_PROGRESS with 0 sets has 0 progress and stays IN_PROGRESS`() {
         val next = session(
             id = "s1",
             exercises = listOf(PlannedExerciseItem(exerciseKey = "a", targetSets = 3, order = 0)),
@@ -130,7 +132,43 @@ class TodayPlanAssemblerTest {
         )
 
         assertEquals(PlanStatus.IN_PROGRESS, state.status)
-        assertEquals(0.01f, state.progress)
+        assertEquals(0f, state.progress)
+    }
+
+    @Test
+    fun `IN_PROGRESS with 100 percent sets completed stays IN_PROGRESS until ended`() {
+        val next = session(
+            id = "s1",
+            exercises = listOf(PlannedExerciseItem(exerciseKey = "a", targetSets = 2, order = 0)),
+        )
+        val plan = plan(sessions = listOf(next))
+        val fullWorkout = workout(
+            id = 7L,
+            startedAt = 1L,
+            endedAt = null,
+            exercises = listOf(
+                ExerciseLog(
+                    name = "a",
+                    exerciseKey = "a",
+                    sets = listOf(
+                        SetLog(50f, 10, SetType.WORKING),
+                        SetLog(50f, 10, SetType.WORKING),
+                    ),
+                ),
+            ),
+        )
+
+        val state = assemble(
+            activePlan = plan,
+            nextSession = next,
+            todayWorkouts = listOf(fullWorkout),
+        )
+
+        assertEquals(PlanStatus.IN_PROGRESS, state.status)
+        assertEquals(1f, state.progress)
+        assertEquals("100%", state.progressPercentageText)
+        assertEquals(true, state.exercises[0].targetReached)
+        assertEquals(true, state.exercises[0].displayChecked)
     }
 
     @Test
@@ -211,7 +249,7 @@ class TodayPlanAssemblerTest {
     }
 
     @Test
-    fun `checkedExerciseKeys marks exercise completed and updates progress`() {
+    fun `manual checkboxes do not alter PlanStatus or domain progress`() {
         val next = session(
             id = "s1",
             exercises = listOf(
@@ -225,13 +263,35 @@ class TodayPlanAssemblerTest {
             activePlan = testPlan,
             nextSession = next,
             // 打卡 key 是行唯一键（exerciseKey#order）
-            checkedExerciseKeys = setOf("ex-1#0"),
+            checkedExerciseKeys = setOf("ex-1#0", "ex-2#1"),
         )
 
-        assertEquals(PlanStatus.IN_PROGRESS, state.status)
-        assertEquals(0.5f, state.progress)
-        assertEquals(true, state.exercises[0].isCompleted)
-        assertEquals(false, state.exercises[1].isCompleted)
+        // UI 勾选态反映手动打卡
+        assertEquals(true, state.exercises[0].displayChecked)
+        assertEquals(true, state.exercises[1].displayChecked)
+        assertEquals(true, state.exercises[0].manuallyChecked)
+        assertEquals(false, state.exercises[0].targetReached)
+        // 领域状态与进度不受手动打卡影响，无进行中记录时保持 NOT_STARTED
+        assertEquals(PlanStatus.NOT_STARTED, state.status)
+        assertEquals(0f, state.progress)
+        assertNull(state.workoutId)
+    }
+
+    @Test
+    fun `empty plan sessions does not mark completed`() {
+        val plan = plan(sessions = emptyList())
+        val state = assemble(activePlan = plan, nextSession = null)
+        assertEquals(PlanStatus.NOT_STARTED, state.status)
+        assertEquals(0f, state.progress)
+    }
+
+    @Test
+    fun `completed plan without today workout has null workoutId and does not crash`() {
+        val plan = plan(sessions = listOf(session(id = "s1", completedWorkoutId = 9L)))
+        val state = assemble(activePlan = plan, nextSession = null, todayWorkouts = emptyList())
+        assertEquals(PlanStatus.COMPLETED, state.status)
+        assertNull(state.workoutId)
+        assertEquals(1f, state.progress)
     }
 
     @Test
@@ -282,7 +342,131 @@ class TodayPlanAssemblerTest {
         checkedExerciseKeys = checkedExerciseKeys,
     )
 
-    private fun plan(sessions: List<PlannedSession>) = WorkoutPlan(
+    @Test
+    fun `duplicate exercises in session match distinct logs by plannedExerciseId`() {
+        val next = session(
+            id = "s1",
+            exercises = listOf(
+                PlannedExerciseItem(id = "bench-1", exerciseKey = "barbell-bench-press", targetSets = 4, order = 0),
+                PlannedExerciseItem(id = "bench-2", exerciseKey = "barbell-bench-press", targetSets = 3, order = 1),
+            ),
+        )
+        val inProgress = workout(
+            id = 100L,
+            startedAt = 1000L,
+            endedAt = null,
+            exercises = listOf(
+                ExerciseLog(
+                    name = "卧推1",
+                    exerciseKey = "barbell-bench-press",
+                    plannedExerciseId = "bench-1",
+                    sets = List(4) { SetLog(100f, 5, SetType.WORKING) },
+                ),
+                ExerciseLog(
+                    name = "卧推2",
+                    exerciseKey = "barbell-bench-press",
+                    plannedExerciseId = "bench-2",
+                    sets = List(1) { SetLog(80f, 10, SetType.WORKING) },
+                ),
+            ),
+        )
+
+        val state = assemble(
+            activePlan = plan(sessions = listOf(next)),
+            nextSession = next,
+            todayWorkouts = listOf(inProgress),
+        )
+
+        assertEquals(4, state.exercises[0].loggedWorkingSets)
+        assertTrue(state.exercises[0].targetReached)
+
+        assertEquals(1, state.exercises[1].loggedWorkingSets)
+        assertFalse(state.exercises[1].targetReached)
+    }
+
+    @Test
+    fun `manually added exercise in workout is not counted towards planned exercise target`() {
+        val next = session(
+            id = "s1",
+            exercises = listOf(
+                PlannedExerciseItem(id = "bench-p", exerciseKey = "barbell-bench-press", targetSets = 4, order = 0),
+            ),
+        )
+        val inProgress = workout(
+            id = 101L,
+            startedAt = 1000L,
+            endedAt = null,
+            exercises = listOf(
+                ExerciseLog(
+                    name = "计划卧推",
+                    exerciseKey = "barbell-bench-press",
+                    plannedExerciseId = "bench-p",
+                    sets = List(2) { SetLog(100f, 5, SetType.WORKING) },
+                ),
+                ExerciseLog(
+                    name = "手动加卧推",
+                    exerciseKey = "barbell-bench-press",
+                    plannedExerciseId = null,
+                    sets = List(3) { SetLog(60f, 12, SetType.WORKING) },
+                ),
+            ),
+        )
+
+        val state = assemble(
+            activePlan = plan(sessions = listOf(next)),
+            nextSession = next,
+            todayWorkouts = listOf(inProgress),
+        )
+
+        assertEquals(2, state.exercises[0].loggedWorkingSets)
+        assertFalse(state.exercises[0].targetReached)
+    }
+
+    @Test
+    fun `legacy workout with duplicate exercises matches by occurrence index`() {
+        val next = session(
+            id = "s1",
+            exercises = listOf(
+                PlannedExerciseItem(id = null, exerciseKey = "barbell-bench-press", targetSets = 4, order = 0),
+                PlannedExerciseItem(id = null, exerciseKey = "barbell-bench-press", targetSets = 3, order = 1),
+            ),
+        )
+        val legacyWorkout = workout(
+            id = 102L,
+            startedAt = 1000L,
+            endedAt = null,
+            exercises = listOf(
+                ExerciseLog(
+                    name = "卧推1",
+                    exerciseKey = "barbell-bench-press",
+                    plannedExerciseId = null,
+                    sets = List(4) { SetLog(100f, 5, SetType.WORKING) },
+                ),
+                ExerciseLog(
+                    name = "卧推2",
+                    exerciseKey = "barbell-bench-press",
+                    plannedExerciseId = null,
+                    sets = List(2) { SetLog(80f, 10, SetType.WORKING) },
+                ),
+            ),
+        )
+
+        val state = assemble(
+            activePlan = plan(sessions = listOf(next)),
+            nextSession = next,
+            todayWorkouts = listOf(legacyWorkout),
+        )
+
+        assertEquals(4, state.exercises[0].loggedWorkingSets)
+        assertTrue(state.exercises[0].targetReached)
+
+        assertEquals(2, state.exercises[1].loggedWorkingSets)
+        assertFalse(state.exercises[1].targetReached)
+    }
+
+    private fun plan(
+        sessions: List<PlannedSession> = emptyList(),
+    ) = WorkoutPlan(
         id = "plan-1",
         name = "测试计划",
         description = null,

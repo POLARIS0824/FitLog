@@ -372,7 +372,7 @@ private fun TodayScreenPreview() {
                             name = "杠铃深蹲",
                             setsRepsText = "4 组 × 6-8",
                             weightText = "100 kg",
-                            isCompleted = false,
+                            targetReached = false,
                         ),
                         TodayPlanExerciseState(
                             id = "ex-2",
@@ -380,7 +380,7 @@ private fun TodayScreenPreview() {
                             name = "罗马尼亚硬拉",
                             setsRepsText = "3 组 × 8-10",
                             weightText = "85 kg",
-                            isCompleted = false,
+                            targetReached = false,
                         ),
                         TodayPlanExerciseState(
                             id = "ex-3",
@@ -388,7 +388,7 @@ private fun TodayScreenPreview() {
                             name = "保加利亚深蹲",
                             setsRepsText = "3 组 × 10",
                             weightText = "60 kg",
-                            isCompleted = false,
+                            targetReached = false,
                         ),
                         TodayPlanExerciseState(
                             id = "ex-4",
@@ -396,7 +396,7 @@ private fun TodayScreenPreview() {
                             name = "腿弯举",
                             setsRepsText = "3 组 × 12",
                             weightText = "45 kg",
-                            isCompleted = false,
+                            targetReached = false,
                         ),
                         TodayPlanExerciseState(
                             id = "ex-5",
@@ -404,7 +404,7 @@ private fun TodayScreenPreview() {
                             name = "腿伸展",
                             setsRepsText = "3 组 × 15",
                             weightText = "40 kg",
-                            isCompleted = false,
+                            targetReached = false,
                         ),
                         TodayPlanExerciseState(
                             id = "ex-6",
@@ -412,7 +412,7 @@ private fun TodayScreenPreview() {
                             name = "提踵",
                             setsRepsText = "4 组 × 15",
                             weightText = "70 kg",
-                            isCompleted = false,
+                            targetReached = false,
                         ),
                     ),
                 ),

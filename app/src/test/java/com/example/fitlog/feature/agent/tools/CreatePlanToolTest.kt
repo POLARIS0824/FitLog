@@ -146,4 +146,22 @@ class CreatePlanToolTest {
         val plan = planRepository.getAllPlans().first { it.isCustom }
         assertEquals(12, plan.sessions.single().exercises.single().targetSets)
     }
+
+    /** 验证创建计划时为每个 PlannedExerciseItem 分配独立非空 UUID。 */
+    @Test
+    fun `createPlan assigns UUID to planned exercises`() = runTest(dataStoreScope.testScheduler) {
+        db.exerciseDao().insertAll(
+            listOf(ExerciseEntity(id = "barbell-bench-press", name = "Barbell bench press")),
+        )
+        val result = tools.createPlan(
+            name = "UUID测试",
+            sessionsJson = """[{"weekNumber":1,"dayNumber":1,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]}]""",
+        )
+        assertTrue(result.success)
+
+        val plan = planRepository.getAllPlans().first { it.name == "UUID测试" }
+        val exercise = plan.sessions.first().exercises.first()
+        assertNotNull(exercise.id)
+        assertTrue(exercise.id!!.isNotBlank())
+    }
 }

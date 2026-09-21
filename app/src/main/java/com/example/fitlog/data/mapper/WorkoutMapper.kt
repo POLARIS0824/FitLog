@@ -38,6 +38,7 @@ fun ExerciseLogWithSets.toModel(): ExerciseLog {
     return ExerciseLog(
         name = exerciseLog.name,
         exerciseKey = exerciseLog.exerciseKey,
+        plannedExerciseId = exerciseLog.plannedExerciseId,
         sets = sets.sortedBy { it.setNumber }.map {
             SetLog(
                 weightKg = it.weightKg,
@@ -70,6 +71,7 @@ fun WorkoutWithExerciseLogs.toSessionSnapshot(): WorkoutSessionSnapshot {
                     exerciseKey = log.exerciseLog.exerciseKey,
                     name = log.exerciseLog.name,
                     sortOrder = log.exerciseLog.sortOrder,
+                    plannedExerciseId = log.exerciseLog.plannedExerciseId,
                     sets = log.sets
                         .sortedBy { it.setNumber }
                         .map { set ->
@@ -113,6 +115,7 @@ fun ExerciseLog.toEntity(workoutId: Long, sortOrder: Int): ExerciseLogEntity {
         exerciseKey = exerciseKey,
         name = name,
         sortOrder = sortOrder,
+        plannedExerciseId = plannedExerciseId,
     )
 }
 

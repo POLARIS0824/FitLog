@@ -14,6 +14,7 @@ import com.example.fitlog.data.local.entity.ExerciseEntity
  * @property exerciseKey 关联 [ExerciseEntity.id] 的业务标识（kebab-case），可空
  * @property name 动作名称（冗余存储，用于 exerciseKey 为空时的降级显示）
  * @property sortOrder 动作在当天的排序序号
+ * @property plannedExerciseId 关联计划动作项稳定标识，自由训练或手动追加为 null
  */
 @Entity(
     tableName = "exercise_logs",
@@ -43,4 +44,5 @@ data class ExerciseLogEntity(
     val exerciseKey: String? = null,
     val name: String,
     val sortOrder: Int,
+    val plannedExerciseId: String? = null,
 )

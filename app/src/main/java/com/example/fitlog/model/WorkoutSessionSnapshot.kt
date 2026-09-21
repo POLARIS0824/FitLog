@@ -25,6 +25,7 @@ data class WorkoutSessionSnapshot(
      * @property exerciseKey 动作库 id（kebab-case），计划动作必有
      * @property name 动作展示名
      * @property sortOrder 动作排序序号（新增动作取 max+1，删除中间动作后不重复）
+     * @property plannedExerciseId 关联计划动作项稳定标识，自由训练或手动追加为 null
      * @property sets 已录入的组（按组号升序）
      */
     data class ExerciseSnapshot(
@@ -32,6 +33,7 @@ data class WorkoutSessionSnapshot(
         val exerciseKey: String?,
         val name: String,
         val sortOrder: Int,
+        val plannedExerciseId: String? = null,
         val sets: List<SetSnapshot>,
     )
 

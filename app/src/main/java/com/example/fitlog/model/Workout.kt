@@ -35,11 +35,17 @@ data class Workout(
 }
 
 /**
- * 动作名称以及组列表
+ * 动作名称以及组列表。
+ *
+ * @property name 动作名称
+ * @property exerciseKey 关联动作库 key（kebab-case），可选
+ * @property plannedExerciseId 关联计划动作项稳定标识 [PlannedExerciseItem.resolvedId]，自由训练或手动追加为 null
+ * @property sets 组记录列表
  */
 data class ExerciseLog(
     val name: String,
     val exerciseKey: String? = null,
+    val plannedExerciseId: String? = null,
     val sets: List<SetLog>,
 )
 

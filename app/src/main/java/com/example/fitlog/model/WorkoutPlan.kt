@@ -71,6 +71,7 @@ data class PlannedSession(
  * 重量、RPE、组间休息等动态处方信息由 AI 教练在训练时根据历史记录实时给出，
  * 或记录在 [notes] / [WorkoutPlan.rawPlanText] 中。
  *
+ * @property id 动作项稳定业务标识（预置计划为显式固定 ID，AI 生成计划为 UUID，旧数据可为 null）
  * @property exerciseKey 关联 [Exercise.id]（kebab-case），如 "barbell-bench-press"
  * @property exerciseName 动作名称缓存，避免 Exercise 目录未加载时无法显示
  * @property targetSets 目标组数
@@ -81,6 +82,7 @@ data class PlannedSession(
  */
 @Serializable
 data class PlannedExerciseItem(
+    val id: String? = null,
     val exerciseKey: String,
     val exerciseName: String? = null,
     val targetSets: Int,
@@ -89,3 +91,13 @@ data class PlannedExerciseItem(
     val notes: String? = null,
     val order: Int,
 )
+
+/**
+ * 获取计划动作项的稳定标识符。
+ *
+ * 优先返回持久化的 [PlannedExerciseItem.id]；
+ * 若为 null 或空白（历史旧数据/旧 JSON），降级为以 "$sessionId:$order:$exerciseKey" 为稳定标识。
+ */
+fun PlannedExerciseItem.resolvedId(sessionId: String): String {
+    return id?.takeIf { it.isNotBlank() } ?: "$sessionId:$order:$exerciseKey"
+}

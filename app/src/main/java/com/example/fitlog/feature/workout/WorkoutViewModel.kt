@@ -9,6 +9,7 @@ import com.example.fitlog.data.repository.WorkoutRepository
 import com.example.fitlog.model.Exercise
 import com.example.fitlog.model.SetType
 import com.example.fitlog.model.Workout
+import com.example.fitlog.model.resolvedId
 import com.example.fitlog.util.VolumeAggregator
 import com.example.fitlog.util.guard
 import com.example.fitlog.util.log.FitLog
@@ -438,6 +439,8 @@ class WorkoutViewModel @Inject constructor(
                 .getOrNull()
         }
 
+        val isLegacySession = planSession != null && snapshot.exercises.none { it.plannedExerciseId != null }
+        val exerciseKeyCounts = mutableMapOf<String, Int>()
         return ActiveSession(
             workoutId = snapshot.workoutId,
             startedAtMs = snapshot.startedAtMs,
@@ -445,14 +448,30 @@ class WorkoutViewModel @Inject constructor(
             planSessionName = planSession?.name,
             exercises = snapshot.exercises
                 .map { log ->
-                    val planItem = planSession?.exercises
-                        ?.firstOrNull { it.exerciseKey == log.exerciseKey }
+                    val planItem = if (planSession != null) {
+                        if (log.plannedExerciseId != null) {
+                            planSession.exercises.firstOrNull { it.resolvedId(planSession.id) == log.plannedExerciseId }
+                        } else if (isLegacySession) {
+                            val count = exerciseKeyCounts.getOrDefault(log.exerciseKey ?: "", 0)
+                            exerciseKeyCounts[log.exerciseKey ?: ""] = count + 1
+                            planSession.exercises
+                                .filter { it.exerciseKey == log.exerciseKey }
+                                .getOrNull(count)
+                        } else {
+                            // 现代会话中 plannedExerciseId 为 null 的动作均为手动追加，不得继承计划处方
+                            null
+                        }
+                    } else null
+
                     ActiveSessionExercise(
                         logId = log.logId,
                         exerciseKey = log.exerciseKey,
                         name = log.name,
                         sortOrder = log.sortOrder,
                         targetText = planItem?.toTargetText(),
+                        targetSets = planItem?.targetSets,
+                        targetRepsMin = planItem?.targetRepsMin,
+                        targetRepsMax = planItem?.targetRepsMax,
                         sets = log.sets
                             .map { set ->
                                 ActiveSessionSet(
