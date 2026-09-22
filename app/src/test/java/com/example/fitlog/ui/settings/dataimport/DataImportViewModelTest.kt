@@ -36,6 +36,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -549,9 +550,9 @@ class DataImportViewModelTest {
 
         val stateFinal = viewModel.uiState.value
 
-        // 断言：item1 保存成功写入 item1
+        // 断言：打开新条目使 token 递增并取消旧任务，item1 的旧保存未写入，item1 保持初始 60kg
         val item1Final = stateFinal.items.first { it.sourceKey == "item1.md" }
-        assertEquals(80f, item1Final.draft!!.exercises.first().sets.first().weightKg)
+        assertEquals(60f, item1Final.draft!!.exercises.first().sets.first().weightKg)
 
         // 核心断言：item2 绝未被写入 item1 的结果！
         val item2Final = stateFinal.items.first { it.sourceKey == "item2.md" }
@@ -614,6 +615,228 @@ class DataImportViewModelTest {
         val stateFinal = viewModel.uiState.value
         val originalDraft = stateFinal.items.first { it.sourceKey == "2026-05-07.md" }.draft!!
         assertEquals(60f, originalDraft.exercises.first().sets.first().weightKg)
+    }
+
+    /**
+     * 测试保存期间草稿冻结：在异步保存途中调用各类编辑回调，草稿快照不被修改。
+     */
+    @Test
+    fun testEdit_mutationsIgnoredWhileSaving() = runTest(main.scheduler) {
+        val initialWorkout = Workout(
+            id = 0,
+            userId = 0,
+            date = LocalDate.of(2026, 5, 7),
+            feelings = "初始感受",
+            exercises = listOf(
+                ExerciseLog(
+                    name = "杠铃卧推",
+                    exerciseKey = "barbell-bench-press",
+                    sets = listOf(SetLog(weightKg = 60f, reps = 10, setType = SetType.WORKING)),
+                ),
+            ),
+            sourceFileName = "2026-05-07.md",
+        )
+        setupBatchWithWorkout(workout = initialWorkout)
+
+        viewModel.onStartEdit("2026-05-07.md")
+        val ex = viewModel.uiState.value.editingDraft!!.exercises.first()
+        val set = ex.sets.first()
+
+        // 挂起保存
+        val deferred = CompletableDeferred<String?>()
+        fakeWorkoutParseRepo.resolveHandler = { deferred.await() }
+
+        // 触发保存
+        viewModel.onSaveEdit()
+        assertTrue(viewModel.uiState.value.isSavingDraft)
+
+        // 在保存中尝试修改感受、动作名、组数值、类型、添加组、移除动作
+        viewModel.onDraftFeelingsChange("保存中新感受")
+        viewModel.onDraftExerciseNameChange(ex.localId, "新动作名")
+        viewModel.onDraftSetChange(ex.localId, set.localId, 999f, 99)
+        viewModel.onToggleDraftSetType(ex.localId, set.localId)
+        viewModel.onAddDraftSet(ex.localId)
+        viewModel.onRemoveDraftSet(ex.localId, set.localId)
+        viewModel.onRemoveDraftExercise(ex.localId)
+
+        // 断言：保存期间 editingDraft 依然保持保存发起时的快照，未被任何修改污染
+        val draftWhileSaving = viewModel.uiState.value.editingDraft!!
+        assertEquals("初始感受", draftWhileSaving.feelings)
+        assertEquals("杠铃卧推", draftWhileSaving.exercises.first().name)
+        assertEquals(60f, draftWhileSaving.exercises.first().sets.first().weightKg)
+        assertEquals(1, draftWhileSaving.exercises.size)
+        assertEquals(1, draftWhileSaving.exercises.first().sets.size)
+
+        // 完成保存
+        deferred.complete("barbell-bench-press")
+        advanceUntilIdle()
+
+        // 断言：原条目保存的是保存发起时的快照
+        val stateFinal = viewModel.uiState.value
+        assertNull(stateFinal.editingSourceKey)
+        val finalDraft = stateFinal.items.first().draft!!
+        assertEquals("初始感受", finalDraft.feelings)
+        assertEquals("杠铃卧推", finalDraft.exercises.first().name)
+        assertEquals(60f, finalDraft.exercises.first().sets.first().weightKg)
+    }
+
+    /**
+     * 测试保存防重复触发：在保存中重复点击保存，只发起一次匹配。
+     */
+    @Test
+    fun testEdit_repeatedSaveCallsOnlyLaunchOneMatching() = runTest(main.scheduler) {
+        val initialWorkout = Workout(
+            id = 0,
+            userId = 0,
+            date = LocalDate.of(2026, 5, 7),
+            feelings = "",
+            exercises = listOf(
+                ExerciseLog(
+                    name = "杠铃卧推",
+                    exerciseKey = "barbell-bench-press",
+                    sets = listOf(SetLog(weightKg = 60f, reps = 10, setType = SetType.WORKING)),
+                ),
+            ),
+            sourceFileName = "2026-05-07.md",
+        )
+        setupBatchWithWorkout(workout = initialWorkout)
+
+        viewModel.onStartEdit("2026-05-07.md")
+        val deferred = CompletableDeferred<String?>()
+        var resolveCount = 0
+        fakeWorkoutParseRepo.resolveHandler = {
+            resolveCount++
+            deferred.await()
+        }
+
+        // 第一次触发保存
+        viewModel.onSaveEdit()
+        assertTrue(viewModel.uiState.value.isSavingDraft)
+
+        // 重复触发保存
+        viewModel.onSaveEdit()
+        viewModel.onSaveEdit()
+
+        // 断言：只发起了一次匹配调用
+        assertEquals(1, resolveCount)
+
+        deferred.complete("barbell-bench-press")
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSavingDraft)
+        assertNull(viewModel.uiState.value.editingSourceKey)
+        assertEquals(1, resolveCount)
+    }
+
+    /**
+     * 测试取消后重新打开同一条目：旧保存任务完成后无法关闭新弹层或清空新状态。
+     */
+    @Test
+    fun testEdit_dismissAndReopenSameItem_oldTaskCannotDismissOrClearNewSheet() = runTest(main.scheduler) {
+        val initialWorkout = Workout(
+            id = 0,
+            userId = 0,
+            date = LocalDate.of(2026, 5, 7),
+            feelings = "旧感受",
+            exercises = listOf(
+                ExerciseLog(
+                    name = "杠铃卧推",
+                    exerciseKey = "barbell-bench-press",
+                    sets = listOf(SetLog(weightKg = 60f, reps = 10, setType = SetType.WORKING)),
+                ),
+            ),
+            sourceFileName = "2026-05-07.md",
+        )
+        setupBatchWithWorkout(workout = initialWorkout)
+
+        // 1. 打开编辑，修改感受为 "编辑中"，点击保存
+        viewModel.onStartEdit("2026-05-07.md")
+        viewModel.onDraftFeelingsChange("编辑中")
+        val deferred = CompletableDeferred<String?>()
+        fakeWorkoutParseRepo.resolveHandler = { deferred.await() }
+        viewModel.onSaveEdit()
+        assertTrue(viewModel.uiState.value.isSavingDraft)
+
+        // 2. 在保存途中取消
+        viewModel.onDismissEdit()
+        assertNull(viewModel.uiState.value.editingSourceKey)
+        assertFalse(viewModel.uiState.value.isSavingDraft)
+
+        // 3. 重新打开同一条目
+        viewModel.onStartEdit("2026-05-07.md")
+        assertEquals("2026-05-07.md", viewModel.uiState.value.editingSourceKey)
+        assertNotNull(viewModel.uiState.value.editingDraft)
+        assertFalse(viewModel.uiState.value.isSavingDraft)
+
+        // 4. 旧保存任务完成
+        deferred.complete("barbell-bench-press")
+        advanceUntilIdle()
+
+        // 断言：旧保存任务无法关闭新弹层，也无法将编辑缓冲清空
+        val stateAfterOldTask = viewModel.uiState.value
+        assertEquals("2026-05-07.md", stateAfterOldTask.editingSourceKey)
+        assertNotNull(stateAfterOldTask.editingDraft)
+        // 原条目未被写入之前取消的修改，仍然是 "旧感受"
+        val itemDraft = stateAfterOldTask.items.first().draft!!
+        assertEquals("旧感受", itemDraft.feelings)
+    }
+
+    /**
+     * 测试保存失败：保留草稿缓冲、恢复可编辑状态（isSavingDraft=false），重试保存可成功。
+     */
+    @Test
+    fun testEdit_saveFailure_preservesDraftAndReEnablesEditingAndRetrySucceeds() = runTest(main.scheduler) {
+        val initialWorkout = Workout(
+            id = 0,
+            userId = 0,
+            date = LocalDate.of(2026, 5, 7),
+            feelings = "",
+            exercises = listOf(
+                ExerciseLog(
+                    name = "杠铃卧推",
+                    exerciseKey = "barbell-bench-press",
+                    sets = listOf(SetLog(weightKg = 60f, reps = 10, setType = SetType.WORKING)),
+                ),
+            ),
+            sourceFileName = "2026-05-07.md",
+        )
+        setupBatchWithWorkout(workout = initialWorkout)
+
+        viewModel.onStartEdit("2026-05-07.md")
+        val ex = viewModel.uiState.value.editingDraft!!.exercises.first()
+        val set = ex.sets.first()
+        viewModel.onDraftSetChange(ex.localId, set.localId, 75f, 8)
+
+        // 1. 模拟保存失败抛出异常
+        fakeWorkoutParseRepo.resolveHandler = { throw RuntimeException("网络异常") }
+        viewModel.onSaveEdit()
+        advanceUntilIdle()
+
+        // 断言：保存失败后草稿保留、弹层保持打开、isSavingDraft 恢复为 false、给出错误提示
+        val stateFailed = viewModel.uiState.value
+        assertEquals("2026-05-07.md", stateFailed.editingSourceKey)
+        assertNotNull(stateFailed.editingDraft)
+        assertFalse(stateFailed.isSavingDraft)
+        assertEquals(75f, stateFailed.editingDraft!!.exercises.first().sets.first().weightKg)
+        assertNotNull(stateFailed.message)
+        assertTrue(stateFailed.message!!.contains("保存编辑失败：网络异常"))
+
+        // 2. 失败后用户仍然可以继续编辑（因为已恢复可编辑状态）
+        viewModel.onDraftFeelingsChange("重试成功")
+
+        // 3. 恢复正常并重试保存
+        fakeWorkoutParseRepo.resolveHandler = { "barbell-bench-press" }
+        viewModel.onSaveEdit()
+        advanceUntilIdle()
+
+        // 断言：重试成功，弹层关闭，原条目草稿正确更新
+        val stateSuccess = viewModel.uiState.value
+        assertNull(stateSuccess.editingSourceKey)
+        assertNull(stateSuccess.editingDraft)
+        assertFalse(stateSuccess.isSavingDraft)
+        val finalDraft = stateSuccess.items.first().draft!!
+        assertEquals(75f, finalDraft.exercises.first().sets.first().weightKg)
+        assertEquals("重试成功", finalDraft.feelings)
     }
 
     /**

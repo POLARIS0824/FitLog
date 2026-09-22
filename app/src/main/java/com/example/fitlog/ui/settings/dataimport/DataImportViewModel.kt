@@ -62,6 +62,9 @@ class DataImportViewModel @Inject constructor(
     /** 正在保存的条目 sourceKey，用于防重复提交。 */
     private var savingSourceKey: String? = null
 
+    /** 单调递增的保存版本号，用于废弃旧保存任务的回写与状态清理。 */
+    private var currentSaveToken: Long = 0L
+
     /** 草稿行/动作的会话内自增 id（Compose 文本框 remember 隔离用）。 */
     private val draftIdCounter = AtomicLong(0)
     private fun nextDraftId(): Long = draftIdCounter.incrementAndGet()
@@ -309,6 +312,7 @@ class DataImportViewModel @Inject constructor(
 
     /** 清空当前导入批次。 */
     fun onClearBatch() {
+        currentSaveToken++
         parseJob?.cancel()
         parseJob = null
         saveJob?.cancel()
@@ -324,6 +328,7 @@ class DataImportViewModel @Inject constructor(
                 parseTotal = 0,
                 editingSourceKey = null,
                 editingDraft = null,
+                isSavingDraft = false,
                 selectedFilter = ImportFilterCategory.ALL,
                 lastResultSummary = null,
             )
@@ -339,10 +344,15 @@ class DataImportViewModel @Inject constructor(
     fun onStartEdit(sourceKey: String) {
         val targetItem = _uiState.value.items.firstOrNull { it.sourceKey == sourceKey } ?: return
         val initialDraft = targetItem.draft ?: return
+        currentSaveToken++
+        saveJob?.cancel()
+        saveJob = null
+        savingSourceKey = null
         _uiState.update {
             it.copy(
                 editingSourceKey = sourceKey,
                 editingDraft = initialDraft,
+                isSavingDraft = false,
             )
         }
         viewModelScope.launch {
@@ -363,6 +373,7 @@ class DataImportViewModel @Inject constructor(
 
     /** 关闭编辑弹层（丢弃未保存的草稿缓冲）。 */
     fun onDismissEdit() {
+        currentSaveToken++
         saveJob?.cancel()
         saveJob = null
         savingSourceKey = null
@@ -370,6 +381,7 @@ class DataImportViewModel @Inject constructor(
             it.copy(
                 editingSourceKey = null,
                 editingDraft = null,
+                isSavingDraft = false,
             )
         }
     }
@@ -378,8 +390,12 @@ class DataImportViewModel @Inject constructor(
     fun onSaveEdit() {
         val targetKey = _uiState.value.editingSourceKey ?: return
         val draftToSave = _uiState.value.editingDraft ?: return
+        if (_uiState.value.isSavingDraft) return
         if (savingSourceKey == targetKey) return
+
         savingSourceKey = targetKey
+        val token = ++currentSaveToken
+        _uiState.update { it.copy(isSavingDraft = true) }
 
         saveJob = viewModelScope.launch {
             try {
@@ -397,12 +413,18 @@ class DataImportViewModel @Inject constructor(
                         }
                     },
                 )
+                if (token != currentSaveToken) return@launch
+
                 // 校验成功后提交给原条目；确保异步保存结果写入 targetKey，而非用户后来打开的记录
                 updateItem(targetKey) { it.copy(draft = rematched) }
                 _uiState.update { state ->
-                    // 仅当用户当前未切换到其他条目时，才关闭弹层并清除缓冲
-                    if (state.editingSourceKey == targetKey) {
-                        state.copy(editingSourceKey = null, editingDraft = null)
+                    // 仅当用户当前未切换到其他条目且 token 匹配时，才关闭弹层并清除缓冲与保存态
+                    if (state.editingSourceKey == targetKey && token == currentSaveToken) {
+                        state.copy(
+                            editingSourceKey = null,
+                            editingDraft = null,
+                            isSavingDraft = false,
+                        )
                     } else {
                         state
                     }
@@ -413,11 +435,21 @@ class DataImportViewModel @Inject constructor(
                 // 保存失败保留缓冲供重试，弹层保持打开
                 FitLog.w(TAG, "保存编辑失败", e)
                 _uiState.update {
-                    it.copy(message = "保存编辑失败：${e.message ?: "请重试"}")
+                    if (token == currentSaveToken) {
+                        it.copy(
+                            isSavingDraft = false,
+                            message = "保存编辑失败：${e.message ?: "请重试"}",
+                        )
+                    } else {
+                        it
+                    }
                 }
             } finally {
                 if (savingSourceKey == targetKey) {
                     savingSourceKey = null
+                }
+                if (token == currentSaveToken && _uiState.value.isSavingDraft) {
+                    _uiState.update { it.copy(isSavingDraft = false) }
                 }
             }
         }
@@ -689,10 +721,10 @@ class DataImportViewModel @Inject constructor(
         }
     }
 
-    /** 对当前编辑缓冲施加变更（弹层未打开时为 no-op）。 */
+    /** 对当前编辑缓冲施加变更（弹层未打开或正在保存时为 no-op）。 */
     private fun mutateEditingDraft(transform: (ImportDraftWorkout) -> ImportDraftWorkout) {
         _uiState.update { state ->
-            if (state.editingSourceKey == null || state.editingDraft == null) {
+            if (state.editingSourceKey == null || state.editingDraft == null || state.isSavingDraft) {
                 state
             } else {
                 state.copy(editingDraft = transform(state.editingDraft))

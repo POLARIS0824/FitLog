@@ -97,6 +97,7 @@ fun ImportEditSheet(
     draft: ImportDraftWorkout,
     catalog: List<Exercise>,
     callbacks: ImportEditCallbacks,
+    isSaving: Boolean = false,
 ) {
     var showPicker by remember { mutableStateOf(false) }
 
@@ -126,6 +127,7 @@ fun ImportEditSheet(
                     draft = draft,
                     callbacks = callbacks,
                     onShowPicker = { showPicker = true },
+                    isSaving = isSaving,
                 )
             }
         }
@@ -136,6 +138,7 @@ fun ImportEditSheet(
                 draft = draft,
                 callbacks = callbacks,
                 onShowPicker = { showPicker = true },
+                isSaving = isSaving,
             )
         }
     }
@@ -160,6 +163,7 @@ private fun ImportEditSheetContent(
     draft: ImportDraftWorkout,
     callbacks: ImportEditCallbacks,
     onShowPicker: () -> Unit,
+    isSaving: Boolean = false,
 ) {
     Column(
         modifier = Modifier
@@ -174,6 +178,7 @@ private fun ImportEditSheetContent(
             onValueChange = callbacks.onFeelingsChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            enabled = !isSaving,
             placeholder = { Text("训练感受/备注（可选）") },
         )
 
@@ -181,12 +186,14 @@ private fun ImportEditSheetContent(
             ImportDraftExerciseCard(
                 exercise = exercise,
                 callbacks = callbacks,
+                enabled = !isSaving,
             )
         }
 
         OutlinedButton(
             onClick = onShowPicker,
             modifier = Modifier.fillMaxWidth(),
+            enabled = !isSaving,
         ) {
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(Modifier.width(4.dp))
@@ -211,7 +218,11 @@ private fun ImportEditSheetContent(
             OutlinedButton(onClick = callbacks.onDismiss, modifier = Modifier.weight(1f)) {
                 Text("取消")
             }
-            Button(onClick = callbacks.onSave, modifier = Modifier.weight(1f)) {
+            Button(
+                onClick = callbacks.onSave,
+                modifier = Modifier.weight(1f),
+                enabled = !isSaving,
+            ) {
                 Text("保存")
             }
         }
@@ -224,6 +235,7 @@ private fun ImportEditSheetContent(
 private fun ImportDraftExerciseCard(
     exercise: ImportDraftExercise,
     callbacks: ImportEditCallbacks,
+    enabled: Boolean = true,
 ) {
     FitLogCard(contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -232,6 +244,7 @@ private fun ImportDraftExerciseCard(
                 onValueChange = { callbacks.onExerciseNameChange(exercise.localId, it) },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
+                enabled = enabled,
                 label = { Text("动作名") },
                 // 匹配状态跟随草稿（保存时全量重跑匹配后刷新）：null = 未关联，
                 // 导入按自由文本名保存，合法但无动作库关联统计
@@ -242,7 +255,10 @@ private fun ImportDraftExerciseCard(
                     )
                 },
             )
-            IconButton(onClick = { callbacks.onRemoveExercise(exercise.localId) }) {
+            IconButton(
+                onClick = { callbacks.onRemoveExercise(exercise.localId) },
+                enabled = enabled,
+            ) {
                 Icon(
                     Icons.Filled.Close,
                     contentDescription = "移除动作 ${exercise.name}",
@@ -288,10 +304,14 @@ private fun ImportDraftExerciseCard(
                 set = set,
                 exerciseLocalId = exercise.localId,
                 callbacks = callbacks,
+                enabled = enabled,
             )
         }
 
-        TextButton(onClick = { callbacks.onAddSet(exercise.localId) }) {
+        TextButton(
+            onClick = { callbacks.onAddSet(exercise.localId) },
+            enabled = enabled,
+        ) {
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(Modifier.width(4.dp))
             Text("添加一组")
@@ -309,6 +329,7 @@ private fun ImportDraftSetRow(
     set: ImportDraftSet,
     exerciseLocalId: Long,
     callbacks: ImportEditCallbacks,
+    enabled: Boolean = true,
 ) {
     // 本地编辑态按 set.localId 隔离：草稿刷新不重置输入；0 值显示为空（占位行视觉中性）
     var weightText by remember(set.localId) {
@@ -342,6 +363,7 @@ private fun ImportDraftSetRow(
                 .weight(1f)
                 .padding(end = 8.dp),
             singleLine = true,
+            enabled = enabled,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             textStyle = MaterialTheme.typography.bodyMedium,
         )
@@ -360,12 +382,14 @@ private fun ImportDraftSetRow(
                 .weight(1f)
                 .padding(end = 8.dp),
             singleLine = true,
+            enabled = enabled,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             textStyle = MaterialTheme.typography.bodyMedium,
         )
         FilterChip(
             selected = set.setType == SetType.WORKING,
             onClick = { callbacks.onToggleSetType(exerciseLocalId, set.localId) },
+            enabled = enabled,
             label = {
                 Text(
                     if (set.setType == SetType.WORKING) "正式" else "热身",
@@ -374,7 +398,11 @@ private fun ImportDraftSetRow(
             },
             modifier = Modifier.width(64.dp),
         )
-        IconButton(onClick = { callbacks.onRemoveSet(exerciseLocalId, set.localId) }, modifier = Modifier.width(40.dp)) {
+        IconButton(
+            onClick = { callbacks.onRemoveSet(exerciseLocalId, set.localId) },
+            enabled = enabled,
+            modifier = Modifier.width(40.dp),
+        ) {
             Icon(
                 Icons.Filled.Close,
                 contentDescription = "删除第 $index 组",

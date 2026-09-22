@@ -519,6 +519,7 @@ fun ImportReviewScreen(
                     draft = editingDraft,
                     catalog = uiState.exerciseCatalog,
                     callbacks = editCallbacks,
+                    isSaving = uiState.isSavingDraft,
                 )
             }
         } else {
@@ -527,6 +528,7 @@ fun ImportReviewScreen(
                 draft = editingDraft,
                 catalog = uiState.exerciseCatalog,
                 callbacks = editCallbacks,
+                isSaving = uiState.isSavingDraft,
             )
         }
     }
