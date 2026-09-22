@@ -38,8 +38,41 @@ class MarkdownExporterTest {
 
         assertTrue(md.contains("# 2026-05-20 训练"))
         assertTrue(md.contains("- 感受：状态不错"))
+        assertTrue(md.contains("- 开始时间：空"))
+        assertTrue(md.contains("- 结束时间：空"))
         assertTrue(md.contains("- **杠铃卧推** 80kg x 10"))
         assertTrue(md.contains("- **杠铃卧推** 85kg x 8"))
+    }
+
+    @Test
+    fun `structured workout with timestamps serializes ISO offset datetime and time window`() {
+        val zone = java.time.ZoneId.of("Asia/Shanghai")
+        val startEpoch = java.time.ZonedDateTime.of(2026, 5, 20, 23, 30, 0, 0, zone).toInstant().toEpochMilli()
+        val endEpoch = java.time.ZonedDateTime.of(2026, 5, 21, 1, 15, 0, 0, zone).toInstant().toEpochMilli()
+
+        val workout = Workout(
+            id = 1,
+            userId = 0,
+            date = LocalDate.of(2026, 5, 20),
+            feelings = "练到深夜",
+            startedAt = startEpoch,
+            endedAt = endEpoch,
+            exercises = listOf(
+                ExerciseLog(
+                    name = "杠铃卧推",
+                    exerciseKey = "barbell-bench-press",
+                    sets = listOf(SetLog(weightKg = 80f, reps = 10)),
+                ),
+            ),
+        )
+
+        val md = MarkdownExporter.export(listOf(workout), zoneId = zone)
+
+        assertTrue(md.contains("# 2026-05-20 训练"))
+        assertTrue(md.contains("- 感受：练到深夜"))
+        assertTrue(md.contains("- 时间：23:30–01:15"))
+        assertTrue(md.contains("- 开始时间：2026-05-20T23:30:00+08:00"))
+        assertTrue(md.contains("- 结束时间：2026-05-21T01:15:00+08:00"))
     }
 
     @Test

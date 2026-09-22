@@ -12,6 +12,7 @@ import com.example.fitlog.util.ExerciseDisplayName
 import com.example.fitlog.util.log.FitLog
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import javax.inject.Inject
 
@@ -37,6 +38,13 @@ open class WorkoutParseRepository @Inject constructor(
      *     解析不出任何动作明细时按失败处理（调用方走「仅存档」兜底）
      */
     open suspend fun parse(content: String, dateHint: LocalDate): Result<Workout> {
+        val isoMetadata = try {
+            extractIsoTimeMetadata(content)
+        } catch (e: Exception) {
+            FitLog.w(TAG, "ISO 时间元数据解析异常：${e.message}", e)
+            return Result.failure(e)
+        }
+
         val reply = aiChatRepository.chat(
             messages = WorkoutParsePrompt.buildMessages(dateHint, content),
             temperature = 0.1,
@@ -60,25 +68,34 @@ open class WorkoutParseRepository @Inject constructor(
             FitLog.w(TAG, "导入解析失败：动作名全部为空白，无有效动作")
             return Result.failure(IllegalStateException("AI 未能从原文解析出有效的动作"))
         }
-        // 时间自洽性：模型可能输出 endTime < startTime（笔误/12 小时制混乱），
-        // 倒挂的时间轴会产出负时长与"结束早于开始"的脏数据——单边时间戳没有
-        // 意义，两端一并弃用，endedAt 走当日 23:59 兜底（缺失时的既有语义）
-        val parsedStart = dto.startTime?.toEpochMillis(dateHint)
-        val parsedEnd = dto.endTime?.toEpochMillis(dateHint)
-        val timeInverted = parsedStart != null && parsedEnd != null && parsedEnd < parsedStart
-        if (timeInverted) {
-            FitLog.w(TAG, "导入解析时间倒挂：start=$parsedStart end=$parsedEnd，两端时间戳弃用")
+
+        val finalStartedAt: Long?
+        val finalEndedAt: Long?
+
+        if (isoMetadata != null) {
+            // 确定性本地逻辑优先：使用 ISO 元数据，不依赖 AI 推断，完全覆盖 AI 返回的任何时间
+            finalStartedAt = isoMetadata.startedAt
+            finalEndedAt = isoMetadata.endedAt
+        } else {
+            // 兼容未携带 ISO 元数据的旧 Markdown：走既有 AI 解析与兜底逻辑
+            val parsedStart = dto.startTime?.toEpochMillis(dateHint)
+            val parsedEnd = dto.endTime?.toEpochMillis(dateHint)
+            val timeInverted = parsedStart != null && parsedEnd != null && parsedEnd < parsedStart
+            if (timeInverted) {
+                FitLog.w(TAG, "导入解析时间倒挂：start=$parsedStart end=$parsedEnd，两端时间戳弃用")
+            }
+            finalStartedAt = parsedStart?.takeIf { !timeInverted }
+            finalEndedAt = if (timeInverted) defaultEndedAt(dateHint) else (parsedEnd ?: defaultEndedAt(dateHint))
         }
+
         return Result.success(
             Workout(
                 id = 0,
                 userId = 0,
                 date = dateHint,
                 feelings = dto.feelings?.trim()?.takeIf { it.isNotBlank() },
-                startedAt = parsedStart?.takeIf { !timeInverted },
-                // 结束时间缺失时取当日 23:59：导入的历史记录无真实结束时刻可考，
-                // 但 endedAt 为空会让 isCountable=false，整段历史不计入完成次数
-                endedAt = if (timeInverted) defaultEndedAt(dateHint) else (parsedEnd ?: defaultEndedAt(dateHint)),
+                startedAt = finalStartedAt,
+                endedAt = finalEndedAt,
                 exercises = exercises,
                 rawContent = content,
             ),
@@ -143,7 +160,54 @@ open class WorkoutParseRepository @Inject constructor(
         LocalTime.parse(trim()).atDate(date).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     }.getOrNull()
 
-    private companion object {
+    data class IsoTimeMetadata(
+        val startedAt: Long?,
+        val endedAt: Long?,
+    )
+
+    companion object {
         private const val TAG = "WorkoutParseRepository"
+        private val START_TIME_REGEX = """(?m)^[-*+]?\s*开始时间[：:]\s*(.+)$""".toRegex()
+        private val END_TIME_REGEX = """(?m)^[-*+]?\s*结束时间[：:]\s*(.+)$""".toRegex()
+
+        /**
+         * 从 Markdown 文本中提取 ISO offset datetime 元数据。
+         *
+         * @return [IsoTimeMetadata]；若两项元数据均未出现则返回 null（走旧解析逻辑）
+         * @throws IllegalArgumentException 当时间格式损坏或结束时间早于开始时间时抛出
+         */
+        fun extractIsoTimeMetadata(content: String): IsoTimeMetadata? {
+            val startMatch = START_TIME_REGEX.find(content)
+            val endMatch = END_TIME_REGEX.find(content)
+            if (startMatch == null && endMatch == null) {
+                return null
+            }
+
+            val startRaw = startMatch?.groupValues?.get(1)?.trim()
+            val startedAt = when {
+                startRaw == null || startRaw == "空" || startRaw.isEmpty() -> null
+                else -> try {
+                    OffsetDateTime.parse(startRaw).toInstant().toEpochMilli()
+                } catch (e: Exception) {
+                    throw IllegalArgumentException("开始时间格式错误：\"$startRaw\"", e)
+                }
+            }
+
+            val endRaw = endMatch?.groupValues?.get(1)?.trim()
+            val endedAt = when {
+                endRaw == null || endRaw == "空" || endRaw.isEmpty() -> null
+                else -> try {
+                    OffsetDateTime.parse(endRaw).toInstant().toEpochMilli()
+                } catch (e: Exception) {
+                    throw IllegalArgumentException("结束时间格式错误：\"$endRaw\"", e)
+                }
+            }
+
+            if (startedAt != null && endedAt != null && endedAt < startedAt) {
+                throw IllegalArgumentException("结束时间早于开始时间：start=$startedAt, end=$endedAt")
+            }
+
+            return IsoTimeMetadata(startedAt, endedAt)
+        }
     }
 }

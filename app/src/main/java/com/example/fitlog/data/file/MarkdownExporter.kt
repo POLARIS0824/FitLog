@@ -5,7 +5,9 @@ import com.example.fitlog.model.Workout
 import com.example.fitlog.util.VolumeFormatter
 import java.time.Instant
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * 训练记录 → Markdown 的导出序列化器。
@@ -13,7 +15,8 @@ import java.time.ZoneId
  * 与 [MarkdownParser]（导入链路的文本清洗器）保持格式对称：
  * 动作行使用 `- **名称** 重量kg x 次数` 的写法，热身组在组尾追加
  * 「（热身组）」标记（[WorkoutParsePrompt] 已约定该标记 → type=WARMUP）；
- * 开始/结束时间以 `- 时间：HH:mm–HH:mm` 元信息行携带，重导入链路可还原。
+ * 时间携带人类可读的 `- 时间：HH:mm–HH:mm` 以及确定性还原所需的完整 ISO offset datetime
+ * （`- 开始时间：...` 与 `- 结束时间：...`，缺失为 `空`），重导入链路可完美还原同日、跨午夜与跨年时间戳。
  * 导入存档行（仅原文、无结构化明细的记录）直接原样输出 rawContent。
  *
  * 单文件可承载多天记录（按日期升序、`# 日期 训练` 分节）——
@@ -26,14 +29,15 @@ object MarkdownExporter {
      * 将全部训练记录序列化为单个 Markdown 文档。
      *
      * @param workouts 训练记录（内部按日期升序稳定排序，同日按 id 升序）
+     * @param zoneId 导出时区，默认系统时区
      * @return Markdown 文本；无记录时返回空串（调用方应避免以空内容触发写出）
      */
-    fun export(workouts: List<Workout>): String =
+    fun export(workouts: List<Workout>, zoneId: ZoneId = ZoneId.systemDefault()): String =
         workouts
             .sortedWith(compareBy<Workout> { it.date }.thenBy { it.id })
             .joinToString(separator = "\n\n") { workout ->
                 when {
-                    workout.exercises.isNotEmpty() -> serializeStructured(workout)
+                    workout.exercises.isNotEmpty() -> serializeStructured(workout, zoneId)
                     !workout.rawContent.isNullOrBlank() -> serializeArchive(workout)
                     else -> ""
                 }
@@ -43,11 +47,13 @@ object MarkdownExporter {
             .joinToString(separator = "\n\n")
 
     /** 结构化训练（训练会话落库，含动作与组明细）。 */
-    private fun serializeStructured(workout: Workout): String {
+    private fun serializeStructured(workout: Workout, zoneId: ZoneId): String {
         val header = "# ${workout.date} 训练"
         val meta = buildList {
             workout.feelings?.let { add("- 感受：$it") }
-            timeWindowText(workout)?.let { add("- 时间：$it") }
+            timeWindowText(workout, zoneId)?.let { add("- 时间：$it") }
+            add("- 开始时间：${formatIsoOffsetDateTime(workout.startedAt, zoneId)}")
+            add("- 结束时间：${formatIsoOffsetDateTime(workout.endedAt, zoneId)}")
         }
         val exerciseLines = workout.exercises.flatMap { log ->
             log.sets.map { set ->
@@ -61,16 +67,23 @@ object MarkdownExporter {
     }
 
     /** 开始/结束时间窗口文案（"08:30–09:45"）；任一端缺失返回 null。 */
-    private fun timeWindowText(workout: Workout): String? {
-        val start = workout.startedAt?.let(::formatTime) ?: return null
-        val end = workout.endedAt?.let(::formatTime) ?: return null
+    private fun timeWindowText(workout: Workout, zoneId: ZoneId): String? {
+        val start = workout.startedAt?.let { formatTime(it, zoneId) } ?: return null
+        val end = workout.endedAt?.let { formatTime(it, zoneId) } ?: return null
         return "$start–$end"
     }
 
-    /** epoch millis → 当日 "HH:mm"（本地时区，与录入侧换算对称）。 */
-    private fun formatTime(epochMs: Long): String =
-        Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).toLocalTime()
+    /** epoch millis → 当日 "HH:mm"（指定时区，与录入侧换算对称）。 */
+    private fun formatTime(epochMs: Long, zoneId: ZoneId): String =
+        Instant.ofEpochMilli(epochMs).atZone(zoneId).toLocalTime()
             .let { "%02d:%02d".format(it.hour, it.minute) }
+
+    /** 格式化为完整的 ISO offset datetime（例如 2026-05-20T23:30:00+08:00）；缺失时返回 "空"。 */
+    private fun formatIsoOffsetDateTime(epochMs: Long?, zoneId: ZoneId): String {
+        if (epochMs == null) return "空"
+        return OffsetDateTime.ofInstant(Instant.ofEpochMilli(epochMs), zoneId)
+            .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+    }
 
     /** 导入存档（rawContent 原文，无结构化明细）。 */
     private fun serializeArchive(workout: Workout): String =
