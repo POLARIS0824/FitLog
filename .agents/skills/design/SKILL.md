@@ -1,6 +1,6 @@
 ---
 name: design
-description: "Comprehensive design skill: brand identity, design tokens, UI styling, logo generation (55 styles, Gemini AI), corporate identity program (50 deliverables, CIP mockups), HTML presentations (Chart.js), banner design (22 styles, social/ads/web/print), icon design (15 styles, SVG, Gemini 3.1 Pro), social photos (HTML→screenshot, multi-platform). Actions: design logo, create CIP, generate mockups, build slides, design banner, generate icon, create social photos, social media images, brand identity, design system. Platforms: Facebook, Twitter, LinkedIn, YouTube, Instagram, Pinterest, TikTok, Threads, Google Ads."
+description: "Create requested brand assets, logos, banners, social images, icons, or HTML presentations. Route to the one relevant workflow; not for native Compose UI, routine code review, or local app styling fixes."
 argument-hint: "[design-type] [context]"
 license: MIT
 metadata:
@@ -22,6 +22,8 @@ Unified design skill: brand, tokens, UI, logo, CIP, slides, banners, social phot
 - Presentations and pitch decks
 - Banner design for social media, ads, web, print
 - Social photos for Instagram, Facebook, LinkedIn, Twitter, Pinterest, TikTok
+
+Choose only the requested artifact workflow and read only its needed references. Use available tools; optional missing skills do not block delivery. Reuse known requirements and authorization. Resolve script paths relative to the installed skill directory, not a hard-coded `~/.claude` location.
 
 ## Sub-skill Routing
 
@@ -57,7 +59,7 @@ python3 ~/.claude/skills/design/scripts/logo/search.py "healthcare medical" --do
 
 ### Logo: Generate with AI
 
-**ALWAYS** generate output logo images with white background.
+Use the requested background; default to white when unspecified.
 
 ```bash
 python3 ~/.claude/skills/design/scripts/logo/generate.py --brand "TechFlow" --style minimalist --industry tech
@@ -66,7 +68,7 @@ python3 ~/.claude/skills/design/scripts/logo/generate.py --prompt "coffee shop v
 
 **IMPORTANT:** When scripts fail, try to fix them directly.
 
-After generation, **ALWAYS** ask user about HTML preview via `AskUserQuestion`. If yes, invoke `/ui-ux-pro-max` for gallery.
+Deliver generated images directly. Build an HTML gallery only when requested or useful for an already authorized multi-option deliverable; do not add a confirmation round for an optional preview.
 
 ## CIP Design (Built-in)
 
@@ -137,7 +139,7 @@ Load `references/banner-sizes-and-styles.md` for complete sizes and styles refer
 
 ### Banner: Workflow
 
-1. **Gather requirements** via `AskUserQuestion` — purpose, platform, content, brand, style, quantity
+1. **Gather requirements** from the request and project context; ask only for missing purpose, dimensions, or content that materially blocks delivery
 2. **Research** — Activate `ui-ux-pro-max`, browse Pinterest for references
 3. **Design** — Create HTML/CSS banner with `frontend-design`, generate visuals with `ai-artist`/`ai-multimodal`
 4. **Export** — Screenshot to PNG at exact dimensions via `chrome-devtools`
@@ -216,20 +218,16 @@ python3 ~/.claude/skills/design/scripts/icon/generate.py --prompt "user profile"
 
 ## Social Photos (Built-in)
 
-Multi-platform social image design: HTML/CSS → screenshot export. Uses `ui-ux-pro-max`, `brand`, `design-system`, `chrome-devtools` skills.
+Multi-platform social image design: HTML/CSS → screenshot export. Use available design and rendering tools as needed, without a mandatory skill chain.
 
 Load `references/social-photos-design.md` for sizes, templates, best practices.
 
 ### Social Photos: Workflow
 
-1. **Orchestrate** — `project-management` skill for TODO tasks; parallel subagents for independent work
-2. **Analyze** — Parse prompt: subject, platforms, style, brand context, content elements
-3. **Ideate** — 3-5 concepts, present via `AskUserQuestion`
-4. **Design** — `/ckm:brand` → `/ckm:design-system` → randomly invoke `/ck:ui-ux-pro-max` OR `/ck:frontend-design`; HTML per idea × size
-5. **Export** — `chrome-devtools` or Playwright screenshot at exact px (2x deviceScaleFactor)
-6. **Verify** — Use Chrome MCP or `chrome-devtools` skill to visually inspect exported designs; fix layout/styling issues and re-export
-7. **Report** — Summary to `plans/reports/` with design decisions
-8. **Organize** — Invoke `assets-organizing` skill to sort output files and reports
+1. **Analyze** — Reuse known subject, platforms, style, brand, and content requirements; ask only about blocking gaps.
+2. **Design** — Produce an appropriate first draft using existing tokens and one relevant available design workflow. Do not invoke skills randomly or require concept approval unless staged review was requested.
+3. **Export and verify** — Use available rendering tools, inspect the requested sizes, and fix visible defects.
+4. **Deliver** — Return the artifacts and concise validation notes; create extra reports or asset-management workflows only when requested.
 
 ### Social Photos: Key Sizes
 

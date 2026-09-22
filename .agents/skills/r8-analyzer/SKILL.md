@@ -26,22 +26,21 @@ metadata:
 
 ## Step 2. Analysis path selection
 
-- Inspect `build.gradle`, `build.gradle.kts`, and `gradle.properties` and
-  `libs.versions.toml` to get the R8 version
+- Reuse the build configuration inspected in Step 1; inspect `libs.versions.toml` if needed to determine the R8 version
 
-- **If R8 \>= 9.3.7-dev** : Proceed to **Path A (Quantitative)**.
+- **If quantitative impact analysis is needed and supported by R8 \>= 9.3.7-dev** : Use **Path A (Quantitative)** when its build/tooling prerequisites are available. A narrow static keep-rule review may use Path B without generating metrics.
 
 - **If R8 \< 9.3.7-dev** : Proceed to **Path B (Heuristic)**.
 
 ### Path A: Quantitative data generation (R8 \>= 9.3.7-dev)
 
 - **Check requirements** : Python and `protobuf` package are mandatory.
-- **Generate and analyze** : You MUST run the shell commands described in [references/CONFIGURATION-ANALYZER.md](references/CONFIGURATION-ANALYZER.md) to generate the proto file using R8 configuration analyzer, convert it to json and analyze the result.
+- **Generate and analyze** : If Path A is selected, use the commands appropriate to the host shell in [references/CONFIGURATION-ANALYZER.md](references/CONFIGURATION-ANALYZER.md) to generate the proto file using R8 configuration analyzer, convert it to json and analyze the result.
 - **Report** : Rely entirely on the generated file `analysis.txt` for scores and rule impact metrics. Proceed to Step 3.
 
-### Path B: Heuristic evaluation and recommendation (R8 \< 9.3.7-dev)
+### Path B: Scoped static evaluation and recommendation
 
-*(Use ONLY if quantitative data generation is not possible)*
+*(Use for scoped static reviews or when quantitative generation is unavailable; do not claim measured metrics.)*
 
 - **Manual evaluation** : Inspect `proguard-rules.pro`.
 - **Library check** : Compare rules against [references/REDUNDANT-RULES.md](references/REDUNDANT-RULES.md). Suggest **Remove** for bundled rules.
@@ -50,13 +49,13 @@ metadata:
 
 ## Step 3. Report generation
 
-- **Format** : Follow [references/REPORT_FORMAT.md](references/REPORT_FORMAT.md) strictly.
+- **Format** : For a full quantitative report, use [references/REPORT_FORMAT.md](references/REPORT_FORMAT.md). For a focused review, return concise actionable findings in the user's requested format; do not load the full report template.
 - **Input**: Extract metrics (Scores, Impacts, Example Classes) directly from generated file analysis.txt if using Path A, or from manual findings if using Path B.
-- **Output** : Output ONLY the raw Markdown report in the chat. Do NOT output conversational filler (for example, "Here is your report..."). Do NOT provide recommendations, next steps, or any other text outside of the sections defined in [references/REPORT_FORMAT.md](references/REPORT_FORMAT.md) Do NOT mention the path used for analysis of the configuration
+- **Output** : State findings, validation, and material limitations. Identify whether impact claims are measured or heuristic; do not imply a build or runtime check ran when it did not.
 
 ## Constraints
 
-- **Strict output limit**: The final output MUST strictly be the Markdown report and nothing else.
+- **Output scope**: Match the requested review/report format and omit empty sections.
 - **No code changes**: Research and suggest only; Do not modify files.
-- **No redundancy**: Do not explain R8 benefits or reference skill internal files in the report.
+- **No redundancy**: Avoid generic R8 tutorials; include relevant rule references when needed to explain a finding.
 - **Focus**: Omit sections (for example, Subsumed Rules, Configuration) if no issues or items are found.

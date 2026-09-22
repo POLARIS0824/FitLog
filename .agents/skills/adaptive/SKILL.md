@@ -23,10 +23,7 @@ metadata:
 
 ## Prerequisites
 
-The app must:
-
-- Use Compose for all screens. If it's still using Fragments or Views, suggest using the XML to Compose skill to migrate those screens.
-- Use Jetpack Navigation 3. If it doesn't, suggest the Navigation 3 skill to migrate the app.
+This workflow targets Compose screens. Navigation 3 is required for the SceneStrategy recipes, not for every local size or input adaptation. Work within the existing stack; do not turn a local adaptation into a whole-app Compose or navigation migration. Read only references for APIs actually needed by the requested change.
 
 ## Workflow to make an app adaptive
 
@@ -41,10 +38,7 @@ task.
 
 ## Step 1. Verify current UI
 
-Ensure that screenshot tests exist to verify the current UI on different form
-factors. If they don't exist, add the [Compose Preview Screenshot Testing
-tool](references/android/develop/ui/compose/tooling/debug.md). Use the following annotation to create previews for all the major form
-factors. For example:
+Reuse existing previews or screenshot tests for affected form factors. Add a focused regression test when the change warrants it; do not introduce a screenshot framework merely to complete this workflow. Read the [screenshot testing guide](references/android/develop/ui/compose/tooling/debug.md) only when screenshot setup is part of the task. For broader adaptive changes, previews may cover the relevant major form factors:
 
 
 ```kotlin
@@ -195,8 +189,7 @@ screen complements the main screen and is shown in a supporting pane.
 
 ### Step 3.3. Run screenshot tests
 
-If you have made changes, record new reference files. Ask the user to visually
-verify that the new layouts are correct.
+Generate screenshot differences for affected layouts without overwriting the old baseline. Inspect them, then update expected images only when they match the authorized layout changes. Ask only if the intended appearance remains ambiguous; never accept regressions to make tests pass.
 
 ## Step 4. Make vertical lists adaptive by changing the number of columns
 
@@ -215,12 +208,9 @@ Steps to migrate:
 ### Step 4.2. Migrate non-lazy lists to Grid
 
 WARNING: Grid is an experimental API available from Compose 1.11.0-beta01.
-Confirm with the user that they are happy to use an experimental API in their
-codebase.
+Prefer compatible existing APIs. Before first introducing an experimental API, ask only if its compatibility or maintenance tradeoff is material and not already authorized. Reuse explicit authorization; do not ask again for each component.
 
-Look for any `Column` that contains multiple items of the same type and replace
-it with `Grid`. Do not replace it with `LazyVerticalGrid` or any other lazy
-layout. Do not place `Grid` inside the existing `Column`. Completely replace it.
+Consider `Grid` only for affected non-lazy content that needs adaptive arrangement. Keep `Column` when it already meets the requirement, and use lazy layouts for large/lazy content. Do not migrate unrelated containers or upgrade dependencies solely to use this example.
 
 `Grid` is configured by supplying a lambda (an extension function on
 `GridConfigurationScope`) to its `config` parameter. Inside the lambda,
@@ -267,9 +257,7 @@ app bar state independently. There are two main scroll behaviors:
 
 ## Final step: Build and test
 
-Build the app and run the local tests. If the project has screenshot tests, run
-them but DO NOT update the reference images. Prompt the user to do this after
-they have viewed the screenshot diffs.
+Build the affected code and run relevant existing tests once after the final related edits. Reuse screenshot results from Step 3.3; follow its baseline policy rather than running a second approval workflow. Broaden validation only for shared-layout impact or new evidence. Report unavailable checks.
 
 ## Additional documentation for experimental adaptive APIs
 

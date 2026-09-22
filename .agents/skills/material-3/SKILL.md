@@ -1,11 +1,6 @@
 ---
 name: material-3
-description: >
-  Implement Google's Material Design 3 (Material You) UI system. Primary: Jetpack Compose
-  Material3 (MaterialTheme, components, adaptive layout). Also Flutter and limited web
-  (@material/web, maintenance mode). Covers tokens, 30+ components, layout, theming,
-  M3 Expressive (platform matrix), and accessibility. Use when: "material design", "MD3",
-  "material you", "Jetpack Compose", "MaterialTheme", "material component", "md3 button".
+description: "Use when creating or changing Material 3 components, theme tokens, or design-system behavior, or when explicitly auditing Material compliance. A Compose or MaterialTheme reference alone, ordinary code review, and local behavioral fixes do not trigger this skill."
 user-invokable: true
 argument-hint: "[component|theme|layout|scaffold|audit] [description or URL]"
 ---
@@ -40,6 +35,8 @@ Material's [Google I/O 2026 update](https://m3.material.io/blog/whats-new-at-io2
 
 **Relationship with frontend-design skill:**
 When both skills are active, MD3 provides the design system (tokens, components, layout rules) and frontend-design provides creative direction within those constraints. MD3 rules take precedence for component structure and token usage. Note: Roboto/Roboto Flex IS the correct default typeface in MD3 — the frontend-design guidance to avoid Roboto does not apply when implementing MD3.
+
+Use only the target platform and relevant reference sections. Do not read all references or invoke other design skills by default. The audit/scoring workflow applies only to requested Material compliance audits.
 
 ## Decision Tree
 
@@ -505,7 +502,7 @@ More patterns: `references/navigation-patterns.md`, `references/layout-and-respo
 **Never do these when implementing MD3:**
 
 - **Mix MD2 and MD3 libraries**: Don't use `@material/mdc-*` (MD2) alongside `@material/web` (MD3). They have incompatible APIs and styling.
-- **Hardcode colors**: Always use `var(--md-sys-color-*)` tokens, never raw hex/rgb values. Hardcoded colors break dynamic theming, dark mode, and contrast adjustment.
+- **Hardcode colors**: Use existing semantic tokens: `MaterialTheme.colorScheme` in Compose, CSS variables on web. Define raw values in the theme/token layer when needed. Hardcoded colors break dynamic theming, dark mode, and contrast adjustment.
 - **Ignore tonal pairing**: Only combine colors in their intended pairs (e.g., `primary` + `on-primary`, `surface-container` + `on-surface`). Arbitrary pairings break contrast in dynamic color and high contrast modes.
 - **Use `outline` for dividers**: Use `outline-variant` for dividers. `outline` is for important boundaries like text field borders.
 - **Import all of @material/web**: Always import individual component modules. Barrel imports include every component and destroy bundle size.
@@ -513,7 +510,7 @@ More patterns: `references/navigation-patterns.md`, `references/layout-and-respo
 - **Use shadows for elevation by default**: MD3 communicates elevation through tonal surface color, not shadows. Only add shadows when elements need extra separation from busy backgrounds.
 - **Apply frontend-design "avoid Roboto" rule**: On **Android**, **Roboto** is the default Material typeface; **web** often uses Roboto or Roboto Flex with MD3 tokens. Replace only when intentionally customizing the type scale.
 - **Assume SSR compatibility**: `@material/web` uses Web Components (custom elements) which require JavaScript to render. They won't produce meaningful HTML in SSR without additional hydration strategies.
-- **Ignore foldables and large screens**: MD3 is designed for all screen sizes. Don't ship phone-only layouts — use canonical layouts, multi-pane at 600dp+, and test on foldable/tablet emulators. Place no interactive content across the fold/hinge.
+- **Ignore foldables and large screens**: MD3 is designed for all screen sizes. For adaptive layout work, use the existing navigation architecture and validate affected supported window sizes. Do not introduce multi-pane navigation or a device test matrix for an unrelated local fix. Place no interactive content across the fold/hinge.
 - **Stretch content to fill wide screens**: On Large (1200dp+) and Extra-large (1600dp+) windows, constrain content to a max width (840–1040dp). Endless-width text lines are unreadable.
 
 ## Platform Notes

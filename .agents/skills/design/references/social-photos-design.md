@@ -1,6 +1,6 @@
 # Social Photos Design Guide
 
-Design social media images via HTML/CSS rendering + screenshot export. Orchestrates `ui-ux-pro-max`, `brand`, `design-system`, and `chrome-devtools` skills.
+Design social media images via HTML/CSS rendering + screenshot export. Use available design/rendering tools only as needed for the requested asset.
 
 ## Platform Sizes
 
@@ -22,16 +22,9 @@ Design social media images via HTML/CSS rendering + screenshot export. Orchestra
 
 ## Workflow
 
-### Step 1: Activate Project Management
+### Step 1: Set Scope
 
-Invoke `project-management` skill to create persistent TODO tasks via Claude's native task orchestration. Break down into:
-- Requirement analysis task
-- Idea generation task(s)
-- HTML design task(s) — can parallelize per size/variant
-- Screenshot export task(s) — can parallelize per file
-- Report generation task
-
-Spawn parallel subagents for independent tasks (e.g., multiple HTML files for different sizes).
+Use the requested sizes and deliverables. Routine asset creation does not require a project-management skill, persistent task files, or delegation.
 
 ### Step 2: Analyze Requirements
 
@@ -51,17 +44,13 @@ Create 3-5 concept ideas that:
 - Vary in composition, color, typography approach
 - Align with brand guidelines if available
 
-Present ideas to user via `AskUserQuestion` for approval before designing.
+Use a suitable concept to produce the first draft. Ask for concept approval only when the user requested staged review or an unresolved choice materially changes the deliverable.
 
 ### Step 4: Design HTML Files
 
-Activate these skills in sequence:
+Reuse existing brand guidance and tokens. Choose one relevant available design workflow only if needed; do not invoke skills randomly or require a chain of optional dependencies.
 
-1. **`/ckm:brand`** — Extract brand colors, fonts, voice from user's project
-2. **`/ckm:design-system`** — Get design tokens (spacing, typography scale, color palette)
-3. **Randomly invoke ONE of:** `/ck:ui-ux-pro-max` OR `/ck:frontend-design` — for layout, hierarchy, visual balance. Pick one at random each run for design variety.
-
-For each approved idea + each target size, create an HTML file:
+Create only the requested combinations of selected ideas and target sizes:
 
 ```
 output/social-photos/

@@ -178,7 +178,7 @@ assets/logos/
 5. Review against these guidelines
 
 ### Requesting Approval
-For non-standard uses:
+Only when the project actually has a brand approval process, apply that process to non-standard uses. A personal project does not acquire a new approval requirement from this template. Reuse an already approved exception within its scope. Example process:
 1. Submit mockup showing proposed usage
 2. Include context (medium, audience)
 3. Wait for brand team approval

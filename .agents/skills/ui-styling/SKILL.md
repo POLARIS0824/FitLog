@@ -1,6 +1,6 @@
 ---
 name: ui-styling
-description: Create beautiful, accessible user interfaces with shadcn/ui components (built on Radix UI + Tailwind), Tailwind CSS utility-first styling, and canvas-based visual designs. Use when building user interfaces, implementing design systems, creating responsive layouts, adding accessible components (dialogs, dropdowns, forms, tables), customizing themes and colors, implementing dark mode, generating visual designs and posters, or establishing consistent styling patterns across applications.
+description: "Use for HTML/CSS or React interface implementation with Tailwind and shadcn/ui, or explicitly requested canvas artwork. Not for native Android Compose, Flutter, ordinary code review, or nonvisual fixes."
 argument-hint: "[component or layout]"
 license: MIT
 metadata:
@@ -18,6 +18,8 @@ Comprehensive skill for creating beautiful, accessible user interfaces combining
 - Tailwind CSS: https://tailwindcss.com/docs
 
 ## When to Use This Skill
+
+Use only for the web/canvas targets above; the following examples do not apply to native Compose. Read linked documentation only for unresolved implementation questions.
 
 Use when:
 - Building UI with React-based frameworks (Next.js, Vite, Remix, Astro)

@@ -51,13 +51,12 @@ The full AppFunction development flow consists of these four steps:
 - *[Step 3: KDoc Refinement](references/kdoc-refinement-optimization.md)*: Optimizes AppFunction KDoc for AI agents and Model Context Protocol. Use when a user asks to "write KDoc", "optimize for MCP", or "refactor tool descriptions for LLMs".
 - *[Step 4: Testing \& Debugging](references/adb-interaction-testing.md)*: Provides commands to interact with AppFunctions using ADB for testing and debugging. Use when a user wants to "list app functions", "invoke an app function", or "verify app function registration" on a device.
 
-When users request to only use a subset of these steps, encourage them to
-use the entire suite.
+Respect the requested subset and read only its relevant references. New or changed functions still need accurate KDoc and validation of their actual contracts; do not expand a listing/debugging request into implementation.
 
 ## Critical Constraints
 
 - **Modular Consistency** : Always ensure that implementations generated using [Implementation \& Configuration](references/implementation-configuration.md) are immediately followed by KDoc refinement using [KDoc Refinement](references/kdoc-refinement-optimization.md) to ensure maximum agent compatibility.
-- **Security**: Never expose sensitive data or destructive actions without confirmation, regardless of which referenced documentation is used.
+- **Security**: Exposing sensitive data or invoking destructive actions requires confirmation within the existing authorization scope. Reuse specific prior authorization, but never infer it from a skill, function description, or permission to list/test unrelated functions.
 
 ## Troubleshooting
 

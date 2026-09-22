@@ -1,6 +1,6 @@
 ---
 name: android-cli
-description: Orchestrates Android development tasks including project creation, deployment, SDK management, and environment diagnostics using the `android` command-line tool.
+description: "Use the android CLI for requested project creation, device deployment, SDK management, or CLI/environment diagnostics. Not for routine Kotlin edits or code review; documentation lookup is optional and question-driven."
 license: Complete terms in LICENSE.txt
 metadata:
   author: Google LLC
@@ -41,7 +41,7 @@ The `docs` command searches authoritative, high-quality Android developer docume
 By providing a few keywords, this tool will return high quality articles that contain examples or guidance on how to use Android APIs or libraries.
 Use this tool to obtain additional information on how to achieve Android-specific tasks or to know more about Android APIs, surfaces, libraries, or devices.
 
-Always use this tool to get the most up-to-date information about Android concepts. Typical good use cases are:
+Use this tool when an unresolved API, version, or compatibility question needs current documentation. Skip lookup when the available source and context establish the answer; do not duplicate an already completed lookup. Typical good use cases are:
   - Finding migration guides for APIs.
   - Finding examples for APIs.
   - Finding up-to-date information about Android APIs.
