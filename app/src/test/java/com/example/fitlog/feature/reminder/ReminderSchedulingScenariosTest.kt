@@ -24,7 +24,12 @@ import org.junit.rules.TemporaryFolder
 import java.util.UUID
 
 /**
- * 训练提醒调度场景的集成回归测试。
+ * 训练提醒调度意图与调用契约测试。
+ *
+ * 注意：本测试验证的是各调用方（FitLogApplication 启动恢复、ReminderViewModel 用户交互、Worker 自链）
+ * 与 [ReminderScheduler] 接口之间的契约与参数意图，使用测试替身 [RecordingReminderScheduler] 进行记录与断言，
+ * 不涉及真实的 WorkManager 运行时与底层作业状态。
+ * 针对真实 WorkManager 队列行为与 Android 环境兼容性的验证，见 androidTest 下的 WorkManagerReminderSchedulerAndroidTest。
  *
  * 覆盖任务要求的 5 种核心场景：
  * 1. 已有到期任务时启动：启动恢复调用 [ReminderScheduler.recoverSchedule]（KEEP 语义），

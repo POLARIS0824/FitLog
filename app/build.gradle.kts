@@ -118,12 +118,14 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.junit)
+    testImplementation(libs.androidx.work.testing)
     // androidTest 类路径必须单独挂 BOM：implementation 的 platform 不传导过来，
     // 缺了它 ui-test-junit4（目录里刻意不写版本，由 BOM 供给）解析不出版本号，
     // 整个 androidTest 源集无法构建
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.work.testing)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
