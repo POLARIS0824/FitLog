@@ -15,6 +15,7 @@ import androidx.room.PrimaryKey
  * @property reps 次数
  * @property setType 组类型（[com.example.fitlog.model.SetType] 枚举名）：
  *     "WARMUP" 热身组 / "WORKING" 正式组；容量类统计只累加正式组
+ * @property isCompleted 是否由用户明确完成；预填不等于完成
  */
 @Entity(
     tableName = "set_logs",
@@ -36,4 +37,5 @@ data class SetLogEntity(
     val weightKg: Float,
     val reps: Int,
     val setType: String = "WORKING",
+    val isCompleted: Boolean = true,
 )

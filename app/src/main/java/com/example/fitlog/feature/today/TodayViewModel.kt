@@ -15,6 +15,11 @@ import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.model.ai.CoachInsight
 import com.example.fitlog.model.ai.CoachInsightContext
 import com.example.fitlog.model.user.UserProfile
+import com.example.fitlog.ui.components.DayWorkoutStatus
+import com.example.fitlog.ui.components.WeeklyTrackerDay
+import com.example.fitlog.util.ExerciseDisplayName
+import com.example.fitlog.util.VolumeAggregator
+import com.example.fitlog.util.VolumeFormatter
 import com.example.fitlog.util.guard as guardFlow
 import com.example.fitlog.util.log.FitLog
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,6 +44,9 @@ import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 import javax.inject.Inject
 
 /**
@@ -377,11 +385,59 @@ class TodayViewModel @Inject constructor(
             itemsMap = itemsMap,
         )
 
+        val weekDays = (0L..6L).map { offset ->
+            val date = weekStart.plusDays(offset)
+            val completedWorkout = snapshot.weekWorkouts.firstOrNull {
+                it.date == date && it.isCountable
+            }
+            val status = when {
+                completedWorkout != null -> DayWorkoutStatus.COMPLETED
+                date.isAfter(today) -> DayWorkoutStatus.FUTURE
+                date == today -> DayWorkoutStatus.PENDING
+                else -> DayWorkoutStatus.REST
+            }
+            WeeklyTrackerDay(
+                date = date,
+                dayLabel = date.dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.SIMPLIFIED_CHINESE),
+                isToday = date == today,
+                status = status,
+                workoutTitle = completedWorkout?.exercises?.firstOrNull()?.name,
+            )
+        }
+
+        val recentWorkout = materials.latestWorkout
+            ?.takeIf { it.isCountable }
+            ?.let { workout ->
+                val durationMinutes = if (workout.startedAt != null && workout.endedAt != null) {
+                    ((workout.endedAt - workout.startedAt).coerceAtLeast(0L) / 60_000L).toInt()
+                } else {
+                    null
+                }
+                val title = workout.exercises.firstOrNull()?.let { exercise ->
+                    ExerciseDisplayName.getDisplayName(exercise.exerciseKey, exercise.name)
+                } ?: "训练记录"
+                RecentWorkoutState(
+                    workoutId = workout.id,
+                    title = title,
+                    supportingText = buildString {
+                        append(workout.date.format(DateTimeFormatter.ofPattern("M月d日", Locale.SIMPLIFIED_CHINESE)))
+                        durationMinutes?.takeIf { it > 0 }?.let { append(" · ${it} 分钟") }
+                    },
+                    setCount = VolumeAggregator.workingSetCountOf(workout),
+                    volumeText = VolumeFormatter.formatVolume(VolumeAggregator.workingVolumeOf(workout)),
+                )
+            }
+
         return TodayUiState(
             coachInsight = coachInsight,
             weekProgress = weekProgress,
             todayPlan = todayPlan,
             uiState = UiState(),
+            dateLabel = today.format(
+                DateTimeFormatter.ofPattern("M月d日 · EEEE", Locale.SIMPLIFIED_CHINESE),
+            ),
+            weekDays = weekDays,
+            recentWorkout = recentWorkout,
         )
     }
 

@@ -2,12 +2,25 @@ package com.example.fitlog.feature.today
 
 import com.example.fitlog.model.ai.CoachAction
 import com.example.fitlog.ui.components.RingSegment
+import com.example.fitlog.ui.components.WeeklyTrackerDay
 
 data class TodayUiState(
     val coachInsight: CoachInsightState,
     val weekProgress: WeekProgressState,
     val todayPlan: TodayPlanState,
     val uiState: UiState,
+    val dateLabel: String = "",
+    val weekDays: List<WeeklyTrackerDay> = emptyList(),
+    val recentWorkout: RecentWorkoutState? = null,
+)
+
+/** Today 页面最近一条已完成训练的紧凑摘要。 */
+data class RecentWorkoutState(
+    val workoutId: Long,
+    val title: String,
+    val supportingText: String,
+    val setCount: Int,
+    val volumeText: String,
 )
 
 /**
@@ -117,6 +130,14 @@ data class TodayPlanState(
     val status: PlanStatus = PlanStatus.NOT_STARTED,
     /** 今日训练包含的计划动作清单 */
     val exercises: List<TodayPlanExerciseState> = emptyList(),
+    /** 进行中训练的开始时间，用于 UI 实时时长。 */
+    val startedAtMs: Long? = null,
+    /** 当前已确认完成的有效正式组数。 */
+    val completedWorkingSets: Int = 0,
+    /** 计划目标正式组数；自由训练为 0。 */
+    val targetWorkingSets: Int = 0,
+    /** 当前未完成组的动作与处方摘要。 */
+    val nextSetText: String? = null,
 ) {
     /** 动态导出的按钮显示文字 */
     val buttonText: String

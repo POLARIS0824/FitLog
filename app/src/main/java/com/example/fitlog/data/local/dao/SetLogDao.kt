@@ -64,6 +64,10 @@ interface SetLogDao {
     )
     suspend fun toggleTypeById(id: Long)
 
+    /** 按数据库当前值原子翻转完成状态，避免快速重复点击覆盖新状态。 */
+    @Query("UPDATE set_logs SET isCompleted = NOT isCompleted WHERE id = :id")
+    suspend fun toggleCompletedById(id: Long)
+
     /**
      * 删除指定组记录。
      */

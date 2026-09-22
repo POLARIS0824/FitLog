@@ -8,30 +8,16 @@ import com.example.fitlog.model.Workout
 import com.example.fitlog.model.WorkoutPlan
 import com.example.fitlog.model.resolvedId
 import com.example.fitlog.util.ExerciseDisplayName
+import com.example.fitlog.util.VolumeAggregator
 import com.example.fitlog.util.VolumeFormatter
 
 /**
- * 今日训练计划卡片（[TodayPlanState]）的组装器。
+ * Today 训练主卡的纯状态组装器。
  *
- * 纯函数对象：由激活计划、下一个未完成训练日与今日训练记录推导卡片状态机。
- * 状态优先级：NO_PLAN →（计划全完成）COMPLETED →（今日已关联）COMPLETED
- * → IN_PROGRESS → NOT_STARTED。
- *
- * IN_PROGRESS 分支由训练执行流驱动。
+ * 进行中会话优先于日期与计划状态，避免跨过零点或自由训练时主卡丢失当前会话。
  */
 object TodayPlanAssembler {
 
-    /**
-     * 组装今日训练计划卡片状态。
-     *
-     * @param activePlan 当前激活计划（无则为 null）
-     * @param nextSession 激活计划的下一个未完成训练日（全部完成为 null）
-     * @param todayWorkouts 今日训练记录
-     * @param allWorkouts 全部训练历史（用于提取动作最近使用重量）
-     * @param catalog 动作库目录
-     * @param checkedExerciseKeys 手动打卡选中的动作行唯一 key 集合
-     *   （exerciseKey#order，见 [buildExerciseStates]）
-     */
     fun assemble(
         activePlan: WorkoutPlan?,
         nextSession: PlannedSession?,
@@ -40,46 +26,48 @@ object TodayPlanAssembler {
         catalog: List<Exercise> = emptyList(),
         checkedExerciseKeys: Set<String> = emptySet(),
     ): TodayPlanState {
-        // 1. 无激活计划
+        val inProgressWorkout = (todayWorkouts + allWorkouts)
+            .asSequence()
+            .distinctBy { it.id }
+            .filter { it.startedAt != null && it.endedAt == null }
+            .maxByOrNull { it.startedAt ?: Long.MIN_VALUE }
+
+        if (inProgressWorkout != null) {
+            val sourceSession = activePlan?.sessions?.firstOrNull {
+                it.id == inProgressWorkout.planSessionId
+            } ?: nextSession
+
+            return if (activePlan != null && sourceSession != null) {
+                buildPlannedInProgress(
+                    plan = activePlan,
+                    session = sourceSession,
+                    workout = inProgressWorkout,
+                    allWorkouts = allWorkouts,
+                    checkedExerciseKeys = checkedExerciseKeys,
+                )
+            } else {
+                buildFreeInProgress(inProgressWorkout)
+            }
+        }
+
         if (activePlan == null) {
             return TodayPlanState(
                 tagText = "无计划",
                 title = "还没有训练计划",
                 subtitle = "选择一套计划开始系统训练",
-                progress = 0f,
                 status = PlanStatus.NO_PLAN,
-                exercises = emptyList(),
             )
         }
 
-        val allPlanSessionsLinkedAsCompleted = activePlan.sessions.isNotEmpty() &&
-            activePlan.sessions.all { it.completedWorkoutId != null }
-
-        // 2. 计划全部训练日已完成
-        if (nextSession == null && allPlanSessionsLinkedAsCompleted) {
-            return TodayPlanState(
-                planId = activePlan.id,
-                tagText = formatPlanTag(activePlan, null),
-                title = activePlan.name,
-                subtitle = "全部训练日已完成",
-                progress = 1f,
-                status = PlanStatus.COMPLETED,
-                workoutId = null,
-                exercises = emptyList(),
-            )
-        }
-
-        val todayWorkoutIds = todayWorkouts.map { it.id }.toSet()
+        val todayWorkoutIds = todayWorkouts.mapTo(mutableSetOf()) { it.id }
         val completedToday = activePlan.sessions.firstOrNull {
             it.completedWorkoutId != null && it.completedWorkoutId in todayWorkoutIds
         }
         val completedTodayWorkout = completedToday?.completedWorkoutId?.let { id ->
             todayWorkouts.firstOrNull { it.id == id }
         }
-
-        // 3. 今日已关联且已结束完成
         if (completedToday != null && completedTodayWorkout?.endedAt != null) {
-            val exerciseStates = buildExerciseStates(
+            val exercises = buildExerciseStates(
                 session = completedToday,
                 allWorkouts = allWorkouts,
                 checkedKeys = checkedExerciseKeys,
@@ -93,136 +81,155 @@ object TodayPlanAssembler {
                 title = completedToday.name,
                 subtitle = sessionSubtitle(completedToday),
                 progress = 1f,
-                workoutId = completedToday.completedWorkoutId,
+                workoutId = completedTodayWorkout.id,
                 status = PlanStatus.COMPLETED,
-                exercises = exerciseStates,
+                exercises = exercises,
+                completedWorkingSets = VolumeAggregator.workingSetCountOf(completedTodayWorkout),
+                targetWorkingSets = exercises.sumOf { it.targetSets },
             )
         }
 
-        // 4. 若无待执行训练日（如空计划或非全部完成的异常边界），降级为 NOT_STARTED
+        val allPlanSessionsLinkedAsCompleted = activePlan.sessions.isNotEmpty() &&
+            activePlan.sessions.all { it.completedWorkoutId != null }
+        if (nextSession == null && allPlanSessionsLinkedAsCompleted) {
+            return TodayPlanState(
+                planId = activePlan.id,
+                tagText = formatPlanTag(activePlan, null),
+                title = activePlan.name,
+                subtitle = "全部训练日已完成",
+                progress = 1f,
+                status = PlanStatus.COMPLETED,
+            )
+        }
+
         if (nextSession == null) {
             return TodayPlanState(
                 planId = activePlan.id,
                 tagText = formatPlanTag(activePlan, null),
                 title = activePlan.name,
                 subtitle = "暂无待执行训练日",
-                progress = 0f,
                 status = PlanStatus.NOT_STARTED,
-                exercises = emptyList(),
             )
         }
 
-        val tagText = formatPlanTag(activePlan, nextSession)
-        val inProgressWorkout = todayWorkouts.firstOrNull { it.startedAt != null && it.endedAt == null }
-        val exerciseStates = buildExerciseStates(
+        val exercises = buildExerciseStates(
             session = nextSession,
             allWorkouts = allWorkouts,
             checkedKeys = checkedExerciseKeys,
             isAllCompleted = false,
-            inProgressWorkout = inProgressWorkout,
+            inProgressWorkout = null,
         )
-
-        val totalTargetSets = exerciseStates.sumOf { it.targetSets }
-        val totalLoggedWorkingSets = exerciseStates.sumOf { it.loggedWorkingSets }
-        val progress = if (totalTargetSets > 0) {
-            (totalLoggedWorkingSets.toFloat() / totalTargetSets).coerceIn(0f, 1f)
-        } else {
-            0f
-        }
-
-        // 进行中状态：由进行中训练记录驱动（即使进度达到 100%，未点击结束前仍为 IN_PROGRESS）
-        if (inProgressWorkout != null) {
-            return TodayPlanState(
-                planId = activePlan.id,
-                sessionId = nextSession.id,
-                tagText = tagText,
-                title = nextSession.name,
-                subtitle = sessionSubtitle(nextSession),
-                progress = progress,
-                workoutId = inProgressWorkout.id,
-                status = PlanStatus.IN_PROGRESS,
-                exercises = exerciseStates,
-            )
-        }
-
-        // 5. 未开始
         return TodayPlanState(
             planId = activePlan.id,
             sessionId = nextSession.id,
-            tagText = tagText,
+            tagText = formatPlanTag(activePlan, nextSession),
             title = nextSession.name,
             subtitle = sessionSubtitle(nextSession),
-            progress = 0f,
             status = PlanStatus.NOT_STARTED,
-            exercises = exerciseStates,
+            exercises = exercises,
+            targetWorkingSets = exercises.sumOf { it.targetSets },
         )
     }
 
-    /** 格式化训练分化/计划标签，如 "推拉腿 · 第3天"。 */
-    private fun formatPlanTag(plan: WorkoutPlan, session: PlannedSession?): String {
-        val cleanPlanName = plan.name
-            .substringBefore(" · ")
-            .substringBefore(" PPL")
-            .trim()
-        return if (session != null) {
-            "$cleanPlanName · 第${session.dayNumber}天"
-        } else {
-            cleanPlanName
-        }
+    private fun buildPlannedInProgress(
+        plan: WorkoutPlan,
+        session: PlannedSession,
+        workout: Workout,
+        allWorkouts: List<Workout>,
+        checkedExerciseKeys: Set<String>,
+    ): TodayPlanState {
+        val exercises = buildExerciseStates(
+            session = session,
+            allWorkouts = allWorkouts,
+            checkedKeys = checkedExerciseKeys,
+            isAllCompleted = false,
+            inProgressWorkout = workout,
+        )
+        val targetSets = exercises.sumOf { it.targetSets }
+        val cappedCompletedSets = exercises.sumOf { minOf(it.loggedWorkingSets, it.targetSets) }
+        return TodayPlanState(
+            planId = plan.id,
+            sessionId = session.id,
+            tagText = formatPlanTag(plan, session),
+            title = session.name,
+            subtitle = sessionSubtitle(session),
+            progress = if (targetSets > 0) cappedCompletedSets.toFloat() / targetSets else 0f,
+            workoutId = workout.id,
+            status = PlanStatus.IN_PROGRESS,
+            exercises = exercises,
+            startedAtMs = workout.startedAt,
+            completedWorkingSets = VolumeAggregator.workingSetCountOf(workout),
+            targetWorkingSets = targetSets,
+            nextSetText = nextSetText(workout),
+        )
     }
 
-    /** 训练日副标题："6 个动作 · 60 分钟"（无目标时长时省略时长段）。 */
+    private fun buildFreeInProgress(workout: Workout): TodayPlanState = TodayPlanState(
+        tagText = "自由训练 · 进行中",
+        title = "自由训练",
+        subtitle = "${workout.exercises.size} 个动作",
+        workoutId = workout.id,
+        status = PlanStatus.IN_PROGRESS,
+        startedAtMs = workout.startedAt,
+        completedWorkingSets = VolumeAggregator.workingSetCountOf(workout),
+        nextSetText = nextSetText(workout),
+    )
+
+    private fun nextSetText(workout: Workout): String {
+        workout.exercises.forEach { exercise ->
+            val pendingSet = exercise.sets.firstOrNull { !it.isCompleted }
+            if (pendingSet != null) {
+                val name = ExerciseDisplayName.getDisplayName(exercise.exerciseKey, exercise.name)
+                return if (pendingSet.reps > 0 && pendingSet.weightKg.isFinite() && pendingSet.weightKg >= 0f) {
+                    "$name · 下一组 ${VolumeFormatter.formatWeightKg(pendingSet.weightKg)} kg × ${pendingSet.reps} 次"
+                } else {
+                    "$name · 下一组待填写"
+                }
+            }
+        }
+        return "所有已填写组均已完成"
+    }
+
+    private fun formatPlanTag(plan: WorkoutPlan, session: PlannedSession?): String {
+        val cleanPlanName = plan.name.substringBefore(" · ").substringBefore(" PPL").trim()
+        return if (session != null) "$cleanPlanName · 第${session.dayNumber}天" else cleanPlanName
+    }
+
     private fun sessionSubtitle(session: PlannedSession): String {
         val base = "${session.exercises.size} 个动作"
         return session.targetDurationMinutes?.let { "$base · $it 分钟" } ?: base
     }
 
-    /** 构建动作渲染项列表。 */
     private fun buildExerciseStates(
         session: PlannedSession,
         allWorkouts: List<Workout>,
         checkedKeys: Set<String>,
         isAllCompleted: Boolean,
         inProgressWorkout: Workout?,
-    ): List<TodayPlanExerciseState> {
-        return session.exercises
-            .sortedBy { it.order }
-            .map { item ->
-                // 行唯一 key：计划课次允许同一动作出现多次（如同动作两个不同处方），
-                // 以 exerciseKey 作行 id/打卡 key 会让一次点击同时勾掉两行
-                val rowKey = exerciseRowKey(item)
-                val loggedWorkingSets = if (isAllCompleted) {
-                    item.targetSets
-                } else {
-                    countLoggedWorkingSets(inProgressWorkout, session, item)
-                }
-                val targetSets = item.targetSets
-                val targetReached = isAllCompleted || (targetSets > 0 && loggedWorkingSets >= targetSets)
-                val manuallyChecked = rowKey in checkedKeys
-                val weightText = findRecentWeight(allWorkouts, item.exerciseKey, item.exerciseName)
-
-                TodayPlanExerciseState(
-                    id = rowKey,
-                    exerciseKey = item.exerciseKey,
-                    name = ExerciseDisplayName.getDisplayName(item.exerciseKey, item.exerciseName),
-                    setsRepsText = formatSetsReps(item),
-                    weightText = weightText,
-                    loggedWorkingSets = loggedWorkingSets,
-                    targetSets = targetSets,
-                    targetReached = targetReached,
-                    manuallyChecked = manuallyChecked,
-                )
+    ): List<TodayPlanExerciseState> = session.exercises
+        .sortedBy { it.order }
+        .map { item ->
+            val rowKey = exerciseRowKey(item)
+            val loggedWorkingSets = if (isAllCompleted) {
+                item.targetSets
+            } else {
+                countLoggedWorkingSets(inProgressWorkout, session, item)
             }
-    }
+            TodayPlanExerciseState(
+                id = rowKey,
+                exerciseKey = item.exerciseKey,
+                name = ExerciseDisplayName.getDisplayName(item.exerciseKey, item.exerciseName),
+                setsRepsText = formatSetsReps(item),
+                weightText = findRecentWeight(allWorkouts, item.exerciseKey, item.exerciseName),
+                loggedWorkingSets = loggedWorkingSets,
+                targetSets = item.targetSets,
+                targetReached = isAllCompleted || (item.targetSets > 0 && loggedWorkingSets >= item.targetSets),
+                manuallyChecked = rowKey in checkedKeys,
+            )
+        }
 
-    /**
-     * 动作行唯一 key（exerciseKey + 行序）：打卡集合与渲染 id 的统一寻址键。
-     * exerciseKey 只用于动作匹配（进行中会话完成推导、历史重量查找、点击跳转）。
-     */
-    private fun exerciseRowKey(item: PlannedExerciseItem): String =
-        "${item.exerciseKey}#${item.order}"
+    private fun exerciseRowKey(item: PlannedExerciseItem): String = "${item.exerciseKey}#${item.order}"
 
-    /** 格式化组数与次数处方。 */
     private fun formatSetsReps(item: PlannedExerciseItem): String {
         val sets = item.targetSets
         val min = item.targetRepsMin
@@ -236,7 +243,6 @@ object TodayPlanAssembler {
         }
     }
 
-    /** 检查在进行中会话中该动作已录入的有效正式组数。仅按稳定业务标识 [PlannedExerciseItem.resolvedId] 精确匹配。 */
     private fun countLoggedWorkingSets(
         workout: Workout?,
         session: PlannedSession,
@@ -244,27 +250,27 @@ object TodayPlanAssembler {
     ): Int {
         if (workout == null) return 0
         val resolvedId = item.resolvedId(session.id)
-        val matchingLogs = workout.exercises.filter { it.plannedExerciseId == resolvedId }
-        return matchingLogs.flatMap { it.sets }
-            .count { it.setType == SetType.WORKING && it.reps > 0 }
+        return workout.exercises
+            .filter { it.plannedExerciseId == resolvedId }
+            .flatMap { it.sets }
+            .count { it.isCompleted && it.setType == SetType.WORKING && it.reps > 0 }
     }
 
-    /** 从历史记录中查找该动作最近使用的最大重量。 */
     private fun findRecentWeight(
         allWorkouts: List<Workout>,
         exerciseKey: String,
         exerciseName: String?,
     ): String? {
-        val maxWeight = allWorkouts
-            .asSequence()
-            .sortedByDescending { it.date }
+        val maxWeight = allWorkouts.asSequence()
+            .sortedWith(compareByDescending<Workout> { it.date }.thenByDescending { it.endedAt ?: 0L })
             .flatMap { it.exercises }
-            .firstOrNull { it.exerciseKey == exerciseKey || (exerciseName != null && it.name.equals(exerciseName, ignoreCase = true)) }
+            .firstOrNull {
+                it.exerciseKey == exerciseKey ||
+                    (exerciseName != null && it.name.equals(exerciseName, ignoreCase = true))
+            }
             ?.sets
-            ?.filter { it.setType == SetType.WORKING && it.weightKg > 0f }
+            ?.filter { it.isCompleted && it.setType == SetType.WORKING && it.weightKg > 0f }
             ?.maxOfOrNull { it.weightKg }
-
         return maxWeight?.let { "${VolumeFormatter.formatWeightKg(it)} kg" }
     }
 }
-

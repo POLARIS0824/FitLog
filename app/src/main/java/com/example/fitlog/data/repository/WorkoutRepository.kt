@@ -227,6 +227,7 @@ class WorkoutRepository @Inject constructor(
                                 weightKg = 0f,
                                 reps = 0,
                                 setType = SetType.WORKING.name,
+                                isCompleted = false,
                             ),
                         )
                     }
@@ -266,6 +267,7 @@ class WorkoutRepository @Inject constructor(
             weightKg = weightKg,
             reps = reps,
             setType = setType.name,
+            isCompleted = false,
         ),
     )
 
@@ -297,6 +299,7 @@ class WorkoutRepository @Inject constructor(
                     weightKg = 0f,
                     reps = 0,
                     setType = SetType.WORKING.name,
+                    isCompleted = false,
                 ),
             )
             if (setId == -1L) return@withTransaction -1L
@@ -318,6 +321,11 @@ class WorkoutRepository @Inject constructor(
     /** 翻转会话内一组的组类型（WORKING ⇄ WARMUP，SQL 侧原子取反）。 */
     suspend fun toggleSessionSetType(setId: Long) {
         setLogDao.toggleTypeById(setId)
+    }
+
+    /** 翻转会话内一组的明确完成状态。 */
+    suspend fun toggleSessionSetCompleted(setId: Long) {
+        setLogDao.toggleCompletedById(setId)
     }
 
     /** 删除会话内一组。 */
@@ -368,7 +376,9 @@ class WorkoutRepository @Inject constructor(
                 .mapNotNull { log ->
                     // @Relation 无 ORDER BY：按持久化组号显式排序后再清洗重排，
                     // 保证重插后的 setNumber 连续且与录入顺序一致
-                    log to log.sets.sortedBy { it.setNumber }.filter { it.reps > 0 }
+                    log to log.sets.sortedBy { it.setNumber }.filter {
+                        it.isCompleted && it.reps > 0 && it.weightKg.isFinite() && it.weightKg >= 0f
+                    }
                 }
                 .filter { (_, sets) -> sets.isNotEmpty() }
             val hasWorkingSet = cleaned.any { (_, sets) ->
@@ -396,6 +406,7 @@ class WorkoutRepository @Inject constructor(
                             weightKg = set.weightKg,
                             reps = set.reps,
                             setType = set.setType,
+                            isCompleted = true,
                         )
                     },
                 )

@@ -41,7 +41,7 @@ object TrainingLevelCalculator {
                 // 口径：只统计有实际次数的正式组——热身组不计入 1RM/容量；
                 // reps ≤ 0 的占位/失败组同样不计（Epley 会退化为重量本身，
                 // 与 [bestOneRMSet] 的过滤口径同源，杜绝同文件两处实现漂移）
-                val workingSets = exercise.sets.filter { it.setType == SetType.WORKING && it.reps > 0 }
+                val workingSets = exercise.sets.filter { it.isCompleted && it.setType == SetType.WORKING && it.reps > 0 }
                 for (set in workingSets) {
                     // Epley 公式：1RM ≈ weight × (1 + reps / 30)
                     val epleyOneRM = set.weightKg * (1 + set.reps / 30.0)
@@ -76,5 +76,5 @@ object TrainingLevelCalculator {
      * @return 估算 1RM 最大的组；无有效组（reps 全为 0 或空列表）时返回 null
      */
     fun bestOneRMSet(sets: List<SetLog>): SetLog? =
-        sets.filter { it.reps > 0 }.maxByOrNull { it.weightKg * (1 + it.reps / 30.0) }
+        sets.filter { it.isCompleted && it.reps > 0 }.maxByOrNull { it.weightKg * (1 + it.reps / 30.0) }
 }

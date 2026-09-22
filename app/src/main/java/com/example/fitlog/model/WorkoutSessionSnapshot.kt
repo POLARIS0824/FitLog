@@ -52,5 +52,6 @@ data class WorkoutSessionSnapshot(
         val weightKg: Float,
         val reps: Int,
         val setType: SetType,
+        val isCompleted: Boolean,
     )
 }

@@ -386,6 +386,29 @@ class WorkoutViewModel @Inject constructor(
         }
     }
 
+    /** 标记完成前校验数值；已完成组可随时撤销。 */
+    fun toggleSetCompleted(setId: Long) {
+        val set = activeSession.value?.exercises
+            ?.asSequence()?.flatMap { it.sets.asSequence() }
+            ?.firstOrNull { it.id == setId } ?: return
+        if (!set.isCompleted && (!set.weightKg.isFinite() || set.weightKg < 0f || set.reps <= 0)) {
+            _message.update { "请先填写有效的重量和次数" }
+            return
+        }
+        viewModelScope.launch {
+            sessionMutex.withLock {
+                try {
+                    workoutRepository.toggleSessionSetCompleted(setId)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    FitLog.w(TAG, "切换组完成状态失败", e)
+                    _message.update { "操作失败，请重试" }
+                }
+            }
+        }
+    }
+
     /** 删除一组。 */
     fun removeSet(setId: Long) {
         viewModelScope.launch {
@@ -467,6 +490,7 @@ class WorkoutViewModel @Inject constructor(
                                     weightKg = set.weightKg,
                                     reps = set.reps,
                                     setType = set.setType,
+                                    isCompleted = set.isCompleted,
                                 )
                             },
                     )

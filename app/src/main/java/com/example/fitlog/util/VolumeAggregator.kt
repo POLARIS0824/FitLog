@@ -44,7 +44,7 @@ object VolumeAggregator {
      */
     fun workingVolumeOf(log: ExerciseLog): Double =
         log.sets
-            .filter { it.setType == SetType.WORKING }
+            .filter { it.isCompleted && it.setType == SetType.WORKING && it.reps > 0 }
             .sumOf { (it.weightKg * it.reps).toDouble() }
 
     /**
@@ -55,7 +55,7 @@ object VolumeAggregator {
      * 0 次组天然零容量不同，组数必须显式过滤）。
      */
     fun workingSetCountOf(log: ExerciseLog): Int =
-        log.sets.count { it.setType == SetType.WORKING && it.reps > 0 }
+        log.sets.count { it.isCompleted && it.setType == SetType.WORKING && it.reps > 0 }
 
     /**
      * 按日期聚合的正式组容量：同日多次训练合并，0 容量日不进 map
@@ -88,7 +88,7 @@ object VolumeAggregator {
     private fun workoutVolume(workout: Workout): Double =
         workout.exercises.sumOf { log ->
             log.sets
-                .filter { it.setType == SetType.WORKING }
+                .filter { it.isCompleted && it.setType == SetType.WORKING && it.reps > 0 }
                 .sumOf { (it.weightKg * it.reps).toDouble() }
         }
 }

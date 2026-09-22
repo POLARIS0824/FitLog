@@ -307,7 +307,7 @@ object WeekProgressCalculator {
                 .flatMap { it.exercises }
                 .filter { (it.exerciseKey ?: it.name) == topKey }
                 .flatMap { it.sets }
-                .filter { it.setType == SetType.WORKING },
+                .filter { it.isCompleted && it.setType == SetType.WORKING && it.reps > 0 },
         ) ?: return null
         val name = displayNames[topKey] ?: topKey
         return "$name ${formatSetBrief(bestSet.weightKg, bestSet.reps)}"

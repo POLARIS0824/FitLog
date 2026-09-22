@@ -31,7 +31,12 @@ data class Workout(
      * Coach 观察/AI 指纹会互相矛盾。
      */
     val isCountable: Boolean
-        get() = exercises.isNotEmpty() && endedAt != null
+        get() = endedAt != null && exercises.any { exercise ->
+            exercise.sets.any {
+                it.isCompleted && it.setType == SetType.WORKING && it.reps > 0 &&
+                    it.weightKg.isFinite() && it.weightKg >= 0f
+            }
+        }
 }
 
 /**
@@ -56,6 +61,8 @@ data class SetLog(
     val weightKg: Float,
     val reps: Int,
     val setType: SetType = SetType.WORKING,
+    /** 已保存/导入的历史组默认为完成；会话预填与新增组必须显式传 false。 */
+    val isCompleted: Boolean = true,
 )
 
 /**

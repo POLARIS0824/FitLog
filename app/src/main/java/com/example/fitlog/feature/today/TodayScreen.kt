@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,59 +16,57 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.fitlog.util.findActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.model.WorkoutPlan
-import com.example.fitlog.model.ai.CoachAction
-import com.example.fitlog.ui.components.SectionLabel
+import com.example.fitlog.ui.components.WeeklyWorkoutTracker
+import com.example.fitlog.ui.theme.FitLogShapes
 import com.example.fitlog.ui.theme.FitLogTheme
 import com.example.fitlog.ui.theme.GoogleBlue
 import com.example.fitlog.ui.theme.GoogleGreen
 import com.example.fitlog.ui.theme.GoogleRed
 import com.example.fitlog.ui.theme.GoogleYellow
 import com.example.fitlog.ui.theme.fitLogColors
+import com.example.fitlog.util.findActivity
+import kotlinx.coroutines.delay
 
-/** 「AI 分析」小卡跳转 AI 教练时预填的分析请求。 */
-private const val AI_ANALYSIS_PREFILL_QUESTION =
-    "请基于我最近几周的训练数据和当前计划，分析训练量与恢复情况，并给出下周的调整建议"
+private const val COACH_PREFILL_QUESTION = "请结合今天的训练安排和我最近的训练状态，给我具体建议"
 
-/**
- * 1. 容器层 (Stateful)
- * 绑定 Hilt ViewModel，处理生命周期安全的状态收集。
- *
- * @param onNavigateToSettings 跳转设置回调
- * @param onNavigateToWorkout 跳转训练记录回调（仅查看历史）
- * @param onStartWorkout 启动训练回调（导航至训练页并自动开启会话；
- *   已有进行中会话时为"继续训练"语义）
- */
 @Composable
 fun TodayRoute(
     onNavigateToSettings: () -> Unit = {},
@@ -76,10 +75,6 @@ fun TodayRoute(
     onNavigateToChatWithPrefill: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    // VM 作用域提升到 Activity：切 tab = 清栈重建 entry，entry 作用域的 VM 会
-    // 被销毁重建（DB 重查 + 入场动画重放 + 今日动作打卡勾选丢失）。ChatRoute 已有
-    // 同款先例；本页无导航参数，Activity 作用域安全（训练页 WorkoutKey 有
-    // per-entry 参数，保持 entry 作用域）。Preview 无 Activity 时回落 entry 作用域。
     val activity = LocalContext.current.findActivity()
     val viewModel: TodayViewModel = if (activity != null) hiltViewModel(activity) else hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -100,14 +95,7 @@ fun TodayRoute(
     )
 }
 
-/**
- * 2. 纯 UI 展示层 (Stateless)
- *
- * Today 主页：Coach Insight + 本周进度仪表盘 + 今日训练计划。
- * 顶栏使用 [CenterAlignedTopAppBar] 实现仿 Fit / Health 风格极简居中 AppBar。
- * 各区块拆分为同包独立文件（CoachInsightCard / WeekProgressSection / TodayPlanCard /
- * PlanPickerSheet），本文件只保留容器与顶栏。
- */
+/** Material Expressive Today：教练建议、当前训练、周节奏、最近完成。 */
 @Composable
 fun TodayScreen(
     uiState: TodayUiState,
@@ -122,130 +110,106 @@ fun TodayScreen(
     onErrorShown: () -> Unit,
     onLogClick: () -> Unit = onNavigateToWorkout,
     onEditClick: (() -> Unit)? = null,
-    /** 「AI 分析」小卡点击：携带预填分析请求跳转 AI 教练（null 时不挂点击） */
     onNavigateToChatWithPrefill: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val scrollState = rememberScrollState()
-    // rememberSaveable：旋转/重建后弹层不静默消失
     var showPlanSheet by rememberSaveable { mutableStateOf(false) }
-
-    // 待删除计划（删除确认弹窗，transient UI 态；id 可 saveable，对象按 id 回查）
     var pendingDeletePlanId by rememberSaveable { mutableStateOf<String?>(null) }
     val pendingDeletePlan = allPlans.firstOrNull { it.id == pendingDeletePlanId }
+    val planAction = {
+        when (uiState.todayPlan.status) {
+            PlanStatus.NO_PLAN -> showPlanSheet = true
+            PlanStatus.NOT_STARTED, PlanStatus.IN_PROGRESS -> onStartWorkout()
+            PlanStatus.COMPLETED -> onNavigateToWorkout()
+        }
+    }
 
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.fitLogColors.pageBackground,
-        topBar = {
-            TodayTopBar(onNavigateToSettings = onNavigateToSettings)
-        },
+        topBar = { TodayTopBar(onNavigateToSettings) },
     ) { innerPadding ->
         if (uiState.uiState.isLoading) {
-            // 加载占位：顶部加载条（同 AISettings 的 isLoading 呈现），
-            // 杜绝 initialValue 的默认值被当作真实空数据渲染（"Hello" 假问候等）
             Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter),
-                )
+                LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
             }
         } else {
             Column(
                 modifier = Modifier
                     .padding(innerPadding)
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
+                Column(modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)) {
+                    Text(
+                        text = "今日",
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-1).sp,
+                    )
+                    Text(
+                        text = uiState.dateLabel,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
                 CoachInsightCard(
                     insight = uiState.coachInsight,
-                    onStartWorkoutClick = onStartWorkout,
+                    onCoachClick = { onNavigateToChatWithPrefill(COACH_PREFILL_QUESTION) },
                 )
 
-                WeekProgressSection(
-                    weekProgress = uiState.weekProgress,
-                    onDisplayModeSelected = onDisplayModeSelected,
-                    onLogClick = onLogClick,
-                    onStartClick = onStartWorkout,
-                    onEditClick = onEditClick ?: { showPlanSheet = true },
-                    onAiAnalysisClick = {
-                        onNavigateToChatWithPrefill(AI_ANALYSIS_PREFILL_QUESTION)
-                    },
+                TodayWorkoutHero(
+                    state = uiState.todayPlan,
+                    onActionClick = planAction,
                 )
 
-                SectionLabel("今日训练")
-                TodayPlanCard(
-                    todayPlan = uiState.todayPlan,
-                    onToggleExerciseCheck = onToggleExerciseCheck,
-                    onActionClick = {
-                        when (uiState.todayPlan.status) {
-                            PlanStatus.NO_PLAN -> showPlanSheet = true
-                            // 未开始/进行中 → 启动或继续会话；已完成 → 查看记录
-                            PlanStatus.NOT_STARTED, PlanStatus.IN_PROGRESS -> onStartWorkout()
-                            PlanStatus.COMPLETED -> onNavigateToWorkout()
-                        }
-                    },
-                    onExerciseClick = {
-                        when (uiState.todayPlan.status) {
-                            PlanStatus.NO_PLAN -> showPlanSheet = true
-                            PlanStatus.NOT_STARTED, PlanStatus.IN_PROGRESS -> onStartWorkout()
-                            PlanStatus.COMPLETED -> onNavigateToWorkout()
-                        }
-                    },
-                )
+                if (uiState.weekDays.isNotEmpty()) {
+                    WeeklyWorkoutTracker(
+                        days = uiState.weekDays,
+                        completedCount = uiState.weekProgress.completedWorkouts,
+                        targetCount = uiState.weekProgress.targetWorkouts,
+                        title = "本周训练",
+                        showTargetRatio = true,
+                    )
+                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                uiState.recentWorkout?.let { recent ->
+                    RecentWorkoutCard(recent = recent, onClick = onLogClick)
+                }
+                Spacer(Modifier.height(18.dp))
             }
         }
     }
 
-    // 计划选择弹层
     if (showPlanSheet) {
         PlanPickerSheet(
             plans = allPlans,
             activePlanId = uiState.todayPlan.planId,
-            onSelect = {
-                onPlanSelected(it)
-                showPlanSheet = false
-            },
+            onSelect = { onPlanSelected(it); showPlanSheet = false },
             onDelete = { pendingDeletePlanId = it.id },
             onDismiss = { showPlanSheet = false },
         )
     }
 
-    // 删除计划确认
     pendingDeletePlan?.let { plan ->
         AlertDialog(
             onDismissRequest = { pendingDeletePlanId = null },
             title = { Text("删除计划？") },
-            text = {
-                Text(
-                    "「${plan.name}」及其全部训练日将被删除。" +
-                        "已完成的训练记录不受影响；删除当前激活计划后 Today 将回到无计划状态。",
-                )
-            },
+            text = { Text("「${plan.name}」及其全部训练日将被删除。已完成的训练记录不受影响。") },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDeletePlan(plan.id)
-                        pendingDeletePlanId = null
-                    },
-                ) {
+                TextButton(onClick = { onDeletePlan(plan.id); pendingDeletePlanId = null }) {
                     Text("删除", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDeletePlanId = null }) {
-                    Text("取消")
-                }
+                TextButton(onClick = { pendingDeletePlanId = null }) { Text("取消") }
             },
         )
     }
 
-    // 错误提示
     uiState.uiState.errorMessage?.let { message ->
         AlertDialog(
             onDismissRequest = onErrorShown,
@@ -256,28 +220,185 @@ fun TodayScreen(
     }
 }
 
-/**
- * Today 顶栏组件：使用 Material3 [CenterAlignedTopAppBar] 实现仿 Fit / Health 居中顶栏。
- * 自动适配系统状态栏安全边距 (Status Bar Insets)。
- *
- * 中间：居中 "Today" 标题
- * 右侧：带彩环的个人资料 / 设置入口按钮（统计与 AI 教练入口已移至底部导航栏）
- *
- * @param onNavigateToSettings 跳转设置回调（个人中心彩环按钮）
- */
+@Composable
+private fun TodayWorkoutHero(
+    state: TodayPlanState,
+    onActionClick: () -> Unit,
+) {
+    val elapsed = rememberElapsedText(state.startedAtMs)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = FitLogShapes.Card,
+        colors = CardDefaults.cardColors(
+            containerColor = if (state.status == PlanStatus.IN_PROGRESS) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.fitLogColors.card
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                ) {
+                    Text(
+                        text = when (state.status) {
+                            PlanStatus.IN_PROGRESS -> "进行中"
+                            PlanStatus.COMPLETED -> "已完成"
+                            PlanStatus.NOT_STARTED -> "今日训练"
+                            PlanStatus.NO_PLAN -> "开始训练"
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                if (state.status == PlanStatus.IN_PROGRESS) {
+                    Text(
+                        text = elapsed,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
+            }
+
+            Column {
+                Text(
+                    text = state.title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.5).sp,
+                )
+                Text(
+                    text = listOf(state.tagText, state.subtitle).filter { it.isNotBlank() }.joinToString(" · "),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (state.targetWorkingSets > 0 || state.completedWorkingSets > 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("训练进度", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        text = if (state.targetWorkingSets > 0) {
+                            "${state.completedWorkingSets}/${state.targetWorkingSets} 组"
+                        } else {
+                            "${state.completedWorkingSets} 组"
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                LinearProgressIndicator(
+                    progress = { state.progress.coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(10.dp).clip(CircleShape),
+                    trackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+                )
+            }
+
+            state.nextSetText?.let {
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.FitnessCenter, contentDescription = null)
+                        Text(it, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+
+            Button(
+                onClick = onActionClick,
+                modifier = Modifier.fillMaxWidth().height(58.dp),
+                shape = CircleShape,
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                Spacer(Modifier.size(8.dp))
+                Text(state.buttonText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun rememberElapsedText(startedAtMs: Long?): String {
+    val elapsedSeconds by produceState(initialValue = 0L, key1 = startedAtMs) {
+        if (startedAtMs == null) return@produceState
+        while (true) {
+            value = ((System.currentTimeMillis() - startedAtMs).coerceAtLeast(0L) / 1000L)
+            delay(1000L)
+        }
+    }
+    val hours = elapsedSeconds / 3600
+    val minutes = (elapsedSeconds % 3600) / 60
+    val seconds = elapsedSeconds % 60
+    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds) else "%02d:%02d".format(minutes, seconds)
+}
+
+@Composable
+private fun RecentWorkoutCard(recent: RecentWorkoutState, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = FitLogShapes.Card,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.fitLogColors.card),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.FitnessCenter, contentDescription = null)
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("最近完成", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text(recent.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "${recent.supportingText} · ${recent.setCount} 组 · ${recent.volumeText}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "查看训练记录")
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TodayTopBar(
-    onNavigateToSettings: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    CenterAlignedTopAppBar(
-        modifier = modifier,
+private fun TodayTopBar(onNavigateToSettings: () -> Unit) {
+    TopAppBar(
         title = {
             Text(
-                text = "Today",
+                text = "FitLog",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Normal,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary,
             )
         },
         actions = {
@@ -285,31 +406,17 @@ private fun TodayTopBar(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(38.dp)
                         .border(
-                            width = 2.dp,
-                            // Google 品牌四色（theme/Color.kt 中文档化的品牌例外）
-                            brush = Brush.sweepGradient(
-                                colors = listOf(
-                                    GoogleBlue,
-                                    GoogleRed,
-                                    GoogleYellow,
-                                    GoogleGreen,
-                                    GoogleBlue,
-                                ),
-                            ),
-                            shape = CircleShape,
+                            2.dp,
+                            Brush.sweepGradient(listOf(GoogleBlue, GoogleRed, GoogleYellow, GoogleGreen, GoogleBlue)),
+                            CircleShape,
                         )
-                        .padding(2.dp)
+                        .padding(3.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primaryContainer),
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "个人中心",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(20.dp),
-                    )
+                    Icon(Icons.Default.Person, contentDescription = "个人中心", modifier = Modifier.size(20.dp))
                 }
             }
         },
@@ -320,11 +427,6 @@ private fun TodayTopBar(
     )
 }
 
-// ──────────────────────────────────────
-// 3. 预览层
-// ──────────────────────────────────────
-
-/** 正常态预览：有计划、有进度、今日待练。 */
 @Preview(showBackground = true)
 @Composable
 private fun TodayScreenPreview() {
@@ -332,139 +434,24 @@ private fun TodayScreenPreview() {
         TodayScreen(
             uiState = TodayUiState(
                 coachInsight = CoachInsightState(
-                    userName = "Polaris",
                     greeting = "下午好，Polaris",
-                    observation = "本周已练 2/3 次 · 距上次训练 1 天",
-                    recommendation = "下一课：腿日 · 股四头后侧链",
-                    action = CoachAction.START_WORKOUT,
-                    isAiGenerated = true,
+                    observation = "本周已完成一次训练，节奏正在建立。",
+                    recommendation = "今天继续完成腿部力量训练。",
                     isAvailable = true,
                 ),
-                weekProgress = WeekProgressState(
-                    completedWorkouts = 2,
-                    targetWorkouts = 3,
-                    displayMode = WeekProgressDisplayMode.SPLIT,
-                    items = listOf(
-                        ProgressItemState(
-                            id = "week-total",
-                            title = "本周训练",
-                            subtitle = "目标 3 次",
-                            progress = 2f / 3f,
-                            valueText = "2 次",
-                        ),
-                        ProgressItemState("next-session", "下一训练", "腿日 · 股四头后侧链"),
-                        ProgressItemState("last-session", "最近训练", "拉日 · 背二头"),
-                        ProgressItemState("supplement", "补剂摄入", "即将上线"),
-                    ),
-                ),
+                weekProgress = WeekProgressState(completedWorkouts = 1, targetWorkouts = 3),
                 todayPlan = TodayPlanState(
-                    planId = "plan-1",
-                    sessionId = "s3",
                     tagText = "推拉腿 · 第3天",
-                    title = "腿日 · 股四腿后",
-                    subtitle = "6 个动作 · 约 65 分钟",
-                    progress = 0f,
-                    status = PlanStatus.NOT_STARTED,
-                    exercises = listOf(
-                        TodayPlanExerciseState(
-                            id = "ex-1",
-                            exerciseKey = "barbell-full-squat",
-                            name = "杠铃深蹲",
-                            setsRepsText = "4 组 × 6-8",
-                            weightText = "100 kg",
-                            targetReached = false,
-                        ),
-                        TodayPlanExerciseState(
-                            id = "ex-2",
-                            exerciseKey = "barbell-romanian-deadlift",
-                            name = "罗马尼亚硬拉",
-                            setsRepsText = "3 组 × 8-10",
-                            weightText = "85 kg",
-                            targetReached = false,
-                        ),
-                        TodayPlanExerciseState(
-                            id = "ex-3",
-                            exerciseKey = "bulgarian-split-squat",
-                            name = "保加利亚深蹲",
-                            setsRepsText = "3 组 × 10",
-                            weightText = "60 kg",
-                            targetReached = false,
-                        ),
-                        TodayPlanExerciseState(
-                            id = "ex-4",
-                            exerciseKey = "lever-lying-leg-curl",
-                            name = "腿弯举",
-                            setsRepsText = "3 组 × 12",
-                            weightText = "45 kg",
-                            targetReached = false,
-                        ),
-                        TodayPlanExerciseState(
-                            id = "ex-5",
-                            exerciseKey = "lever-leg-extension",
-                            name = "腿伸展",
-                            setsRepsText = "3 组 × 15",
-                            weightText = "40 kg",
-                            targetReached = false,
-                        ),
-                        TodayPlanExerciseState(
-                            id = "ex-6",
-                            exerciseKey = "lever-standing-calf-raise",
-                            name = "提踵",
-                            setsRepsText = "4 组 × 15",
-                            weightText = "70 kg",
-                            targetReached = false,
-                        ),
-                    ),
+                    title = "腿部力量",
+                    subtitle = "6 个动作 · 60 分钟",
+                    progress = 4f / 18f,
+                    status = PlanStatus.IN_PROGRESS,
+                    completedWorkingSets = 4,
+                    targetWorkingSets = 18,
+                    nextSetText = "杠铃深蹲 · 下一组 80 kg × 8 次",
                 ),
                 uiState = UiState(),
-            ),
-            allPlans = emptyList(),
-            onNavigateToSettings = {},
-            onNavigateToWorkout = {},
-            onDisplayModeSelected = {},
-            onPlanSelected = {},
-            onErrorShown = {},
-        )
-    }
-}
-
-/** 空态预览：全新用户（无资料、无计划、无训练）。 */
-@Preview(showBackground = true)
-@Composable
-private fun TodayScreenEmptyPreview() {
-    FitLogTheme {
-        TodayScreen(
-            uiState = TodayUiState(
-                coachInsight = CoachInsightState(greeting = "下午好"),
-                weekProgress = WeekProgressState(),
-                todayPlan = TodayPlanState(
-                    title = "还没有训练计划",
-                    subtitle = "选择一套计划开始系统训练",
-                    status = PlanStatus.NO_PLAN,
-                ),
-                uiState = UiState(),
-            ),
-            allPlans = emptyList(),
-            onNavigateToSettings = {},
-            onNavigateToWorkout = {},
-            onDisplayModeSelected = {},
-            onPlanSelected = {},
-            onErrorShown = {},
-        )
-    }
-}
-
-/** 加载态预览：仅 TopBar + 空内容区，等待首批真实数据。 */
-@Preview(showBackground = true)
-@Composable
-private fun TodayScreenLoadingPreview() {
-    FitLogTheme {
-        TodayScreen(
-            uiState = TodayUiState(
-                coachInsight = CoachInsightState(),
-                weekProgress = WeekProgressState(),
-                todayPlan = TodayPlanState(),
-                uiState = UiState(isLoading = true),
+                dateLabel = "9月23日 · 星期三",
             ),
             allPlans = emptyList(),
             onNavigateToSettings = {},

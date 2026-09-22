@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -87,6 +88,7 @@ fun ActiveSessionView(
     onAddSet: (Long) -> Unit,
     onUpdateSet: (Long, Float, Int) -> Unit,
     onToggleSetType: (Long) -> Unit,
+    onToggleSetCompleted: (Long) -> Unit,
     onRemoveSet: (Long) -> Unit,
 ) {
     var showPicker by rememberSaveable { mutableStateOf(false) }
@@ -138,6 +140,7 @@ fun ActiveSessionView(
                     onAddSet = { onAddSet(exercise.logId) },
                     onUpdateSet = onUpdateSet,
                     onToggleSetType = onToggleSetType,
+                    onToggleSetCompleted = onToggleSetCompleted,
                     onRemoveSet = onRemoveSet,
                 )
             }
@@ -295,6 +298,7 @@ private fun SessionExerciseCard(
     onAddSet: () -> Unit,
     onUpdateSet: (Long, Float, Int) -> Unit,
     onToggleSetType: (Long) -> Unit,
+    onToggleSetCompleted: (Long) -> Unit,
     onRemoveSet: (Long) -> Unit,
 ) {
     FitLogCard(
@@ -369,6 +373,7 @@ private fun SessionExerciseCard(
                     set = set,
                     onUpdate = { weightKg, reps -> onUpdateSet(set.id, weightKg, reps) },
                     onToggleType = { onToggleSetType(set.id) },
+                    onToggleCompleted = { onToggleSetCompleted(set.id) },
                     onRemove = { onRemoveSet(set.id) },
                 )
             }
@@ -394,6 +399,7 @@ private fun SessionSetRow(
     set: ActiveSessionSet,
     onUpdate: (Float, Int) -> Unit,
     onToggleType: () -> Unit,
+    onToggleCompleted: () -> Unit,
     onRemove: () -> Unit,
 ) {
     // 本地编辑态按 set.id 隔离：流刷新不重置输入；0 值显示为空（占位行视觉中性）
@@ -408,10 +414,10 @@ private fun SessionSetRow(
         modifier = Modifier.padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = index.toString(),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.width(28.dp),
+        Checkbox(
+            checked = set.isCompleted,
+            onCheckedChange = { onToggleCompleted() },
+            modifier = Modifier.width(40.dp),
         )
         OutlinedTextField(
             value = weightText,

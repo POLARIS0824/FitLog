@@ -52,6 +52,7 @@ data class ActiveSessionSet(
     val weightKg: Float,
     val reps: Int,
     val setType: SetType,
+    val isCompleted: Boolean,
 )
 
 /**
@@ -70,17 +71,17 @@ data class ActiveSession(
     val planSessionName: String?,
     val exercises: List<ActiveSessionExercise>,
 ) {
-    /** 已录入的正式组数（reps > 0 的 WORKING 组；占位行不计，与结束清洗口径一致）。 */
+    /** 已完成的有效正式组数。 */
     val loggedWorkingSets: Int
         get() = exercises.sumOf { exercise ->
-            exercise.sets.count { it.setType == SetType.WORKING && it.reps > 0 }
+            exercise.sets.count { it.isValidCompletedWorkingSet }
         }
 
-    /** 已录入的正式组容量（kg），与全 App 容量口径一致。 */
+    /** 已完成的正式组容量（kg），与全 App 容量口径一致。 */
     val loggedVolumeKg: Double
         get() = exercises.sumOf { exercise ->
             exercise.sets
-                .filter { it.setType == SetType.WORKING && it.reps > 0 }
+                .filter { it.isValidCompletedWorkingSet }
                 .sumOf { (it.weightKg * it.reps).toDouble() }
         }
 
@@ -91,6 +92,10 @@ data class ActiveSession(
      * 训练次数口径——至少要有一个已录次数的正式组。 */
     val hasLoggableContent: Boolean
         get() = exercises.any { exercise ->
-            exercise.sets.any { it.setType == SetType.WORKING && it.reps > 0 }
+            exercise.sets.any { it.isValidCompletedWorkingSet }
         }
 }
+
+private val ActiveSessionSet.isValidCompletedWorkingSet: Boolean
+    get() = isCompleted && setType == SetType.WORKING && reps > 0 &&
+        weightKg.isFinite() && weightKg >= 0f

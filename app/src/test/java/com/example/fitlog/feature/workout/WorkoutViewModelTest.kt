@@ -176,7 +176,11 @@ class WorkoutViewModelTest {
         // 占位组（0 次）先就位，再录入 60kg×8
         val exercise = withExercise.exercises.first()
         assertEquals(1, exercise.sets.size)
-        viewModel.updateSet(exercise.sets.first().id, 60f, 8)
+        val setId = exercise.sets.first().id
+        viewModel.updateSet(setId, 60f, 8)
+        viewModel.activeSession.first { it?.exercises?.first()?.sets?.first()?.reps == 8 }
+        viewModel.toggleSetCompleted(setId)
+        viewModel.activeSession.first { it?.exercises?.first()?.sets?.first()?.isCompleted == true }
 
         viewModel.finishSession("状态很好")
 
@@ -188,6 +192,29 @@ class WorkoutViewModelTest {
         assertEquals(1, finished.exercises.first().sets.size)
         assertEquals(60f, finished.exercises.first().sets.first().weightKg)
         assertEquals(8, finished.exercises.first().sets.first().reps)
+    }
+
+    /** 填写重量和次数不会自动完成；未勾选的有效数值不能保存。 */
+    @Test
+    fun testSession_valuesWithoutCompletion_doNotCountOrSave() = runTest(testScheduler) {
+        insertLibraryExercise()
+        viewModel.startSession()
+        viewModel.activeSession.first { it != null }
+        viewModel.addExercise(testExercise())
+        val setId = viewModel.activeSession.first {
+            it != null && it.exercises.firstOrNull()?.sets?.isNotEmpty() == true
+        }!!.exercises.first().sets.first().id
+
+        viewModel.updateSet(setId, 60f, 8)
+        val edited = viewModel.activeSession.first {
+            it?.exercises?.first()?.sets?.first()?.reps == 8
+        }!!
+        assertEquals(0, edited.loggedWorkingSets)
+        assertEquals(0.0, edited.loggedVolumeKg, 0.0)
+
+        viewModel.finishSession(null)
+        assertEquals("还没有可保存的训练内容，请至少完成一组", viewModel.message.first { it != null })
+        assertNotNull(viewModel.activeSession.first { it != null })
     }
 
     /**
@@ -287,7 +314,11 @@ class WorkoutViewModelTest {
         // toTargetText 只产出处方本体，"目标" 前缀由 UI 层拼接
         assertEquals("4组 × 8-10 次", session.exercises.first().targetText)
 
-        viewModel.updateSet(session.exercises.first().sets.first().id, 60f, 8)
+        val setId = session.exercises.first().sets.first().id
+        viewModel.updateSet(setId, 60f, 8)
+        viewModel.activeSession.first { it?.exercises?.first()?.sets?.first()?.reps == 8 }
+        viewModel.toggleSetCompleted(setId)
+        viewModel.activeSession.first { it?.exercises?.first()?.sets?.first()?.isCompleted == true }
         viewModel.finishSession(null)
 
         // 结束协程（含课次完成标记回写）异步落地：订阅计划流等待 DB 事实源更新，
@@ -826,6 +857,9 @@ class WorkoutViewModelTest {
         // 录入有效组并完成训练
         val setId = rebuiltSession.exercises[0].sets[0].id
         newViewModel.updateSet(setId, weightKg = 80f, reps = 8)
+        newViewModel.activeSession.first { it?.exercises?.first()?.sets?.first()?.reps == 8 }
+        newViewModel.toggleSetCompleted(setId)
+        newViewModel.activeSession.first { it?.exercises?.first()?.sets?.first()?.isCompleted == true }
         newViewModel.finishSession("训练顺利完成")
         assertNull(newViewModel.activeSession.first { it == null })
 

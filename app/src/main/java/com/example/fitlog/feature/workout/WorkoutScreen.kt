@@ -96,6 +96,7 @@ fun WorkoutRoute(
         onAddSet = viewModel::addSet,
         onUpdateSet = viewModel::updateSet,
         onToggleSetType = viewModel::toggleSetType,
+        onToggleSetCompleted = viewModel::toggleSetCompleted,
         onRemoveSet = viewModel::removeSet,
         onDeleteWorkout = viewModel::deleteWorkout,
         onMessageShown = viewModel::onMessageShown,
@@ -129,6 +130,7 @@ fun WorkoutScreen(
     onAddSet: (Long) -> Unit = {},
     onUpdateSet: (Long, Float, Int) -> Unit = { _, _, _ -> },
     onToggleSetType: (Long) -> Unit = {},
+    onToggleSetCompleted: (Long) -> Unit = {},
     onRemoveSet: (Long) -> Unit = {},
     onDeleteWorkout: (Workout) -> Unit = {},
     onMessageShown: () -> Unit = {},
@@ -194,6 +196,7 @@ fun WorkoutScreen(
                     onAddSet = onAddSet,
                     onUpdateSet = onUpdateSet,
                     onToggleSetType = onToggleSetType,
+                    onToggleSetCompleted = onToggleSetCompleted,
                     onRemoveSet = onRemoveSet,
                 )
             } else {

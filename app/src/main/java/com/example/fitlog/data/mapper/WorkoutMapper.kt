@@ -46,6 +46,7 @@ fun ExerciseLogWithSets.toModel(): ExerciseLog {
                 // 容错：库中非法枚举字符串按正式组处理（同 ThemeMode 容错风格）
                 setType = runCatching { SetType.valueOf(it.setType) }
                     .getOrDefault(SetType.WORKING),
+                isCompleted = it.isCompleted,
             )
         },
     )
@@ -82,6 +83,7 @@ fun WorkoutWithExerciseLogs.toSessionSnapshot(): WorkoutSessionSnapshot {
                                 reps = set.reps,
                                 setType = runCatching { SetType.valueOf(set.setType) }
                                     .getOrDefault(SetType.WORKING),
+                                isCompleted = set.isCompleted,
                             )
                         },
                 )
@@ -132,5 +134,6 @@ fun SetLog.toEntity(exerciseLogId: Long, setNumber: Int): SetLogEntity {
         weightKg = weightKg,
         reps = reps,
         setType = setType.name,
+        isCompleted = isCompleted,
     )
 }

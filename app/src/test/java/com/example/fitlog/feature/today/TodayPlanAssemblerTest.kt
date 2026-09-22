@@ -111,8 +111,8 @@ class TodayPlanAssemblerTest {
         )
 
         assertEquals(PlanStatus.IN_PROGRESS, state.status)
-        assertEquals(5f / 10f, state.progress)
-        assertEquals("50%", state.progressPercentageText)
+        assertEquals(4f / 10f, state.progress)
+        assertEquals("40%", state.progressPercentageText)
         assertEquals("继续训练", state.buttonText)
         assertEquals(7L, state.workoutId)
     }
