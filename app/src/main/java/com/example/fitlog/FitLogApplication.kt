@@ -32,22 +32,27 @@ class FitLogApplication : Application() {
     }
 
     /**
-     * 启动期提醒补排程：WorkManager 任务队列跨重启/升级持久化，但被用户
+     * 启动期提醒恢复排程：WorkManager 任务队列跨重启/升级持久化，但被用户
      * 强制停止（force-stop）后会被系统整队清除——不补排程的话提醒静默断档，
-     * 直到用户再次开关提醒才恢复。按当前开关幂等重排（REPLACE 覆盖在途
-     * 任务是安全操作），App 任何一次启动都是自愈点。
+     * 直到用户再次开关提醒才恢复。
+     *
+     * 采用 [ReminderScheduler.recoverSchedule]（KEEP 语义）而非 [ReminderScheduler.schedule]（REPLACE 语义）：
+     * 保留已经在途或即将到期的有效提醒，仅在无活跃任务时补排，避免在到期临界点启动时
+     * 错误取消当天任务并推迟至次日，造成提醒漏发。
      */
-    private fun rescheduleReminderIfNeeded() {
-        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+    internal fun rescheduleReminderIfNeeded(
+        scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    ) {
+        scope.launch {
             runCatching {
                 val enabled = userPreferencesRepository.reminderEnabled.first()
                 val minutes = userPreferencesRepository.reminderMinutes.first()
                 if (enabled) {
-                    reminderScheduler.schedule(minutes)
-                    FitLog.i("FitLogApplication", "启动补排程训练提醒：$minutes 分钟档")
+                    reminderScheduler.recoverSchedule(minutes)
+                    FitLog.i("FitLogApplication", "启动恢复训练提醒：$minutes 分钟档")
                 }
             }.onFailure {
-                FitLog.w("FitLogApplication", "启动补排程提醒失败（下次启动重试）", it)
+                FitLog.w("FitLogApplication", "启动恢复提醒失败（下次启动重试）", it)
             }
         }
     }

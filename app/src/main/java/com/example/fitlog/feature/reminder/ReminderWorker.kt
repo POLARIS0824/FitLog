@@ -57,7 +57,7 @@ class ReminderWorker(
             // 自链已幂等化（调度器跳过已有 ENQUEUED 后继）：本方法因通知环节
             // 异常进入 Result.retry 或进程死亡重跑时，再次自链不会使链翻倍
             val minutes = preferences.reminderMinutes.first()
-            entryPoint.reminderScheduler().scheduleSelfChainedNext(minutes)
+            entryPoint.reminderScheduler().scheduleSelfChainedNext(minutes, id)
             val shown = try {
                 showNotification()
                 true

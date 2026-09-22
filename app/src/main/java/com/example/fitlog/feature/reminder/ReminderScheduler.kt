@@ -1,5 +1,7 @@
 package com.example.fitlog.feature.reminder
 
+import java.util.UUID
+
 /**
  * 训练提醒的调度契约（接口化以便纯 JVM 测试注入替身）。
  *
@@ -16,6 +18,16 @@ interface ReminderScheduler {
     fun schedule(minutesOfDay: Int)
 
     /**
+     * 启动期恢复调度：保留已经排队或运行中的有效提醒，仅在无在途任务时补排（KEEP 语义）。
+     *
+     * 与 [schedule]（REPLACE）分离，避免启动恢复在提醒到期临界点将已排队任务取消并推迟至次日，
+     * 导致当天提醒漏发。
+     *
+     * @param minutesOfDay 提醒时刻（一天中的分钟数，0–1439）
+     */
+    fun recoverSchedule(minutesOfDay: Int)
+
+    /**
      * Worker 触发后的自链调度：接力下一次提醒。
      *
      * 与 [schedule] 分离的原因：自链发生时 Worker 自身正以同一 unique name
@@ -27,8 +39,9 @@ interface ReminderScheduler {
      * 声明为 suspend：实现需查询既有任务状态（见实现类 KDoc）。
      *
      * @param minutesOfDay 提醒时刻（一天中的分钟数，0–1439）
+     * @param currentWorkId 当前执行自链的 Worker ID，用于在查询在途后继时排除自身
      */
-    suspend fun scheduleSelfChainedNext(minutesOfDay: Int)
+    suspend fun scheduleSelfChainedNext(minutesOfDay: Int, currentWorkId: UUID? = null)
 
     /** 取消提醒。 */
     fun cancel()
