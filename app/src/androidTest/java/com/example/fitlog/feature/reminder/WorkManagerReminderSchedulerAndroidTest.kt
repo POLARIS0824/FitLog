@@ -4,11 +4,22 @@ import android.content.Context
 import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.concurrent.futures.CallbackToFutureAdapter
+import androidx.work.ListenableWorker
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
 import androidx.work.Configuration
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.testing.WorkManagerTestInitHelper
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.runBlocking
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -33,10 +44,14 @@ class WorkManagerReminderSchedulerAndroidTest {
     private lateinit var scheduler: WorkManagerReminderScheduler
     private lateinit var workManager: WorkManager
 
+    private lateinit var workers: ControlledWorkers
+
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
+        workers = ControlledWorkers()
         val config = Configuration.Builder()
+            .setWorkerFactory(workers)
             .setMinimumLoggingLevel(Log.DEBUG)
             .build()
         WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
@@ -113,4 +128,69 @@ class WorkManagerReminderSchedulerAndroidTest {
 
         assertEquals(countAfterFirstChain, countAfterSecondChain)
     }
+    @After
+    fun tearDown() {
+        workManager.cancelAllWork().result.get(10, TimeUnit.SECONDS)
+        WorkManagerTestInitHelper.closeWorkDatabase()
+    }
+
+    @Test
+    fun runningParentSurvivesRecoveryAndBlockedSuccessorRunsAfterCompletion() = runBlocking {
+        scheduler.schedule(18 * 60)
+        val parent = workManager.getWorkInfosForUniqueWork("workout_reminder").get().single().id
+        val driver = requireNotNull(WorkManagerTestInitHelper.getTestDriver(context))
+        driver.setInitialDelayMet(parent)
+        assertEquals(parent, withTimeout(10_000) { workers.started.receive() })
+        awaitState(parent, WorkInfo.State.RUNNING)
+
+        // Recovery while the Worker is suspended must preserve this very execution.
+        scheduler.recoverSchedule(18 * 60)
+        assertEquals(parent, workManager.getWorkInfosForUniqueWork("workout_reminder").get().single().id)
+        awaitState(parent, WorkInfo.State.RUNNING)
+        scheduler.scheduleSelfChainedNext(18 * 60, parent)
+        val chain = workManager.getWorkInfosForUniqueWork("workout_reminder").get()
+        assertEquals(2, chain.size)
+        val child = chain.single { it.id != parent }.id
+        awaitState(child, WorkInfo.State.BLOCKED)
+
+        // Recovery and a repeated self-chain call must preserve the blocked child too.
+        scheduler.recoverSchedule(18 * 60)
+        scheduler.scheduleSelfChainedNext(18 * 60, parent)
+        assertEquals(setOf(parent, child), workManager.getWorkInfosForUniqueWork("workout_reminder").get().map { it.id }.toSet())
+        awaitState(parent, WorkInfo.State.RUNNING)
+        workers.succeed(parent)
+        awaitState(parent, WorkInfo.State.SUCCEEDED)
+        awaitState(child, WorkInfo.State.ENQUEUED)
+        driver.setInitialDelayMet(child)
+        assertEquals(child, withTimeout(10_000) { workers.started.receive() })
+        awaitState(child, WorkInfo.State.RUNNING)
+        workers.succeed(child)
+        awaitState(child, WorkInfo.State.SUCCEEDED)
+    }
+
+    private suspend fun awaitState(id: UUID, state: WorkInfo.State) = withTimeout(10_000) {
+        workManager.getWorkInfoByIdFlow(id).first { it?.state == state }
+    }
+
+    /** Holds actual WorkManager executions at a barrier without posting notifications. */
+    private class ControlledWorkers : WorkerFactory() {
+        val started = Channel<UUID>(Channel.UNLIMITED)
+        private val completions = ConcurrentHashMap<UUID, CallbackToFutureAdapter.Completer<ListenableWorker.Result>>()
+
+        override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker? {
+            if (workerClassName != ReminderWorker::class.java.name) return null
+            return object : ListenableWorker(appContext, workerParameters) {
+                override fun startWork() = CallbackToFutureAdapter.getFuture<Result> { completer ->
+                    completions[id] = completer
+                    started.trySend(id)
+                    "Reminder barrier $id"
+                }
+            }
+        }
+
+        fun succeed(id: UUID) {
+            assertTrue(requireNotNull(completions.remove(id)).set(ListenableWorker.Result.success()))
+        }
+    }
+
 }
