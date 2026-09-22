@@ -49,13 +49,12 @@ import com.example.fitlog.ui.theme.fitLogColors
  *
  * 交互契约：
  * 1. 顶栏采用常驻 [TopAppBar] + [androidx.compose.material3.TopAppBarDefaults.pinnedScrollBehavior]；
- * 2. 可滚动状态下：大标题（[androidx.compose.ui.text.TextStyle.headlineMedium]）置于滚动内容顶部，
- *    带 8dp 左缩进与卡片内部完全对齐；
- * 3. 滚动时大标题自然沉入不透明顶栏下方，顶栏标题根据滚动进度从下至上平滑渐变淡入
+ * 2. 大标题（[androidx.compose.ui.text.TextStyle.headlineMedium]）无条件常驻于滚动内容顶部，
+ *    带 8dp 左缩进与卡片内部完全对齐（杜绝因动态增删导致的高度双稳态死锁）；
+ * 3. 滚动时大标题自然沉入不透明顶栏下方，顶栏标题与背景色根据滚动进度从下至上平滑渐变淡入
  *    （alpha 与 translationY 联动）；
  * 4. 滚动停止在半折叠状态时，触发 [androidx.compose.animation.core.spring] 弹簧动画
  *    自动吸附到最近的稳定边界（0 或大标题高度）；
- * 5. 不可滚动状态下：自动隐藏 Body 重复的大标题，顶栏直接稳定展示本页标题。
  *
  * 顶栏标题形态二选一：[parentTitle] 为 null 时仅展示 [title]（顶级页）；
  * 传入父级标题（如 "Settings"）时滚动过程从父级标题交叉淡入本页标题（子页）。
@@ -88,28 +87,26 @@ fun CollapsingTitleScaffold(
     val density = LocalDensity.current
     val extraSpacingPx = remember(density) { with(density) { 12.dp.roundToPx() } }
 
-    // 自适应双态：动态检测页面内容是否能够产生滚动
-    val isScrollable by remember { derivedStateOf { scrollState.maxValue > 0 } }
-
     // 标题切换进度：0 = 完全展开（显示 Body 大标题），1 = 大标题刚好完全滚入顶栏之下。
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val titleFraction by remember {
         derivedStateOf {
-            if (!isScrollable || headerHeightPx <= 0) 0f
+            if (headerHeightPx <= 0) 0f
             else (scrollState.value.toFloat() / headerHeightPx.toFloat()).coerceIn(0f, 1f)
         }
     }
 
     // 吸附效果：手势/惯性滚动停止后，若大标题处于半折叠的中间态，自动平滑吸附到最近的稳定边界
     val isInspection = LocalInspectionMode.current
-    LaunchedEffect(scrollState, headerHeightPx, isScrollable) {
-        if (!isScrollable || isInspection) return@LaunchedEffect
+    LaunchedEffect(scrollState, headerHeightPx) {
+        if (isInspection) return@LaunchedEffect
         snapshotFlow { scrollState.isScrollInProgress }
             .collect { inProgress ->
                 if (inProgress) return@collect
                 val currentScroll = scrollState.value
-                if (headerHeightPx > 0 && currentScroll in 1 until headerHeightPx) {
-                    val target = if (currentScroll < headerHeightPx / 2) 0 else headerHeightPx
+                val collapseTarget = minOf(headerHeightPx, scrollState.maxValue)
+                if (collapseTarget > 0 && currentScroll in 1 until collapseTarget) {
+                    val target = if (currentScroll < collapseTarget / 2) 0 else collapseTarget
                     try {
                         scrollState.animateScrollTo(
                             value = target,
@@ -148,11 +145,11 @@ fun CollapsingTitleScaffold(
                                 text = title,
                                 style = MaterialTheme.typography.titleLarge,
                                 modifier = Modifier.graphicsLayer {
-                                    alpha = if (isScrollable) titleFraction else 1f
-                                    translationY = if (isScrollable) (1f - titleFraction) * 12.dp.toPx() else 0f
+                                    alpha = titleFraction
+                                    translationY = (1f - titleFraction) * 12.dp.toPx()
                                 },
                             )
-                        } else if (isScrollable) {
+                        } else {
                             // 子页：滚动时从父级标题交叉淡入本页标题
                             Text(
                                 text = parentTitle,
@@ -169,11 +166,6 @@ fun CollapsingTitleScaffold(
                                     alpha = titleFraction
                                     translationY = (1f - titleFraction) * 12.dp.toPx()
                                 },
-                            )
-                        } else {
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.titleLarge,
                             )
                         }
                     }
@@ -206,21 +198,19 @@ fun CollapsingTitleScaffold(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // 可滚动页面渲染大标题 Header；不可滚动页面隐藏 Body 重复大标题
-            if (isScrollable) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 8.dp, top = 8.dp, bottom = 4.dp)
-                        .onSizeChanged { size ->
-                            headerHeightPx = size.height + extraSpacingPx
-                        },
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                }
+            // 大标题 Header：无条件常驻渲染在滚动内容顶部，避免动态增删导致的高度双稳态死锁
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, top = 8.dp, bottom = 4.dp)
+                    .onSizeChanged { size ->
+                        headerHeightPx = size.height + extraSpacingPx
+                    },
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineMedium,
+                )
             }
 
             content()

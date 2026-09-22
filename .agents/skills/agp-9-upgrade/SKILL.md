@@ -23,13 +23,7 @@ breaking, in AGP 9 compared to AGP 8.
 
 ## Requirements
 
-If the user requests to update or migrate to AGP 9, first check the AGP version
-used in the project. If it is lower than 9, stop and ask the user to run the AGP
-Upgrade Assistant in Android Studio to update to the latest stable version of
-AGP, and confirm when done. The user may also request that this requirement be
-skipped; if this is the case, you should update the version of AGP to the latest
-stable version as part of the AGP 9 migration. See the
-[AGP 9 migration guide](references/android/build/releases/agp-9-0-0-release-notes.md) for how to do this.
+When the user requests an AGP 9 migration, inspect the current AGP, Gradle, JDK, Kotlin, KSP, and Hilt versions. The migration request authorizes compatible project-file changes and validation. Upgrade Assistant is an optional path, not a prerequisite requiring the user to perform the migration first. Preserve an explicitly requested target version; otherwise select a compatible stable AGP 9 release after checking its release notes. Ask only for a material unresolved tradeoff or an operation outside existing authorization.
 
 Each version of AGP has its own set of compatibilities with other tools, such as
 Gradle, JDK, and Kotlin. The release notes for each of these versions will
@@ -40,7 +34,7 @@ Do not use this skill for KMP projects, as they are unsupported.
 
 ## Steps
 
-If AGP is already at 9 or higher, then do the following:
+For the requested AGP 9 target, perform only applicable steps; do not downgrade an already newer project:
 
 ### Step 1: Update dependencies
 
@@ -80,7 +74,7 @@ After the migration, check gradle.properties. Remove the following flags:
 3. android.uniquePackageNames
 4. android.enableAppCompileTimeRClass
 
-Additionally, delete all temporary files you've created.
+Remove only task-created temporary files whose paths and ownership are verified; preserve user files and useful requested reports.
 
 ## Guidelines
 
@@ -93,9 +87,9 @@ Additionally, delete all temporary files you've created.
 
 After migration, verify the following:
 
-1. Gradle IDE sync succeeds.
-2. `./gradlew help` succeeds.
-3. `./gradlew build --dry-run` succeeds.
+1. Run wrapper `help` and the relevant build task graph (`build --dry-run`) from the supported host shell; on Windows use `.\gradlew.bat`, never WSL.
+2. Compile affected variants and run relevant existing tests: a dry run alone does not validate compilation or behavior.
+3. Verify IDE sync if available; otherwise report it as unverified without asking the user to perform routine checks before continuing.
 
 ## Troubleshooting
 

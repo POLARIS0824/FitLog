@@ -1,10 +1,10 @@
-Update brand colors, typography, and style - automatically syncs to all design system files.
+Update the requested brand colors, typography, or style. Sync only existing, applicable web token outputs in scope; do not create CSS token infrastructure for native Compose work.
 
 <args>$ARGUMENTS</args>
 
 ## Overview
 
-This command systematically updates:
+When these files form the project's existing brand pipeline, update affected entries in:
 1. `docs/brand-guidelines.md` - Human-readable brand doc
 2. `assets/design-tokens.json` - Token source of truth
 3. `assets/design-tokens.css` - Generated CSS variables
@@ -13,7 +13,7 @@ This command systematically updates:
 
 ### Step 1: Gather Brand Input
 
-Use `AskUserQuestion` to collect:
+Reuse the request and existing brand guidance. Ask only for missing information that materially blocks the requested update:
 
 **Theme Selection:**
 - Theme name (e.g., "Ocean Professional", "Electric Creative", "Forest Calm")
@@ -44,7 +44,7 @@ Edit `docs/brand-guidelines.md`:
 
 ### Step 3: Sync to Design Tokens
 
-Run the sync script:
+If the existing pipeline and requested change require token regeneration, run the available sync script from its installed skill path. The historical path below is an example, not a required dependency:
 ```bash
 node .claude/skills/brand/scripts/sync-brand-to-tokens.cjs
 ```

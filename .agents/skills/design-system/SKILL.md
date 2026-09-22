@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: Token architecture, component specifications, and slide generation. Three-layer tokens (primitive→semantic→component), CSS variables, spacing/typography scales, component specs, strategic slide creation. Use for design tokens, systematic design, brand-compliant presentations.
+description: "Use for explicitly requested web/CSS design-token architecture, component specifications, or token-based HTML slides. Not for native Compose themes, routine UI fixes, or ordinary code review."
 argument-hint: "[component or token]"
 license: MIT
 metadata:
@@ -233,6 +233,8 @@ assets/designs/slides/claudekit-pitch-251223.html
 ```bash
 /slides:create "10-slide investor pitch for ClaudeKit Marketing"
 ```
+
+The following practices apply to web/CSS artifacts only. Reuse existing tokens and read only references needed for the requested artifact.
 
 ## Best Practices
 
