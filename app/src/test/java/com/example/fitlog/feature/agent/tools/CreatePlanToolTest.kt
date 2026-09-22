@@ -147,6 +147,78 @@ class CreatePlanToolTest {
         assertEquals(12, plan.sessions.single().exercises.single().targetSets)
     }
 
+    /** 验证 4 周 × 每周 3 练场景下，sessionsPerWeek 正确推导为 3（而非总周数 4）。 */
+    @Test
+    fun `sessionsPerWeek correctly derives 3 for 4 weeks with 3 sessions per week`() = runTest(dataStoreScope.testScheduler) {
+        db.exerciseDao().insertAll(
+            listOf(ExerciseEntity(id = "barbell-bench-press", name = "Barbell bench press")),
+        )
+        val sessions = (1..4).flatMap { week ->
+            (1..3).map { day ->
+                """{"weekNumber":$week,"dayNumber":$day,"name":"W${week}D$day","exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]}"""
+            }
+        }.joinToString(",", prefix = "[", postfix = "]")
+
+        val result = tools.createPlan(name = "4周3练", sessionsJson = sessions)
+        assertTrue(result.success)
+
+        val plan = planRepository.getAllPlans().first { it.name == "4周3练" }
+        assertEquals(4, plan.durationWeeks)
+        assertEquals(3, plan.sessionsPerWeek)
+    }
+
+    /** 验证各周训练次数不等时，sessionsPerWeek 取众数。 */
+    @Test
+    fun `sessionsPerWeek derives mode for unequal weeks`() = runTest(dataStoreScope.testScheduler) {
+        db.exerciseDao().insertAll(
+            listOf(ExerciseEntity(id = "barbell-bench-press", name = "Barbell bench press")),
+        )
+        // Week 1: 3 sessions; Week 2: 4 sessions; Week 3: 4 sessions -> 众数为 4
+        val sessions = """[
+            {"weekNumber":1,"dayNumber":1,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":1,"dayNumber":2,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":1,"dayNumber":3,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":2,"dayNumber":1,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":2,"dayNumber":2,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":2,"dayNumber":3,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":2,"dayNumber":4,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":3,"dayNumber":1,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":3,"dayNumber":2,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":3,"dayNumber":3,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":3,"dayNumber":4,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]}
+        ]"""
+
+        val result = tools.createPlan(name = "众数测试", sessionsJson = sessions)
+        assertTrue(result.success)
+
+        val plan = planRepository.getAllPlans().first { it.name == "众数测试" }
+        assertEquals(4, plan.sessionsPerWeek)
+    }
+
+    /** 验证各周训练次数平局时，sessionsPerWeek 取较大值。 */
+    @Test
+    fun `sessionsPerWeek tie-break picks larger value`() = runTest(dataStoreScope.testScheduler) {
+        db.exerciseDao().insertAll(
+            listOf(ExerciseEntity(id = "barbell-bench-press", name = "Barbell bench press")),
+        )
+        // Week 1: 3 sessions; Week 2: 4 sessions -> 平局取大：4
+        val sessions = """[
+            {"weekNumber":1,"dayNumber":1,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":1,"dayNumber":2,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":1,"dayNumber":3,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":2,"dayNumber":1,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":2,"dayNumber":2,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":2,"dayNumber":3,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":2,"dayNumber":4,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]}
+        ]"""
+
+        val result = tools.createPlan(name = "平局取大测试", sessionsJson = sessions)
+        assertTrue(result.success)
+
+        val plan = planRepository.getAllPlans().first { it.name == "平局取大测试" }
+        assertEquals(4, plan.sessionsPerWeek)
+    }
+
     /** 验证创建计划时为每个 PlannedExerciseItem 分配独立非空 UUID。 */
     @Test
     fun `createPlan assigns UUID to planned exercises`() = runTest(dataStoreScope.testScheduler) {
@@ -163,5 +235,47 @@ class CreatePlanToolTest {
         val exercise = plan.sessions.first().exercises.first()
         assertNotNull(exercise.id)
         assertTrue(exercise.id!!.isNotBlank())
+    }
+
+    /** 验证显式指定 sessionsPerWeek 时，显式值优先于推导值。 */
+    @Test
+    fun `explicit sessionsPerWeek takes precedence over derived frequency`() = runTest(dataStoreScope.testScheduler) {
+        db.exerciseDao().insertAll(
+            listOf(ExerciseEntity(id = "barbell-bench-press", name = "Barbell bench press")),
+        )
+        val sessions = (1..4).flatMap { week ->
+            (1..3).map { day ->
+                """{"weekNumber":$week,"dayNumber":$day,"name":"W${week}D$day","exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]}"""
+            }
+        }.joinToString(",", prefix = "[", postfix = "]")
+
+        val result = tools.createPlan(
+            name = "显式频次优先",
+            sessionsJson = sessions,
+            sessionsPerWeek = 5,
+        )
+        assertTrue(result.success)
+
+        val plan = planRepository.getAllPlans().first { it.name == "显式频次优先" }
+        assertEquals(5, plan.sessionsPerWeek)
+    }
+
+    /** 验证课次名称缺省或空白时，自动补全为默认名称。 */
+    @Test
+    fun `missing or blank session name defaults to fallback name`() = runTest(dataStoreScope.testScheduler) {
+        db.exerciseDao().insertAll(
+            listOf(ExerciseEntity(id = "barbell-bench-press", name = "Barbell bench press")),
+        )
+        val sessions = """[
+            {"weekNumber":1,"dayNumber":1,"exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]},
+            {"weekNumber":1,"dayNumber":2,"name":"   ","exercises":[{"exerciseKey":"barbell-bench-press","targetSets":3}]}
+        ]"""
+
+        val result = tools.createPlan(name = "缺省名称测试", sessionsJson = sessions)
+        assertTrue(result.success)
+
+        val plan = planRepository.getAllPlans().first { it.name == "缺省名称测试" }
+        assertEquals("Day 1", plan.sessions[0].name)
+        assertEquals("Day 2", plan.sessions[1].name)
     }
 }

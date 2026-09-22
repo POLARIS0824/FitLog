@@ -400,15 +400,19 @@ class FitnessTools @Inject constructor(
         //    空白计划名都会原样落库进 PlanPickerSheet 与 AI 上下文
         val planId = "plan-ai-${System.currentTimeMillis()}"
         val maxWeek = clamped.maxOf { it.weekNumber }
+        val weekCounts = clamped.groupBy { it.weekNumber }.mapValues { it.value.size }
+        val derivedSessionsPerWeek = weekCounts.values
+            .groupingBy { it }
+            .eachCount()
+            .maxWithOrNull(compareBy<Map.Entry<Int, Int>> { it.value }.thenBy { it.key })
+            ?.key ?: 3
         val plan = WorkoutPlan(
             id = planId,
             name = name.trim().ifEmpty { "AI 训练计划" },
             description = "AI 教练生成",
             goal = goal?.let { runCatching { TrainingGoal.valueOf(it.trim().uppercase()) }.getOrNull() },
             durationWeeks = durationWeeks?.coerceIn(1, 52) ?: maxWeek,
-            sessionsPerWeek = sessionsPerWeek?.coerceIn(1, 14)
-                // 缺省按"有训练日的周数"推导而非总训练日数（4 周×3 天 ≠ 每周 12 次）
-                ?: clamped.map { it.weekNumber }.distinct().size,
+            sessionsPerWeek = sessionsPerWeek?.coerceIn(1, 14) ?: derivedSessionsPerWeek,
             isCustom = true,
             createdAt = LocalDate.now(),
             rawPlanText = rawPlanText?.takeIf { it.isNotBlank() },
@@ -559,7 +563,7 @@ class FitnessTools @Inject constructor(
     data class PlannedSessionSpec(
         val weekNumber: Int,
         val dayNumber: Int,
-        val name: String,
+        val name: String = "",
         val targetDurationMinutes: Int? = null,
         val exercises: List<PlannedExerciseSpec> = emptyList(),
     )
