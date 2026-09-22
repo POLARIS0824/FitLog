@@ -1,85 +1,53 @@
-# Feat 合入 Dev 验证报告与就绪记录
+# Feat 合入 Dev 验收记录
 
-本文档记录 `feat` 分支在合入 `dev` 前的完整修复、测试与门禁验证结果。
+更新日期：2026-09-22。结论：本轮已确认的导入 bug 已修复，分支冲突已解决；设备验收仍待完成，不能据此宣称所有合并门禁通过。
 
----
+## 验证范围
 
-## 1. 分支与提交历史
+- 源代码提交：`4281da8f8daefe2b08e1948ef5c13c2f0392f21b`（feat）。本记录后续提交仅改文档。
+- 目标 dev：`62dc285edd1de25150fa94370660bc119d49e119`。
+- dev 已同步进 feat；`git merge-base --is-ancestor dev HEAD` 成功。目标不再前进时可快进合并。
+- 首轮检查运行于 feat 工作区；随后在独立、干净的 `4281da8` worktree 上完整复验，排除了用户原有 `DatabaseModule.kt` 改动。该文件未被本轮修改或提交。
+- 干净验收目录：`C:\Users\POLARIS\AppData\Local\Temp\FitLog-verify-4281da8`。该目录保留用于设备验收，只有本机 `local.properties` 与构建产物为忽略文件。
+- 按用户要求，本轮不评估 Room migration；此结论不等于确认旧版数据库升级安全。
 
-### 分支状态
-- **源分支**：`feat`
-- **最新 Commit**：`a5c8499`（截止 Commit 7）
-- **包含的 8 个逻辑阶段提交**：
-  1. `588214e` `fix(chat): preserve drafts and recover history after failed clearing`
-  2. `d2d2c49` `fix(workout): match planned exercises only by persisted identity`
-  3. `da6ec7b` `fix(import): freeze edits while saving drafts`
-  4. `5658051` `fix(import): share validation between preview and persistence`
-  5. `d8e8ac8` `fix(import): preserve timestamps across markdown round trips`
-  6. `9743f95` `test: cover reminder scheduling and Android compatibility`
-  7. `a5c8499` `fix(agent): derive weekly frequency from generated sessions`
-  8. 本次提交 `docs: record feat merge readiness`
+## 本轮提交与修复
 
----
+| 提交 | 改动 | 验证 |
+| --- | --- | --- |
+| `d71b9be` | 导出添加 `FitLog-Time-Format: 1`；旧日志的 HH:mm 标签继续走旧解析；识别出的导出元数据必须同时具备开始、结束字段，各出现一次；空白值不再等同于显式“空” | 先运行回归测试复现 3 个失败，再修复；原同日、跨午夜、跨年、时区及 AI 覆盖防御测试通过 |
+| `8c82a58` | 真实 WorkManager 测试添加可控 Worker 和 TestDriver，验证运行中 KEEP 恢复、BLOCKED 后继幂等、父成功后子任务启动与成功 | AndroidTest APK 编译通过；尚未在设备执行 |
+| `4281da8` | 同步最新 dev，解决 AISettingsScreen 冲突；保留 feat 的共享 scaffold 用法，同时采用 dev 的共享标题吸附修复 | 全量单测与构建检查；设备交互验收待执行 |
 
-## 2. 门禁验证结果
+此前七阶段修复涉及聊天草稿及历史恢复、计划动作按持久化 ID 匹配、导入保存期间编辑冻结、预览与落库共用清洗、时间戳往返、提醒测试及计划周频次推导。本轮新增测试针对后续 review 发现的缺口；没有把所有旧问题重新标记为经过设备验证。
 
-### 2.1 单元测试 (`testDebugUnitTest`)
-- **执行命令**：`.\gradlew.bat testDebugUnitTest`
-- **测试总数**：534 个
-- **失败数**：0 个
-- **跳过数**：0 个
-- **通过率**：100%
-- **测试报告路径**：`app/build/reports/tests/testDebugUnitTest/index.html`
+## 自动检查
 
-### 2.2 代码检查 (`lintDebug`)
-- **执行命令**：`.\gradlew.bat lintDebug`
-- **错误数 (Errors)**：0 个
-- **严重问题 (Fatal)**：0 个
-- **警告数 (Warnings)**：66 个
-- **提示数 (Hints)**：2 个
-- **HTML 报告**：`app/build/reports/lint-results-debug.html`
-- **XML 报告**：`app/build/reports/lint-results-debug.xml`
-- **警告分类说明**：
-  - `Correctness` (49):
-    - `UnusedAttribute` (1): `enableOnBackInvokedCallback` 仅在 API 33+ 生效，向下安全忽略。
-    - `AndroidGradlePluginVersion` (1): 提示 AGP 9.4.1 可用，当前稳定运行在 9.2.1。
-    - `GradleDependency` (13) & `NewerVersionAvailable` (10): 第三方依赖有更高版本。
-    - `ModifierParameter` (24): 部分 Composable 的 Modifier 参数规范建议，不影响功能与性能。
-  - `Security` (2):
-    - `TrustAllX509TrustManager` (2): 仅在测试与本地 Mock 服务中使用。
-  - `Performance` (17):
-    - `ObsoleteSdkInt` (4): 旧版本 SDK 检查冗余。
-    - `AutoboxingStateCreation` (2): 状态基本类型自动装箱建议。
-    - `UnusedResources` (11): 未引用的图标或字符串资源。
+执行命令（PowerShell）：
 
-### 2.3 发布包构建 (`:app:assembleRelease`)
-- **执行命令**：`.\gradlew.bat :app:assembleRelease`
-- **构建状态**：SUCCESSFUL
-- **生成产物**：`app/build/outputs/apk/release/app-release-unsigned.apk`
-- **R8 混淆优化**：已通过，未出现规则冲突或缺少 Keep 规则问题。
+```powershell
+.\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleRelease :app:assembleDebugAndroidTest --console=plain
+```
 
----
+| 检查 | 本轮结果 |
+| --- | --- |
+| 单元测试 | 538 个，0 失败、0 错误、0 跳过 |
+| Lint | 干净快照：0 错误、64 警告、2 提示；首轮工作区为 66 警告，差异为依赖版本提示 |
+| Release / R8 | 构建通过，生成 unsigned release APK |
+| AndroidTest APK | 编译通过；不代表设备测试通过 |
+| Git | 无未解决冲突；dev 为 feat 祖先 |
 
-## 3. 修复内容汇总
+以下路径相对于干净验收目录。
 
-| Commit | 模块 | 核心改动 | 对应测试 |
-| :--- | :--- | :--- | :--- |
-| 1 | `chat` | 清空会话时保留草稿输入（包括清空过程中的输入）；清空失败按代数（epoch）去重恢复历史 | `ChatViewModelTest` (6 个测试覆盖清空成功/失败/重入/代数过期) |
-| 2 | `workout` | 严格按持久化 `plannedExerciseId` 关联计划动作；无 ID 动作不推测目标、不计入计划动作进度，但保留在实际训练记录中 | `WorkoutViewModelTest`, `TodayPlanAssemblerTest` |
-| 3 | `import` | 导入编辑草稿在保存匹配中禁用输入与增删改；提供取消并丢弃任务能力；token 守卫防止旧任务提交 | `DataImportViewModelTest`, `ImportEditSheetTest` |
-| 4 | `import` | 统一预览与落库的数据清洗逻辑（剔除空白动作名、reps<=0 占位组、无有效组动作）；草稿编辑态保留占位组 | `ImportDraftModelsTest` |
-| 5 | `import` | Markdown 导出引入带时区 ISO 8601 时间戳（`开始时间`/`结束时间`）；导入优先使用元数据，支持跨午夜、跨年及跨时区无损往返 | `MarkdownExporterTest`, `WorkoutParseRepositoryTest` |
-| 6 | `reminder` | 调度意图契约与真实 WorkManager 行为解耦；补充真实 Android 环境下的排队、取消、自链幂等及 LocalDateConverters 兼容性测试 | `ReminderSchedulingScenariosTest`, `WorkManagerReminderSchedulerAndroidTest`, `LocalDateConvertersAndroidTest` |
-| 7 | `agent` | AI 生成训练计划的 `sessionsPerWeek` 缺省时按各周课次数众数推导（平局取大）；支持显式指定优先；课次名称缺省/空白自动补全 | `CreatePlanToolTest` |
+测试报告：`app/build/reports/tests/testDebugUnitTest/index.html`。
+Lint 报告：`app/build/reports/lint-results-debug.html`。
 
----
+两条 `TrustAllX509TrustManager` 警告定位于依赖 `com.google.http-client:google-http-client:2.1.0` 的 JAR，不能归为“仅测试或 Mock 使用”。本轮没有验证这些依赖方法在实际网络调用路径中是否可达，也不将该警告直接等同于已确认的运行时 TLS 漏洞。其余警告不以“没有错误”为由宣称全部无风险。
 
-## 4. 边界声明与已知限制
+## 合并前剩余验收
 
-1. **`DatabaseModule.kt` 隔离说明**：
-   工作区中针对 `DatabaseModule.kt` 的 `.fallbackToDestructiveMigration()` 修改严格保持未暂存、未提交状态，未混入任何 commit，也不包含在最终合并分支中。
-2. **Room 数据结构与迁移**：
-   本次改动未修改 Room 表结构与实体字段（严格 ID 关联使用已有字段），未触碰 `AppDatabase.version`，无需编写新的 Room 迁移。
-3. **Android 兼容性**：
-   - 最低支持 SDK：API 26 (Android 8.0)。
-   - `LocalDateConverters` 保证使用 `LocalDate.of(1970, 1, 1)` 降级，避免 `LocalDate.EPOCH` 在 API < 34 设备上抛出 `NoSuchFieldError`。
+1. 连接 API 26 与当前目标 API 的设备，在上述干净验收目录执行 `.\gradlew.bat :app:connectedDebugAndroidTest`，保留结果。当前 `adb devices -l` 无设备，配置 SDK 下也没有 emulator 程序，本轮未执行设备测试。
+2. 在设备上检查 AI 设置页的短内容/可滚动内容、滚动吸附和键盘遮挡；验证导入保存期间输入禁用与取消、跨午夜导出再导入、提醒接力。现有提醒测试覆盖受控交错，不宣称穷尽任意并发顺序。
+3. 合并前重新确认 dev SHA；若目标前进，先同步并复验受影响行为。用户原有 DatabaseModule 改动仍未提交，不包含在本轮提交中。
+
+完成上述验收后再执行 feat 到 dev 的合并。本轮没有修改 dev 分支指针或推送远端。
