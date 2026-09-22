@@ -387,8 +387,8 @@ class DataImportViewModel @Inject constructor(
                     exercises = draftToSave.exercises.map { exercise ->
                         val name = exercise.name.trim()
                         if (name.isEmpty()) {
-                            // 空名保留原样：确认导入清洗时随无组动作一并剔除
-                            exercise.copy(name = name)
+                            // 空名重置 exerciseKey 为 null，旧 key 不得保留；确认导入清洗时剔除
+                            exercise.copy(name = "", exerciseKey = null)
                         } else {
                             exercise.copy(
                                 name = name,
@@ -426,12 +426,20 @@ class DataImportViewModel @Inject constructor(
     /** 修改感受/备注（编辑框直接绑定，确认导入时空白按无处理）。 */
     fun onDraftFeelingsChange(feelings: String) = mutateEditingDraft { it.copy(feelings = feelings) }
 
-    /** 修改动作名（匹配 key 不即时更新，保存时全量重跑）。 */
+    /** 修改动作名（名称变动时清空旧关联 key，保存时全量重跑匹配）。 */
     fun onDraftExerciseNameChange(exerciseLocalId: Long, name: String) =
         mutateEditingDraft { draft ->
             draft.copy(
                 exercises = draft.exercises.map {
-                    if (it.localId == exerciseLocalId) it.copy(name = name) else it
+                    if (it.localId == exerciseLocalId) {
+                        if (it.name.trim() != name.trim()) {
+                            it.copy(name = name, exerciseKey = null)
+                        } else {
+                            it.copy(name = name)
+                        }
+                    } else {
+                        it
+                    }
                 },
             )
         }
@@ -572,11 +580,16 @@ class DataImportViewModel @Inject constructor(
                     } else {
                         val draft = item.draft
                         if (draft == null || draft.validExerciseCount == 0) {
-                            // 清洗后没有任何有效明细（如全部组被删空）：不入库，提示用户编辑
+                            // 清洗后没有任何有效明细（如全部组被删空、动作名为空白）：不入库，提示用户编辑
                             invalid++
                             return@forEach
                         }
                         val workout = draft.toWorkout(scanned.date, scanned.sourceKey, scanned.content)
+                        if (workout.exercises.isEmpty()) {
+                            // 双重保障：清洗后没有任何有效动作，不作为完整记录入库
+                            invalid++
+                            return@forEach
+                        }
                         val insertedId = workoutRepository.insert(workout)
                         if (insertedId == -1L) {
                             val existing = workoutRepository.getBySourceFileName(scanned.sourceKey)
@@ -608,6 +621,7 @@ class DataImportViewModel @Inject constructor(
                     TAG,
                     "导入完成：新增 $imported、升级 $upgraded、存档 $archived、跳过 $skipped、无效 $invalid",
                 )
+                val allProcessedZero = imported == 0 && upgraded == 0 && archived == 0 && skipped == 0
                 _uiState.update {
                     it.copy(
                         isImporting = false,
@@ -618,17 +632,21 @@ class DataImportViewModel @Inject constructor(
                             skipped = skipped,
                             invalid = invalid,
                         ),
-                        message = buildString {
-                            append("导入完成：")
-                            append(
-                                listOfNotNull(
-                                    if (imported > 0) "新增 $imported 条" else null,
-                                    if (upgraded > 0) "升级 $upgraded 条" else null,
-                                    if (archived > 0) "存档 $archived 条" else null,
-                                    if (skipped > 0) "跳过 $skipped 条" else null,
-                                    if (invalid > 0) "无效 $invalid 条（请编辑后重试）" else null,
-                                ).joinToString("，").ifEmpty { "无变更" },
-                            )
+                        message = if (allProcessedZero && invalid > 0) {
+                            "所选条目清洗后无有效动作，未能导入（共 $invalid 条，请编辑后重试）"
+                        } else {
+                            buildString {
+                                append("导入完成：")
+                                append(
+                                    listOfNotNull(
+                                        if (imported > 0) "新增 $imported 条" else null,
+                                        if (upgraded > 0) "升级 $upgraded 条" else null,
+                                        if (archived > 0) "存档 $archived 条" else null,
+                                        if (skipped > 0) "跳过 $skipped 条" else null,
+                                        if (invalid > 0) "无效 $invalid 条（请编辑后重试）" else null,
+                                    ).joinToString("，").ifEmpty { "无变更" },
+                                )
+                            }
                         },
                     )
                 }

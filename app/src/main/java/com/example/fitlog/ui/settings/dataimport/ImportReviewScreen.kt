@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
@@ -374,20 +375,29 @@ fun ImportReviewScreen(
 
     // 结算完成弹窗（展示导入结果并提供导航）
     uiState.lastResultSummary?.let { summary ->
+        val allZero = summary.imported == 0 && summary.upgraded == 0 && summary.archived == 0 && summary.skipped == 0
         AlertDialog(
             onDismissRequest = onDismissResultSummary,
             icon = {
                 Icon(
-                    imageVector = Icons.Default.CheckCircle,
+                    imageVector = if (allZero && summary.invalid > 0) {
+                        Icons.Default.Info
+                    } else {
+                        Icons.Default.CheckCircle
+                    },
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = if (allZero && summary.invalid > 0) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
                     modifier = Modifier.size(28.dp),
                 )
             },
             shape = RoundedCornerShape(28.dp),
             title = {
                 Text(
-                    "导入完成",
+                    if (allZero && summary.invalid > 0) "导入未完成" else "导入完成",
                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
                 )
             },
@@ -1097,18 +1107,18 @@ internal fun ImportItemRow(
                         modifier = Modifier.padding(top = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        if (item.status == ImportItemStatus.PARSED && item.draft != null) {
+                        if (item.status == ImportItemStatus.PARSED && item.draft != null && item.draft.validExerciseCount > 0) {
                             val draft = item.draft
-                            val totalSets = draft.exercises.sumOf { it.sets.size }
+                            val validLogs = draft.toExerciseLogs()
+                            val totalSets = validLogs.sumOf { it.sets.size }
                             // 容量统一走 VolumeAggregator 口径（经 toExerciseLogs 出口，
                             // 与保存后记录的容量统计同源，见 ImportDraftModels）
-                            val volume = draft.toExerciseLogs()
-                                .sumOf { VolumeAggregator.workingVolumeOf(it) }
+                            val volume = validLogs.sumOf { VolumeAggregator.workingVolumeOf(it) }
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                MetricChip(text = "${draft.exercises.size} 动作")
+                                MetricChip(text = "${draft.validExerciseCount} 动作")
                                 MetricChip(text = "$totalSets 组")
                                 if (volume > 0.0) {
                                     MetricChip(
@@ -1578,12 +1588,12 @@ private fun detailTextOf(item: ImportItemState): String = when (item.status) {
         if (draft == null || draft.validExerciseCount == 0) {
             "未解析出有效动作"
         } else {
-            val totalSets = draft.exercises.sumOf { it.sets.size }
+            val validLogs = draft.toExerciseLogs()
+            val totalSets = validLogs.sumOf { it.sets.size }
             // 容量统一走 VolumeAggregator 口径（经 toExerciseLogs 出口，同上）
-            val volume = draft.toExerciseLogs()
-                .sumOf { VolumeAggregator.workingVolumeOf(it) }
+            val volume = validLogs.sumOf { VolumeAggregator.workingVolumeOf(it) }
             val volumeText = if (volume > 0.0) " · ${VolumeFormatter.formatVolume(volume)}" else ""
-            "${draft.exercises.size} 个动作 · $totalSets 组$volumeText"
+            "${draft.validExerciseCount} 个动作 · $totalSets 组$volumeText"
         }
     }
 

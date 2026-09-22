@@ -615,4 +615,205 @@ class DataImportViewModelTest {
         val originalDraft = stateFinal.items.first { it.sourceKey == "2026-05-07.md" }.draft!!
         assertEquals(60f, originalDraft.exercises.first().sets.first().weightKg)
     }
+
+    /**
+     * 测试改为空动作名：清空旧 exerciseKey，保存后为 null，确认导入时不能入库并反馈无效。
+     */
+    @Test
+    fun testEdit_emptyExerciseName_clearsExerciseKeyAndCannotBePersisted() = runTest(main.scheduler) {
+        val initialWorkout = Workout(
+            id = 0,
+            userId = 0,
+            date = LocalDate.of(2026, 5, 7),
+            feelings = "",
+            exercises = listOf(
+                ExerciseLog(
+                    name = "杠铃卧推",
+                    exerciseKey = "barbell-bench-press",
+                    sets = listOf(SetLog(weightKg = 60f, reps = 10, setType = SetType.WORKING)),
+                ),
+            ),
+            sourceFileName = "2026-05-07.md",
+        )
+        setupBatchWithWorkout(workout = initialWorkout)
+
+        viewModel.onStartEdit("2026-05-07.md")
+        val exerciseId = viewModel.uiState.value.editingDraft!!.exercises.first().localId
+
+        // 将动作名改为空串
+        viewModel.onDraftExerciseNameChange(exerciseId, "")
+
+        // 断言：编辑缓冲中旧 exerciseKey 已被立即清空
+        assertNull(viewModel.uiState.value.editingDraft!!.exercises.first().exerciseKey)
+
+        // 保存编辑
+        viewModel.onSaveEdit()
+        val stateSaved = viewModel.uiState.first { it.editingSourceKey == null }
+
+        // 断言：保存后动作名为空，exerciseKey 为 null（绝不保留旧 key）
+        val savedDraft = stateSaved.items.first().draft!!
+        assertEquals("", savedDraft.exercises.first().name)
+        assertNull(savedDraft.exercises.first().exerciseKey)
+        assertEquals(0, savedDraft.validExerciseCount)
+
+        // 确认条目默认已勾选，直接确认导入
+        assertTrue(viewModel.uiState.value.items.first().checked)
+        viewModel.onConfirmImport()
+        val stateImported = viewModel.uiState.first { !it.isImporting && it.lastResultSummary != null }
+
+        // 断言：未入库，记录为 invalid，且给出明确反馈（不误报成功）
+        assertTrue(workoutRepository.getWorkouts().first().isEmpty())
+        val summary = stateImported.lastResultSummary!!
+        assertEquals(0, summary.imported)
+        assertEquals(1, summary.invalid)
+        assertTrue(stateImported.message!!.contains("所选条目清洗后无有效动作，未能导入"))
+        assertEquals(ImportItemStatus.PARSED, stateImported.items.first().status)
+    }
+
+    /**
+     * 测试改为全空白动作名：trim 后为空，清空旧 exerciseKey，确认导入时不能入库。
+     */
+    @Test
+    fun testEdit_whitespaceExerciseName_clearsExerciseKeyAndCannotBePersisted() = runTest(main.scheduler) {
+        val initialWorkout = Workout(
+            id = 0,
+            userId = 0,
+            date = LocalDate.of(2026, 5, 7),
+            feelings = "",
+            exercises = listOf(
+                ExerciseLog(
+                    name = "杠铃卧推",
+                    exerciseKey = "barbell-bench-press",
+                    sets = listOf(SetLog(weightKg = 60f, reps = 10, setType = SetType.WORKING)),
+                ),
+            ),
+            sourceFileName = "2026-05-07.md",
+        )
+        setupBatchWithWorkout(workout = initialWorkout)
+
+        viewModel.onStartEdit("2026-05-07.md")
+        val exerciseId = viewModel.uiState.value.editingDraft!!.exercises.first().localId
+
+        // 改为纯空白字符
+        viewModel.onDraftExerciseNameChange(exerciseId, "   \t  ")
+
+        // 断言：编辑缓冲中旧 exerciseKey 已被清空
+        assertNull(viewModel.uiState.value.editingDraft!!.exercises.first().exerciseKey)
+
+        viewModel.onSaveEdit()
+        val stateSaved = viewModel.uiState.first { it.editingSourceKey == null }
+
+        val savedDraft = stateSaved.items.first().draft!!
+        assertEquals("", savedDraft.exercises.first().name)
+        assertNull(savedDraft.exercises.first().exerciseKey)
+        assertEquals(0, savedDraft.validExerciseCount)
+
+        assertTrue(viewModel.uiState.value.items.first().checked)
+        viewModel.onConfirmImport()
+        val stateImported = viewModel.uiState.first { !it.isImporting && it.lastResultSummary != null }
+
+        assertTrue(workoutRepository.getWorkouts().first().isEmpty())
+        val summary = stateImported.lastResultSummary!!
+        assertEquals(0, summary.imported)
+        assertEquals(1, summary.invalid)
+    }
+
+    /**
+     * 测试改名重匹配：改名匹配动作库新 key，改为未知动作重置 key 为 null（不保留旧 key）。
+     */
+    @Test
+    fun testEdit_renameExercise_rematchesAndClearsOldKey() = runTest(main.scheduler) {
+        val initialWorkout = Workout(
+            id = 0,
+            userId = 0,
+            date = LocalDate.of(2026, 5, 7),
+            feelings = "",
+            exercises = listOf(
+                ExerciseLog(
+                    name = "杠铃卧推",
+                    exerciseKey = "barbell-bench-press",
+                    sets = listOf(SetLog(weightKg = 60f, reps = 10, setType = SetType.WORKING)),
+                ),
+            ),
+            sourceFileName = "2026-05-07.md",
+        )
+        setupBatchWithWorkout(workout = initialWorkout)
+
+        // 1. 改为库内存在的「引体向上」
+        viewModel.onStartEdit("2026-05-07.md")
+        var exerciseId = viewModel.uiState.value.editingDraft!!.exercises.first().localId
+        viewModel.onDraftExerciseNameChange(exerciseId, "引体向上")
+        viewModel.onSaveEdit()
+        val stateRematched = viewModel.uiState.first { it.editingSourceKey == null }
+
+        val rematchedDraft = stateRematched.items.first().draft!!
+        assertEquals("引体向上", rematchedDraft.exercises.first().name)
+        assertEquals("pull-up", rematchedDraft.exercises.first().exerciseKey)
+
+        // 2. 改为库内不存在的「自定义自由动作」
+        viewModel.onStartEdit("2026-05-07.md")
+        exerciseId = viewModel.uiState.value.editingDraft!!.exercises.first().localId
+        viewModel.onDraftExerciseNameChange(exerciseId, "自定义自由动作")
+        viewModel.onSaveEdit()
+        val stateCustom = viewModel.uiState.first { it.editingSourceKey == null }
+
+        val customDraft = stateCustom.items.first().draft!!
+        assertEquals("自定义自由动作", customDraft.exercises.first().name)
+        // 关键断言：旧 key "pull-up" 绝未被保留，变为 null 自由文本
+        assertNull(customDraft.exercises.first().exerciseKey)
+        assertEquals(1, customDraft.validExerciseCount)
+    }
+
+    /**
+     * 测试所有动作被清洗场景：确认导入不落库、记录为 invalid，且给出明确反馈不误报导入成功。
+     */
+    @Test
+    fun testImport_allExercisesCleaned_givesClearFeedbackAndDoesNotFalselyReportSuccess() = runTest(main.scheduler) {
+        // 包含 2 个清洗后都会被剔除的动作：1 个全空白动作名、1 个仅有占位组（reps=0）
+        val initialWorkout = Workout(
+            id = 0,
+            userId = 0,
+            date = LocalDate.of(2026, 5, 7),
+            feelings = "",
+            exercises = listOf(
+                ExerciseLog(
+                    name = "   ",
+                    exerciseKey = "barbell-bench-press",
+                    sets = listOf(SetLog(weightKg = 60f, reps = 10, setType = SetType.WORKING)),
+                ),
+                ExerciseLog(
+                    name = "深蹲",
+                    exerciseKey = "barbell-squat",
+                    sets = listOf(SetLog(weightKg = 100f, reps = 0, setType = SetType.WORKING)),
+                ),
+            ),
+            sourceFileName = "2026-05-07.md",
+        )
+        setupBatchWithWorkout(workout = initialWorkout)
+
+        val draft = viewModel.uiState.value.items.first().draft!!
+        assertEquals(0, draft.validExerciseCount)
+
+        // 确认条目默认已勾选，直接确认导入
+        assertTrue(viewModel.uiState.value.items.first().checked)
+        viewModel.onConfirmImport()
+        val stateImported = viewModel.uiState.first { !it.isImporting && it.lastResultSummary != null }
+
+        // 断言：数据库完全未写入任何 Workout
+        assertTrue(workoutRepository.getWorkouts().first().isEmpty())
+
+        // 断言：结果统计中 imported=0，invalid=1
+        val summary = stateImported.lastResultSummary!!
+        assertEquals(0, summary.imported)
+        assertEquals(0, summary.upgraded)
+        assertEquals(0, summary.archived)
+        assertEquals(1, summary.invalid)
+
+        // 断言：给出明确反馈文案，绝不误报「导入完成：新增 1 条」
+        assertNotNull(stateImported.message)
+        assertTrue(stateImported.message!!.contains("所选条目清洗后无有效动作，未能导入"))
+        // 确认条目状态依然为 PARSED，保留供用户编辑
+        assertEquals(ImportItemStatus.PARSED, stateImported.items.first().status)
+    }
 }
+

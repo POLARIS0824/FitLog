@@ -35,17 +35,17 @@ data class ImportDraftWorkout(
     val exercises: List<ImportDraftExercise> = emptyList(),
 ) {
     /**
-     * 有效动作数（含 ≥1 个 reps>0 的组）——确认导入的完整性要求：
+     * 有效动作数（非空白动作名 且 含 ≥1 个 reps>0 的组）——确认导入的完整性要求：
      * 0 表示清洗后没有任何可导入的明细，该条只能走仅存档兜底。
      */
     val validExerciseCount: Int
-        get() = exercises.count { it.hasValidSet }
+        get() = exercises.count { it.isValid }
 
     /**
      * 转回 domain [Workout]（确认导入时调用）。
      *
-     * 清洗规则：reps≤0 的占位组丢弃；清洗后无组的动作剔除。结果可能为空动作
-     * 列表，调用方须先校验 [validExerciseCount]（与仅存档兜底的分支互斥）。
+     * 清洗规则：空白动作名剔除；reps≤0 的占位组丢弃；清洗后无组的动作剔除。
+     * 结果可能为空动作列表，调用方须先校验 [validExerciseCount]（与仅存档兜底的分支互斥）。
      *
      * @param date 训练日期（取自扫描项，编辑不可改）
      * @param sourceKey 入库唯一键（workouts.sourceFileName）
@@ -59,10 +59,12 @@ data class ImportDraftWorkout(
         startedAt = startedAt,
         endedAt = endedAt,
         exercises = exercises.mapNotNull { exercise ->
+            val trimmedName = exercise.name.trim()
+            if (trimmedName.isEmpty()) return@mapNotNull null
             val sets = exercise.sets.filter { it.reps > 0 }
             if (sets.isEmpty()) return@mapNotNull null
             ExerciseLog(
-                name = exercise.name,
+                name = trimmedName,
                 exerciseKey = exercise.exerciseKey,
                 sets = sets.map { SetLog(it.weightKg, it.reps, it.setType) },
             )
@@ -119,6 +121,10 @@ data class ImportDraftExercise(
     val hasValidSet: Boolean
         get() = sets.any { it.reps > 0 }
 
+    /** 是否为可入库的有效动作（动作名非空白 且 含 ≥1 个 reps>0 的组）。 */
+    val isValid: Boolean
+        get() = name.isNotBlank() && hasValidSet
+
     companion object {
         /**
          * 编辑弹层「添加动作」后从动作库构造新动作行（带一个待录入的占位组，
@@ -152,15 +158,15 @@ data class ImportDraftSet(
 )
 
 /**
- * 草稿动作明细 → domain [ExerciseLog] 列表（不做清洗）。
+ * 草稿动作明细 → domain [ExerciseLog] 列表。
  *
- * 供确认列表的摘要/明细展示统一走 [com.example.fitlog.util.VolumeAggregator]
- * 口径（正式组数/容量），避免为草稿单独手写第二份统计逻辑。
+ * 仅保留有效动作（非空白动作名），供确认列表的摘要/明细展示统一走
+ * [com.example.fitlog.util.VolumeAggregator] 口径（正式组数/容量），避免为草稿单独手写第二份统计逻辑。
  */
 fun ImportDraftWorkout.toExerciseLogs(): List<ExerciseLog> =
-    exercises.map { exercise ->
+    exercises.filter { it.isValid }.map { exercise ->
         ExerciseLog(
-            name = exercise.name,
+            name = exercise.name.trim(),
             exerciseKey = exercise.exerciseKey,
             sets = exercise.sets.map { SetLog(it.weightKg, it.reps, it.setType) },
         )
