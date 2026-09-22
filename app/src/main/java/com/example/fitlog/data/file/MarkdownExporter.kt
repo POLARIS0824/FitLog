@@ -50,6 +50,7 @@ object MarkdownExporter {
     private fun serializeStructured(workout: Workout, zoneId: ZoneId): String {
         val header = "# ${workout.date} 训练"
         val meta = buildList {
+            add("- FitLog-Time-Format: 1")
             workout.feelings?.let { add("- 感受：$it") }
             timeWindowText(workout, zoneId)?.let { add("- 时间：$it") }
             add("- 开始时间：${formatIsoOffsetDateTime(workout.startedAt, zoneId)}")

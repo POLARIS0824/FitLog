@@ -167,46 +167,39 @@ open class WorkoutParseRepository @Inject constructor(
 
     companion object {
         private const val TAG = "WorkoutParseRepository"
-        private val START_TIME_REGEX = """(?m)^[-*+]?\s*开始时间[：:]\s*(.+)$""".toRegex()
-        private val END_TIME_REGEX = """(?m)^[-*+]?\s*结束时间[：:]\s*(.+)$""".toRegex()
+        private val START_TIME_REGEX = """(?m)^[ \t]*[-*+]?[ \t]*开始时间[：:][ \t]*([^\r\n]*)$""".toRegex()
+        private val END_TIME_REGEX = """(?m)^[ \t]*[-*+]?[ \t]*结束时间[：:][ \t]*([^\r\n]*)$""".toRegex()
+        private val FORMAT_REGEX = """(?m)^[ \t]*[-*+]?[ \t]*FitLog-Time-Format:[ \t]*([^\r\n]*)$""".toRegex()
+        private val ISO_PREFIX = """^\d{4}-\d{2}-\d{2}T""".toRegex()
 
         /**
-         * 从 Markdown 文本中提取 ISO offset datetime 元数据。
-         *
-         * @return [IsoTimeMetadata]；若两项元数据均未出现则返回 null（走旧解析逻辑）
-         * @throws IllegalArgumentException 当时间格式损坏或结束时间早于开始时间时抛出
+         * 识别带版本标记的导出时间；兼容早期未标记的 ISO/空字段。
+         * 普通 HH:mm 标签不属于导出元数据，继续交给旧解析流程。
+         * 一旦识别为导出格式，两字段必须各出现一次；只有显式“空”代表 null。
+         * @throws IllegalArgumentException 格式未知、字段缺失/重复/损坏或时间倒挂。
          */
         fun extractIsoTimeMetadata(content: String): IsoTimeMetadata? {
-            val startMatch = START_TIME_REGEX.find(content)
-            val endMatch = END_TIME_REGEX.find(content)
-            if (startMatch == null && endMatch == null) {
-                return null
-            }
+            val starts = START_TIME_REGEX.findAll(content).map { it.groupValues[1].trim() }.toList()
+            val ends = END_TIME_REGEX.findAll(content).map { it.groupValues[1].trim() }.toList()
+            val formats = FORMAT_REGEX.findAll(content).map { it.groupValues[1].trim() }.toList()
+            val looksLikeExport = (starts + ends).any { it == "空" || ISO_PREFIX.containsMatchIn(it) }
+            if (formats.isEmpty() && !looksLikeExport) return null
+            require(formats.isEmpty() || formats == listOf("1")) { "FitLog 时间格式版本未知或重复" }
+            require(starts.size == 1 && ends.size == 1) { "导出时间元数据必须各包含一个开始时间和结束时间字段" }
 
-            val startRaw = startMatch?.groupValues?.get(1)?.trim()
-            val startedAt = when {
-                startRaw == null || startRaw == "空" || startRaw.isEmpty() -> null
-                else -> try {
-                    OffsetDateTime.parse(startRaw).toInstant().toEpochMilli()
-                } catch (e: Exception) {
-                    throw IllegalArgumentException("开始时间格式错误：\"$startRaw\"", e)
+            fun parseTime(raw: String, label: String): Long? {
+                if (raw == "空") return null
+                return try {
+                    OffsetDateTime.parse(raw).toInstant().toEpochMilli()
+                } catch (e: java.time.format.DateTimeParseException) {
+                    throw IllegalArgumentException("${label}格式错误：\"$raw\"", e)
                 }
             }
-
-            val endRaw = endMatch?.groupValues?.get(1)?.trim()
-            val endedAt = when {
-                endRaw == null || endRaw == "空" || endRaw.isEmpty() -> null
-                else -> try {
-                    OffsetDateTime.parse(endRaw).toInstant().toEpochMilli()
-                } catch (e: Exception) {
-                    throw IllegalArgumentException("结束时间格式错误：\"$endRaw\"", e)
-                }
+            val startedAt = parseTime(starts.single(), "开始时间")
+            val endedAt = parseTime(ends.single(), "结束时间")
+            require(startedAt == null || endedAt == null || endedAt >= startedAt) {
+                "结束时间早于开始时间：start=$startedAt, end=$endedAt"
             }
-
-            if (startedAt != null && endedAt != null && endedAt < startedAt) {
-                throw IllegalArgumentException("结束时间早于开始时间：start=$startedAt, end=$endedAt")
-            }
-
             return IsoTimeMetadata(startedAt, endedAt)
         }
     }

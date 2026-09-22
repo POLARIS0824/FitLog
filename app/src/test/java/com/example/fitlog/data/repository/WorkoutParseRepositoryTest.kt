@@ -390,4 +390,46 @@ class WorkoutParseRepositoryTest {
         assertNull(parsed.startedAt)
         assertNull(parsed.endedAt)
     }
+    @Test
+    fun `legacy labelled clock times are not ISO metadata`() {
+        assertNull(WorkoutParseRepository.extractIsoTimeMetadata("开始时间：18:00\n结束时间：19:00"))
+    }
+
+    @Test
+    fun `ISO metadata requires both fields even when one is explicitly empty`() {
+        listOf(
+            "开始时间：2026-09-22T18:00:00+08:00",
+            "结束时间：2026-09-22T19:00:00+08:00",
+            "FitLog-Time-Format: 1\n开始时间：空",
+        ).forEach { content ->
+            org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+                WorkoutParseRepository.extractIsoTimeMetadata(content)
+            }
+        }
+    }
+
+    @Test
+    fun `marked metadata rejects blank duplicate and malformed fields`() {
+        listOf(
+            "开始时间：\n结束时间：空",
+            "开始时间：空\n开始时间：空\n结束时间：空",
+            "开始时间：bad\n结束时间：bad",
+        ).forEach { fields ->
+            org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+                WorkoutParseRepository.extractIsoTimeMetadata("FitLog-Time-Format: 1\n$fields")
+            }
+        }
+    }
+
+    @Test
+    fun `format marker survives markdown preprocessing`() {
+        val text = com.example.fitlog.data.file.MarkdownParser.preprocess(
+            "- FitLog-Time-Format: 1\n- 开始时间：空\n- 结束时间：空",
+        )
+        assertEquals(
+            WorkoutParseRepository.IsoTimeMetadata(null, null),
+            WorkoutParseRepository.extractIsoTimeMetadata(text),
+        )
+    }
+
 }
