@@ -123,6 +123,7 @@ class ChatViewModel @Inject constructor(
      * 语音识别结果回填输入框：追加语义（保留已输入草稿，以空格衔接）。
      */
     fun onVoiceInputResult(text: String) {
+        if (_uiState.value.isClearing) return
         _uiState.update { state ->
             val current = state.input
             val merged = when {
@@ -136,6 +137,7 @@ class ChatViewModel @Inject constructor(
 
     /** 语音识别不可用（无识别器/启动失败）：走一次性错误通道提示。 */
     fun onVoiceInputUnavailable() {
+        if (_uiState.value.isClearing) return
         _uiState.update { it.copy(errorMessage = "语音识别不可用（设备缺少语音识别服务）") }
     }
 
@@ -600,6 +602,7 @@ class ChatViewModel @Inject constructor(
             )
         }
         clearJob = viewModelScope.launch {
+            var shouldRestore = false
             try {
                 val clearResult = agentEngine.clearSession(sessionId)
                 if (clearResult.isFailure) {
@@ -610,6 +613,7 @@ class ChatViewModel @Inject constructor(
                             errorMessage = error?.message ?: "清空会话失败，请重试",
                         )
                     }
+                    shouldRestore = true
                     return@launch
                 }
 
@@ -626,6 +630,7 @@ class ChatViewModel @Inject constructor(
                             errorMessage = "会话已清空，但本地聊天记录删除失败，请重试",
                         )
                     }
+                    shouldRestore = true
                     return@launch
                 }
 
@@ -634,13 +639,15 @@ class ChatViewModel @Inject constructor(
                         messages = emptyList(),
                         errorMessage = null,
                         pendingConfirmation = null,
-                        input = "",
                         activeRun = null,
                     )
                 }
             } finally {
                 _uiState.update { it.copy(isClearing = false) }
                 clearJob = null
+                if (shouldRestore) {
+                    restoreJob = viewModelScope.launch { restoreHistory() }
+                }
             }
         }
     }
@@ -676,9 +683,9 @@ class ChatViewModel @Inject constructor(
             throw e
         } catch (e: Exception) {
             FitLog.w(TAG, "读取聊天历史失败", e)
-            emptyList()
+            null
         }
-        if (!coroutineContext.isActive || currentEpoch != sessionEpoch) return
+        if (!coroutineContext.isActive || currentEpoch != sessionEpoch || restored == null) return
 
         _uiState.update { state ->
             if (currentEpoch != sessionEpoch || state.isClearing) return@update state

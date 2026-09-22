@@ -753,4 +753,140 @@ class ChatViewModelTest {
         assertTrue(state.messages.isEmpty())
         assertFalse(state.isClearing)
     }
+
+    /**
+     * 清空期间输入新草稿：清空成功后草稿保留，只清空聊天历史。
+     */
+    @Test
+    fun testClearChat_preservesDraft_includingNewInputDuringClear() = runTest(mainDispatcher.scheduler) {
+        val clearLatch = CompletableDeferred<Unit>()
+        fakeEngine.clearSessionHandler = {
+            clearLatch.await()
+            Result.success(Unit)
+        }
+        fakeEngine.sendHandler = { Result.success(flowOf(finalTextEvent("历史回复"))) }
+        viewModel.onInputChange("初始消息")
+        viewModel.send()
+        assertEquals(2, viewModel.uiState.value.messages.size)
+
+        viewModel.onInputChange("清空前输入的草稿")
+        viewModel.onClearChat()
+        assertTrue(viewModel.uiState.value.isClearing)
+
+        // 清空进行中输入新草稿
+        viewModel.onInputChange("清空期间输入的新草稿")
+        assertEquals("清空期间输入的新草稿", viewModel.uiState.value.input)
+
+        // 放行清空完成
+        clearLatch.complete(Unit)
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isClearing)
+        assertTrue(state.messages.isEmpty())
+        assertEquals("清空期间输入的新草稿", state.input)
+    }
+
+    /**
+     * 历史加载挂起 → 新消息发送完成 → 清空失败，旧历史恢复且新消息不重复。
+     */
+    @Test
+    fun testClearChat_failure_historyLoadingSuspended_newMessageSent_recoversWithoutDuplicates() = runTest(mainDispatcher.scheduler) {
+        // 预置一条本地已持久化消息
+        val existingId = fakeChatRepository.insertMessage(
+            role = "user",
+            content = "持久化的旧消息",
+            createdAt = 1000L,
+        )
+
+        val restoreLatch = CompletableDeferred<Unit>()
+        fakeChatRepository.loadThreadHandler = {
+            restoreLatch.await()
+            null
+        }
+
+        fakeEngine.clearSessionHandler = {
+            Result.failure(IOException("ADK 清空失败"))
+        }
+
+        // 触发清空 -> 失败 -> 触发 restoreHistory，并在 loadThread 处挂起
+        viewModel.onClearChat()
+        assertFalse(viewModel.uiState.value.isClearing)
+        assertNotNull(viewModel.uiState.value.errorMessage)
+
+        // 发送新消息并完成
+        fakeEngine.sendHandler = { Result.success(flowOf(finalTextEvent("新回复"))) }
+        viewModel.onInputChange("并发新消息")
+        viewModel.send()
+
+        val sendingState = viewModel.uiState.value
+        assertEquals(2, sendingState.messages.size)
+        assertEquals("并发新消息", sendingState.messages[0].content)
+        assertEquals("新回复", sendingState.messages[1].content)
+
+        // 放行历史恢复
+        fakeChatRepository.loadThreadHandler = null
+        restoreLatch.complete(Unit)
+
+        val state = viewModel.uiState.value
+        // 验证：包含旧历史消息与新消息，且新消息未重复
+        assertEquals(3, state.messages.size)
+        assertEquals(existingId, state.messages[0].id)
+        assertEquals("持久化的旧消息", state.messages[0].content)
+        assertEquals("并发新消息", state.messages[1].content)
+        assertEquals("新回复", state.messages[2].content)
+    }
+
+    /**
+     * 第一次清空失败后的恢复尚未完成 → 第二次清空成功，旧结果不能复活历史。
+     */
+    @Test
+    fun testClearChat_firstClearFailureRestorePending_secondClearSuccess_doesNotResurrectHistory() = runTest(mainDispatcher.scheduler) {
+        fakeChatRepository.insertMessage(
+            role = "user",
+            content = "应当被清空的旧消息",
+            createdAt = 1000L,
+        )
+
+        val firstRestoreLatch = CompletableDeferred<Unit>()
+        fakeChatRepository.loadThreadHandler = {
+            firstRestoreLatch.await()
+            null
+        }
+
+        // 第一次清空失败
+        fakeEngine.clearSessionHandler = { Result.failure(IOException("第一次清空失败")) }
+        viewModel.onClearChat()
+        assertFalse(viewModel.uiState.value.isClearing)
+        assertNotNull(viewModel.uiState.value.errorMessage)
+
+        // 第二次清空成功
+        fakeEngine.clearSessionHandler = { Result.success(Unit) }
+        viewModel.onClearChat()
+        assertFalse(viewModel.uiState.value.isClearing)
+        assertTrue(viewModel.uiState.value.messages.isEmpty())
+
+        // 放行第一次清空失败后的历史恢复
+        firstRestoreLatch.complete(Unit)
+
+        // 历史不能复活
+        val state = viewModel.uiState.value
+        assertTrue(state.messages.isEmpty())
+    }
+
+    /**
+     * 清空失败后恢复查询再次失败（例如 DB 读取抛异常）：优雅处理不崩溃，保留当前界面状态。
+     */
+    @Test
+    fun testClearChat_failure_restoreQueryThrows_handlesGracefully() = runTest(mainDispatcher.scheduler) {
+        fakeEngine.clearSessionHandler = { Result.failure(IOException("ADK 清理失败")) }
+        fakeChatRepository.loadThreadHandler = {
+            throw java.sql.SQLException("DB 读取异常")
+        }
+
+        viewModel.onClearChat()
+        val state = viewModel.uiState.value
+        assertFalse(state.isClearing)
+        assertNotNull(state.errorMessage)
+    }
 }
+
