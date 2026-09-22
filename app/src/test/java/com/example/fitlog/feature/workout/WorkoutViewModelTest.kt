@@ -375,11 +375,12 @@ class WorkoutViewModelTest {
     }
 
     /**
-     * 测试历史旧数据（plannedExerciseId == null）包含同动作多次时，
-     * 按动作出现序号（occurrence index）安全回退匹配。
+     * 验证已批准的严格 ID 匹配策略调整：
+     * 历史旧数据（plannedExerciseId == null）不再按动作出现序号猜测匹配计划处方，
+     * 不显示推断目标，但动作与组明细正常显示、编辑与保留。
      */
     @Test
-    fun testBuildActiveSession_duplicateExercises_legacyFallbackByOccurrence() = runTest(testScheduler) {
+    fun testBuildActiveSession_duplicateExercises_noPlannedId_doesNotInferTarget() = runTest(testScheduler) {
         insertLibraryExercise()
         val planId = "plan-legacy-dup"
         planRepository.save(
@@ -475,14 +476,16 @@ class WorkoutViewModelTest {
             it != null && it.exercises.size == 2 && it.exercises.all { ex -> ex.sets.isNotEmpty() }
         }!!
 
-        assertEquals(4, session.exercises[0].targetSets)
-        assertEquals(6, session.exercises[0].targetRepsMin)
-        assertEquals(8, session.exercises[0].targetRepsMax)
+        assertEquals(2, session.exercises.size)
+        assertNull(session.exercises[0].targetSets)
+        assertNull(session.exercises[0].targetRepsMin)
+        assertNull(session.exercises[0].targetRepsMax)
 
-        assertEquals(3, session.exercises[1].targetSets)
-        assertEquals(12, session.exercises[1].targetRepsMin)
-        assertEquals(15, session.exercises[1].targetRepsMax)
+        assertNull(session.exercises[1].targetSets)
+        assertNull(session.exercises[1].targetRepsMin)
+        assertNull(session.exercises[1].targetRepsMax)
     }
+
 
     /**
      * 测试在已有计划动作项的会话中，手动追加同动作时，
@@ -561,6 +564,334 @@ class WorkoutViewModelTest {
         assertNull(manualEx.targetRepsMin)
         assertNull(manualEx.targetRepsMax)
     }
+
+    /**
+     * 删除全部预填动作 → 手动添加同名动作 → 录入有效组：不继承目标。
+     */
+    @Test
+    fun testDeleteAllPrefilled_manualAddSameExercise_doesNotInheritTarget() = runTest(testScheduler) {
+        insertLibraryExercise()
+        val planId = "plan-delete-all-manual-add"
+        planRepository.save(
+            WorkoutPlan(
+                id = planId,
+                name = "全删后手动加测试",
+                description = null,
+                goal = null,
+                durationWeeks = 1,
+                sessionsPerWeek = 1,
+                isCustom = false,
+                createdAt = LocalDate.now(),
+                sessions = listOf(
+                    PlannedSession(
+                        id = "session-1",
+                        name = "Day 1",
+                        description = null,
+                        dayNumber = 1,
+                        weekNumber = 1,
+                        targetDurationMinutes = null,
+                        exercises = listOf(
+                            PlannedExerciseItem(
+                                id = "bench-planned-1",
+                                exerciseKey = "barbell-bench-press",
+                                exerciseName = "计划卧推",
+                                targetSets = 4,
+                                targetRepsMin = 8,
+                                targetRepsMax = 10,
+                                order = 0,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        planRepository.setActivePlanId(planId)
+        viewModel.startSession()
+
+        val initial = viewModel.activeSession.first { it != null && it.exercises.isNotEmpty() }!!
+        assertEquals(1, initial.exercises.size)
+        assertEquals(4, initial.exercises[0].targetSets)
+
+        // 删除全部预填动作
+        viewModel.removeExercise(initial.exercises[0].logId)
+        viewModel.activeSession.first { it != null && it.exercises.isEmpty() }
+
+        // 手动从动作库添加同名动作
+        viewModel.addExercise(testExercise())
+        val updated = viewModel.activeSession.first { it != null && it.exercises.isNotEmpty() }!!
+
+        // 手动添加动作不继承计划目标
+        assertEquals(1, updated.exercises.size)
+        assertNull(updated.exercises[0].targetText)
+        assertNull(updated.exercises[0].targetSets)
+        assertNull(updated.exercises[0].targetRepsMin)
+        assertNull(updated.exercises[0].targetRepsMax)
+    }
+
+    /**
+     * 删除部分预填动作后追加同名动作：剩余关联正确，手动动作不冒用身份。
+     */
+    @Test
+    fun testDeletePartialPrefilled_appendSameExercise_retainsRemaining_manualDoesNotHijack() = runTest(testScheduler) {
+        insertLibraryExercise()
+        val planId = "plan-delete-partial"
+        planRepository.save(
+            WorkoutPlan(
+                id = planId,
+                name = "部分删除测试",
+                description = null,
+                goal = null,
+                durationWeeks = 1,
+                sessionsPerWeek = 1,
+                isCustom = false,
+                createdAt = LocalDate.now(),
+                sessions = listOf(
+                    PlannedSession(
+                        id = "session-2",
+                        name = "Day 1",
+                        description = null,
+                        dayNumber = 1,
+                        weekNumber = 1,
+                        targetDurationMinutes = null,
+                        exercises = listOf(
+                            PlannedExerciseItem(
+                                id = "bench-1",
+                                exerciseKey = "barbell-bench-press",
+                                exerciseName = "卧推 1",
+                                targetSets = 4,
+                                targetRepsMin = 6,
+                                targetRepsMax = 8,
+                                order = 0,
+                            ),
+                            PlannedExerciseItem(
+                                id = "bench-2",
+                                exerciseKey = "barbell-bench-press",
+                                exerciseName = "卧推 2",
+                                targetSets = 3,
+                                targetRepsMin = 10,
+                                targetRepsMax = 12,
+                                order = 1,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        planRepository.setActivePlanId(planId)
+        viewModel.startSession()
+
+        val initial = viewModel.activeSession.first { it != null && it.exercises.size == 2 }!!
+
+        // 删除第二个动作
+        viewModel.removeExercise(initial.exercises[1].logId)
+        viewModel.activeSession.first { it != null && it.exercises.size == 1 }
+
+        // 手动追加同名动作（无 plannedExerciseId）
+        repository.addExerciseWithPlaceholderSet(
+            workoutId = initial.workoutId,
+            exerciseKey = "barbell-bench-press",
+            name = "手动追加卧推",
+            sortOrder = 2,
+        )
+        val updated = viewModel.activeSession.first { it != null && it.exercises.size == 2 }!!
+
+        // 第一个动作仍为 bench-1，目标正确保留
+        assertEquals(4, updated.exercises[0].targetSets)
+        assertEquals(6, updated.exercises[0].targetRepsMin)
+        assertEquals(8, updated.exercises[0].targetRepsMax)
+
+        // 手动追加的动作不冒用 bench-2 身份
+        assertNull(updated.exercises[1].targetSets)
+        assertNull(updated.exercises[1].targetText)
+    }
+
+    /**
+     * 同课次重复动作使用不同 ID，各自独立匹配。
+     */
+    @Test
+    fun testDuplicateExercisesInSession_distinctIds_matchIndependently() = runTest(testScheduler) {
+        insertLibraryExercise()
+        val planId = "plan-dup-distinct"
+        planRepository.save(
+            WorkoutPlan(
+                id = planId,
+                name = "同动作多课次项测试",
+                description = null,
+                goal = null,
+                durationWeeks = 1,
+                sessionsPerWeek = 1,
+                isCustom = false,
+                createdAt = LocalDate.now(),
+                sessions = listOf(
+                    PlannedSession(
+                        id = "session-distinct",
+                        name = "Day 1",
+                        description = null,
+                        dayNumber = 1,
+                        weekNumber = 1,
+                        targetDurationMinutes = null,
+                        exercises = listOf(
+                            PlannedExerciseItem(
+                                id = "bench-a",
+                                exerciseKey = "barbell-bench-press",
+                                exerciseName = "大重量卧推",
+                                targetSets = 5,
+                                targetRepsMin = 5,
+                                targetRepsMax = 5,
+                                order = 0,
+                            ),
+                            PlannedExerciseItem(
+                                id = "bench-b",
+                                exerciseKey = "barbell-bench-press",
+                                exerciseName = "泵感卧推",
+                                targetSets = 3,
+                                targetRepsMin = 12,
+                                targetRepsMax = 15,
+                                order = 1,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        planRepository.setActivePlanId(planId)
+        viewModel.startSession()
+
+        val session = viewModel.activeSession.first { it != null && it.exercises.size == 2 }!!
+        assertEquals(5, session.exercises[0].targetSets)
+        assertEquals(5, session.exercises[0].targetRepsMin)
+        assertEquals(5, session.exercises[0].targetRepsMax)
+
+        assertEquals(3, session.exercises[1].targetSets)
+        assertEquals(12, session.exercises[1].targetRepsMin)
+        assertEquals(15, session.exercises[1].targetRepsMax)
+    }
+
+    /**
+     * 重建 ViewModel 后结果不变；完成训练后已关联动作 ID 保留。
+     */
+    @Test
+    fun testRebuildViewModel_preservesResult_andFinishPreservesPlannedExerciseIds() = runTest(testScheduler) {
+        insertLibraryExercise()
+        val planId = "plan-rebuild"
+        planRepository.save(
+            WorkoutPlan(
+                id = planId,
+                name = "重建与完成测试",
+                description = null,
+                goal = null,
+                durationWeeks = 1,
+                sessionsPerWeek = 1,
+                isCustom = false,
+                createdAt = LocalDate.now(),
+                sessions = listOf(
+                    PlannedSession(
+                        id = "session-rebuild",
+                        name = "Day 1",
+                        description = null,
+                        dayNumber = 1,
+                        weekNumber = 1,
+                        targetDurationMinutes = null,
+                        exercises = listOf(
+                            PlannedExerciseItem(
+                                id = "bench-plan-id",
+                                exerciseKey = "barbell-bench-press",
+                                exerciseName = "卧推",
+                                targetSets = 4,
+                                targetRepsMin = 8,
+                                targetRepsMax = 10,
+                                order = 0,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        planRepository.setActivePlanId(planId)
+        viewModel.startSession()
+
+        val initial = viewModel.activeSession.first { it != null && it.exercises.isNotEmpty() }!!
+        val workoutId = initial.workoutId
+
+        // 模拟 ViewModel 重建
+        val newViewModel = WorkoutViewModel(
+            workoutRepository = repository,
+            workoutPlanRepository = planRepository,
+            exerciseRepository = ExerciseRepository(db.exerciseDao()),
+            savedStateHandle = SavedStateHandle(),
+        )
+        val rebuiltSession = newViewModel.activeSession.first { it != null && it.workoutId == workoutId }!!
+        assertEquals(4, rebuiltSession.exercises[0].targetSets)
+
+        // 录入有效组并完成训练
+        val setId = rebuiltSession.exercises[0].sets[0].id
+        newViewModel.updateSet(setId, weightKg = 80f, reps = 8)
+        newViewModel.finishSession("训练顺利完成")
+        assertNull(newViewModel.activeSession.first { it == null })
+
+        // 验证完成训练后 DB 中已关联的 plannedExerciseId 保留
+        val logs = db.exerciseLogDao().getByWorkoutId(workoutId)
+        assertEquals(1, logs.size)
+        assertEquals("bench-plan-id", logs[0].plannedExerciseId)
+    }
+
+    /**
+     * 无 ID 的旧会话可以正常显示、编辑、保存。
+     */
+    @Test
+    fun testLegacySessionWithoutIds_canViewEditSaveNormally() = runTest(testScheduler) {
+        insertLibraryExercise()
+        val workoutId = db.workoutDao().insert(
+            com.example.fitlog.data.local.entity.workout.WorkoutEntity(
+                date = LocalDate.now(),
+                startedAt = System.currentTimeMillis(),
+                endedAt = null,
+                planSessionId = "session-legacy-save",
+                sourceFileName = null,
+                rawContent = null,
+            ),
+        )
+        val logId = db.exerciseLogDao().insert(
+            com.example.fitlog.data.local.entity.workout.ExerciseLogEntity(
+                workoutId = workoutId,
+                exerciseKey = "barbell-bench-press",
+                name = "无ID旧动作",
+                sortOrder = 0,
+                plannedExerciseId = null,
+            ),
+        )
+        val setId = db.setLogDao().insert(
+            com.example.fitlog.data.local.entity.workout.SetLogEntity(
+                exerciseLogId = logId,
+                setNumber = 1,
+                weightKg = 60f,
+                reps = 10,
+            ),
+        )
+
+        // 正常加载显示
+        val session = viewModel.activeSession.first { it != null && it.workoutId == workoutId }!!
+        assertEquals(1, session.exercises.size)
+        assertNull(session.exercises[0].targetSets)
+
+        // 正常编辑组
+        viewModel.updateSet(setId, weightKg = 70f, reps = 12)
+        val afterEdit = viewModel.activeSession.first {
+            it != null && it.exercises[0].sets[0].weightKg == 70f
+        }!!
+        assertEquals(12, afterEdit.exercises[0].sets[0].reps)
+
+        // 正常完成并保存
+        viewModel.finishSession("旧会话完成")
+        assertNull(viewModel.activeSession.first { it == null })
+
+        val savedWorkout = db.workoutDao().getByIdWithDetails(workoutId)?.workout
+        assertNotNull(savedWorkout?.endedAt)
+        val savedLogs = db.exerciseLogDao().getByWorkoutId(workoutId)
+        assertEquals(1, savedLogs.size)
+        assertNull(savedLogs[0].plannedExerciseId)
+    }
+
 
     /**
      * 向动作库插入测试动作（最小实体，满足 exercise_logs 外键）。

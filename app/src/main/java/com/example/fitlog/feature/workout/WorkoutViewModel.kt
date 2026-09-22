@@ -439,8 +439,6 @@ class WorkoutViewModel @Inject constructor(
                 .getOrNull()
         }
 
-        val isLegacySession = planSession != null && snapshot.exercises.none { it.plannedExerciseId != null }
-        val exerciseKeyCounts = mutableMapOf<String, Int>()
         return ActiveSession(
             workoutId = snapshot.workoutId,
             startedAtMs = snapshot.startedAtMs,
@@ -448,19 +446,8 @@ class WorkoutViewModel @Inject constructor(
             planSessionName = planSession?.name,
             exercises = snapshot.exercises
                 .map { log ->
-                    val planItem = if (planSession != null) {
-                        if (log.plannedExerciseId != null) {
-                            planSession.exercises.firstOrNull { it.resolvedId(planSession.id) == log.plannedExerciseId }
-                        } else if (isLegacySession) {
-                            val count = exerciseKeyCounts.getOrDefault(log.exerciseKey ?: "", 0)
-                            exerciseKeyCounts[log.exerciseKey ?: ""] = count + 1
-                            planSession.exercises
-                                .filter { it.exerciseKey == log.exerciseKey }
-                                .getOrNull(count)
-                        } else {
-                            // 现代会话中 plannedExerciseId 为 null 的动作均为手动追加，不得继承计划处方
-                            null
-                        }
+                    val planItem = if (planSession != null && log.plannedExerciseId != null) {
+                        planSession.exercises.firstOrNull { it.resolvedId(planSession.id) == log.plannedExerciseId }
                     } else null
 
                     ActiveSessionExercise(

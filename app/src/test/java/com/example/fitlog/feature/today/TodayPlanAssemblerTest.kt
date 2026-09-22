@@ -78,8 +78,8 @@ class TodayPlanAssemblerTest {
             id = "s1",
             name = "课 A",
             exercises = listOf(
-                PlannedExerciseItem(exerciseKey = "a", targetSets = 4, order = 0),
-                PlannedExerciseItem(exerciseKey = "b", targetSets = 6, order = 1),
+                PlannedExerciseItem(id = "ex-a", exerciseKey = "a", targetSets = 4, order = 0),
+                PlannedExerciseItem(id = "ex-b", exerciseKey = "b", targetSets = 6, order = 1),
             ),
         )
         val plan = plan(sessions = listOf(next))
@@ -91,6 +91,7 @@ class TodayPlanAssemblerTest {
                 ExerciseLog(
                     name = "卧推",
                     exerciseKey = "a",
+                    plannedExerciseId = "ex-a",
                     sets = listOf(
                         SetLog(40f, 12, SetType.WARMUP), // 热身组不计
                         SetLog(80f, 10, SetType.WORKING),
@@ -120,7 +121,7 @@ class TodayPlanAssemblerTest {
     fun `IN_PROGRESS with 0 sets has 0 progress and stays IN_PROGRESS`() {
         val next = session(
             id = "s1",
-            exercises = listOf(PlannedExerciseItem(exerciseKey = "a", targetSets = 3, order = 0)),
+            exercises = listOf(PlannedExerciseItem(id = "ex-a", exerciseKey = "a", targetSets = 3, order = 0)),
         )
         val plan = plan(sessions = listOf(next))
         val emptyWorkout = workout(id = 7L, startedAt = 1L, endedAt = null)
@@ -139,7 +140,7 @@ class TodayPlanAssemblerTest {
     fun `IN_PROGRESS with 100 percent sets completed stays IN_PROGRESS until ended`() {
         val next = session(
             id = "s1",
-            exercises = listOf(PlannedExerciseItem(exerciseKey = "a", targetSets = 2, order = 0)),
+            exercises = listOf(PlannedExerciseItem(id = "ex-a", exerciseKey = "a", targetSets = 2, order = 0)),
         )
         val plan = plan(sessions = listOf(next))
         val fullWorkout = workout(
@@ -150,6 +151,7 @@ class TodayPlanAssemblerTest {
                 ExerciseLog(
                     name = "a",
                     exerciseKey = "a",
+                    plannedExerciseId = "ex-a",
                     sets = listOf(
                         SetLog(50f, 10, SetType.WORKING),
                         SetLog(50f, 10, SetType.WORKING),
@@ -422,8 +424,12 @@ class TodayPlanAssemblerTest {
         assertFalse(state.exercises[0].targetReached)
     }
 
+    /**
+     * 验证已批准的严格 ID 匹配策略调整：
+     * 没有 plannedExerciseId 的旧训练记录不再猜测匹配计划动作项，不贡献计划动作进度。
+     */
     @Test
-    fun `legacy workout with duplicate exercises matches by occurrence index`() {
+    fun `legacy workout without plannedExerciseId does not contribute to planned progress`() {
         val next = session(
             id = "s1",
             exercises = listOf(
@@ -457,10 +463,10 @@ class TodayPlanAssemblerTest {
             todayWorkouts = listOf(legacyWorkout),
         )
 
-        assertEquals(4, state.exercises[0].loggedWorkingSets)
-        assertTrue(state.exercises[0].targetReached)
+        assertEquals(0, state.exercises[0].loggedWorkingSets)
+        assertFalse(state.exercises[0].targetReached)
 
-        assertEquals(2, state.exercises[1].loggedWorkingSets)
+        assertEquals(0, state.exercises[1].loggedWorkingSets)
         assertFalse(state.exercises[1].targetReached)
     }
 

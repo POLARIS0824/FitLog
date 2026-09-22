@@ -236,31 +236,15 @@ object TodayPlanAssembler {
         }
     }
 
-    /** 检查在进行中会话中该动作已录入的有效正式组数。 */
+    /** 检查在进行中会话中该动作已录入的有效正式组数。仅按稳定业务标识 [PlannedExerciseItem.resolvedId] 精确匹配。 */
     private fun countLoggedWorkingSets(
         workout: Workout?,
         session: PlannedSession,
         item: PlannedExerciseItem,
     ): Int {
         if (workout == null) return 0
-        val hasPlannedIds = workout.exercises.any { it.plannedExerciseId != null }
-        val matchingLogs = if (hasPlannedIds) {
-            // 现代数据：按稳定业务标识精确匹配，手动追加动作（plannedExerciseId == null）不计入计划进度
-            val resolvedId = item.resolvedId(session.id)
-            workout.exercises.filter { it.plannedExerciseId == resolvedId }
-        } else {
-            // 历史旧数据回退：按该动作在课次中的出现位次 1:1 对齐
-            val itemOccurrenceIndex = session.exercises
-                .sortedBy { it.order }
-                .filter { it.exerciseKey == item.exerciseKey }
-                .indexOfFirst { it.order == item.order }
-            val matchingLog = if (itemOccurrenceIndex >= 0) {
-                workout.exercises
-                    .filter { it.exerciseKey == item.exerciseKey }
-                    .getOrNull(itemOccurrenceIndex)
-            } else null
-            listOfNotNull(matchingLog)
-        }
+        val resolvedId = item.resolvedId(session.id)
+        val matchingLogs = workout.exercises.filter { it.plannedExerciseId == resolvedId }
         return matchingLogs.flatMap { it.sets }
             .count { it.setType == SetType.WORKING && it.reps > 0 }
     }
