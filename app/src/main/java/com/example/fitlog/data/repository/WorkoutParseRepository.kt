@@ -23,7 +23,7 @@ import javax.inject.Inject
  * 本仓库不落库：写入仍由调用方走 [WorkoutRepository].insert/update，
  * 解析结果在用户确认前仅存在于 UI 编辑缓冲中。
  */
-class WorkoutParseRepository @Inject constructor(
+open class WorkoutParseRepository @Inject constructor(
     private val aiChatRepository: AIChatRepository,
     private val exerciseRepository: ExerciseRepository,
 ) {
@@ -36,7 +36,7 @@ class WorkoutParseRepository @Inject constructor(
      * @return [Result.success] 含已匹配动作库的 Workout（id=0，未落库，rawContent 已填）；
      *     解析不出任何动作明细时按失败处理（调用方走「仅存档」兜底）
      */
-    suspend fun parse(content: String, dateHint: LocalDate): Result<Workout> {
+    open suspend fun parse(content: String, dateHint: LocalDate): Result<Workout> {
         val reply = aiChatRepository.chat(
             messages = WorkoutParsePrompt.buildMessages(dateHint, content),
             temperature = 0.1,
@@ -96,7 +96,7 @@ class WorkoutParseRepository @Inject constructor(
      * @param name 动作名（AI 解析结果或用户编辑后的输入）
      * @return 动作库 key；未匹配返回 null（自由文本名入库，合法但无关联统计）
      */
-    suspend fun resolveExerciseKey(name: String): String? {
+    open suspend fun resolveExerciseKey(name: String): String? {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return null
         // 1. 中文名反查（用户日志里的动作名通常是 ExerciseDisplayName 维护的中文名）

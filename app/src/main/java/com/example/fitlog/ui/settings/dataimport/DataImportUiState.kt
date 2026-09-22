@@ -110,6 +110,8 @@ data class DataImportUiState(
     val isImporting: Boolean = false,
     /** 当前编辑弹层对应的条目 sourceKey；null = 弹层关闭 */
     val editingSourceKey: String? = null,
+    /** 当前编辑弹层的独立草稿缓冲；null = 弹层关闭；编辑仅修改此缓冲，保存成功后才提交给原条目 */
+    val editingDraft: ImportDraftWorkout? = null,
     /** 编辑弹层「添加动作」选择器的动作库目录（首次打开编辑时按需加载） */
     val exerciseCatalog: List<Exercise> = emptyList(),
 

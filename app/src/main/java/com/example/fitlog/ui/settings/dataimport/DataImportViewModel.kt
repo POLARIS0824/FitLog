@@ -56,6 +56,12 @@ class DataImportViewModel @Inject constructor(
     /** 解析协程句柄：取消与防重入。 */
     private var parseJob: Job? = null
 
+    /** 保存编辑协程句柄：取消与防重入。 */
+    private var saveJob: Job? = null
+
+    /** 正在保存的条目 sourceKey，用于防重复提交。 */
+    private var savingSourceKey: String? = null
+
     /** 草稿行/动作的会话内自增 id（Compose 文本框 remember 隔离用）。 */
     private val draftIdCounter = AtomicLong(0)
     private fun nextDraftId(): Long = draftIdCounter.incrementAndGet()
@@ -88,6 +94,7 @@ class DataImportViewModel @Inject constructor(
                             )
                         },
                         editingSourceKey = null,
+                        editingDraft = null,
                         isParseProgressHidden = false,
                         selectedFilter = ImportFilterCategory.ALL,
                         lastResultSummary = null,
@@ -304,6 +311,9 @@ class DataImportViewModel @Inject constructor(
     fun onClearBatch() {
         parseJob?.cancel()
         parseJob = null
+        saveJob?.cancel()
+        saveJob = null
+        savingSourceKey = null
         _uiState.update {
             it.copy(
                 successes = emptyList(),
@@ -313,6 +323,7 @@ class DataImportViewModel @Inject constructor(
                 parseCompleted = 0,
                 parseTotal = 0,
                 editingSourceKey = null,
+                editingDraft = null,
                 selectedFilter = ImportFilterCategory.ALL,
                 lastResultSummary = null,
             )
@@ -324,8 +335,16 @@ class DataImportViewModel @Inject constructor(
 
     // ── 编辑弹层（表单缓冲在 VM，确认前不落库） ──
 
-    /** 打开编辑弹层；动作库目录按需加载（选择器过滤用，与会话页同款全量内存过滤）。 */
+    /** 打开编辑弹层并建立独立草稿缓冲；动作库目录按需加载（选择器过滤用，与会话页同款全量内存过滤）。 */
     fun onStartEdit(sourceKey: String) {
+        val targetItem = _uiState.value.items.firstOrNull { it.sourceKey == sourceKey } ?: return
+        val initialDraft = targetItem.draft ?: return
+        _uiState.update {
+            it.copy(
+                editingSourceKey = sourceKey,
+                editingDraft = initialDraft,
+            )
+        }
         viewModelScope.launch {
             if (_uiState.value.exerciseCatalog.isEmpty()) {
                 // Room 查询异常按 guard 约定降级：弹层仍可打开（仅选择器无候选），
@@ -339,44 +358,66 @@ class DataImportViewModel @Inject constructor(
                         _uiState.update { state -> state.copy(message = "动作库加载失败，重试请重新打开编辑") }
                     }
             }
-            _uiState.update { it.copy(editingSourceKey = sourceKey) }
         }
     }
 
-    /** 关闭编辑弹层（不保存）。 */
-    fun onDismissEdit() = _uiState.update { it.copy(editingSourceKey = null) }
+    /** 关闭编辑弹层（丢弃未保存的草稿缓冲）。 */
+    fun onDismissEdit() {
+        saveJob?.cancel()
+        saveJob = null
+        savingSourceKey = null
+        _uiState.update {
+            it.copy(
+                editingSourceKey = null,
+                editingDraft = null,
+            )
+        }
+    }
 
-    /** 保存编辑：动作名全量重跑动作库匹配（含用户改名的），写回后关闭弹层。 */
+    /** 保存编辑：动作名全量重跑动作库匹配（含用户改名的），校验成功后提交给原条目。 */
     fun onSaveEdit() {
-        val sourceKey = _uiState.value.editingSourceKey ?: return
-        viewModelScope.launch {
+        val targetKey = _uiState.value.editingSourceKey ?: return
+        val draftToSave = _uiState.value.editingDraft ?: return
+        if (savingSourceKey == targetKey) return
+        savingSourceKey = targetKey
+
+        saveJob = viewModelScope.launch {
             try {
-                val draft = _uiState.value.items.firstOrNull { it.sourceKey == sourceKey }?.draft
-                if (draft != null) {
-                    val rematched = draft.copy(
-                        exercises = draft.exercises.map { exercise ->
-                            val name = exercise.name.trim()
-                            if (name.isEmpty()) {
-                                // 空名保留原样：确认导入清洗时随无组动作一并剔除
-                                exercise.copy(name = name)
-                            } else {
-                                exercise.copy(
-                                    name = name,
-                                    exerciseKey = workoutParseRepository.resolveExerciseKey(name),
-                                )
-                            }
-                        },
-                    )
-                    updateItem(sourceKey) { it.copy(draft = rematched) }
+                val rematched = draftToSave.copy(
+                    exercises = draftToSave.exercises.map { exercise ->
+                        val name = exercise.name.trim()
+                        if (name.isEmpty()) {
+                            // 空名保留原样：确认导入清洗时随无组动作一并剔除
+                            exercise.copy(name = name)
+                        } else {
+                            exercise.copy(
+                                name = name,
+                                exerciseKey = workoutParseRepository.resolveExerciseKey(name),
+                            )
+                        }
+                    },
+                )
+                // 校验成功后提交给原条目；确保异步保存结果写入 targetKey，而非用户后来打开的记录
+                updateItem(targetKey) { it.copy(draft = rematched) }
+                _uiState.update { state ->
+                    // 仅当用户当前未切换到其他条目时，才关闭弹层并清除缓冲
+                    if (state.editingSourceKey == targetKey) {
+                        state.copy(editingSourceKey = null, editingDraft = null)
+                    } else {
+                        state
+                    }
                 }
-                _uiState.update { it.copy(editingSourceKey = null) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // 匹配查询（Room IO）失败不静默：弹层保持打开让用户重试保存
+                // 保存失败保留缓冲供重试，弹层保持打开
                 FitLog.w(TAG, "保存编辑失败", e)
                 _uiState.update {
                     it.copy(message = "保存编辑失败：${e.message ?: "请重试"}")
+                }
+            } finally {
+                if (savingSourceKey == targetKey) {
+                    savingSourceKey = null
                 }
             }
         }
@@ -630,10 +671,15 @@ class DataImportViewModel @Inject constructor(
         }
     }
 
-    /** 对当前编辑中的条目草稿施加变更（弹层未打开时为 no-op）。 */
+    /** 对当前编辑缓冲施加变更（弹层未打开时为 no-op）。 */
     private fun mutateEditingDraft(transform: (ImportDraftWorkout) -> ImportDraftWorkout) {
-        val sourceKey = _uiState.value.editingSourceKey ?: return
-        updateItem(sourceKey) { item -> item.copy(draft = item.draft?.let(transform)) }
+        _uiState.update { state ->
+            if (state.editingSourceKey == null || state.editingDraft == null) {
+                state
+            } else {
+                state.copy(editingDraft = transform(state.editingDraft))
+            }
+        }
     }
 
     /** 一次性提示已展示，清除。 */

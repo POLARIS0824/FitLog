@@ -20,7 +20,7 @@ import javax.inject.Inject
  *
  * 以 @Inject 类形式提供（而非 object），便于 ViewModel 构造注入、测试替换替身。
  */
-class MarkdownFileScanner @Inject constructor() {
+open class MarkdownFileScanner @Inject constructor() {
 
     /**
      * 扫描结果。
@@ -69,7 +69,7 @@ class MarkdownFileScanner @Inject constructor() {
      * @return [ScanResult] 包含成功和失败列表
      */
     @RequiresApi(Build.VERSION_CODES.O)
-    fun scanFolder(contentResolver: ContentResolver, treeUri: Uri): ScanResult {
+    open fun scanFolder(contentResolver: ContentResolver, treeUri: Uri): ScanResult {
         val successes = mutableListOf<ScannedMarkdown>()
         val failures = mutableListOf<Failure>()
 

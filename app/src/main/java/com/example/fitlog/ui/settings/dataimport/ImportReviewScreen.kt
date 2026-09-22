@@ -495,7 +495,8 @@ fun ImportReviewScreen(
     // 编辑弹层
     val editingItem = uiState.editingSourceKey
         ?.let { key -> uiState.items.firstOrNull { it.sourceKey == key } }
-    if (editingItem != null && editingItem.draft != null) {
+    val editingDraft = uiState.editingDraft
+    if (editingItem != null && editingDraft != null) {
         if (LocalInspectionMode.current) {
             Box(
                 modifier = Modifier
@@ -505,7 +506,7 @@ fun ImportReviewScreen(
             ) {
                 ImportEditSheet(
                     title = "${editingItem.fileName} · ${editingItem.date}",
-                    draft = editingItem.draft,
+                    draft = editingDraft,
                     catalog = uiState.exerciseCatalog,
                     callbacks = editCallbacks,
                 )
@@ -513,7 +514,7 @@ fun ImportReviewScreen(
         } else {
             ImportEditSheet(
                 title = "${editingItem.fileName} · ${editingItem.date}",
-                draft = editingItem.draft,
+                draft = editingDraft,
                 catalog = uiState.exerciseCatalog,
                 callbacks = editCallbacks,
             )
