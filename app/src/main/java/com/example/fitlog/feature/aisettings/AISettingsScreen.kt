@@ -171,27 +171,24 @@ fun AISettingsScreen(
     val density = LocalDensity.current
     val extraSpacingPx = remember(density) { with(density) { 12.dp.roundToPx() } }
 
-    // 自适应双态：动态检测页面内容是否能够产生滚动
-    val isScrollable by remember { derivedStateOf { scrollState.maxValue > 0 } }
-
     // 双标题切换进度：0 = 完全展开（显示父级板块标题 Settings），1 = 大标题刚好完全滚入顶栏之下。
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val titleFraction by remember {
         derivedStateOf {
-            if (!isScrollable || headerHeightPx <= 0) 0f
+            if (headerHeightPx <= 0) 0f
             else (scrollState.value.toFloat() / headerHeightPx.toFloat()).coerceIn(0f, 1f)
         }
     }
 
     // 吸附效果：手势/惯性滚动停止后，若大标题处于半折叠的中间态，自动平滑吸附到最近的稳定边界（0 或 headerHeightPx）。
-    LaunchedEffect(scrollState, headerHeightPx, isScrollable) {
-        if (!isScrollable) return@LaunchedEffect
+    LaunchedEffect(scrollState, headerHeightPx) {
         snapshotFlow { scrollState.isScrollInProgress }
             .collect { inProgress ->
                 if (inProgress) return@collect
                 val currentScroll = scrollState.value
-                if (headerHeightPx > 0 && currentScroll in 1 until headerHeightPx) {
-                    val target = if (currentScroll < headerHeightPx / 2) 0 else headerHeightPx
+                val collapseTarget = minOf(headerHeightPx, scrollState.maxValue)
+                if (collapseTarget > 0 && currentScroll in 1 until collapseTarget) {
+                    val target = if (currentScroll < collapseTarget / 2) 0 else collapseTarget
                     try {
                         scrollState.animateScrollTo(
                             value = target,
@@ -229,32 +226,23 @@ fun AISettingsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    // - 可滚动页面：共享轴向过渡（展开 "Settings" ↔ 折叠 "AI Configuration"）
-                    // - 不可滚动页面：顶栏直接显示本页标题 "AI Configuration"，避免双标题混淆与空间浪费
                     Box(contentAlignment = Alignment.CenterStart) {
-                        if (isScrollable) {
-                            Text(
-                                text = "Settings",
-                                style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.graphicsLayer {
-                                    alpha = 1f - titleFraction
-                                    translationY = -titleFraction * 12.dp.toPx()
-                                },
-                            )
-                            Text(
-                                text = "AI Configuration",
-                                style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.graphicsLayer {
-                                    alpha = titleFraction
-                                    translationY = (1f - titleFraction) * 12.dp.toPx()
-                                },
-                            )
-                        } else {
-                            Text(
-                                text = "AI Configuration",
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                        }
+                        Text(
+                            text = "Settings",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.graphicsLayer {
+                                alpha = 1f - titleFraction
+                                translationY = -titleFraction * 12.dp.toPx()
+                            },
+                        )
+                        Text(
+                            text = "AI Configuration",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.graphicsLayer {
+                                alpha = titleFraction
+                                translationY = (1f - titleFraction) * 12.dp.toPx()
+                            },
+                        )
                     }
                 },
                 navigationIcon = {
@@ -286,21 +274,19 @@ fun AISettingsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // 可滚动页面渲染大标题 Header；不可滚动页面隐藏 Body 重复大标题
-            if (isScrollable) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 8.dp, top = 8.dp, bottom = 4.dp)
-                        .onSizeChanged { size ->
-                            headerHeightPx = size.height + extraSpacingPx
-                        }
-                ) {
-                    Text(
-                        text = "AI Configuration",
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                }
+            // 大标题 Header：无条件常驻渲染在滚动内容顶部，避免动态增删导致的高度双稳态死锁
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, top = 8.dp, bottom = 4.dp)
+                    .onSizeChanged { size ->
+                        headerHeightPx = size.height + extraSpacingPx
+                    }
+            ) {
+                Text(
+                    text = "AI Configuration",
+                    style = MaterialTheme.typography.headlineMedium,
+                )
             }
 
             if (uiState.ui.isLoading) {
