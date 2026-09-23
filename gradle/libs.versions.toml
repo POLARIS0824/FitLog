@@ -18,14 +18,12 @@ ksp = "2.3.7"
 coroutines = "1.10.2"
 datastore = "1.2.1"
 retrofit = "3.0.0"
-# okhttp 双件套（okhttp / logging-interceptor）由 okhttp-bom 统一管理
 okhttpBom = "5.3.2"
 kotlinx-serialization = "1.11.0"
 retrofit-kotlinx-serialization = "1.0.0"
 robolectric = "4.12.2"
 androidxTestCore = "1.6.1"
 material3 = "1.5.0-alpha24"
-# icons-extended 已被 Google 冻结在 1.7.8,不再随版本演进;显式钉版,不依赖 BOM 供给
 materialIconsExtended = "1.7.8"
 googleADK = "1.0.1"
 
@@ -42,6 +40,7 @@ androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lif
 
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+
 # 以下 compose 假名均不写版本，统一由 BOM 供给单一事实源
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
@@ -73,6 +72,7 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-converter-kotlinx-serialization = { group = "com.jakewharton.retrofit", name = "retrofit2-kotlinx-serialization-converter", version.ref = "retrofit-kotlinx-serialization" }
+
 # okhttp 不写版本，统一由 okhttp-bom 供给单一事实源
 okhttp-bom = { group = "com.squareup.okhttp3", name = "okhttp-bom", version.ref = "okhttpBom" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp" }

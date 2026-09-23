@@ -8,10 +8,10 @@
 .cxx
 .kotlin/
 
-# IDE 本地配置（不再追踪）
+# IDE 本地配置
 /.idea/
 
-# AI 工具本地目录（不再追踪）
+# AI 工具本地目录
 .claude/
 .qoder/
 .workbuddy/
@@ -23,8 +23,5 @@
 .aider*
 .codebuddy/
 
-# 构建产物与临时日志（历史上多次误提交，统一忽略）
+# 构建产物与临时日志
 *.log
-hs_err_pid*.log
-build_adk_list.txt
-appdb_hist_tmp.txt

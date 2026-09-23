@@ -1,13 +1,12 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.google.devtools.ksp)
-    alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.serialization)
 }
 
 android {
     namespace = "com.example.fitlog"
+
     compileSdk {
         version = release(37) {
             minorApiLevel = 1
@@ -19,57 +18,23 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0"
+        versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildTypes {
-        release {
-            optimization {
-                enable = true
-            }
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
-        }
-    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
     buildFeatures {
         compose = true
-        buildConfig = true
     }
-
-    packaging {
-        resources {
-            excludes += "META-INF/INDEX.LIST"
-            excludes += "META-INF/DEPENDENCIES"
-        }
-    }
-
-    testOptions {
-        unitTests {
-            // 纯 JVM 单测放行 android.jar 桩（SystemClock/Log 等返回默认值而非抛
-            // "not mocked"）：ChatViewModel 的计时链路依赖 SystemClock.elapsedRealtime。
-            // 仅影响本地单测，不影响生产构建
-            isReturnDefaultValues = true
-        }
-    }
-}
-
-ksp {
-    // Room schema 历史导出：变更 schema 必须递增 AppDatabase.version 并补 Migration，
-    // 以导出文件为准绳做 diff（禁止再依赖破坏性迁移清库）
-    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
+    // Compose
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)
@@ -77,55 +42,25 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.core.splashscreen)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.runtime.compose)
-
-    implementation(libs.androidx.compose.material.icons.extended)
-    implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.material3)
 
+    // Android
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+
+    // Navigation 3
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
-    implementation(libs.androidx.room.runtime)
-    ksp(libs.androidx.room.compiler)
-    implementation(libs.androidx.room.ktx)
-    implementation(libs.androidx.work.runtime)
 
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
-    implementation(libs.androidx.hilt.navigation.compose)
-
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.converter.kotlinx.serialization)
-    implementation(platform(libs.okhttp.bom))
-    implementation(libs.okhttp)
+    // Serialization
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.androidx.datastore.preferences)
 
-    implementation(libs.google.adk.core.android) {
-        // Android 平台已内置 XmlPullParser 实现；ADK 传递的 kxml2 会在 R8
-        // 阶段与 android.content.res.XmlResourceParser 冲突（重复类 ERROR）
-        exclude(group = "net.sf.kxml", module = "kxml2")
-        exclude(group = "xmlpull", module = "xmlpull")
-    }
-    // ADK @Tool 注解处理器：KSP 生成 XxxTool 包装类（implementation 下形同虚设）
-    ksp(libs.google.adk.processor)
-
+    // Test
     testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.robolectric)
-    testImplementation(libs.androidx.test.core)
-    testImplementation(libs.androidx.junit)
-    testImplementation(libs.androidx.work.testing)
-    // androidTest 类路径必须单独挂 BOM：implementation 的 platform 不传导过来，
-    // 缺了它 ui-test-junit4（目录里刻意不写版本，由 BOM 供给）解析不出版本号，
-    // 整个 androidTest 源集无法构建
-    androidTestImplementation(platform(libs.androidx.compose.bom))
+
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(libs.androidx.work.testing)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

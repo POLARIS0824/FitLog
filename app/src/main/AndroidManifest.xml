@@ -7,7 +7,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-            android:name=".FitLogApplication"
             android:allowBackup="true"
             android:dataExtractionRules="@xml/data_extraction_rules"
             android:fullBackupContent="@xml/backup_rules"
@@ -20,7 +19,7 @@
                 android:name=".MainActivity"
                 android:exported="true"
                 android:enableOnBackInvokedCallback="true"
-                android:theme="@style/Theme.fitLog.Splash"
+                android:theme="@style/Theme.fitLog"
                 android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
