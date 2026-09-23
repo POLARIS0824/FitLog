@@ -223,8 +223,8 @@ WorkoutRepository.update(workout)
 
 | # | 问题 | 严重度 | 建议 |
 |---|------|--------|------|
-| 1 | `exportSchema = false`，无迁移历史 | 中 | 开启 `exportSchema = true`，配置 `room.schemaLocation` |
-| 2 | `fallbackToDestructiveMigration()`，升级丢数据 | 高 | 发布前必须编写 Migration 或至少 `fallbackToDestructiveMigrationOnDowngrade` |
+| 1 | ~~`exportSchema = false`，无迁移历史~~ | 已解决 | 已开启 `exportSchema = true` 并提交 `app/schemas/` |
+| 2 | `fallbackToDestructiveMigration()`，升级丢数据 | 已决策 | 开发阶段接受清库、不维护 Migration（2026-09-23 决策）；发布前必须重新评估 |
 | 3 | `ExerciseDao.getByMuscle()` 用 LIKE 匹配逗号字符串 | 低 | 数据量小可接受；若需精确匹配考虑关联表 |
 | 4 | `ExerciseConverters.toMuscleList()` 无容错 | 中 | 添加 `runCatching` 或 `filterNotNull`，防未知枚举值崩溃 |
 | 5 | `ExerciseConverters.toBodyPart()` 无容错 | 中 | 同上，`BodyPart.valueOf()` 对非法值直接抛异常 |

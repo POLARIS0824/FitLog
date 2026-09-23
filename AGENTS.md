@@ -58,7 +58,7 @@ Keep package boundaries clean for potential future modularization:
 - `ai_provider_configs`: AI provider settings (AES-GCM encrypted API key).
 - DataStore: `active_ai_provider_id` for dynamic engine switching; `active_plan_id` for the active plan; `*_seed_version` keys gate seeders. `UserPreferencesRepository` owns theme/reminder preferences.
 - Multi-level queries use `@Relation` + `@Transaction`.
-- Use destructive migrations.
+- Use destructive migrations (development-stage policy): a schema change only bumps `AppDatabase.version` and commits the exported schema JSON (`app/schemas/`). Do not write `Migration` classes — upgrades wipe local data; seeders re-fill base data after a wipe. Re-evaluate before any public release.
 
 ## Code Style & Guidelines
 

@@ -168,4 +168,4 @@ Repository 和 ViewModel 通过 `@Inject constructor` 自动注入，无需显�
 3. **无分页**：`getAllWithDetails()` 全量加载，数据量大时有性能风险
 4. **跨零点不刷新**：`today` 在 ViewModel 创建时固定，长时间挂起后日期不准
 5. **无流式 AI 响应**：Chat 页等待完整响应，长回复体验差
-6. **exportSchema = false**：无法生成迁移脚本，版本升级依赖 destructive migration
+6. **升级即清库**：开发阶段不维护 Migration，`fallbackToDestructiveMigration` 在版本升级时清空本地数据（exportSchema = true 仅用于留存 schema 历史）；基础内容靠种子重灌恢复，发布前需重新评估

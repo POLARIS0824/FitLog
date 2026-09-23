@@ -19,7 +19,6 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import com.example.fitlog.data.local.AppDatabase
-import com.example.fitlog.data.local.Migrations
 import com.example.fitlog.data.repository.AppearanceSource
 import com.example.fitlog.data.repository.UserPreferencesRepository
 import dagger.Module
@@ -44,8 +43,9 @@ object DatabaseModule {
             AppDatabase::class.java,
             "fitlog.db",
         )
-            .addMigrations(*Migrations.ALL_MIGRATIONS)
-            .fallbackToDestructiveMigration()
+            // 开发阶段策略：不维护 Migration，任何版本升级即清库；
+            // 基础数据由种子重灌（ExerciseSeeder/WorkoutPlanSeeder）在清库后恢复
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
 
