@@ -14,6 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.example.fitlog.ui.theme.FitLogTheme
 
+/**
+ * 负责进入 Compose
+ */
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,16 +25,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             FitLogTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "FitLog Ready")
-                    }
-                }
+                FitLogApp()
             }
         }
     }

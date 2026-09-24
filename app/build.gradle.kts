@@ -51,9 +51,12 @@ dependencies {
     // Navigation 3
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.runtime)
+    implementation(libs.androidx.ui)
 
     // Serialization
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.navigation3.runtime)
 
     // Test
     testImplementation(libs.junit)

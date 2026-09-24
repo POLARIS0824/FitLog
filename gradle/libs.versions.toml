@@ -26,6 +26,9 @@ androidxTestCore = "1.6.1"
 material3 = "1.5.0-alpha24"
 materialIconsExtended = "1.7.8"
 googleADK = "1.0.1"
+runtime = "1.12.1"
+ui = "1.12.1"
+navigation3Runtime = "1.1.7"
 
 
 [libraries]
@@ -85,6 +88,9 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3",
 # Google ADK
 google-adk-core-android = { group = "com.google.adk", name = "google-adk-kotlin-core-android", version.ref = "googleADK" }
 google-adk-processor = { group = "com.google.adk", name = "google-adk-kotlin-processor", version.ref = "googleADK" }
+androidx-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtime" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
+navigation3-runtime = { group = "androidx.navigation3", name = "navigation3-runtime", version.ref = "navigation3Runtime" }
 
 
 [plugins]
