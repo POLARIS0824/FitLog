@@ -36,23 +36,29 @@ fun FitLogApp() {
     // 当前导航历史
     val backStack = rememberNavBackStack(FitLogRoute.Today)
     val currentRoute = backStack.lastOrNull()
+    val showNavigationToolbar =
+        currentRoute == FitLogRoute.Today ||
+        currentRoute == FitLogRoute.Log ||
+        currentRoute == FitLogRoute.Insight
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
-            FitLogNavigationToolbar(
-                currentRoute = currentRoute,
-                onDestinationClick = { destination ->
-                    navigateToTopLevelDestination(
-                        backStack = backStack,
-                        destination = destination
-                    )
-                },
-                onRecordWorkoutClick = {
-                    backStack.add(FitLogRoute.Editor)
-                },
-            )
+            if (showNavigationToolbar) {
+                FitLogNavigationToolbar(
+                    currentRoute = currentRoute,
+                    onDestinationClick = { destination ->
+                        navigateToTopLevelDestination(
+                            backStack = backStack,
+                            destination = destination
+                        )
+                    },
+                    onRecordWorkoutClick = {
+                        backStack.add(FitLogRoute.Editor)
+                    },
+                )
+            }
         }
     ) { innerPadding ->
         FitLogNavGraph(

@@ -36,7 +36,11 @@ fun FitLogNavGraph(
             }
 
             entry <FitLogRoute.Editor> {
-                EditorScreen()
+                EditorScreen(
+                    onBack = {
+                        backStack.removeLastOrNull()
+                    }
+                )
             }
         },
     )
