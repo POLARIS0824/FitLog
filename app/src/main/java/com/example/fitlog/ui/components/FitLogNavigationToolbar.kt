@@ -217,8 +217,9 @@ private fun NavTabButton(
             hasStartIcon = true,
         ),
     ) {
+        val iconRes = if (selected) destination.selectedIconRes else destination.unselectedIconRes
         Icon(
-            painter = painterResource(destination.iconRes),
+            painter = painterResource(iconRes),
             contentDescription = destination.label,
             modifier = Modifier.size(24.dp),
         )

@@ -7,7 +7,8 @@ import com.example.fitlog.R
 data class TopLevelDestination(
     val route: FitLogRoute,
     val label: String,
-    @DrawableRes val iconRes: Int,
+    @get:DrawableRes val selectedIconRes: Int,
+    @get:DrawableRes val unselectedIconRes: Int,
 )
 
 // 负责这个 route 在 App 顶级导航中的展示信息
@@ -15,16 +16,19 @@ val topLevelDestinations = listOf(
     TopLevelDestination(
         route = FitLogRoute.Today,
         label = "Today",
-        iconRes = R.drawable.home_24px
+        selectedIconRes = R.drawable.home_filled_24px,
+        unselectedIconRes = R.drawable.home_24px,
     ),
     TopLevelDestination(
         route = FitLogRoute.Log,
         label = "Log",
-        iconRes = R.drawable.analytics_24px
+        selectedIconRes = R.drawable.analytics_filled_24px,
+        unselectedIconRes = R.drawable.analytics_24px,
     ),
     TopLevelDestination(
         route = FitLogRoute.Insight,
         label = "Insight",
-        iconRes = R.drawable.auto_awesome_24px
+        selectedIconRes = R.drawable.auto_awesome_filled_24px,
+        unselectedIconRes = R.drawable.auto_awesome_24px,
     ),
 )
