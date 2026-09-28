@@ -31,6 +31,19 @@ android {
     buildFeatures {
         compose = true
     }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true // 开启 R8 代码缩减与优化（模拟线上真实环境）
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            // 核心技巧：本地实测时直接复用 debug 签名，无需新建私钥
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
 }
 
 dependencies {
