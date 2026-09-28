@@ -1,5 +1,9 @@
 package com.example.fitlog.navigation
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.NavBackStack
@@ -16,12 +20,40 @@ fun FitLogNavGraph(
     backStack: NavBackStack<NavKey>,
     modifier: Modifier = Modifier,
 ) {
+    val motionScheme = MaterialTheme.motionScheme
+
     NavDisplay(
         backStack = backStack,
         modifier = modifier,
+
         onBack = {
             backStack.removeLastOrNull()
         },
+
+        transitionSpec = {
+            fadeIn(
+                animationSpec = motionScheme.defaultEffectsSpec(),
+            ) togetherWith fadeOut(
+                animationSpec = motionScheme.defaultEffectsSpec(),
+            )
+        },
+
+        popTransitionSpec = {
+            fadeIn(
+                animationSpec = motionScheme.defaultEffectsSpec(),
+            ) togetherWith fadeOut(
+                animationSpec = motionScheme.defaultEffectsSpec(),
+            )
+        },
+
+        predictivePopTransitionSpec = {
+            fadeIn(
+                animationSpec = motionScheme.defaultEffectsSpec(),
+            ) togetherWith fadeOut(
+                animationSpec = motionScheme.defaultEffectsSpec(),
+            )
+        },
+
         entryProvider = entryProvider {
             entry<FitLogRoute.Today> {
                 TodayScreen()
@@ -35,7 +67,7 @@ fun FitLogNavGraph(
                 InsightScreen()
             }
 
-            entry <FitLogRoute.Editor> {
+            entry<FitLogRoute.Editor> {
                 EditorScreen(
                     onBack = {
                         backStack.removeLastOrNull()

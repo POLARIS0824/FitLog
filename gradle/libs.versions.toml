@@ -29,6 +29,7 @@ googleADK = "1.0.1"
 runtime = "1.12.1"
 ui = "1.12.1"
 navigation3Runtime = "1.1.7"
+animation = "1.12.1"
 
 
 [libraries]
@@ -89,6 +90,7 @@ google-adk-processor = { group = "com.google.adk", name = "google-adk-kotlin-pro
 androidx-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtime" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
 navigation3-runtime = { group = "androidx.navigation3", name = "navigation3-runtime", version.ref = "navigation3Runtime" }
+androidx-compose-animation = { group = "androidx.compose.animation", name = "animation", version.ref = "animation" }
 
 
 [plugins]

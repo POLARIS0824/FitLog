@@ -68,10 +68,22 @@ fun FitLogApp() {
     }
 }
 
+/**
+ * [Today]
+ *   ↓ 直接 replace
+ * [Log]
+ */
 private fun navigateToTopLevelDestination(
     backStack: NavBackStack<NavKey>,
     destination: TopLevelDestination,
 ) {
-    backStack.clear()
-    backStack.add(destination.route)
+    if (backStack.lastOrNull() == destination.route) {
+        return
+    }
+
+    if (backStack.isEmpty()) {
+        backStack.add(destination.route)
+    } else {
+        backStack[backStack.lastIndex] = destination.route
+    }
 }

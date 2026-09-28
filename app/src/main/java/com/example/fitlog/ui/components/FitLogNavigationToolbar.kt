@@ -1,10 +1,16 @@
 package com.example.fitlog.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
@@ -16,10 +22,10 @@ import androidx.compose.material3.ToggleButtonShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
 import com.example.fitlog.R
 import com.example.fitlog.navigation.TopLevelDestination
@@ -33,83 +39,107 @@ fun FitLogNavigationToolbar(
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val motionScheme = MaterialTheme.motionScheme
 
-    val primary = colorScheme.primary
-    val onPrimary = colorScheme.onPrimary
-    val primaryContainer = colorScheme.primaryContainer
-    val onPrimaryContainer = colorScheme.onPrimaryContainer
+    val toolbarColors = FloatingToolbarDefaults.standardFloatingToolbarColors(
+        toolbarContainerColor = colorScheme.surfaceContainer,
+        toolbarContentColor = colorScheme.onSurfaceVariant,
+        fabContainerColor = colorScheme.primary,
+        fabContentColor = colorScheme.onPrimary,
+    )
 
-    HorizontalFloatingToolbar(
-        expanded = true,
+    Row(
         modifier = modifier,
-
-        colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(
-            toolbarContainerColor = primaryContainer,
-            toolbarContentColor = onPrimaryContainer,
-        ),
-
-        floatingActionButton = {
-            FloatingToolbarDefaults.VibrantFloatingActionButton(
-                onClick = onRecordWorkoutClick,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.add_24px),
-                    contentDescription = "Add",
-                )
-            }
-        },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        topLevelDestinations.forEach { destination ->
+        HorizontalFloatingToolbar(
+            expanded = true,
+            colors = toolbarColors,
+        ) {
+            topLevelDestinations.forEach { destination ->
+                val selected = currentRoute == destination.route
 
-            val selected = currentRoute == destination.route
+                ToggleButton(
+                    checked = selected,
+                    onCheckedChange = {
+                        if (!selected) {
+                            onDestinationClick(destination)
+                        }
+                    },
 
-            ToggleButton(
-                checked = selected,
+                    modifier = Modifier.height(48.dp),
 
-                onCheckedChange = {
-                    if (!selected) {
-                        onDestinationClick(destination)
-                    }
-                },
+                    colors = ToggleButtonDefaults.colors(
+                        containerColor = Color.Transparent,
+                        contentColor = colorScheme.onSurfaceVariant,
+                        checkedContainerColor = colorScheme.secondaryContainer,
+                        checkedContentColor = colorScheme.onSecondaryContainer,
+                    ),
 
-                colors = ToggleButtonDefaults.colors(
-                    containerColor = primaryContainer,
-                    contentColor = onPrimaryContainer,
-                    checkedContainerColor = primary,
-                    checkedContentColor = onPrimary,
-                ),
+                    shapes = ToggleButtonShapes(
+                        shape = CircleShape,
+                        pressedShape = CircleShape,
+                        checkedShape = CircleShape,
+                    ),
 
-                shapes = ToggleButtonShapes(
-                    shape = CircleShape,
-                    CircleShape,
-                    CircleShape,
-                ),
-
-                modifier = Modifier.height(48.dp),
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                    // 重点：虽然不用官方 icon slot，
+                    // 但仍告诉 Material「这里有 leading icon」
+                    contentPadding = ToggleButtonDefaults.contentPaddingFor(
+                        buttonHeight = 48.dp,
+                        hasStartIcon = true,
+                    ),
                 ) {
                     Icon(
                         painter = painterResource(destination.iconRes),
                         contentDescription = destination.label,
+                        modifier = Modifier.size(24.dp),
                     )
 
-                    if (selected) {
+                    AnimatedVisibility(
+                        visible = selected,
+                        enter = expandHorizontally(
+                            expandFrom = Alignment.Start,
+                            animationSpec = motionScheme.defaultSpatialSpec(),
+                        ),
+                        exit = shrinkHorizontally(
+                            shrinkTowards = Alignment.Start,
+                            animationSpec = motionScheme.defaultSpatialSpec(),
+                        ),
+                    ) {
                         Text(
                             text = destination.label,
-                            fontSize = 16.sp,
-                            lineHeight = 24.sp,
+                            style = MaterialTheme.typography.labelLarge,
                             maxLines = 1,
                             softWrap = false,
                             overflow = TextOverflow.Clip,
                             modifier = Modifier.padding(
-                                start = ButtonDefaults.IconSpacing,
+                                start = ToggleButtonDefaults.IconSpacing,
                             ),
                         )
                     }
                 }
             }
+        }
+
+        FloatingActionButton(
+            onClick = onRecordWorkoutClick,
+
+            // 和 toolbar 外容器等高
+//            modifier = Modifier.size(
+//                FloatingToolbarDefaults.ContainerSize
+//            ),
+
+            shape = FloatingActionButtonDefaults.shape,
+
+            // 唯一真正的 primary emphasis
+            containerColor = colorScheme.primary,
+            contentColor = colorScheme.onPrimary,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.add_24px),
+                contentDescription = "Add workout",
+            )
         }
     }
 }
