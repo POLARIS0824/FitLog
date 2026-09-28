@@ -1,9 +1,14 @@
 package com.example.fitlog
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -44,14 +49,22 @@ fun FitLogApp() {
                 backStack = backStack,
                 modifier = Modifier.padding(innerPadding)
             )
-            if (showNavigationToolbar && fabMenuExpanded) {
-                // Consume outside taps without triggering the page underneath.
+            AnimatedVisibility(
+                visible = showNavigationToolbar && fabMenuExpanded,
+                enter = fadeIn(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec()),
+                exit = fadeOut(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec()),
+                modifier = Modifier.matchParentSize(),
+            ) {
+                // Consume outside taps without triggering the page underneath and dim the background.
                 Box(
-                    Modifier.matchParentSize().clickable(
-                        interactionSource = null,
-                        indication = null,
-                        onClickLabel = "Close menu",
-                    ) { fabMenuExpanded = false }
+                    Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
+                        .clickable(
+                            interactionSource = null,
+                            indication = null,
+                            onClickLabel = "Close menu",
+                        ) { fabMenuExpanded = false }
                 )
             }
             if (showNavigationToolbar) {
