@@ -18,4 +18,7 @@ sealed interface FitLogRoute : NavKey {
 
     @Serializable
     data object Editor : FitLogRoute
+
+    @Serializable
+    data object VaultSetup : FitLogRoute
 }
