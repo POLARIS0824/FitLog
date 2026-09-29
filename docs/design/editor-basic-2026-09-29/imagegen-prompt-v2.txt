@@ -1,0 +1,17 @@
+Use case: ui-mockup.
+Generate a new high fidelity Android FitLog basic Markdown diary editor design board. Input image is STYLE REFERENCE ONLY: borrow its extremely pale lavender full-bleed surface, generous whitespace, charcoal line icons, soft rounded-square top action buttons and circular bottom action buttons, understated Material 3 Expressive feel. Do NOT reproduce Google Keep features or branding.
+Landscape board with TWO large identical-sized tall phone UI screens side by side, flat straight-on, no physical devices, no perspective. Tiny external labels: "空白日记" above left and "记录中" above right. Board title "FitLog · 日记编辑器". Narrow outer margins, prioritize readable UI.
+Each screen same structure:
+1 Android status bar 09:41, generic connection and battery icons.
+2 Spacious top action row with plain back arrow at left, two pale-lavender rounded-square 48dp actions aligned right: undo curved-left arrow and redo curved-right arrow. Left empty state both disabled low contrast; right undo enabled dark, redo disabled. NO pin, collaborator, archive, palette, AI, or lock icons.
+3 Below top action row a large charcoal fixed date heading "2026-09-29", aligned left with generous 24dp horizontal padding. Not an input: no underline, no edit icon, no Title placeholder. Below date a small subdued status line: left "星期二 · 未保存", right "星期二 · 已保存" with tiny check on right state. Date is metadata not part of Markdown body.
+4 Main body simple plain text editor on uninterrupted pale lavender background, no cards, borders, ruled lines or divider. Left body light gray placeholder "记录今天的训练…" with insertion caret at start. Right body exact plain Markdown text with visible syntax and uniform readable 17sp body font:
+"## 哑铃平板卧推"
+"32.5kg × 10"
+"32.5kg × 9"
+blank line
+"第二组最后两次有点吃力。"
+blank line and caret. Do not render ## as rich heading. Plenty whitespace below.
+5 Single accessory action row anchored immediately above keyboard, same uninterrupted background as body, roomy vertical padding. Left cluster three CIRCULAR tonal buttons containing literal "×", "kg", and "Aa". The first two insert training symbol/unit, Aa opens Markdown formatting. On far right separated by flexible blank space a small rounded capsule/circle with vertical three-dot icon for more insertion tools. Buttons softly tinted lavender, approximately 48dp touch areas, glyphs charcoal. NOT a segmented control, NOT a big toolbar card. No extra chip rows or dynamic suggestions.
+6 Both screens show the same realistic simplified light gray SYSTEM Chinese pinyin QWERTY keyboard taking bottom roughly 29% of screen, with letters qwerty rows and bottom ?123 comma spacebar "简体中文" period and return. Generic keyboard without proprietary logos, no microphone widgets needed. Android gesture strip at very bottom.
+Layout should feel like the attached spacious Keep reference but distinguish FitLog through fixed date heading, document save status, undo/redo, fitness-specific insertion buttons. Native feasible elegant calm UI, precise Chinese lettering, no marketing prose, no annotation arrows. No bottom app navigation, no FAB, no preview pane, no AI, no templates, no Today dock.

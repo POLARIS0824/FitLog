@@ -1,0 +1,18 @@
+Use case: ui-mockup.
+Create a polished but realistically implementable basic Android FitLog Markdown editor design board, two large flat front-facing phone screen mockups side by side, portrait screens on a clean neutral background, no perspective, no device hardware, no marketing decoration. Landscape image. Title outside phones: "FitLog · 基础编辑器". Small labels above screens "浏览状态" and "输入状态".
+Material 3 Expressive inspired restrained design, off-white surfaces, charcoal text, muted sage green tonal buttons, clean Android Roboto / Noto Sans Chinese typography, generous readable text. Clear hierarchy, native Android touch targets. No gradients, no cards around document, no charts.
+Both screens show Android status bar 9:41 and identical compact top app bar: back arrow on left, filename "2026-09-29.md" as title, small subtitle "已保存" with check icon, overflow vertical dots on right. App bar not oversized.
+Document plain editable Markdown source, NOT rendered rich text. All document lines use same readable body font size and regular weight. Show literal ## signs. Exact document:
+"## 今日训练"
+"推日，状态不错。"
+blank line
+"## 哑铃平板卧推"
+"32.5kg × 10"
+"32.5kg × 9"
+blank line
+"第二组最后两次有点吃力。"
+Keep generous blank writing space after content.
+Left screen keyboard closed, no bottom toolbar, no bottom app navigation, Android gesture bar at very bottom, expansive writing area.
+Right screen same document, caret on empty line after last note, keyboard open. One and only one thin app-owned accessory bar directly above keyboard, 4 stable spaced comfortable controls: "×", "kg", "RPE", "更多" with small expand icon. Very pale sage toolbar surface, lightly rounded tonal controls. Do not include Repeat set, AI suggestions, templates, Today Context, sparkles, floating action buttons, save FAB, preview toggle, bold toolbar, or a settings screen.
+Below accessory bar realistic simplified Android Chinese pinyin QWERTY keyboard in light gray, three rows letters, bottom row ?123, comma, long space labeled 简体中文, period, enter arrow. Keyboard is system UI, clear distinction from app toolbar. Android gesture navigation strip beneath keyboard.
+Composition must show entire screens with comfortable outer margins, excellent precise Chinese text, minimal professional handoff mockup, consistent dimensions, no extra annotations.
