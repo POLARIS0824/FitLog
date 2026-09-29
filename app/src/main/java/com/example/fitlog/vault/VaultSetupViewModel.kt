@@ -70,7 +70,7 @@ class VaultSetupViewModel(
                         val folderInfo = vaultRepository.inspectFolder(configState.uri)
                         if (token != configGeneration) return@launch
                         val error = if (folderInfo.accessStatus != VaultAccessStatus.CanCreateFiles &&
-                            (!createAfterSetup && folderInfo.accessStatus == VaultAccessStatus.ReadOnly).not()
+                            (folderInfo.accessStatus == VaultAccessStatus.ReadOnly).not()
                         ) {
                             accessError(folderInfo.accessStatus)
                         } else null
@@ -142,7 +142,7 @@ class VaultSetupViewModel(
                 savedStateHandle[KEY_CANDIDATE_URI] = uri.toString()
 
                 val isAllowed = folderInfo.accessStatus == VaultAccessStatus.CanCreateFiles ||
-                    (!createAfterSetup && folderInfo.accessStatus == VaultAccessStatus.ReadOnly)
+                    (folderInfo.accessStatus == VaultAccessStatus.ReadOnly)
 
                 val error = if (!isAllowed) accessError(folderInfo.accessStatus) else null
 
@@ -187,7 +187,7 @@ class VaultSetupViewModel(
                     if (token != checkGeneration) return@launch
 
                     val allowed = checkedStatus == VaultAccessStatus.CanCreateFiles ||
-                        (!createAfterSetup && checkedStatus == VaultAccessStatus.ReadOnly)
+                        checkedStatus == VaultAccessStatus.ReadOnly
 
                     if (!allowed) {
                         _uiState.update {
@@ -245,7 +245,7 @@ class VaultSetupViewModel(
                     if (token != checkGeneration) return@launch
 
                     val allowed = checkedStatus == VaultAccessStatus.CanCreateFiles ||
-                        (!createAfterSetup && checkedStatus == VaultAccessStatus.ReadOnly)
+                        checkedStatus == VaultAccessStatus.ReadOnly
 
                     if (!allowed) {
                         _uiState.update {
@@ -290,7 +290,7 @@ class VaultSetupViewModel(
             val folder = vaultRepository.inspectFolder(uri)
             if (token != checkGeneration) return@launch
             val allowed = folder.accessStatus == VaultAccessStatus.CanCreateFiles ||
-                (!createAfterSetup && folder.accessStatus == VaultAccessStatus.ReadOnly)
+                (folder.accessStatus == VaultAccessStatus.ReadOnly)
             _uiState.update {
                 it.copy(
                     candidateVault = if (isCandidate) folder else it.candidateVault,

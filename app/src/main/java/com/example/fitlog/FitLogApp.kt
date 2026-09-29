@@ -26,6 +26,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.navigation3.runtime.rememberNavBackStack
 import com.example.fitlog.data.vault.VaultPreferences
 import com.example.fitlog.data.vault.VaultRepository
+import com.example.fitlog.data.vault.MarkdownDocumentRepository
+import com.example.fitlog.data.vault.TodayLogResolver
 import com.example.fitlog.navigation.FitLogNavGraph
 import com.example.fitlog.navigation.FitLogRoute
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
@@ -44,6 +46,8 @@ fun FitLogApp() {
 
     val vaultPreferences = remember { VaultPreferences(context) }
     val vaultRepository = remember { VaultRepository(context) }
+    val documents = remember { MarkdownDocumentRepository(context) }
+    val todayLog = remember { TodayLogResolver(vaultPreferences.diary, documents, documents) }
 
     // 当前导航历史
     val backStack = rememberNavBackStack(FitLogRoute.Today)
@@ -54,6 +58,7 @@ fun FitLogApp() {
             scope = coroutineScope,
             getConfig = vaultPreferences::getVaultConfig,
             checkAccess = vaultRepository::checkAccess,
+            resolveToday = todayLog::resolve,
             showError = { message ->
                 coroutineScope.launch { snackbarHostState.showSnackbar(context.getString(message)) }
             },
@@ -109,7 +114,7 @@ fun FitLogApp() {
                     fabMenuExpanded = fabMenuExpanded,
                     onFabMenuExpandedChange = { fabMenuExpanded = it },
                     onDestinationClick = { vaultFlow.navigateTo(it.route) },
-                    onCreateFileClick = vaultFlow::createFile,
+                    onOpenTodayClick = vaultFlow::openTodayLog,
                     onImportFolderClick = vaultFlow::importFolder,
                 )
             }

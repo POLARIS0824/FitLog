@@ -17,7 +17,7 @@ import kotlinx.coroutines.CancellationException
 
 @Composable
 fun LogScreen(preferences: VaultPreferences, documents: MarkdownDocuments,
-              onOpen: (String, String) -> Unit, onConnect: () -> Unit, modifier: Modifier = Modifier) {
+              onOpen: (String, String) -> Unit, onConnect: () -> Unit, onSettings: (String) -> Unit, modifier: Modifier = Modifier) {
     var refresh by remember { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(true) }
     var vault by remember { mutableStateOf<String?>(null) }
@@ -39,6 +39,7 @@ fun LogScreen(preferences: VaultPreferences, documents: MarkdownDocuments,
         Row {
             TextButton(onClick = { refresh++ }, enabled = !loading) { Text(stringResource(R.string.log_refresh)) }
             TextButton(onClick = onConnect) { Text(stringResource(R.string.log_connect)) }
+            TextButton(onClick = { vault?.let(onSettings) }, enabled = vault != null) { Text(stringResource(R.string.diary_settings_title)) }
         }
         if (loading) CircularProgressIndicator()
         error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }

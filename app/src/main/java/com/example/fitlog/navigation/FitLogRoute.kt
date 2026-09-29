@@ -22,11 +22,17 @@ sealed interface FitLogRoute : NavKey {
         val document: String? = null,
         val date: String = java.time.LocalDate.now().toString(),
         val sessionId: String = java.util.UUID.randomUUID().toString(),
+        val directory: String = vault,
+        val fileName: String = date + ".md",
     ) : FitLogRoute
 
     @Serializable
     data class VaultSetup(
         val createAfterSetup: Boolean = false,
         val requestId: String = java.util.UUID.randomUUID().toString(),
+        val todayDate: String = java.time.LocalDate.now().toString(),
     ) : FitLogRoute
+
+    @Serializable
+    data class DiarySettings(val vault: String) : FitLogRoute
 }

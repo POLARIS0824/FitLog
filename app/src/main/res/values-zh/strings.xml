@@ -44,7 +44,7 @@
     <string name="vault_capability_read_only">只读</string>
     <string name="vault_capability_needs_reauthorization">需重新授权</string>
     <string name="vault_capability_unavailable">文件夹不可用</string>
-    <string name="vault_setup_read_only_add_hint">该文件夹为只读，无法新建笔记，请重新选择</string>
+    <string name="vault_setup_read_only_add_hint">可以只读方式打开已有日记；今天的日记尚不存在时，需要可创建文件的目录。</string>
     <string name="vault_error_save_config_failed">无法保存文件夹设置，请重试</string>
     <string name="vault_setup_error_access_failed">无法访问该文件夹</string>
 

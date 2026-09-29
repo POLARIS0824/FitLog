@@ -154,7 +154,7 @@ class VaultSetupViewModelTest {
     }
 
     @Test
-    fun initialState_whenConfiguredReadOnly_andCreateAfterSetup_canConfirmIsFalse() = testScope.runTest {
+    fun initialState_whenConfiguredReadOnly_allowsLookingUpToday() = testScope.runTest {
         val dataStore = InMemoryDataStore()
         val prefs = VaultPreferences(dataStore)
         prefs.setVaultUri(currentVaultUri)
@@ -169,7 +169,7 @@ class VaultSetupViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(VaultAccessStatus.ReadOnly, state.currentVault?.accessStatus)
-        assertFalse(state.canConfirm)
+        assertTrue(state.canConfirm)
     }
 
     @Test
@@ -259,7 +259,7 @@ class VaultSetupViewModelTest {
     }
 
     @Test
-    fun folderPicked_readOnlyForAdd_showsError_andDisablesConfirm() = testScope.runTest {
+    fun folderPicked_readOnlyForToday_allowsConnection() = testScope.runTest {
         val dataStore = InMemoryDataStore()
         val prefs = VaultPreferences(dataStore)
         val fakeAccessor = FakeSafDirectoryAccessor(hasWritePermission = false)
@@ -275,8 +275,8 @@ class VaultSetupViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(VaultAccessStatus.ReadOnly, state.candidateVault?.accessStatus)
-        assertEquals(R.string.vault_error_read_only, state.errorResId)
-        assertFalse(state.canConfirm)
+        assertNull(state.errorResId)
+        assertTrue(state.canConfirm)
     }
 
     @Test

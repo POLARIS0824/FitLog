@@ -25,6 +25,8 @@ import com.example.fitlog.insight.InsightScreen
 import com.example.fitlog.log.LogScreen
 import com.example.fitlog.today.TodayScreen
 import com.example.fitlog.vault.VaultSetupRoute
+import com.example.fitlog.vault.DiarySettingsScreen
+import com.example.fitlog.vault.DiarySettingsViewModel
 
 @Composable
 fun FitLogNavGraph(
@@ -78,6 +80,7 @@ fun FitLogNavGraph(
             entry<FitLogRoute.Log> {
                 LogScreen(vaultPreferences, documents,
                     onOpen = { vault, document -> backStack.add(FitLogRoute.Editor(vault, document)) },
+                    onSettings = { vault -> backStack.add(FitLogRoute.DiarySettings(vault)) },
                     onConnect = { backStack.add(FitLogRoute.VaultSetup()) })
             }
 
@@ -104,6 +107,17 @@ fun FitLogNavGraph(
                     onSetupCompleted = onSetupCompleted,
                     onBack = onBack,
                 )
+            }
+
+            entry<FitLogRoute.DiarySettings> { route ->
+                val vm = viewModel<DiarySettingsViewModel> {
+                    DiarySettingsViewModel(route.vault, vaultPreferences.diary, documents)
+                }
+                DisposableEffect(vm) {
+                    editorBack = { vm.requestBack(onBack) }
+                    onDispose { editorBack = null }
+                }
+                DiarySettingsScreen(vm) { if (backStack.lastOrNull() == route) onBack() }
             }
         },
     )

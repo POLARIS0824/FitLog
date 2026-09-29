@@ -1,0 +1,17 @@
+<resources>
+    <string name="nav_action_open_today">打开今日日记</string>
+    <string name="diary_settings_title">日记设置</string>
+    <string name="diary_settings_description">选择此资料库内的已有目录。更改仅用于之后打开的今日日记，不移动或重命名已有文件。</string>
+    <string name="diary_directory">日记目录</string>
+    <string name="diary_root">资料库根目录</string>
+    <string name="diary_up">上一级目录</string>
+    <string name="diary_date_format">日期格式</string>
+    <string name="diary_format_dashed">YYYY-MM-DD</string>
+    <string name="diary_format_compact">YYYYMMDD</string>
+    <string name="diary_format_chinese">YYYY年MM月DD日</string>
+    <string name="diary_filename_preview">今天：%1$s</string>
+    <string name="diary_no_subfolders">没有子目录，保存即可使用当前目录。</string>
+    <string name="diary_settings_failed">无法读取或保存日记设置，请重试。</string>
+    <string name="diary_directory_failed">目录不可用，请重试或选择资料库内的其他目录。</string>
+    <string name="diary_open_failed">无法打开今日日记，请在 Log 中检查日记设置或重新连接文件夹。</string>
+</resources>

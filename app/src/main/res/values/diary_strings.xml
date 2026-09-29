@@ -1,0 +1,17 @@
+<resources>
+    <string name="nav_action_open_today">Open Today Log</string>
+    <string name="diary_settings_title">Diary settings</string>
+    <string name="diary_settings_description">Choose an existing folder inside this vault. Changes apply to future daily logs and do not move or rename existing files.</string>
+    <string name="diary_directory">Daily log folder</string>
+    <string name="diary_root">Vault root</string>
+    <string name="diary_up">Parent folder</string>
+    <string name="diary_date_format">Date format</string>
+    <string name="diary_format_dashed">YYYY-MM-DD</string>
+    <string name="diary_format_compact">YYYYMMDD</string>
+    <string name="diary_format_chinese">YYYY年MM月DD日</string>
+    <string name="diary_filename_preview">Today: %1$s</string>
+    <string name="diary_no_subfolders">No subfolders. Save to use this folder.</string>
+    <string name="diary_settings_failed">Could not load or save diary settings. Please retry.</string>
+    <string name="diary_directory_failed">Folder unavailable. Retry or choose another folder within this vault.</string>
+    <string name="diary_open_failed">Could not open today’s log. Check Diary settings or reconnect the folder from Log.</string>
+</resources>

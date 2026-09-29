@@ -50,7 +50,7 @@ fun FitLogNavigationToolbar(
     fabMenuExpanded: Boolean,
     onFabMenuExpandedChange: (Boolean) -> Unit,
     onDestinationClick: (TopLevelDestination) -> Unit,
-    onCreateFileClick: () -> Unit,
+    onOpenTodayClick: () -> Unit,
     onImportFolderClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -87,7 +87,7 @@ fun FitLogNavigationToolbar(
         FloatingActionButtonMenuItem(
             onClick = {
                 onFabMenuExpandedChange(false)
-                onCreateFileClick()
+                onOpenTodayClick()
             },
             icon = {
                 Icon(
@@ -95,7 +95,7 @@ fun FitLogNavigationToolbar(
                     contentDescription = null,
                 )
             },
-            text = { Text(stringResource(R.string.nav_action_add_file)) },
+            text = { Text(stringResource(R.string.nav_action_open_today)) },
         )
         FloatingActionButtonMenuItem(
             onClick = {

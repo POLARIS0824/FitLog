@@ -74,7 +74,7 @@ data class VaultSetupUiState(
             val target = targetVault ?: return false
             return when (target.accessStatus) {
                 VaultAccessStatus.CanCreateFiles -> true
-                VaultAccessStatus.ReadOnly -> !createAfterSetup
+                VaultAccessStatus.ReadOnly -> true
                 else -> false
             }
         }

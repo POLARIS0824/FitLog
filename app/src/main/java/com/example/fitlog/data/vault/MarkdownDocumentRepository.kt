@@ -32,14 +32,39 @@ interface MarkdownDocuments {
 }
 
 /** All SAF operations stay on document URIs, never filesystem paths. */
-class MarkdownDocumentRepository(context: Context) : MarkdownDocuments {
+class MarkdownDocumentRepository(context: Context) : MarkdownDocuments, DiaryDirectories {
     private val appContext = context.applicationContext
     private val resolver = appContext.contentResolver
     private companion object { val writes = Mutex() }
 
     private fun root(vault: String): Uri {
         val tree = Uri.parse(vault)
-        return DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        val id = try { DocumentsContract.getDocumentId(tree) }
+            catch (_: IllegalArgumentException) { DocumentsContract.getTreeDocumentId(tree) }
+        return DocumentsContract.buildDocumentUriUsingTree(tree, id)
+    }
+
+    override suspend fun resolveDirectory(vault: String, path: List<String>): String = withContext(Dispatchers.IO) {
+        var directory = root(vault).toString()
+        for (name in path) {
+            require(name.isNotBlank() && name != "." && name != "..")
+            directory = directories(directory).singleOrNull { it.name == name }?.uri ?: throw IOException()
+        }
+        // Query even the root: a stored setting is not proof of continued access.
+        directories(directory)
+        directory
+    }
+
+    override suspend fun directories(directory: String): List<DiaryDirectory> = withContext(Dispatchers.IO) {
+        children(root(directory)).filter { it.second && !it.first.name.startsWith('.') }
+            .map { DiaryDirectory(it.first.uri, it.first.name) }.sortedBy { it.name }
+    }
+
+    override suspend fun canCreate(directory: String): Boolean = withContext(Dispatchers.IO) {
+        val uri = root(directory)
+        val info = AndroidSafDirectoryAccessor(appContext).queryDirectoryInfo(uri)
+        info?.isDirectory == true && info.supportsCreate &&
+            appContext.checkUriPermission(uri, Process.myPid(), Process.myUid(), Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun children(directory: Uri): List<Pair<MarkdownFile, Boolean>> {

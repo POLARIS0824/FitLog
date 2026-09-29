@@ -34,13 +34,13 @@ class VaultFlowControllerTest {
     private fun TestScope.controller(
         config: suspend () -> VaultConfigState = { VaultConfigState.NotConfigured },
         access: suspend (Uri) -> VaultAccessStatus = { VaultAccessStatus.CanCreateFiles },
-    ) = VaultFlowController(stack, this, config, access, errors::add)
+    ) = VaultFlowController(stack, this, config, access, errors::add, { vault, date -> FitLogRoute.Editor(vault, date = date.toString()) })
 
     @Test
     fun firstAdd_entersVaultSetup_andOnCompleteReplacesWithEditor_andBackReturnsToOrigin() = runTest {
         var configured = false
         val flow = controller(config = { if (configured) VaultConfigState.Configured(uri) else VaultConfigState.NotConfigured })
-        flow.createFile()
+        flow.openTodayLog()
         advanceUntilIdle()
         val route = stack.last() as FitLogRoute.VaultSetup
         assertTrue(route.createAfterSetup)
@@ -92,14 +92,14 @@ class VaultFlowControllerTest {
             config = { VaultConfigState.Configured(uri) },
             access = { checks++; result.await() },
         )
-        flow.createFile()
-        flow.createFile()
+        flow.openTodayLog()
+        flow.openTodayLog()
         runCurrent()
-        flow.createFile()
+        flow.openTodayLog()
         assertEquals(1, checks)
         result.complete(VaultAccessStatus.CanCreateFiles)
         advanceUntilIdle()
-        flow.createFile()
+        flow.openTodayLog()
         flow.importFolder()
         advanceUntilIdle()
         assertEquals(2, stack.size)
@@ -113,7 +113,7 @@ class VaultFlowControllerTest {
             config = { VaultConfigState.Configured(uri) },
             access = { withContext(NonCancellable) { result.await() } },
         )
-        flow.createFile()
+        flow.openTodayLog()
         runCurrent()
         flow.importFolder()
         val route = stack.last()
@@ -131,7 +131,7 @@ class VaultFlowControllerTest {
             config = { VaultConfigState.Configured(uri) },
             access = { withContext(NonCancellable) { result.await() } },
         )
-        flow.createFile()
+        flow.openTodayLog()
         runCurrent()
         flow.navigateTo(FitLogRoute.Log)
         flow.navigateTo(FitLogRoute.Today)
@@ -143,7 +143,7 @@ class VaultFlowControllerTest {
     @Test
     fun configReadFailure_doesNotPretendVaultIsUnconfigured() = runTest {
         val flow = controller(config = { VaultConfigState.Failed(IOException()) })
-        flow.createFile()
+        flow.openTodayLog()
         advanceUntilIdle()
         assertEquals(listOf(FitLogRoute.Today), stack)
         assertEquals(listOf(R.string.vault_error_load_config_failed), errors)
@@ -156,7 +156,7 @@ class VaultFlowControllerTest {
             config = { VaultConfigState.Configured(uri) },
             access = { VaultAccessStatus.NeedsReauthorization },
         )
-        flow.createFile()
+        flow.openTodayLog()
         advanceUntilIdle()
         assertTrue((stack.last() as FitLogRoute.VaultSetup).createAfterSetup)
         assertEquals(listOf(R.string.vault_error_needs_reauthorization), errors)

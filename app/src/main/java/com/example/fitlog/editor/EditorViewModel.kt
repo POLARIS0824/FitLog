@@ -31,7 +31,7 @@ class EditorViewModel(
     val text = TextFieldState()
     var loading by mutableStateOf(true); private set
     var writable by mutableStateOf(false); private set
-    var name by mutableStateOf(route.date + ".md"); private set
+    var name by mutableStateOf(route.fileName); private set
     var state by mutableStateOf(EditorSaveState.Unsaved); private set
     var error by mutableStateOf<Int?>(null); private set
     var recovery by mutableStateOf<EditorDraft?>(null); private set
@@ -48,7 +48,7 @@ class EditorViewModel(
     private var lastObserved = ""
     private var blocked = false
     private var operationBusy by mutableStateOf(false)
-    private var target = route.document ?: route.date + ".md"
+    private var target = route.document ?: newDraftTarget(route)
     private val saveLock = Mutex()
     private val draftLock = Mutex()
     private var debounce: Job? = null
@@ -81,7 +81,7 @@ class EditorViewModel(
                 val draft = drafts.read(route.vault, target)
                 recovery = draft
                 document?.let { applySnapshot(documents.read(it)) }
-                    ?: run { writable = true; collision = documents.find(route.vault, name) }
+                    ?: run { writable = true; collision = documents.find(route.directory, name) }
                 blocked = draft != null || collision != null
             } catch (e: Exception) { fail(e); writable = false }
             finally { loading = false }
@@ -221,7 +221,7 @@ class EditorViewModel(
             withContext(NonCancellable) {
                 persistDraft()
                 if (document == null) {
-                    val created = documents.create(route.vault, name)
+                    val created = documents.create(route.directory, name)
                     document = created.uri
                     sourceFingerprint = documents.read(created.uri).fingerprint
                     persistDraft()
@@ -288,9 +288,9 @@ class EditorViewModel(
                 val stem = name.substringBeforeLast('.')
                 var copyName = "$stem-conflict-$timestamp.md"
                 var index = 2
-                while (documents.find(route.vault, copyName) != null) copyName = "$stem-conflict-$timestamp-${index++}.md"
+                while (documents.find(route.directory, copyName) != null) copyName = "$stem-conflict-$timestamp-${index++}.md"
                 persistDraft()
-                val created = documents.create(route.vault, copyName)
+                val created = documents.create(route.directory, copyName)
                 document = created.uri; name = created.name
                 sourceFingerprint = documents.read(created.uri).fingerprint
                 baseline = ""; bom = false; writable = true
@@ -318,4 +318,15 @@ class EditorViewModel(
             else -> R.string.editor_io_failed
         }
     }
+}
+
+internal fun newDraftTarget(route: FitLogRoute.Editor): String {
+    // Preserve legacy root draft keys; child folders must not share date-based drafts.
+    val root = runCatching {
+        val uri = android.net.Uri.parse(route.vault)
+        android.provider.DocumentsContract.buildDocumentUriUsingTree(uri,
+            android.provider.DocumentsContract.getTreeDocumentId(uri)).toString()
+    }.getOrNull()
+    return if (route.directory == route.vault || route.directory == root) route.fileName
+    else route.directory + "\n" + route.fileName
 }
