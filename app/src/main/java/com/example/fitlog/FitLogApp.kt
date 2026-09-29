@@ -54,7 +54,6 @@ fun FitLogApp() {
             scope = coroutineScope,
             getConfig = vaultPreferences::getVaultConfig,
             checkAccess = vaultRepository::checkAccess,
-            saveUri = vaultPreferences::setVaultUri,
             showError = { message ->
                 coroutineScope.launch { snackbarHostState.showSnackbar(context.getString(message)) }
             },
@@ -76,11 +75,10 @@ fun FitLogApp() {
         Box(Modifier.fillMaxSize()) {
             FitLogNavGraph(
                 backStack = backStack,
-                onVaultSelected = vaultFlow::selectFolder,
+                vaultPreferences = vaultPreferences,
+                vaultRepository = vaultRepository,
+                onSetupCompleted = vaultFlow::onSetupCompleted,
                 onBack = vaultFlow::back,
-                vaultBusy = vaultFlow.busy,
-                vaultSaving = vaultFlow.saving,
-                vaultError = vaultFlow.setupError,
                 modifier = Modifier.padding(innerPadding)
             )
 

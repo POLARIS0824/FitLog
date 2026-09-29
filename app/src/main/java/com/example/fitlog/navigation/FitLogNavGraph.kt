@@ -1,30 +1,32 @@
 package com.example.fitlog.navigation
 
-import android.net.Uri
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.example.fitlog.data.vault.VaultPreferences
+import com.example.fitlog.data.vault.VaultRepository
 import com.example.fitlog.editor.EditorScreen
 import com.example.fitlog.insight.InsightScreen
 import com.example.fitlog.log.LogScreen
 import com.example.fitlog.today.TodayScreen
-import com.example.fitlog.vault.VaultSetupScreen
+import com.example.fitlog.vault.VaultSetupRoute
 
 @Composable
 fun FitLogNavGraph(
     backStack: NavBackStack<NavKey>,
-    onVaultSelected: (FitLogRoute.VaultSetup, Uri) -> Unit,
+    vaultPreferences: VaultPreferences,
+    vaultRepository: VaultRepository,
+    onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
     onBack: () -> Unit,
-    vaultBusy: Boolean,
-    vaultSaving: Boolean,
-    vaultError: Int?,
     modifier: Modifier = Modifier,
 ) {
     val motionScheme = MaterialTheme.motionScheme
@@ -32,9 +34,11 @@ fun FitLogNavGraph(
     NavDisplay(
         backStack = backStack,
         modifier = modifier,
-
         onBack = onBack,
-
+        entryDecorators = listOf(
+            rememberSaveableStateHolderNavEntryDecorator(),
+            rememberViewModelStoreNavEntryDecorator(),
+        ),
         transitionSpec = {
             fadeIn(
                 animationSpec = motionScheme.defaultEffectsSpec(),
@@ -42,7 +46,6 @@ fun FitLogNavGraph(
                 animationSpec = motionScheme.defaultEffectsSpec(),
             )
         },
-
         popTransitionSpec = {
             fadeIn(
                 animationSpec = motionScheme.defaultEffectsSpec(),
@@ -50,7 +53,6 @@ fun FitLogNavGraph(
                 animationSpec = motionScheme.defaultEffectsSpec(),
             )
         },
-
         predictivePopTransitionSpec = {
             fadeIn(
                 animationSpec = motionScheme.defaultEffectsSpec(),
@@ -58,7 +60,6 @@ fun FitLogNavGraph(
                 animationSpec = motionScheme.defaultEffectsSpec(),
             )
         },
-
         entryProvider = entryProvider {
             entry<FitLogRoute.Today> {
                 TodayScreen()
@@ -79,13 +80,12 @@ fun FitLogNavGraph(
             }
 
             entry<FitLogRoute.VaultSetup> { route ->
-                VaultSetupScreen(
-                    onVaultSelected = { uri ->
-                        onVaultSelected(route, uri)
-                    },
-                    busy = vaultBusy,
-                    saving = vaultSaving,
-                    errorResId = vaultError,
+                VaultSetupRoute(
+                    route = route,
+                    vaultPreferences = vaultPreferences,
+                    vaultRepository = vaultRepository,
+                    onSetupCompleted = onSetupCompleted,
+                    onBack = onBack,
                 )
             }
         },

@@ -33,9 +33,9 @@ class VaultPreferencesTest {
     private val testDispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(testDispatcher)
 
-    private fun createTestDataStore(file: File = tempFolder.newFile("vault_test.preferences_pb")): DataStore<Preferences> {
+    private fun createTestDataStore(file: File = File(tempFolder.root, "vault_test_${System.nanoTime()}.preferences_pb")): DataStore<Preferences> {
         return PreferenceDataStoreFactory.create(
-            scope = testScope,
+            scope = testScope.backgroundScope,
             produceFile = { file }
         )
     }
@@ -58,7 +58,7 @@ class VaultPreferencesTest {
         val expectedUri = Uri.parse("content://com.android.externalstorage.documents/tree/primary%3AFitLogVault")
 
         val saveResult = preferences.setVaultUri(expectedUri)
-        assertTrue(saveResult.isSuccess)
+        assertTrue("Expected success but got: ${saveResult.exceptionOrNull()}", saveResult.isSuccess)
 
         val state = preferences.getVaultConfig()
         assertTrue(state is VaultConfigState.Configured)
@@ -103,16 +103,26 @@ class VaultPreferencesTest {
 
     @Test
     fun clearVaultUri_resetsConfigToNotConfiguredWithoutTouchingFiles() = testScope.runTest {
-        val dataStore = createTestDataStore()
-        val preferences = VaultPreferences(dataStore)
         val testUri = Uri.parse("content://com.android.externalstorage.documents/tree/primary%3AFitLogVault")
+        var currentPreferences: Preferences = emptyPreferences()
+        val inMemoryDataStore = object : DataStore<Preferences> {
+            val flow = kotlinx.coroutines.flow.MutableStateFlow<Preferences>(emptyPreferences())
+            override val data: Flow<Preferences> = flow
+            override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences {
+                val updated = transform(currentPreferences)
+                currentPreferences = updated
+                flow.value = updated
+                return updated
+            }
+        }
+        val preferences = VaultPreferences(inMemoryDataStore)
 
         preferences.setVaultUri(testUri)
         val stateBefore = preferences.getVaultConfig()
         assertTrue(stateBefore is VaultConfigState.Configured)
 
         val clearResult = preferences.clearVaultUri()
-        assertTrue(clearResult.isSuccess)
+        assertTrue("Clear failed: ${clearResult.exceptionOrNull()}", clearResult.isSuccess)
 
         val stateAfter = preferences.getVaultConfig()
         assertEquals(VaultConfigState.NotConfigured, stateAfter)

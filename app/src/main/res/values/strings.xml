@@ -27,8 +27,23 @@
     <string name="vault_setup_title">Choose your FitLog folder</string>
     <string name="vault_setup_description">Your Markdown workout logs will be stored in this folder</string>
     <string name="vault_setup_btn_choose">Choose folder</string>
+    <string name="vault_setup_btn_change">Change folder</string>
+    <string name="vault_setup_btn_reselect">Reselect folder</string>
+    <string name="vault_setup_btn_continue">Continue</string>
+    <string name="vault_setup_btn_confirm">Confirm connection</string>
+    <string name="vault_setup_btn_retry">Retry</string>
+    <string name="vault_setup_btn_reauthorize">Reauthorize</string>
     <string name="vault_setup_checking">Checking folder…</string>
     <string name="vault_setup_saving">Saving folder settings…</string>
+    <string name="vault_setup_loading_config">Loading folder settings…</string>
+    <string name="vault_label_current">Current folder</string>
+    <string name="vault_label_pending">Pending connection</string>
+    <string name="vault_folder_unnamed">Unnamed folder</string>
+    <string name="vault_capability_can_create">Full access (can create &amp; edit notes)</string>
+    <string name="vault_capability_read_only">Read-only</string>
+    <string name="vault_capability_needs_reauthorization">Authorization required</string>
+    <string name="vault_capability_unavailable">Folder unavailable</string>
+    <string name="vault_setup_read_only_add_hint">This folder is read-only and cannot create new notes. Please choose another folder.</string>
     <string name="vault_error_save_config_failed">Could not save folder settings. Please try again.</string>
     <string name="vault_setup_error_access_failed">Unable to access this folder</string>
 

@@ -13,20 +13,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-/** Owns one in-flight vault operation. All methods are called on the UI thread. */
+/**
+ * 负责入口检查与顶级导航协调控制器。
+ */
 internal class VaultFlowController(
     private val backStack: MutableList<NavKey>,
     private val scope: CoroutineScope,
     private val getConfig: suspend () -> VaultConfigState,
     private val checkAccess: suspend (Uri) -> VaultAccessStatus,
-    private val saveUri: suspend (Uri) -> Result<Unit>,
     private val showError: (Int) -> Unit,
 ) {
     var busy by mutableStateOf(false)
-        private set
-    var saving by mutableStateOf(false)
-        private set
-    var setupError by mutableStateOf<Int?>(null)
         private set
     private var generation = 0
     private var job: Job? = null
@@ -36,28 +33,23 @@ internal class VaultFlowController(
         job?.cancel()
         job = null
         busy = false
-        setupError = null
     }
 
     fun navigateTo(route: FitLogRoute) {
-        if (saving) return
         invalidate()
         if (backStack.isEmpty()) backStack.add(route)
         else backStack[backStack.lastIndex] = route
     }
 
     fun back() {
-        // A DataStore commit cannot be undone by cancelling its caller. Keep the
-        // setup visible until its outcome is known instead of promising cancellation.
-        if (saving) return
         invalidate()
         if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
     }
 
     fun importFolder() {
-        if (saving || !isTopLevel()) return
+        if (!isTopLevel()) return
         invalidate()
-        backStack.add(FitLogRoute.VaultSetup())
+        backStack.add(FitLogRoute.VaultSetup(createAfterSetup = false))
     }
 
     fun createFile() {
@@ -89,36 +81,17 @@ internal class VaultFlowController(
         }
     }
 
-    fun selectFolder(route: FitLogRoute.VaultSetup, uri: Uri) {
-        if (busy || backStack.lastOrNull() != route) return
-        val token = ++generation
-        busy = true
-        setupError = null
-        job = scope.launch {
-            try {
-                val access = checkAccess(uri)
-                if (token != generation || backStack.lastOrNull() != route) return@launch
-                val allowed = access == VaultAccessStatus.CanCreateFiles ||
-                    (!route.createAfterSetup && access == VaultAccessStatus.ReadOnly)
-                if (!allowed) {
-                    setupError = accessError(access)
-                    return@launch
-                }
-                saving = true
-                val result = saveUri(uri)
-                if (token != generation || backStack.lastOrNull() != route) return@launch
-                if (result.isFailure) {
-                    setupError = R.string.vault_error_save_config_failed
-                } else if (route.createAfterSetup) {
-                    backStack[backStack.lastIndex] = FitLogRoute.Editor
-                } else if (backStack.size > 1) {
-                    backStack.removeAt(backStack.lastIndex)
-                }
-            } finally {
-                if (token == generation) {
-                    saving = false
-                    busy = false
-                }
+    fun onSetupCompleted(route: FitLogRoute.VaultSetup) {
+        if (backStack.lastOrNull() != route) return
+        invalidate()
+        if (route.createAfterSetup) {
+            backStack[backStack.lastIndex] = FitLogRoute.Editor
+        } else {
+            backStack.remove(route)
+            if (backStack.isEmpty()) {
+                backStack.add(FitLogRoute.Log)
+            } else {
+                backStack[0] = FitLogRoute.Log
             }
         }
     }

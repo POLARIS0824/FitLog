@@ -8,6 +8,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
+ * 资料库文件夹信息模型，包含 URI、显示名称与访问能力。
+ */
+data class VaultFolderInfo(
+    val uri: Uri,
+    val displayName: String?,
+    val accessStatus: VaultAccessStatus,
+)
+
+/**
  * Vault 文件与目录操作的统一入口仓库。
  *
  * 当前仅提供目录访问性校验，为后续读取与创建 Markdown 保留扩展点，不提前引入未使用的逻辑。
@@ -25,43 +34,73 @@ class VaultRepository(
     )
 
     /**
-     * 校验目标 URI 的持久授权有效性与目录访问能力。
-     *
-     * @param uri 待检查的目录 tree URI
-     * @return [VaultAccessStatus] 枚举对应的检查结果
+     * 查询目标 URI 的详细信息与访问状态。
      */
-    suspend fun checkAccess(uri: Uri): VaultAccessStatus = withContext(ioDispatcher) {
+    suspend fun inspectFolder(uri: Uri): VaultFolderInfo = withContext(ioDispatcher) {
         try {
             // 1. 检查持久化授权：必须已获取读权限
             if (!safAccessor.hasPersistedReadPermission(uri)) {
-                return@withContext VaultAccessStatus.NeedsReauthorization
+                return@withContext VaultFolderInfo(uri, null, VaultAccessStatus.NeedsReauthorization)
             }
 
             // 2. 查询实际目录信息（阻塞 SAF 操作在 IO 调度器运行）
             val directoryInfo = safAccessor.queryDirectoryInfo(uri)
-                ?: return@withContext VaultAccessStatus.DirectoryUnavailable
+                ?: return@withContext VaultFolderInfo(uri, null, VaultAccessStatus.DirectoryUnavailable)
 
             // 3. 校验目标是否确为目录
             if (!directoryInfo.isDirectory) {
-                return@withContext VaultAccessStatus.DirectoryUnavailable
+                return@withContext VaultFolderInfo(uri, directoryInfo.displayName, VaultAccessStatus.DirectoryUnavailable)
             }
 
             // 4. 结合写权限与 FLAG_DIR_SUPPORTS_CREATE 判定是否可创建文件
             val hasWritePermission = safAccessor.hasPersistedWritePermission(uri)
-            if (hasWritePermission && directoryInfo.supportsCreate) {
+            val status = if (hasWritePermission && directoryInfo.supportsCreate) {
                 VaultAccessStatus.CanCreateFiles
             } else {
                 VaultAccessStatus.ReadOnly
             }
+            VaultFolderInfo(uri, directoryInfo.displayName, status)
         } catch (e: CancellationException) {
             // 严格保留协程取消语义，不将取消转为普通失败
             throw e
         } catch (e: SecurityException) {
             // 系统或 ContentProvider 权限异常视为需要重新授权
-            VaultAccessStatus.NeedsReauthorization
+            VaultFolderInfo(uri, null, VaultAccessStatus.NeedsReauthorization)
         } catch (e: Throwable) {
             // 其余未知异常统一记录为检查失败
-            VaultAccessStatus.Failed(e)
+            VaultFolderInfo(uri, null, VaultAccessStatus.Failed(e))
         }
     }
+
+    /**
+     * 请求持久授权并检查目录访问能力（用于候选目录初次选择预览）。
+     */
+    suspend fun takePermissionAndInspect(uri: Uri): VaultFolderInfo = withContext(ioDispatcher) {
+        try {
+            val permResult = safAccessor.takePersistablePermission(uri)
+            if (permResult.isFailure) {
+                val ex = permResult.exceptionOrNull()
+                if (ex is SecurityException) {
+                    return@withContext VaultFolderInfo(uri, null, VaultAccessStatus.NeedsReauthorization)
+                } else if (ex != null) {
+                    return@withContext VaultFolderInfo(uri, null, VaultAccessStatus.Failed(ex))
+                }
+            }
+            inspectFolder(uri)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: SecurityException) {
+            VaultFolderInfo(uri, null, VaultAccessStatus.NeedsReauthorization)
+        } catch (e: Throwable) {
+            VaultFolderInfo(uri, null, VaultAccessStatus.Failed(e))
+        }
+    }
+
+    /**
+     * 校验目标 URI 的持久授权有效性与目录访问能力。
+     *
+     * @param uri 待检查的目录 tree URI
+     * @return [VaultAccessStatus] 枚举对应的检查结果
+     */
+    suspend fun checkAccess(uri: Uri): VaultAccessStatus = inspectFolder(uri).accessStatus
 }

@@ -25,8 +25,9 @@ class VaultRepositoryTest {
     private class FakeSafDirectoryAccessor(
         var hasReadPermission: Boolean = true,
         var hasWritePermission: Boolean = true,
-        var directoryInfo: DirectoryInfo? = DirectoryInfo(isDirectory = true, supportsCreate = true),
+        var directoryInfo: DirectoryInfo? = DirectoryInfo(isDirectory = true, supportsCreate = true, displayName = "My Vault"),
         var queryException: Throwable? = null,
+        var takePermissionResult: Result<Unit> = Result.success(Unit),
     ) : SafDirectoryAccessor {
         override fun hasPersistedReadPermission(uri: Uri): Boolean = hasReadPermission
         override fun hasPersistedWritePermission(uri: Uri): Boolean = hasWritePermission
@@ -34,6 +35,7 @@ class VaultRepositoryTest {
             queryException?.let { throw it }
             return directoryInfo
         }
+        override fun takePersistablePermission(uri: Uri): Result<Unit> = takePermissionResult
     }
 
     @Test
@@ -156,5 +158,31 @@ class VaultRepositoryTest {
         } catch (e: CancellationException) {
             assertEquals("Job was cancelled", e.message)
         }
+    }
+
+    @Test
+    fun inspectFolder_returnsVaultFolderInfoWithDisplayName() = testScope.runTest {
+        val fakeAccessor = FakeSafDirectoryAccessor(
+            directoryInfo = DirectoryInfo(isDirectory = true, supportsCreate = true, displayName = "FitNotes")
+        )
+        val repository = VaultRepository(safAccessor = fakeAccessor, ioDispatcher = testDispatcher)
+
+        val info = repository.inspectFolder(testUri)
+
+        assertEquals("FitNotes", info.displayName)
+        assertEquals(VaultAccessStatus.CanCreateFiles, info.accessStatus)
+        assertEquals(testUri, info.uri)
+    }
+
+    @Test
+    fun takePermissionAndInspect_whenPermissionFails_returnsNeedsReauthorization() = testScope.runTest {
+        val fakeAccessor = FakeSafDirectoryAccessor(
+            takePermissionResult = Result.failure(SecurityException("Permission denied"))
+        )
+        val repository = VaultRepository(safAccessor = fakeAccessor, ioDispatcher = testDispatcher)
+
+        val info = repository.takePermissionAndInspect(testUri)
+
+        assertEquals(VaultAccessStatus.NeedsReauthorization, info.accessStatus)
     }
 }

@@ -1,6 +1,7 @@
 package com.example.fitlog.data.vault
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import java.io.FileNotFoundException
@@ -11,6 +12,7 @@ import java.io.FileNotFoundException
 data class DirectoryInfo(
     val isDirectory: Boolean,
     val supportsCreate: Boolean,
+    val displayName: String? = null,
 )
 
 /**
@@ -20,6 +22,7 @@ interface SafDirectoryAccessor {
     fun hasPersistedReadPermission(uri: Uri): Boolean
     fun hasPersistedWritePermission(uri: Uri): Boolean
     fun queryDirectoryInfo(uri: Uri): DirectoryInfo?
+    fun takePersistablePermission(uri: Uri): Result<Unit> = Result.success(Unit)
 }
 
 /**
@@ -43,6 +46,18 @@ class AndroidSafDirectoryAccessor(
         }
     }
 
+    override fun takePersistablePermission(uri: Uri): Result<Unit> {
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        return runCatching {
+            try {
+                contentResolver.takePersistableUriPermission(uri, flags)
+            } catch (_: SecurityException) {
+                // Read-only providers can still be connected for browsing.
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+    }
+
     override fun queryDirectoryInfo(uri: Uri): DirectoryInfo? {
         if (!DocumentsContract.isTreeUri(uri)) {
             return null
@@ -60,6 +75,7 @@ class AndroidSafDirectoryAccessor(
 
         val documentUri = DocumentsContract.buildDocumentUriUsingTree(uri, documentId)
         val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
             DocumentsContract.Document.COLUMN_MIME_TYPE,
             DocumentsContract.Document.COLUMN_FLAGS,
         )
@@ -68,9 +84,11 @@ class AndroidSafDirectoryAccessor(
             contentResolver.query(documentUri, projection, null, null, null)?.use { cursor ->
                 if (!cursor.moveToFirst()) return null
 
+                val nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
                 val mimeTypeIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
                 val flagsIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
 
+                val displayName = if (nameIndex >= 0) cursor.getString(nameIndex) else null
                 val mimeType = if (mimeTypeIndex >= 0) cursor.getString(mimeTypeIndex) else null
                 val flags = if (flagsIndex >= 0) cursor.getInt(flagsIndex) else 0
 
@@ -80,6 +98,7 @@ class AndroidSafDirectoryAccessor(
                 DirectoryInfo(
                     isDirectory = isDirectory,
                     supportsCreate = supportsCreate,
+                    displayName = displayName,
                 )
             }
         } catch (e: SecurityException) {
