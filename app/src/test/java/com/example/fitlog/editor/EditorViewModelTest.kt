@@ -19,6 +19,14 @@ import java.io.IOException
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class EditorViewModelTest {
+    @Test fun newDraftKeysSeparateFoldersAndKeepLegacyRootDrafts() {
+        val vault = "content://test/tree/root"
+        val root = "content://test/tree/root/document/root"
+        val base = FitLogRoute.Editor(vault, date = "2026-09-30")
+        assertEquals("2026-09-30.md", newDraftTarget(base))
+        assertEquals(newDraftTarget(base), newDraftTarget(base.copy(directory = root)))
+        assertNotEquals(newDraftTarget(base.copy(directory = "$root%2Fa")), newDraftTarget(base.copy(directory = "$root%2Fb")))
+    }
     private val dispatcher = StandardTestDispatcher()
     private val store = ViewModelStore()
     @Before fun before() { Dispatchers.setMain(dispatcher) }

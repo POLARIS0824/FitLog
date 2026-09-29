@@ -22,6 +22,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
 import java.io.IOException
+import java.time.LocalDate
+import com.example.fitlog.log.LogSortOrder
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -38,6 +40,25 @@ class VaultPreferencesTest {
             scope = testScope.backgroundScope,
             produceFile = { file }
         )
+    }
+
+    @Test fun diarySettingsAreIsolatedByVaultAndSurviveRepositoryRecreation() = testScope.runTest {
+        val dataStore = createTestDataStore()
+        val first = VaultPreferences(dataStore)
+        val settings = DiarySettings(listOf("daily", "training"), DiaryDateFormat.Chinese)
+        first.diary.save("vault-a", settings)
+        first.log.saveSort(LogSortOrder.Ascending)
+        val restored = VaultPreferences(dataStore)
+        assertEquals(settings, restored.diary.read("vault-a"))
+        assertEquals(DiarySettings(), restored.diary.read("vault-b"))
+        assertEquals(LogSortOrder.Ascending, restored.log.readSort())
+    }
+
+    @Test fun dateFormatsUseCalendarYearAndAlwaysReturnMarkdownNames() {
+        val date = LocalDate.of(2021, 1, 1)
+        assertEquals("2021-01-01.md", DiaryDateFormat.Dashed.fileName(date))
+        assertEquals("20210101.md", DiaryDateFormat.Compact.fileName(date))
+        assertEquals("2021年01月01日.md", DiaryDateFormat.Chinese.fileName(date))
     }
 
     @Test

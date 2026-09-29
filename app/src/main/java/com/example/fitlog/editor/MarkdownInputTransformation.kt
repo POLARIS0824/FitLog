@@ -12,7 +12,9 @@ class MarkdownInputTransformation(private val isComposing: () -> Boolean) : Inpu
         val before = changes.getOriginalRange(0)
         val after = changes.getRange(0)
         if (!before.collapsed || before.start != originalSelection.end) return
+        if (after.length !in 1..2) return
         val inserted = asCharSequence().subSequence(after.min, after.max).toString()
+        if (inserted != "\n" && inserted != "\r\n") return
         val edit = MarkdownEditCommands.continueList(originalText.toString(), originalSelection, inserted) ?: return
         replace(edit.start, edit.end, edit.replacement)
         selection = edit.selection

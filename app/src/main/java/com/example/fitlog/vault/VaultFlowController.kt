@@ -114,25 +114,27 @@ internal class VaultFlowController(
                         (access == VaultAccessStatus.CanCreateFiles || access == VaultAccessStatus.ReadOnly)) {
                         val editor = resolveToday(config.uri.toString(), LocalDate.parse(route.todayDate))
                         if (token == generation && backStack.lastOrNull() == route) backStack[backStack.lastIndex] = editor
-                    } else showError(accessError(access))
+                    } else {
+                        returnToLog(route)
+                        showError(if (config is VaultConfigState.Failed) R.string.vault_error_load_config_failed else accessError(access))
+                    }
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e
                     if (token == generation && backStack.lastOrNull() == route) {
                         // Connection succeeded, but today's target needs attention. Log offers settings/reconnect.
-                        backStack.remove(route)
-                        if (backStack.isEmpty()) backStack.add(FitLogRoute.Log) else backStack[0] = FitLogRoute.Log
+                        returnToLog(route)
                         showError(openError(e))
                     }
                 } finally { if (token == generation) busy = false }
             }
         } else {
-            backStack.remove(route)
-            if (backStack.isEmpty()) {
-                backStack.add(FitLogRoute.Log)
-            } else {
-                backStack[0] = FitLogRoute.Log
-            }
+            returnToLog(route)
         }
+    }
+
+    private fun returnToLog(route: FitLogRoute.VaultSetup) {
+        backStack.remove(route)
+        if (backStack.isEmpty()) backStack.add(FitLogRoute.Log) else backStack[0] = FitLogRoute.Log
     }
 
     private fun openError(error: Exception): Int = when (error) {

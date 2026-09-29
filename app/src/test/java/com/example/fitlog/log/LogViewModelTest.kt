@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelStore
 import com.example.fitlog.data.vault.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
@@ -100,6 +101,23 @@ class LogViewModelTest {
         assertNull(vm.error)
         assertNull(vm.sortError)
         assertEquals("saved query", vm.query)
+    }
+
+    @Test fun refreshRetriesAConfigFlowThatPreviouslyFailed() = runTest(dispatcher) {
+        var attempt = 0
+        val config = flow<VaultConfigState> {
+            attempt++
+            emit(if (attempt == 1) VaultConfigState.Failed(IOException()) else VaultConfigState.Configured(Uri.parse("vault")))
+        }
+        val vm = LogViewModel(SavedStateHandle(), config, ScanDocuments { MarkdownScan(emptyList(), false) }, TestLogSettings())
+        store.put("log", vm)
+        advanceUntilIdle()
+        assertNotNull(vm.error)
+        vm.refresh()
+        advanceUntilIdle()
+        assertNull(vm.error)
+        assertEquals("vault", vm.vault)
+        assertFalse(vm.loading)
     }
 }
 

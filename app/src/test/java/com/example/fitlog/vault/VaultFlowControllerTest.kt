@@ -23,6 +23,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.IOException
+import java.time.LocalDate
+import com.example.fitlog.data.vault.DiaryCreationUnavailable
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -167,5 +169,59 @@ class VaultFlowControllerTest {
         val route = FitLogRoute.VaultSetup(createAfterSetup = true)
         val restored = Json.decodeFromString<FitLogRoute.VaultSetup>(Json.encodeToString(route))
         assertEquals(route, restored)
+    }
+
+    @Test fun firstConnectionKeepsTheDateCapturedBeforeMidnight() = runTest {
+        var date = LocalDate.of(2026, 9, 30)
+        var configured = false
+        val flow = VaultFlowController(stack, this,
+            { if (configured) VaultConfigState.Configured(uri) else VaultConfigState.NotConfigured },
+            { VaultAccessStatus.CanCreateFiles }, errors::add,
+            { vault, captured -> FitLogRoute.Editor(vault, date = captured.toString()) }, { date })
+        flow.openTodayLog()
+        advanceUntilIdle()
+        val setup = stack.last() as FitLogRoute.VaultSetup
+        date = date.plusDays(1)
+        configured = true
+        flow.onSetupCompleted(setup)
+        advanceUntilIdle()
+        assertEquals("2026-09-30", (stack.last() as FitLogRoute.Editor).date)
+    }
+
+    @Test fun lateTodayResolutionCannotNavigateAfterOpeningAnotherNote() = runTest {
+        val pending = CompletableDeferred<FitLogRoute.Editor>()
+        val flow = VaultFlowController(stack, this, { VaultConfigState.Configured(uri) },
+            { VaultAccessStatus.CanCreateFiles }, errors::add,
+            { _, _ -> withContext(NonCancellable) { pending.await() } })
+        flow.openTodayLog()
+        runCurrent()
+        val other = FitLogRoute.Editor(uri.toString(), "other")
+        flow.openRoute(other)
+        flow.back()
+        pending.complete(FitLogRoute.Editor(uri.toString(), "today"))
+        advanceUntilIdle()
+        assertEquals(listOf(FitLogRoute.Today), stack)
+        assertFalse(flow.busy)
+    }
+
+    @Test fun readOnlyExistingTodayIsOpenedWithoutCreationPermission() = runTest {
+        val existing = FitLogRoute.Editor(uri.toString(), "existing")
+        val flow = VaultFlowController(stack, this, { VaultConfigState.Configured(uri) },
+            { VaultAccessStatus.ReadOnly }, errors::add, { _, _ -> existing })
+        flow.openTodayLog()
+        advanceUntilIdle()
+        assertEquals(existing, stack.last())
+        assertTrue(errors.isEmpty())
+    }
+
+    @Test fun connectedReadOnlyMissingTodayReturnsToLogWithFeedback() = runTest {
+        val setup = FitLogRoute.VaultSetup(createAfterSetup = true)
+        stack.add(setup)
+        val flow = VaultFlowController(stack, this, { VaultConfigState.Configured(uri) },
+            { VaultAccessStatus.ReadOnly }, errors::add, { _, _ -> throw DiaryCreationUnavailable() })
+        flow.onSetupCompleted(setup)
+        advanceUntilIdle()
+        assertEquals(listOf(FitLogRoute.Log), stack)
+        assertEquals(listOf(R.string.vault_error_read_only), errors)
     }
 }

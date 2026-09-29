@@ -64,11 +64,8 @@ class AndroidSafDirectoryAccessor(
         }
 
         val documentId = try {
-            if (DocumentsContract.isDocumentUri(context, uri)) {
-                DocumentsContract.getDocumentId(uri)
-            } else {
-                DocumentsContract.getTreeDocumentId(uri)
-            }
+            try { DocumentsContract.getDocumentId(uri) }
+            catch (_: IllegalArgumentException) { DocumentsContract.getTreeDocumentId(uri) }
         } catch (e: IllegalArgumentException) {
             return null
         }

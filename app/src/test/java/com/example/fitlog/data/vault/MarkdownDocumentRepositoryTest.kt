@@ -20,6 +20,7 @@ import org.robolectric.shadows.ShadowContentResolver
 import java.io.File
 import java.io.IOException
 import java.nio.charset.CharacterCodingException
+import java.time.LocalDate
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -41,6 +42,64 @@ class MarkdownDocumentRepositoryTest {
         repository = MarkdownDocumentRepository(RuntimeEnvironment.getApplication())
     }
     private fun uri(id: String) = DocumentsContract.buildDocumentUriUsingTree(Uri.parse(vault), id).toString()
+
+    private fun todayResolver(settings: DiarySettings = DiarySettings()) = TodayLogResolver(
+        object : DiarySettingsStore {
+            override suspend fun read(vault: String) = settings
+            override suspend fun save(vault: String, settings: DiarySettings) = error("unused")
+        }, repository, repository,
+    )
+
+    @Test fun todayOpensExistingChildWithoutConfusingRootFile() = runTest {
+        provider.add("root/sub", "daily", "root", null)
+        provider.add("root/a", "2026-09-30.md", "root", "root".toByteArray())
+        provider.add("root/sub/a", "2026-09-30.md", "root/sub", "child".toByteArray())
+        val route = todayResolver(DiarySettings(listOf("daily"))).resolve(vault, LocalDate.of(2026, 9, 30))
+        assertEquals(uri("root/sub/a"), route.document)
+        assertEquals(uri("root/sub"), route.directory)
+        assertEquals("child", repository.read(route.document!!).text)
+        assertEquals(4, provider.nodes.size)
+    }
+
+    @Test fun missingTodayIsNotCreatedUntilEditorSavesAndCreateUsesChild() = runTest {
+        provider.add("root/sub", "daily", "root", null)
+        val route = todayResolver(DiarySettings(listOf("daily"), DiaryDateFormat.Compact))
+            .resolve(vault, LocalDate.of(2026, 9, 30))
+        assertNull(route.document)
+        assertEquals("20260930.md", route.fileName)
+        assertEquals(2, provider.nodes.size)
+        val created = repository.create(route.directory, route.fileName)
+        assertEquals("root/sub", provider.nodes[DocumentsContract.getDocumentId(Uri.parse(created.uri))]!!.parent)
+        assertNull(repository.find(vault, route.fileName))
+    }
+
+    @Test fun existingReadOnlyTodayOpensButMissingTodayCannotBeCreated() = runTest {
+        provider.add("root/sub", "daily", "root", null)
+        provider.nodes["root/sub"]!!.writable = false
+        provider.add("root/sub/a", "2026-09-30.md", "root/sub", "read only".toByteArray())
+        provider.nodes["root/sub/a"]!!.writable = false
+        val resolver = todayResolver(DiarySettings(listOf("daily")))
+        val route = resolver.resolve(vault, LocalDate.of(2026, 9, 30))
+        assertFalse(repository.read(route.document!!).file.writable)
+        try { resolver.resolve(vault, LocalDate.of(2026, 10, 1)); fail() }
+        catch (_: DiaryCreationUnavailable) { }
+    }
+
+    @Test fun directorySelectionCannotEscapeVaultOrFallBackToRoot() = runTest {
+        provider.add("root/sub", "daily", "root", null)
+        provider.add("root/hidden", ".obsidian", "root", null)
+        assertEquals(listOf("daily"), repository.directories(vault).map { it.name })
+        try { repository.resolveDirectory(vault, listOf("..")); fail() } catch (_: IllegalArgumentException) { }
+        try { repository.resolveDirectory(vault, listOf("deleted")); fail() } catch (_: IOException) { }
+        try { repository.resolveDirectory(vault, listOf(".obsidian")); fail() } catch (_: IOException) { }
+    }
+
+    @Test fun fileAppearingAfterTodayLookupIsNotOverwritten() = runTest {
+        val route = todayResolver().resolve(vault, LocalDate.of(2026, 9, 30))
+        provider.add("root/external", route.fileName, "root", "external".toByteArray())
+        try { repository.create(route.directory, route.fileName); fail() } catch (_: NameCollision) { }
+        assertEquals("external", provider.bytes("root/external").toString(Charsets.UTF_8))
+    }
 
     @Test fun recursiveScanSkipsHiddenDirectoriesAndReportsPartialFailure() = runTest {
         provider.add("root/a", "A.MD", "root", "hello".toByteArray())
