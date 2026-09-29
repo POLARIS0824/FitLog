@@ -1,17 +1,23 @@
 ---
 name: git-commit
-description: Inspect uncommitted working tree changes, group or split files into logical atomic commits, and craft Conventional Commit messages adhering to the repository's recent commit style and language (supporting bilingual Chinese/English).
+description: Inspect uncommitted working tree changes, group or split files into logical atomic commits, and propose single-line Conventional Commit messages and single-line git add commands without auto-committing.
 ---
 
 # Git Commit
 
-Guides the inspection of unstaged and untracked working tree changes, atomic commit planning, and message authoring aligned with repository history.
+Inspects unstaged and untracked working tree changes, plans atomic commits, and generates concise Conventional Commit messages and commands aligned with repository history.
+
+## Core Directives
+
+1. **Do NOT automatically commit by default**: Propose the commit message and commands for the user to review. Never run `git commit` or `git add` unless the user explicitly requests direct execution.
+2. **Single-line `git add` commands**: Always output `git add` as a single, contiguous line without backslashes (`\`) or line continuations (e.g., `git add path/to/file1 path/to/file2`).
+3. **One-liner commit messages (single `-m`)**: Default to a concise one-line Conventional Commit message with a single `-m` flag (`git commit -m "<type>(<scope>): <summary>"`). Do not generate multi-line bullet lists or multiple `-m` flags unless the user explicitly asks for a detailed commit body.
 
 ## Workflow
 
 ### 1. Inspect Status and History
 
-Run the following commands before staging any files:
+Run the following commands before formulating commit proposals:
 
 1. **Check uncommitted files:**
    ```bash
@@ -23,11 +29,7 @@ Run the following commands before staging any files:
    ```bash
    git log -n 3 --oneline
    ```
-   Analyze the recent commits to extract:
-   - **Type & Scope pattern**: e.g., `feat(navigation):`, `fix(auth):`, or bare `feat:`.
-   - **Language**: English, Chinese, or bilingual.
-   - **Capitalization & Punctuation**: Lowercase vs title case, imperative mood, trailing period or not.
-   - **Body format**: Whether multi-line bullet points or single-line messages are preferred.
+   Extract scope conventions, language (English/Chinese/bilingual), and recent formatting patterns.
 
 3. **Inspect the actual diffs:**
    ```bash
@@ -39,30 +41,26 @@ Run the following commands before staging any files:
 
 ### 2. Group & Split Commits (Atomic Commits)
 
-Do **NOT** default to `git add .` or blind single-batch commits. Evaluate whether changes should be split into multiple atomic commits:
+Evaluate whether changes should be split into multiple atomic commits:
 
 - **Split when:**
-  - Changes span unrelated features, bug fixes, or architecture layers (e.g., refactoring an existing UI component vs adding an entirely new data model).
-  - Documentation, configuration, or dependency upgrades are mixed with business logic.
-  - Large refactoring was performed alongside new user-facing functionality.
+  - Changes span unrelated features, bug fixes, or architecture layers.
+  - Documentation, configuration, or dependency updates are mixed with business logic.
+  - Refactoring was performed alongside new user-facing functionality.
 - **Group together when:**
-  - All modifications serve a single cohesive intent (e.g., a feature implementation together with its direct unit test or component update).
+  - All modifications serve a single cohesive intent (e.g., a feature implementation together with its unit tests).
   - Splitting would leave the repository in a broken or non-compiling intermediate state.
-
-When splitting, define a clear sequence (e.g., Commit 1: prerequisite refactoring/fixes; Commit 2: new feature implementation).
 
 ---
 
 ### 3. Craft Conventional Commit Messages
 
-Follow the **Conventional Commits** specification:
+Follow the Conventional Commits specification:
 ```text
 <type>(<scope>): <summary>
-
-[optional body with details]
 ```
 
-#### Rules:
+#### Format Rules:
 1. **Type selection:**
    - `feat`: New feature or user-visible enhancement.
    - `fix`: Bug fix.
@@ -73,35 +71,25 @@ Follow the **Conventional Commits** specification:
    - `test`: Adding or correcting tests.
    - `build` / `ci`: Build system, Gradle/Maven, CI workflows.
    - `chore`: Maintenance, updating dependencies, cleanup.
-2. **Align with Repository Convention:**
-   - Respect the scope naming style found in the last 3 commits.
-   - Respect the language convention. Provide **bilingual options (English + Chinese)** whenever requested or when the repository history shows mixed usage.
-3. **Summary Line:**
+2. **Summary format (One-liner by default):**
    - Keep the summary concise (< 72 characters), imperative, and descriptive.
-4. **Detailed Body (When appropriate):**
-   - Use bullet points (`- ...`) to list key changes, non-obvious rationale, or affected components.
+   - Use a single `-m` flag (`git commit -m "..."`). Do not append multi-line bullet points or secondary `-m` flags by default.
+3. **Language & Bilinguality:**
+   - Respect repository language style from recent commits.
+   - Provide bilingual options (English + Chinese) when requested or when repository history shows mixed usage.
 
 ---
 
-### 4. Stage and Commit
+### 4. Output Proposal to the User
 
-1. **Stage specific files per commit group:**
-   ```bash
-   git add <path/to/file1> <path/to/file2>
-   ```
-   *Caution*: Never stage build outputs, temporary files (e.g., `*.class`, `*.tmp`), or unreviewed sensitive files.
+Present the proposal clearly without running `git commit`:
 
-2. **Commit with the crafted message:**
+1. **Summary of changes & grouping rationale.**
+2. **Proposed single-line `git add` command(s)** (no `\` line continuations):
    ```bash
-   git commit -m "<message>"
+   git add path/to/file1 path/to/file2 path/to/file3
    ```
-   Or for multi-line messages, use multiple `-m` flags or a heredoc:
+3. **Proposed one-liner `git commit` command(s)**:
    ```bash
-   git commit -m "feat(scope): summary" -m "- detail 1" -m "- detail 2"
+   git commit -m "<type>(<scope>): <summary>"
    ```
-
-3. **Verify state:**
-   ```bash
-   git status -s
-   ```
-   Ensure remaining files are either ready for subsequent commits or cleanly untracked if intentionally ignored.
