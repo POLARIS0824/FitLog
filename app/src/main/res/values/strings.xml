@@ -26,16 +26,16 @@
     <!-- Vault Setup -->
     <string name="vault_setup_title">Choose your FitLog folder</string>
     <string name="vault_setup_description">Your Markdown workout logs will be stored in this folder</string>
-    <string name="vault_setup_btn_choose">Choose folder</string>
-    <string name="vault_setup_btn_change">Change folder</string>
-    <string name="vault_setup_btn_reselect">Reselect folder</string>
+    <string name="vault_setup_btn_choose">Choose</string>
+    <string name="vault_setup_btn_change">Change</string>
+    <string name="vault_setup_btn_reselect">Reselect</string>
     <string name="vault_setup_btn_continue">Continue</string>
-    <string name="vault_setup_btn_confirm">Confirm connection</string>
+    <string name="vault_setup_btn_confirm">Confirm</string>
     <string name="vault_setup_btn_retry">Retry</string>
     <string name="vault_setup_btn_reauthorize">Reauthorize</string>
-    <string name="vault_setup_checking">Checking folder…</string>
-    <string name="vault_setup_saving">Saving folder settings…</string>
-    <string name="vault_setup_loading_config">Loading folder settings…</string>
+    <string name="vault_setup_checking">Checking…</string>
+    <string name="vault_setup_saving">Saving…</string>
+    <string name="vault_setup_loading_config">Loading settings…</string>
     <string name="vault_label_current">Current folder</string>
     <string name="vault_label_pending">Pending connection</string>
     <string name="vault_folder_unnamed">Unnamed folder</string>

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.fitlog.vault
 
 import android.net.Uri
@@ -11,13 +13,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -160,28 +163,31 @@ fun VaultSetupScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
+                    val confirmLabel = stringResource(
+                        if (uiState.isSaving) R.string.vault_setup_saving
+                        else if (uiState.isChecking) R.string.vault_setup_checking
+                        else R.string.vault_setup_btn_confirm
+                    )
+                    val reselectLabel = stringResource(R.string.vault_setup_btn_reselect)
+
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Button(
                             onClick = onConfirmClick,
                             enabled = uiState.canConfirm,
+                            shape = ButtonGroupDefaults.connectedLeadingButtonShape,
                         ) {
-                            Text(
-                                stringResource(
-                                    if (uiState.isSaving) R.string.vault_setup_saving
-                                    else if (uiState.isChecking) R.string.vault_setup_checking
-                                    else R.string.vault_setup_btn_confirm
-                                )
-                            )
+                            Text(confirmLabel)
                         }
 
-                        OutlinedButton(
+                        FilledTonalButton(
                             onClick = onChooseFolderClick,
                             enabled = !uiState.isSaving && !uiState.isChecking,
+                            shape = ButtonGroupDefaults.connectedTrailingButtonShape,
                         ) {
-                            Text(stringResource(R.string.vault_setup_btn_reselect))
+                            Text(reselectLabel)
                         }
                     }
                 } else if (uiState.currentVault != null) {
@@ -192,35 +198,36 @@ fun VaultSetupScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
+                    val continueLabel = stringResource(
+                        if (uiState.isChecking) R.string.vault_setup_checking
+                        else R.string.vault_setup_btn_continue
+                    )
+                    val changeLabel = stringResource(
+                        if (uiState.currentVault?.accessStatus == VaultAccessStatus.NeedsReauthorization) {
+                            R.string.vault_setup_btn_reauthorize
+                        } else {
+                            R.string.vault_setup_btn_change
+                        }
+                    )
+
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Button(
                             onClick = onConfirmClick,
                             enabled = uiState.canConfirm,
+                            shape = ButtonGroupDefaults.connectedLeadingButtonShape,
                         ) {
-                            Text(
-                                stringResource(
-                                    if (uiState.isChecking) R.string.vault_setup_checking
-                                    else R.string.vault_setup_btn_continue
-                                )
-                            )
+                            Text(continueLabel)
                         }
 
-                        OutlinedButton(
+                        FilledTonalButton(
                             onClick = onChooseFolderClick,
                             enabled = !uiState.isSaving && !uiState.isChecking,
+                            shape = ButtonGroupDefaults.connectedTrailingButtonShape,
                         ) {
-                            Text(
-                                stringResource(
-                                    if (uiState.currentVault?.accessStatus == VaultAccessStatus.NeedsReauthorization) {
-                                        R.string.vault_setup_btn_reauthorize
-                                    } else {
-                                        R.string.vault_setup_btn_change
-                                    }
-                                )
-                            )
+                            Text(changeLabel)
                         }
                     }
                 } else {

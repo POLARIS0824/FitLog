@@ -27,16 +27,16 @@
     <!-- 仓库配置页 (Vault Setup) -->
     <string name="vault_setup_title">选择 FitLog 存储文件夹</string>
     <string name="vault_setup_description">您的 Markdown 训练记录将保存在该文件夹中</string>
-    <string name="vault_setup_btn_choose">选择文件夹</string>
-    <string name="vault_setup_btn_change">更换文件夹</string>
-    <string name="vault_setup_btn_reselect">重新选择</string>
+    <string name="vault_setup_btn_choose">选择</string>
+    <string name="vault_setup_btn_change">更换</string>
+    <string name="vault_setup_btn_reselect">重选</string>
     <string name="vault_setup_btn_continue">继续</string>
-    <string name="vault_setup_btn_confirm">确认连接</string>
+    <string name="vault_setup_btn_confirm">确认</string>
     <string name="vault_setup_btn_retry">重试</string>
     <string name="vault_setup_btn_reauthorize">重新授权</string>
-    <string name="vault_setup_checking">正在检查文件夹…</string>
-    <string name="vault_setup_saving">正在保存文件夹设置…</string>
-    <string name="vault_setup_loading_config">正在读取设置…</string>
+    <string name="vault_setup_checking">检查中…</string>
+    <string name="vault_setup_saving">保存中…</string>
+    <string name="vault_setup_loading_config">读取中…</string>
     <string name="vault_label_current">当前文件夹</string>
     <string name="vault_label_pending">待连接</string>
     <string name="vault_folder_unnamed">未命名文件夹</string>
