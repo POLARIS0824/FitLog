@@ -1,3 +1,38 @@
 <resources>
     <string name="app_name">FitLog</string>
+
+    <!-- Top Level Navigation -->
+    <string name="nav_today">Today</string>
+    <string name="nav_log">Log</string>
+    <string name="nav_insight">Insight</string>
+
+    <!-- Navigation Floating Actions -->
+    <string name="nav_action_add_file">Add New File</string>
+    <string name="nav_action_import_folder">Import Folder</string>
+
+    <!-- Accessibility & Content Descriptions -->
+    <string name="cd_open_menu">Open menu</string>
+    <string name="cd_close_menu">Close menu</string>
+    <string name="cd_back">Back</string>
+
+    <!-- Screen Placeholders -->
+    <string name="today_title">Today</string>
+    <string name="log_title">Log</string>
+    <string name="insight_title">Insight</string>
+
+    <!-- Editor -->
+    <string name="editor_title">Workout</string>
+
+    <!-- Vault Setup -->
+    <string name="vault_setup_title">Choose your FitLog folder</string>
+    <string name="vault_setup_description">Your Markdown workout logs will be stored in this folder</string>
+    <string name="vault_setup_btn_choose">Choose folder</string>
+    <string name="vault_setup_error_access_failed">Unable to access this folder</string>
+
+    <!-- Vault Status & Errors -->
+    <string name="vault_error_needs_reauthorization">Authorization expired, please reauthorize folder</string>
+    <string name="vault_error_directory_unavailable">Folder is unavailable or deleted, please choose again</string>
+    <string name="vault_error_read_only">This folder is read-only, cannot create new notes</string>
+    <string name="vault_error_check_failed">Check failed: %1$s</string>
+    <string name="vault_error_load_config_failed">Failed to load configuration, please choose folder again</string>
 </resources>

@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
@@ -94,7 +95,7 @@ fun FitLogNavigationToolbar(
                     contentDescription = null,
                 )
             },
-            text = { Text("Add New File") },
+            text = { Text(stringResource(R.string.nav_action_add_file)) },
         )
         FloatingActionButtonMenuItem(
             onClick = {
@@ -107,7 +108,7 @@ fun FitLogNavigationToolbar(
                     contentDescription = null,
                 )
             },
-            text = { Text("Import Folder") },
+            text = { Text(stringResource(R.string.nav_action_import_folder)) },
         )
     }
 }
@@ -167,7 +168,7 @@ private fun NavToolbarWithScrim(
                     .clickable(
                         interactionSource = null,
                         indication = null,
-                        onClickLabel = "Close menu",
+                        onClickLabel = stringResource(R.string.cd_close_menu),
                     ) {
                         onCloseMenu()
                     }
@@ -217,10 +218,11 @@ private fun NavTabButton(
             hasStartIcon = true,
         ),
     ) {
+        val label = stringResource(destination.labelRes)
         val iconRes = if (selected) destination.selectedIconRes else destination.unselectedIconRes
         Icon(
             painter = painterResource(iconRes),
-            contentDescription = destination.label,
+            contentDescription = label,
             modifier = Modifier.size(24.dp),
         )
 
@@ -236,7 +238,7 @@ private fun NavTabButton(
             ),
         ) {
             Text(
-                text = destination.label,
+                text = label,
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
                 softWrap = false,
@@ -274,7 +276,9 @@ private fun FabMenuToggleButton(
     ) {
         Icon(
             painter = painterResource(R.drawable.add_24px),
-            contentDescription = if (expanded) "Close menu" else "Open menu",
+            contentDescription = stringResource(
+                if (expanded) R.string.cd_close_menu else R.string.cd_open_menu
+            ),
             tint = colorScheme.onPrimary,
             modifier = Modifier.graphicsLayer {
                 // checkedProgress 在 0f ~ 1f 之间平滑变化，直接驱动 0° -> 45°

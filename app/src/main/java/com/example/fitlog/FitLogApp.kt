@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -91,7 +92,7 @@ fun FitLogApp() {
                         .clickable(
                             interactionSource = null,
                             indication = null,
-                            onClickLabel = "Close menu",
+                            onClickLabel = stringResource(R.string.cd_close_menu),
                         ) { fabMenuExpanded = false }
                 )
             }
@@ -120,18 +121,29 @@ fun FitLogApp() {
                                             backStack.add(FitLogRoute.Editor)
                                         }
                                         VaultAccessStatus.NeedsReauthorization -> {
-                                            snackbarHostState.showSnackbar("授权失效，请重新授权文件夹")
+                                            snackbarHostState.showSnackbar(
+                                                context.getString(R.string.vault_error_needs_reauthorization)
+                                            )
                                             backStack.add(FitLogRoute.VaultSetup)
                                         }
                                         VaultAccessStatus.DirectoryUnavailable -> {
-                                            snackbarHostState.showSnackbar("文件夹不可用或已被删除，请重新选择")
+                                            snackbarHostState.showSnackbar(
+                                                context.getString(R.string.vault_error_directory_unavailable)
+                                            )
                                             backStack.add(FitLogRoute.VaultSetup)
                                         }
                                         VaultAccessStatus.ReadOnly -> {
-                                            snackbarHostState.showSnackbar("该文件夹为只读，无法新建笔记")
+                                            snackbarHostState.showSnackbar(
+                                                context.getString(R.string.vault_error_read_only)
+                                            )
                                         }
                                         is VaultAccessStatus.Failed -> {
-                                            snackbarHostState.showSnackbar("检查失败: ${access.cause.localizedMessage}")
+                                            snackbarHostState.showSnackbar(
+                                                context.getString(
+                                                    R.string.vault_error_check_failed,
+                                                    access.cause.localizedMessage ?: access.cause.message.orEmpty()
+                                                )
+                                            )
                                         }
                                     }
                                 }
@@ -143,7 +155,9 @@ fun FitLogApp() {
                                     // 读取配置中，忽略连续误触
                                 }
                                 is VaultConfigState.Failed -> {
-                                    snackbarHostState.showSnackbar("读取配置失败，请重新选择文件夹")
+                                    snackbarHostState.showSnackbar(
+                                        context.getString(R.string.vault_error_load_config_failed)
+                                    )
                                     backStack.add(FitLogRoute.VaultSetup)
                                 }
                             }

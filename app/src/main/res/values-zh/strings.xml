@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FitLog</string>
+
+    <!-- 顶层导航栏 -->
+    <string name="nav_today">今日</string>
+    <string name="nav_log">记录</string>
+    <string name="nav_insight">洞察</string>
+
+    <!-- 导航栏悬浮动作 -->
+    <string name="nav_action_add_file">新建笔记</string>
+    <string name="nav_action_import_folder">导入文件夹</string>
+
+    <!-- 无障碍与辅助标签 -->
+    <string name="cd_open_menu">打开菜单</string>
+    <string name="cd_close_menu">关闭菜单</string>
+    <string name="cd_back">返回</string>
+
+    <!-- 页面标题 / 占位 -->
+    <string name="today_title">今日</string>
+    <string name="log_title">记录</string>
+    <string name="insight_title">洞察</string>
+
+    <!-- 编辑器 -->
+    <string name="editor_title">训练记录</string>
+
+    <!-- 仓库配置页 (Vault Setup) -->
+    <string name="vault_setup_title">选择 FitLog 存储文件夹</string>
+    <string name="vault_setup_description">您的 Markdown 训练记录将保存在该文件夹中</string>
+    <string name="vault_setup_btn_choose">选择文件夹</string>
+    <string name="vault_setup_error_access_failed">无法访问该文件夹</string>
+
+    <!-- 仓库权限与状态提示 (FitLogApp Snackbar) -->
+    <string name="vault_error_needs_reauthorization">授权失效，请重新授权文件夹</string>
+    <string name="vault_error_directory_unavailable">文件夹不可用或已被删除，请重新选择</string>
+    <string name="vault_error_read_only">该文件夹为只读，无法新建笔记</string>
+    <string name="vault_error_check_failed">检查失败：%1$s</string>
+    <string name="vault_error_load_config_failed">读取配置失败，请重新选择文件夹</string>
+</resources>

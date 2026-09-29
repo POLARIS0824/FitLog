@@ -1,6 +1,7 @@
 package com.example.fitlog.vault
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -18,8 +19,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import android.net.Uri
+import com.example.fitlog.R
 
 @Composable
 fun VaultSetupScreen(
@@ -28,8 +30,8 @@ fun VaultSetupScreen(
 ) {
     val context = LocalContext.current
 
-    var errorMessage by remember {
-        mutableStateOf<String?>(null)
+    var errorMessageResId by remember {
+        mutableStateOf<Int?>(null)
     }
 
     val vaultPicker = rememberLauncherForActivityResult(
@@ -49,10 +51,10 @@ fun VaultSetupScreen(
                 flags,
             )
         }.onSuccess {
-            errorMessage = null
+            errorMessageResId = null
             onVaultSelected(uri)
         }.onFailure {
-            errorMessage = "Unable to access this folder"
+            errorMessageResId = R.string.vault_setup_error_access_failed
         }
     }
 
@@ -64,12 +66,12 @@ fun VaultSetupScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "Choose your FitLog folder",
+            text = stringResource(R.string.vault_setup_title),
             style = MaterialTheme.typography.headlineSmall,
         )
 
         Text(
-            text = "Your Markdown workout logs will be stored in this folder",
+            text = stringResource(R.string.vault_setup_description),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 8.dp),
         )
@@ -80,12 +82,12 @@ fun VaultSetupScreen(
             },
             modifier = Modifier.padding(top = 24.dp),
         ) {
-            Text("Choose folder")
+            Text(stringResource(R.string.vault_setup_btn_choose))
         }
 
-        errorMessage?.let { message ->
+        errorMessageResId?.let { resId ->
             Text(
-                text = message,
+                text = stringResource(resId),
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(top = 16.dp),
             )
