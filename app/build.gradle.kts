@@ -83,9 +83,14 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
 
+    androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    // AGP aligns the test APK with the app APK; Espresso 3.7 requires futures 1.2.
+    constraints {
+        debugImplementation(libs.androidx.concurrent.futures)
+    }
 }

@@ -4,7 +4,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.fitlog.editor.EditorViewModel
+import com.example.fitlog.editor.EditorDraftStore
+import com.example.fitlog.data.vault.MarkdownDocumentRepository
+import java.io.File
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
@@ -30,11 +36,15 @@ fun FitLogNavGraph(
     modifier: Modifier = Modifier,
 ) {
     val motionScheme = MaterialTheme.motionScheme
+    val context = LocalContext.current.applicationContext
+    val documents = remember(context) { MarkdownDocumentRepository(context) }
+    val drafts = remember(context) { EditorDraftStore(File(context.filesDir, "editor-drafts")) }
+    var editorBack by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     NavDisplay(
         backStack = backStack,
         modifier = modifier,
-        onBack = onBack,
+        onBack = { editorBack?.invoke() ?: onBack() },
         entryDecorators = listOf(
             rememberSaveableStateHolderNavEntryDecorator(),
             rememberViewModelStoreNavEntryDecorator(),
@@ -66,17 +76,24 @@ fun FitLogNavGraph(
             }
 
             entry<FitLogRoute.Log> {
-                LogScreen()
+                LogScreen(vaultPreferences, documents,
+                    onOpen = { vault, document -> backStack.add(FitLogRoute.Editor(vault, document)) },
+                    onConnect = { backStack.add(FitLogRoute.VaultSetup()) })
             }
 
             entry<FitLogRoute.Insight> {
                 InsightScreen()
             }
 
-            entry<FitLogRoute.Editor> {
-                EditorScreen(
-                    onBack = onBack,
-                )
+            entry<FitLogRoute.Editor> { route ->
+                val vm = viewModel<EditorViewModel>(key = route.sessionId) {
+                    EditorViewModel(route, documents, drafts)
+                }
+                DisposableEffect(vm) {
+                    editorBack = { vm.requestExit(onBack) }
+                    onDispose { editorBack = null }
+                }
+                EditorScreen(vm = vm, onBack = onBack)
             }
 
             entry<FitLogRoute.VaultSetup> { route ->

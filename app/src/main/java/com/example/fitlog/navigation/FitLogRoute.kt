@@ -17,7 +17,12 @@ sealed interface FitLogRoute : NavKey {
     data object Insight : FitLogRoute
 
     @Serializable
-    data object Editor : FitLogRoute
+    data class Editor(
+        val vault: String,
+        val document: String? = null,
+        val date: String = java.time.LocalDate.now().toString(),
+        val sessionId: String = java.util.UUID.randomUUID().toString(),
+    ) : FitLogRoute
 
     @Serializable
     data class VaultSetup(

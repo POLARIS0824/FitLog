@@ -64,7 +64,7 @@ internal class VaultFlowController(
                 if (token != generation || backStack.lastOrNull() != origin) return@launch
                 when (config) {
                     is VaultConfigState.Configured -> when (access) {
-                        VaultAccessStatus.CanCreateFiles -> backStack.add(FitLogRoute.Editor)
+                        VaultAccessStatus.CanCreateFiles -> backStack.add(FitLogRoute.Editor(vault = config.uri.toString()))
                         VaultAccessStatus.NeedsReauthorization, VaultAccessStatus.DirectoryUnavailable -> {
                             backStack.add(FitLogRoute.VaultSetup(createAfterSetup = true))
                             showError(accessError(access))
@@ -85,7 +85,18 @@ internal class VaultFlowController(
         if (backStack.lastOrNull() != route) return
         invalidate()
         if (route.createAfterSetup) {
-            backStack[backStack.lastIndex] = FitLogRoute.Editor
+            val token = generation
+            busy = true
+            job = scope.launch {
+                try {
+                    val config = getConfig()
+                    val access = if (config is VaultConfigState.Configured) checkAccess(config.uri) else null
+                    if (token != generation || backStack.lastOrNull() != route) return@launch
+                    if (config is VaultConfigState.Configured && access == VaultAccessStatus.CanCreateFiles) {
+                        backStack[backStack.lastIndex] = FitLogRoute.Editor(vault = config.uri.toString())
+                    } else showError(accessError(access))
+                } finally { if (token == generation) busy = false }
+            }
         } else {
             backStack.remove(route)
             if (backStack.isEmpty()) {

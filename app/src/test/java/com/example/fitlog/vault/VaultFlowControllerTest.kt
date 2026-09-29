@@ -38,15 +38,19 @@ class VaultFlowControllerTest {
 
     @Test
     fun firstAdd_entersVaultSetup_andOnCompleteReplacesWithEditor_andBackReturnsToOrigin() = runTest {
-        val flow = controller()
+        var configured = false
+        val flow = controller(config = { if (configured) VaultConfigState.Configured(uri) else VaultConfigState.NotConfigured })
         flow.createFile()
         advanceUntilIdle()
         val route = stack.last() as FitLogRoute.VaultSetup
         assertTrue(route.createAfterSetup)
         assertEquals(listOf(FitLogRoute.Today, route), stack)
 
+        configured = true
         flow.onSetupCompleted(route)
-        assertEquals(listOf(FitLogRoute.Today, FitLogRoute.Editor), stack)
+        advanceUntilIdle()
+        assertEquals(2, stack.size)
+        assertEquals(uri.toString(), (stack.last() as FitLogRoute.Editor).vault)
 
         flow.back()
         assertEquals(listOf(FitLogRoute.Today), stack)
@@ -98,7 +102,8 @@ class VaultFlowControllerTest {
         flow.createFile()
         flow.importFolder()
         advanceUntilIdle()
-        assertEquals(listOf(FitLogRoute.Today, FitLogRoute.Editor), stack)
+        assertEquals(2, stack.size)
+        assertEquals(uri.toString(), (stack.last() as FitLogRoute.Editor).vault)
     }
 
     @Test
