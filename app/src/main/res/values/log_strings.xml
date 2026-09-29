@@ -1,0 +1,8 @@
+<resources>
+    <string name="log_sort_ascending">Filename ↑</string>
+    <string name="log_sort_descending">Filename ↓</string>
+    <string name="log_search">Search filenames and paths</string>
+    <string name="log_clear_search">Clear search</string>
+    <string name="log_no_matches">No matching notes.</string>
+    <string name="log_sort_failed">Could not load or save sorting. Select the order again to retry.</string>
+</resources>

@@ -16,7 +16,7 @@ import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.security.MessageDigest
 
-data class MarkdownFile(val uri: String, val name: String, val path: String, val writable: Boolean)
+data class MarkdownFile(val uri: String, val name: String, val path: String, val writable: Boolean, val directory: String? = null)
 data class MarkdownSnapshot(val file: MarkdownFile, val text: String, val fingerprint: String, val bom: Boolean)
 data class MarkdownScan(val files: List<MarkdownFile>, val partial: Boolean)
 class DocumentConflict : IOException()
@@ -103,7 +103,7 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments, DiaryDir
                 if (isDirectory) {
                     if (!file.name.startsWith('.')) visit(Uri.parse(file.uri), "$relative/", false)
                 } else if (file.name.substringAfterLast('.', "").lowercase() in setOf("md", "markdown")) {
-                    found[file.uri] = file.copy(path = relative)
+                    found[file.uri] = file.copy(path = relative, directory = directory.toString())
                 }
             }
         }

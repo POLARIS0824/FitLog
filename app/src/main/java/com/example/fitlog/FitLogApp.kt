@@ -83,6 +83,7 @@ fun FitLogApp() {
                 vaultPreferences = vaultPreferences,
                 vaultRepository = vaultRepository,
                 onSetupCompleted = vaultFlow::onSetupCompleted,
+                onOpenRoute = vaultFlow::openRoute,
                 onBack = vaultFlow::back,
                 modifier = Modifier.padding(innerPadding)
             )

@@ -51,6 +51,12 @@ internal class VaultFlowController(
         if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
     }
 
+    fun openRoute(route: FitLogRoute) {
+        if (!isTopLevel()) return
+        invalidate()
+        backStack.add(route)
+    }
+
     fun importFolder() {
         if (!isTopLevel()) return
         invalidate()

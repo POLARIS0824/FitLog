@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.createSavedStateHandle
 import com.example.fitlog.editor.EditorViewModel
 import com.example.fitlog.editor.EditorDraftStore
 import com.example.fitlog.data.vault.MarkdownDocumentRepository
@@ -23,6 +24,7 @@ import com.example.fitlog.data.vault.VaultRepository
 import com.example.fitlog.editor.EditorScreen
 import com.example.fitlog.insight.InsightScreen
 import com.example.fitlog.log.LogScreen
+import com.example.fitlog.log.LogViewModel
 import com.example.fitlog.today.TodayScreen
 import com.example.fitlog.vault.VaultSetupRoute
 import com.example.fitlog.vault.DiarySettingsScreen
@@ -34,6 +36,7 @@ fun FitLogNavGraph(
     vaultPreferences: VaultPreferences,
     vaultRepository: VaultRepository,
     onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
+    onOpenRoute: (FitLogRoute) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -78,10 +81,13 @@ fun FitLogNavGraph(
             }
 
             entry<FitLogRoute.Log> {
-                LogScreen(vaultPreferences, documents,
-                    onOpen = { vault, document -> backStack.add(FitLogRoute.Editor(vault, document)) },
-                    onSettings = { vault -> backStack.add(FitLogRoute.DiarySettings(vault)) },
-                    onConnect = { backStack.add(FitLogRoute.VaultSetup()) })
+                val vm = viewModel<LogViewModel> {
+                    LogViewModel(createSavedStateHandle(), vaultPreferences.vaultConfig, documents, vaultPreferences.log)
+                }
+                LogScreen(vm,
+                    onOpen = { vault, file -> onOpenRoute(FitLogRoute.Editor(vault, file.uri, directory = file.directory ?: vault, fileName = file.name)) },
+                    onSettings = { vault -> onOpenRoute(FitLogRoute.DiarySettings(vault)) },
+                    onConnect = { onOpenRoute(FitLogRoute.VaultSetup()) })
             }
 
             entry<FitLogRoute.Insight> {

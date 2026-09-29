@@ -1,0 +1,8 @@
+<resources>
+    <string name="log_sort_ascending">文件名正序 ↑</string>
+    <string name="log_sort_descending">文件名倒序 ↓</string>
+    <string name="log_search">搜索文件名与路径</string>
+    <string name="log_clear_search">清除搜索</string>
+    <string name="log_no_matches">没有匹配的笔记。</string>
+    <string name="log_sort_failed">无法读取或保存排序，请重新选择排序重试。</string>
+</resources>
