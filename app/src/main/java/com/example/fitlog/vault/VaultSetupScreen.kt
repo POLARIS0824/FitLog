@@ -26,6 +26,9 @@ import com.example.fitlog.R
 @Composable
 fun VaultSetupScreen(
     onVaultSelected: (Uri) -> Unit,
+    busy: Boolean,
+    saving: Boolean,
+    errorResId: Int?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -46,10 +49,14 @@ fun VaultSetupScreen(
                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION
 
         runCatching {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                flags,
-            )
+            try {
+                context.contentResolver.takePersistableUriPermission(uri, flags)
+            } catch (_: SecurityException) {
+                // Read-only providers can still be connected for browsing.
+                context.contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
         }.onSuccess {
             errorMessageResId = null
             onVaultSelected(uri)
@@ -80,12 +87,17 @@ fun VaultSetupScreen(
             onClick = {
                 vaultPicker.launch(null)
             },
+            enabled = !busy,
             modifier = Modifier.padding(top = 24.dp),
         ) {
-            Text(stringResource(R.string.vault_setup_btn_choose))
+            Text(stringResource(
+                if (saving) R.string.vault_setup_saving
+                else if (busy) R.string.vault_setup_checking
+                else R.string.vault_setup_btn_choose
+            ))
         }
 
-        errorMessageResId?.let { resId ->
+        (errorMessageResId ?: errorResId)?.let { resId ->
             Text(
                 text = stringResource(resId),
                 color = MaterialTheme.colorScheme.error,

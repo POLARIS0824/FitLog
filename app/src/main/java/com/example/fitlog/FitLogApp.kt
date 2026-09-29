@@ -23,17 +23,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.navigation3.runtime.NavBackStack
-import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
-import com.example.fitlog.data.vault.VaultAccessStatus
-import com.example.fitlog.data.vault.VaultConfigState
 import com.example.fitlog.data.vault.VaultPreferences
 import com.example.fitlog.data.vault.VaultRepository
 import com.example.fitlog.navigation.FitLogNavGraph
 import com.example.fitlog.navigation.FitLogRoute
-import com.example.fitlog.navigation.TopLevelDestination
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
+import com.example.fitlog.vault.VaultFlowController
 import kotlinx.coroutines.launch
 
 /**
@@ -51,6 +47,19 @@ fun FitLogApp() {
 
     // 当前导航历史
     val backStack = rememberNavBackStack(FitLogRoute.Today)
+
+    val vaultFlow = remember(backStack, coroutineScope) {
+        VaultFlowController(
+            backStack = backStack,
+            scope = coroutineScope,
+            getConfig = vaultPreferences::getVaultConfig,
+            checkAccess = vaultRepository::checkAccess,
+            saveUri = vaultPreferences::setVaultUri,
+            showError = { message ->
+                coroutineScope.launch { snackbarHostState.showSnackbar(context.getString(message)) }
+            },
+        )
+    }
     val currentRoute = backStack.lastOrNull()
 
     val showNavigationToolbar =
@@ -67,14 +76,11 @@ fun FitLogApp() {
         Box(Modifier.fillMaxSize()) {
             FitLogNavGraph(
                 backStack = backStack,
-                onVaultSelected = { uri ->
-                    coroutineScope.launch {
-                        // 1. 保存到 DataStore
-                        vaultPreferences.setVaultUri(uri)
-                        // 2. 关闭 VaultSetup 页面返回
-                        backStack.removeLastOrNull()
-                    }
-                },
+                onVaultSelected = vaultFlow::selectFolder,
+                onBack = vaultFlow::back,
+                vaultBusy = vaultFlow.busy,
+                vaultSaving = vaultFlow.saving,
+                vaultError = vaultFlow.setupError,
                 modifier = Modifier.padding(innerPadding)
             )
 
@@ -104,91 +110,11 @@ fun FitLogApp() {
                     currentRoute = currentRoute,
                     fabMenuExpanded = fabMenuExpanded,
                     onFabMenuExpandedChange = { fabMenuExpanded = it },
-                    onDestinationClick = { destination ->
-                        navigateToTopLevelDestination(
-                            backStack = backStack,
-                            destination = destination
-                        )
-                    },
-                    onCreateFileClick = {
-                        coroutineScope.launch {
-                            when (val config = vaultPreferences.getVaultConfig()) {
-                                is VaultConfigState.Configured -> {
-                                    // 检查目录真实可用性
-                                    when (val access = vaultRepository.checkAccess(config.uri)) {
-                                        VaultAccessStatus.CanCreateFiles -> {
-                                            // 状态正常，直接进编辑页
-                                            backStack.add(FitLogRoute.Editor)
-                                        }
-                                        VaultAccessStatus.NeedsReauthorization -> {
-                                            snackbarHostState.showSnackbar(
-                                                context.getString(R.string.vault_error_needs_reauthorization)
-                                            )
-                                            backStack.add(FitLogRoute.VaultSetup)
-                                        }
-                                        VaultAccessStatus.DirectoryUnavailable -> {
-                                            snackbarHostState.showSnackbar(
-                                                context.getString(R.string.vault_error_directory_unavailable)
-                                            )
-                                            backStack.add(FitLogRoute.VaultSetup)
-                                        }
-                                        VaultAccessStatus.ReadOnly -> {
-                                            snackbarHostState.showSnackbar(
-                                                context.getString(R.string.vault_error_read_only)
-                                            )
-                                        }
-                                        is VaultAccessStatus.Failed -> {
-                                            snackbarHostState.showSnackbar(
-                                                context.getString(
-                                                    R.string.vault_error_check_failed,
-                                                    access.cause.localizedMessage ?: access.cause.message.orEmpty()
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                                VaultConfigState.NotConfigured -> {
-                                    // 尚未配置，直接引导至选择页面
-                                    backStack.add(FitLogRoute.VaultSetup)
-                                }
-                                VaultConfigState.Loading -> {
-                                    // 读取配置中，忽略连续误触
-                                }
-                                is VaultConfigState.Failed -> {
-                                    snackbarHostState.showSnackbar(
-                                        context.getString(R.string.vault_error_load_config_failed)
-                                    )
-                                    backStack.add(FitLogRoute.VaultSetup)
-                                }
-                            }
-                        }
-                    },
-                    // 导入/更换文件夹点击逻辑
-                    onImportFolderClick = {
-                        backStack.add(FitLogRoute.VaultSetup)
-                    },
+                    onDestinationClick = { vaultFlow.navigateTo(it.route) },
+                    onCreateFileClick = vaultFlow::createFile,
+                    onImportFolderClick = vaultFlow::importFolder,
                 )
             }
         }
-    }
-}
-
-/**
- * [Today]
- *   ↓ 直接 replace
- * [Log]
- */
-private fun navigateToTopLevelDestination(
-    backStack: NavBackStack<NavKey>,
-    destination: TopLevelDestination,
-) {
-    if (backStack.lastOrNull() == destination.route) {
-        return
-    }
-
-    if (backStack.isEmpty()) {
-        backStack.add(destination.route)
-    } else {
-        backStack[backStack.lastIndex] = destination.route
     }
 }

@@ -20,7 +20,11 @@ import com.example.fitlog.vault.VaultSetupScreen
 @Composable
 fun FitLogNavGraph(
     backStack: NavBackStack<NavKey>,
-    onVaultSelected: (Uri) -> Unit,
+    onVaultSelected: (FitLogRoute.VaultSetup, Uri) -> Unit,
+    onBack: () -> Unit,
+    vaultBusy: Boolean,
+    vaultSaving: Boolean,
+    vaultError: Int?,
     modifier: Modifier = Modifier,
 ) {
     val motionScheme = MaterialTheme.motionScheme
@@ -29,9 +33,7 @@ fun FitLogNavGraph(
         backStack = backStack,
         modifier = modifier,
 
-        onBack = {
-            backStack.removeLastOrNull()
-        },
+        onBack = onBack,
 
         transitionSpec = {
             fadeIn(
@@ -72,17 +74,18 @@ fun FitLogNavGraph(
 
             entry<FitLogRoute.Editor> {
                 EditorScreen(
-                    onBack = {
-                        backStack.removeLastOrNull()
-                    }
+                    onBack = onBack,
                 )
             }
 
-            entry<FitLogRoute.VaultSetup> {
+            entry<FitLogRoute.VaultSetup> { route ->
                 VaultSetupScreen(
                     onVaultSelected = { uri ->
-                        onVaultSelected(uri)
-                    }
+                        onVaultSelected(route, uri)
+                    },
+                    busy = vaultBusy,
+                    saving = vaultSaving,
+                    errorResId = vaultError,
                 )
             }
         },

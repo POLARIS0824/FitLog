@@ -20,5 +20,8 @@ sealed interface FitLogRoute : NavKey {
     data object Editor : FitLogRoute
 
     @Serializable
-    data object VaultSetup : FitLogRoute
+    data class VaultSetup(
+        val createAfterSetup: Boolean = false,
+        val requestId: String = java.util.UUID.randomUUID().toString(),
+    ) : FitLogRoute
 }
