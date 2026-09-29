@@ -48,4 +48,8 @@
     <string name="log_connect">Connect folder</string>
     <string name="log_no_vault">Connect a folder to browse Markdown files.</string>
     <string name="log_retry">Retry</string>
+    <string name="editor_content">Markdown content</string>
+    <string name="editor_ordered_list">Numbered list</string>
+    <string name="editor_indent">Indent</string>
+    <string name="editor_outdent">Outdent</string>
 </resources>

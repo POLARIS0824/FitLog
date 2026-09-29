@@ -48,4 +48,8 @@
     <string name="log_connect">连接目录</string>
     <string name="log_no_vault">连接目录后即可浏览 Markdown 文件。</string>
     <string name="log_retry">重试</string>
+    <string name="editor_content">Markdown 正文</string>
+    <string name="editor_ordered_list">有序列表</string>
+    <string name="editor_indent">缩进</string>
+    <string name="editor_outdent">取消缩进</string>
 </resources>

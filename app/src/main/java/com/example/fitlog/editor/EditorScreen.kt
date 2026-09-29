@@ -17,6 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -30,6 +34,10 @@ private fun Action(id: Int, enabled: Boolean = true, onClick: () -> Unit) {
 @Composable
 fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val editorFocus = remember { FocusRequester() }
+    val editorScroll = rememberScrollState()
+    val inputTransformation = remember(vm) { MarkdownInputTransformation { vm.text.composition != null } }
+    val editorLabel = stringResource(R.string.editor_content)
     var formatMenu by remember { mutableStateOf(false) }
     var linkSelection by remember { mutableStateOf<TextRange?>(null) }
     var linkSource by remember { mutableStateOf("") }
@@ -77,7 +85,9 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
             Action(R.string.editor_copy) { vm.saveCopy() }
         }
         BasicTextField(state = vm.text, readOnly = !vm.canEdit,
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp),
+            inputTransformation = inputTransformation, scrollState = editorScroll,
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp)
+                .focusRequester(editorFocus).semantics { contentDescription = editorLabel },
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface))
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
             Action(R.string.editor_undo, vm.canFormat && vm.text.undoState.canUndo) { vm.text.undoState.undo() }
@@ -87,6 +97,7 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
                 DropdownMenu(expanded = formatMenu, onDismissRequest = { formatMenu = false }) {
                     fun apply(command: (String, TextRange) -> MarkdownEditCommands.Edit) {
                         vm.edit(command(vm.text.text.toString(), vm.text.selection)); formatMenu = false
+                        editorFocus.requestFocus()
                     }
                     listOf(R.string.editor_h1, R.string.editor_h2, R.string.editor_h3, R.string.editor_paragraph).forEachIndexed { i, id ->
                         DropdownMenuItem(text = { Text(stringResource(id)) }, onClick = { apply { t, s -> MarkdownEditCommands.heading(t, s, if (i == 3) 0 else i + 1) } })
@@ -95,6 +106,9 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
                     DropdownMenuItem(text = { Text(stringResource(R.string.editor_italic)) }, onClick = { apply { t, s -> MarkdownEditCommands.wrap(t, s, "*") } })
                     DropdownMenuItem(text = { Text(stringResource(R.string.editor_list)) }, onClick = { apply { t, s -> MarkdownEditCommands.list(t, s, false) } })
                     DropdownMenuItem(text = { Text(stringResource(R.string.editor_task)) }, onClick = { apply { t, s -> MarkdownEditCommands.list(t, s, true) } })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.editor_ordered_list)) }, onClick = { apply(MarkdownEditCommands::orderedList) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.editor_indent)) }, onClick = { apply { t, s -> MarkdownEditCommands.indent(t, s, false) } })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.editor_outdent)) }, onClick = { apply { t, s -> MarkdownEditCommands.indent(t, s, true) } })
                     DropdownMenuItem(text = { Text(stringResource(R.string.editor_link)) }, onClick = {
                         linkSource = vm.text.text.toString(); linkSelection = vm.text.selection
                         label = linkSource.substring(vm.text.selection.min, vm.text.selection.max)
