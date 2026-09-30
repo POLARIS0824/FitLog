@@ -24,6 +24,8 @@ sealed interface FitLogRoute : NavKey {
         val sessionId: String = java.util.UUID.randomUUID().toString(),
         val directory: String = vault,
         val fileName: String = date + ".md",
+        val recoveryId: String? = null,
+        val displayPath: String? = null,
     ) : FitLogRoute
 
     @Serializable
@@ -35,4 +37,7 @@ sealed interface FitLogRoute : NavKey {
 
     @Serializable
     data class DiarySettings(val vault: String) : FitLogRoute
+
+    @Serializable
+    data object RecoveryCenter : FitLogRoute
 }

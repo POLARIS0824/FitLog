@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="recovery_title">Recovery center</string>
+    <string name="recovery_draft">Unsaved draft</string>
+    <string name="recovery_backup">Before-write backup</string>
+    <string name="recovery_unknown">Unknown source</string>
+    <string name="recovery_unknown_location">Original location unknown — view or export a copy</string>
+    <string name="recovery_pending_backup">The write did not finish successfully. This backup has been preserved.</string>
+    <string name="recovery_damaged">This local record could not be read. Other records are unaffected.</string>
+    <string name="recovery_continue">Continue editing</string>
+    <string name="recovery_manual_save">Recovered content is kept locally. Choose Save to write it back.</string>
+    <string name="recovery_export">Export Markdown copy</string>
+    <string name="recovery_export_name">Recovered note.md</string>
+    <string name="recovery_exported">Copy exported and verified. The local draft or backup is still retained.</string>
+    <string name="recovery_export_failed">Could not verify the exported copy. Your local content is retained; try exporting again.</string>
+    <string name="recovery_operation_failed">Could not complete recovery. Local content is retained. Refresh or try again.</string>
+    <string name="recovery_bookkeeping_failed">Markdown was saved, but the backup status could not be updated.</string>
+    <string name="recovery_delete">Delete local recovery record</string>
+    <string name="recovery_delete_message">Delete this local draft or backup? The original Markdown file will not be deleted.</string>
+    <string name="recovery_empty">No local drafts or backups.</string>
+</resources>

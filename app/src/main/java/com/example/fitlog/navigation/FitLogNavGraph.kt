@@ -29,6 +29,9 @@ import com.example.fitlog.today.TodayScreen
 import com.example.fitlog.vault.VaultSetupRoute
 import com.example.fitlog.vault.DiarySettingsScreen
 import com.example.fitlog.vault.DiarySettingsViewModel
+import com.example.fitlog.data.vault.VaultConfigState
+import com.example.fitlog.editor.RecoveryViewModel
+import com.example.fitlog.editor.RecoveryScreen
 
 @Composable
 fun FitLogNavGraph(
@@ -44,12 +47,12 @@ fun FitLogNavGraph(
     val context = LocalContext.current.applicationContext
     val documents = remember(context) { MarkdownDocumentRepository(context) }
     val drafts = remember(context) { EditorDraftStore(File(context.filesDir, "editor-drafts")) }
-    var editorBack by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val backHandlers = remember { mutableStateMapOf<NavKey, () -> Unit>() }
 
     NavDisplay(
         backStack = backStack,
         modifier = modifier,
-        onBack = { editorBack?.invoke() ?: onBack() },
+        onBack = { backHandlers[backStack.lastOrNull()]?.invoke() ?: onBack() },
         entryDecorators = listOf(
             rememberSaveableStateHolderNavEntryDecorator(),
             rememberViewModelStoreNavEntryDecorator(),
@@ -85,9 +88,10 @@ fun FitLogNavGraph(
                     LogViewModel(createSavedStateHandle(), vaultPreferences.vaultConfig, documents, vaultPreferences.log)
                 }
                 LogScreen(vm,
-                    onOpen = { vault, file -> onOpenRoute(FitLogRoute.Editor(vault, file.uri, directory = file.directory ?: vault, fileName = file.name)) },
+                    onOpen = { vault, file -> onOpenRoute(FitLogRoute.Editor(vault, file.uri, directory = file.directory ?: vault, fileName = file.name, displayPath = file.path)) },
                     onSettings = { vault -> onOpenRoute(FitLogRoute.DiarySettings(vault)) },
-                    onConnect = { onOpenRoute(FitLogRoute.VaultSetup()) })
+                    onConnect = { onOpenRoute(FitLogRoute.VaultSetup()) },
+                    onRecovery = { onOpenRoute(FitLogRoute.RecoveryCenter) })
             }
 
             entry<FitLogRoute.Insight> {
@@ -96,11 +100,11 @@ fun FitLogNavGraph(
 
             entry<FitLogRoute.Editor> { route ->
                 val vm = viewModel<EditorViewModel>(key = route.sessionId) {
-                    EditorViewModel(route, documents, drafts)
+                    EditorViewModel(route, documents, drafts, createSavedStateHandle())
                 }
                 DisposableEffect(vm) {
-                    editorBack = { vm.requestExit(onBack) }
-                    onDispose { editorBack = null }
+                    backHandlers[route] = { vm.requestExit(onBack) }
+                    onDispose { backHandlers.remove(route) }
                 }
                 EditorScreen(vm = vm, onBack = onBack)
             }
@@ -120,11 +124,21 @@ fun FitLogNavGraph(
                     DiarySettingsViewModel(route.vault, vaultPreferences.diary, documents)
                 }
                 DisposableEffect(vm) {
-                    editorBack = { vm.requestBack(onBack) }
-                    onDispose { editorBack = null }
+                    backHandlers[route] = { vm.requestBack(onBack) }
+                    onDispose { backHandlers.remove(route) }
                 }
                 DiarySettingsScreen(vm) { if (backStack.lastOrNull() == route) onBack() }
             }
+            entry<FitLogRoute.RecoveryCenter> {
+                val vm = viewModel<RecoveryViewModel> { RecoveryViewModel(createSavedStateHandle(), drafts) }
+                val config by vaultPreferences.vaultConfig.collectAsState(initial = VaultConfigState.Loading)
+                DisposableEffect(vm) {
+                    backHandlers[FitLogRoute.RecoveryCenter] = { if (vm.selectedId != null) vm.select(null) else onBack() }
+                    onDispose { backHandlers.remove(FitLogRoute.RecoveryCenter) }
+                }
+                RecoveryScreen(vm, (config as? VaultConfigState.Configured)?.uri?.toString(), onOpenRoute, onBack)
+            }
+
         },
     )
 }

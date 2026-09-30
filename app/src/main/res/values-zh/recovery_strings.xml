@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="recovery_title">恢复中心</string>
+    <string name="recovery_draft">未保存草稿</string>
+    <string name="recovery_backup">写入前备份</string>
+    <string name="recovery_unknown">来源未知</string>
+    <string name="recovery_unknown_location">原位置未知，可查看正文或导出副本</string>
+    <string name="recovery_pending_backup">上次写入未确认成功，已保留此备份。</string>
+    <string name="recovery_damaged">无法读取此本地记录，其他记录不受影响。</string>
+    <string name="recovery_continue">继续编辑</string>
+    <string name="recovery_manual_save">恢复的内容保留在本地，点击保存后才会写回原文件。</string>
+    <string name="recovery_export">导出 Markdown 副本</string>
+    <string name="recovery_export_name">恢复的日记.md</string>
+    <string name="recovery_exported">副本已导出并校验，本地草稿或备份仍保留。</string>
+    <string name="recovery_export_failed">无法确认副本已完整导出，本地内容仍保留，请重试。</string>
+    <string name="recovery_operation_failed">恢复操作未完成，本地内容仍保留，请刷新或重试。</string>
+    <string name="recovery_bookkeeping_failed">Markdown 已保存，但备份状态更新失败。</string>
+    <string name="recovery_delete">删除本地恢复记录</string>
+    <string name="recovery_delete_message">删除此本地草稿或备份？不会删除原 Markdown 文件。</string>
+    <string name="recovery_empty">暂无本地草稿或备份。</string>
+</resources>

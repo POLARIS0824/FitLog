@@ -29,6 +29,15 @@ import com.example.fitlog.data.vault.DiaryCreationUnavailable
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class VaultFlowControllerTest {
+    @Test fun recoveryCanOpenEditorAndReturnToCenter() = runTest {
+        val flow = controller()
+        flow.openRoute(FitLogRoute.RecoveryCenter)
+        val editor = FitLogRoute.Editor("old-vault", directory = "old-directory", recoveryId = "draft:id")
+        flow.openRoute(editor)
+        assertEquals(editor, stack.last())
+        flow.back()
+        assertEquals(FitLogRoute.RecoveryCenter, stack.last())
+    }
     private val uri = Uri.parse("content://test/tree/vault")
     private val stack = mutableListOf<NavKey>(FitLogRoute.Today)
     private val errors = mutableListOf<Int>()

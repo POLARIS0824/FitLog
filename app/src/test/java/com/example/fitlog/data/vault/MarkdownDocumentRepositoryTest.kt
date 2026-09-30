@@ -152,6 +152,16 @@ class MarkdownDocumentRepositoryTest {
         provider.failReadAfterWrite = true
         try { repository.write(before.file.uri, "new", false, before.fingerprint); fail() } catch (_: IOException) { }
     }
+    @Test fun recoveryExportPreservesUtf8BomAndRequiresSuccessfulReadback() = runTest {
+        provider.add("root/export", "copy.md", "root", byteArrayOf())
+        val exporter = com.example.fitlog.editor.RecoveryExporter(RuntimeEnvironment.getApplication().contentResolver)
+        val draft = com.example.fitlog.editor.EditorDraft("vault", "draft", null, "old.md", "卧推💪\r\n", 0, 0, 1, null, true)
+        exporter.export(Uri.parse(uri("root/export")), draft)
+        val copy = repository.read(uri("root/export"))
+        assertEquals(draft.text, copy.text); assertTrue(copy.bom)
+        provider.failReadAfterWrite = true
+        try { exporter.export(Uri.parse(uri("root/export")), draft); fail() } catch (_: IOException) { }
+    }
 }
 
 private class TestMarkdownProvider : ContentProvider() {

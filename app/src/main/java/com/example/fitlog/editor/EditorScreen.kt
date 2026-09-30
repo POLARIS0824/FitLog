@@ -2,7 +2,6 @@
 
 package com.example.fitlog.editor
 
-import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -44,13 +43,17 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
     var label by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var wrongFolder by remember { mutableStateOf(false) }
+    val exporter = remember(context) { RecoveryExporter(context.contentResolver) }
+    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri ->
+        if (uri == null) vm.cancelExport() else vm.export { exporter.export(uri, it) }
+    }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
             if (uri.toString() != vm.route.vault) wrongFolder = true
             else try {
-                context.contentResolver.takePersistableUriPermission(uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                if (!vm.writable) vm.retryLoad() else vm.saveNow()
+                com.example.fitlog.data.vault.AndroidSafDirectoryAccessor(context).takePersistablePermission(uri).getOrThrow()
+                wrongFolder = false
+                vm.onReauthorized()
             } catch (_: SecurityException) { wrongFolder = true }
         }
     }
@@ -79,6 +82,9 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
                 Action(R.string.editor_reauthorize) { permission.launch(Uri.parse(vm.route.vault)) }
             }
         }
+        vm.notice?.let { Text(stringResource(it)) }
+        if (vm.requiresManualSave) Text(stringResource(R.string.recovery_manual_save))
+        Action(R.string.recovery_export, !vm.loading && vm.recovery == null) { vm.prepareExport(export::launch) }
         if (wrongFolder) Text(stringResource(R.string.editor_wrong_folder), color = MaterialTheme.colorScheme.error)
         if (vm.conflict) Row(Modifier.horizontalScroll(rememberScrollState())) {
             Action(R.string.editor_reload) { vm.requestReload() }

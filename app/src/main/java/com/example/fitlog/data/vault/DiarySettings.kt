@@ -67,6 +67,7 @@ class TodayLogResolver(
         return FitLogRoute.Editor(
             vault = vault, document = existing?.uri, date = date.toString(),
             directory = directory, fileName = name,
+            displayPath = (config.directoryPath + name).joinToString("/"),
         )
     }
 }

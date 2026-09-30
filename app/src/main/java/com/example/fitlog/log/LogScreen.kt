@@ -23,6 +23,7 @@ fun LogScreen(
     onOpen: (String, MarkdownFile) -> Unit,
     onConnect: () -> Unit,
     onSettings: (String) -> Unit,
+    onRecovery: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
@@ -57,6 +58,7 @@ fun LogScreen(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = vm::refresh, enabled = !vm.loading) { Text(stringResource(R.string.log_refresh)) }
             TextButton(onClick = onConnect) { Text(stringResource(R.string.log_connect)) }
+            TextButton(onClick = onRecovery) { Text(stringResource(R.string.recovery_title)) }
             TextButton(onClick = { vm.vault?.let(onSettings) }, enabled = vm.vault != null) { Text(stringResource(R.string.diary_settings_title)) }
         }
         if (vm.loading) LinearProgressIndicator(Modifier.fillMaxWidth())

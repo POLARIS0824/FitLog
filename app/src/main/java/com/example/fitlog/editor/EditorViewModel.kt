@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.text.TextRange
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
 import com.example.fitlog.data.vault.*
@@ -27,11 +28,12 @@ class EditorViewModel(
     val route: FitLogRoute.Editor,
     private val documents: MarkdownDocuments,
     private val drafts: Drafts,
+    private val sessionState: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
     val text = TextFieldState()
     var loading by mutableStateOf(true); private set
     var writable by mutableStateOf(false); private set
-    var name by mutableStateOf(route.fileName); private set
+    var name by mutableStateOf(sessionState.get<String>("name") ?: route.fileName); private set
     var state by mutableStateOf(EditorSaveState.Unsaved); private set
     var error by mutableStateOf<Int?>(null); private set
     var recovery by mutableStateOf<EditorDraft?>(null); private set
@@ -40,7 +42,15 @@ class EditorViewModel(
     var exitRequested by mutableStateOf(false); private set
     var reloadRequested by mutableStateOf(false); private set
     var closing by mutableStateOf(false); private set
-    private var document = route.document
+    var notice by mutableStateOf<Int?>(null); private set
+    private var manualSave = false
+    private var recoveryIdentity = ""
+    private val displayPath: String? get() = route.displayPath?.let {
+        val parent = it.substringBeforeLast('/', "")
+        if (parent.isEmpty()) name else "$parent/$name"
+    }
+    private var document = sessionState.get<String>("document") ?: route.document
+    private var recoveryEntryId = if (sessionState.contains("recoveryId")) sessionState.get<String>("recoveryId") else route.recoveryId
     private var baseline = ""
     private var sourceFingerprint: String? = null
     private var bom = false
@@ -48,7 +58,7 @@ class EditorViewModel(
     private var lastObserved = ""
     private var blocked = false
     private var operationBusy by mutableStateOf(false)
-    private var target = route.document ?: newDraftTarget(route)
+    private var target = sessionState.get<String>("target") ?: document ?: newDraftTarget(route)
     private val saveLock = Mutex()
     private val draftLock = Mutex()
     private var debounce: Job? = null
@@ -58,6 +68,7 @@ class EditorViewModel(
     val dirty: Boolean get() = text.text.toString() != baseline
     val canEdit: Boolean get() = !loading && writable && recovery == null && collision == null && !closing && !operationBusy
     val canFormat: Boolean get() = canEdit && text.composition == null
+    val requiresManualSave: Boolean get() = manualSave
 
     init {
         load()
@@ -78,13 +89,23 @@ class EditorViewModel(
         error = null
         viewModelScope.launch {
             try {
-                val draft = drafts.read(route.vault, target)
+                val draft = if (recoveryEntryId != null) {
+                    drafts.entry(requireNotNull(recoveryEntryId))?.draft
+                } else drafts.read(route.vault, target)
                 recovery = draft
+                if (recoveryEntryId != null && draft != null) { writable = true; return@launch }
+                if (recoveryEntryId != null && document == null) {
+                    // A completed recovery may have removed its draft before process recreation.
+                    document = requireNotNull(documents.find(route.directory, name)).uri
+                }
                 document?.let { applySnapshot(documents.read(it)) }
                     ?: run { writable = true; collision = documents.find(route.directory, name) }
                 blocked = draft != null || collision != null
             } catch (e: Exception) { fail(e); writable = false }
-            finally { loading = false }
+            finally {
+                loading = false
+                if (recoveryEntryId != null && recovery != null) restoreDraft()
+            }
         }
     }
 
@@ -115,15 +136,17 @@ class EditorViewModel(
         val draft = recovery ?: return@launch
         operationBusy = true
         target = draft.originTarget
+        recoveryIdentity = draft.identity()
+        manualSave = draft.manualSave || recoveryEntryId != null
         try {
             val source = draft.document?.let { documents.read(it) }
             document = draft.document
             name = draft.name
             bom = draft.bom
-            sourceFingerprint = draft.fingerprint
-            writable = source?.file?.writable ?: true
+            sourceFingerprint = if (draft.restoredBackup) source?.fingerprint else draft.fingerprint
+            writable = true // A local recovery remains editable; SAF capabilities are checked on write.
             baseline = source?.text ?: ""
-            conflict = source != null && source.fingerprint != draft.fingerprint
+            conflict = source != null && source.fingerprint != sourceFingerprint
             collision = null
             replace(draft.text, TextRange(draft.selectionStart.coerceIn(0, draft.text.length), draft.selectionEnd.coerceIn(0, draft.text.length)))
             version = draft.version
@@ -170,6 +193,8 @@ class EditorViewModel(
             if (dirty) persistDraft()
             applySnapshot(documents.read(file.uri))
             target = file.uri
+            recoveryEntryId = null; recoveryIdentity = ""; manualSave = false
+            rememberDestination()
             collision = null
             blocked = false
             error = null
@@ -184,7 +209,7 @@ class EditorViewModel(
         draftDebounce = viewModelScope.launch { delay(350); storeDraftSafely() }
         if (maxDraft?.isActive != true) maxDraft = viewModelScope.launch { delay(2000); storeDraftSafely() }
         debounce?.cancel()
-        if (!dirty || blocked || closing) return
+        if (!dirty || blocked || closing || manualSave) return
         debounce = viewModelScope.launch { delay(1500); save() }
         if (maxSave?.isActive != true) maxSave = viewModelScope.launch { delay(10000); save() }
     }
@@ -196,17 +221,24 @@ class EditorViewModel(
 
     private suspend fun persistDraft() = draftLock.withLock {
         val snapshot = EditorDraft(route.vault, target, document, name, text.text.toString(),
-            text.selection.start, text.selection.end, version, sourceFingerprint, bom)
+            text.selection.start, text.selection.end, version, sourceFingerprint, bom,
+            directory = route.directory, displayPath = displayPath,
+            updatedAt = System.currentTimeMillis(), recoveryId = recoveryIdentity,
+            manualSave = manualSave)
         drafts.save(snapshot)
-        document?.takeIf { it != target }?.let { drafts.save(snapshot.copy(target = it)) }
+        if (recoveryEntryId == null) document?.takeIf { it != target }?.let { drafts.save(snapshot.copy(target = it)) }
     }
 
     private suspend fun deleteDraft() = draftLock.withLock {
+        recoveryEntryId?.let { drafts.deleteEntry(it) }
         drafts.remove(route.vault, target)
-        document?.takeIf { it != target }?.let { drafts.remove(route.vault, it) }
+        if (recoveryEntryId == null) document?.takeIf { it != target }?.let { drafts.remove(route.vault, it) }
     }
 
-    fun saveNow() = viewModelScope.launch { blocked = conflict || collision != null || recovery != null; save() }
+    fun saveNow() = viewModelScope.launch {
+        blocked = conflict || collision != null || recovery != null
+        if (save()) manualSave = false
+    }
 
     private suspend fun save(): Boolean = saveLock.withLock {
         if (loading || operationBusy || !writable || blocked || conflict || recovery != null || collision != null) return@withLock false
@@ -223,6 +255,7 @@ class EditorViewModel(
                 if (document == null) {
                     val created = documents.create(route.directory, name)
                     document = created.uri
+                    rememberDestination()
                     sourceFingerprint = documents.read(created.uri).fingerprint
                     persistDraft()
                 }
@@ -230,7 +263,9 @@ class EditorViewModel(
                 val before = documents.read(uri)
                 if (before.fingerprint != sourceFingerprint) throw DocumentConflict()
                 val original = (if (before.bom) byteArrayOf(0xef.toByte(), 0xbb.toByte(), 0xbf.toByte()) else byteArrayOf()) + before.text.toByteArray(Charsets.UTF_8)
-                drafts.backup(route.vault, uri, original)
+                drafts.prepareBackup(EditorDraft(route.vault, uri, uri, name, before.text, 0, 0, version,
+                    before.fingerprint, before.bom, directory = route.directory,
+                    displayPath = displayPath, updatedAt = System.currentTimeMillis()), original)
                 val result = documents.write(uri, value, bom, requireNotNull(sourceFingerprint))
                 baseline = value
                 sourceFingerprint = result.fingerprint
@@ -238,6 +273,8 @@ class EditorViewModel(
                 blocked = false
                 if (dirty) persistDraft() else deleteDraft()
                 state = if (dirty) EditorSaveState.Unsaved else EditorSaveState.Saved
+                try { drafts.completeBackup(route.vault, uri) }
+                catch (e: Exception) { if (e is CancellationException) throw e; notice = R.string.recovery_bookkeeping_failed }
             }
             if (dirty) schedule()
             true
@@ -292,6 +329,7 @@ class EditorViewModel(
                 persistDraft()
                 val created = documents.create(route.directory, copyName)
                 document = created.uri; name = created.name
+                rememberDestination()
                 sourceFingerprint = documents.read(created.uri).fingerprint
                 baseline = ""; bom = false; writable = true
                 conflict = false; blocked = false; collision = null
@@ -303,7 +341,53 @@ class EditorViewModel(
     }
 
     fun dismissCollision() { collision = null /* Keep autosave blocked until an explicit retry. */ }
-    fun onBackground() = viewModelScope.launch { if (!closing) { storeDraftSafely(); if (!blocked) save() } }
+    fun onBackground() = viewModelScope.launch { if (!closing) { storeDraftSafely(); if (!blocked && !manualSave) save() } }
+    fun prepareExport(launch: (String) -> Unit) = viewModelScope.launch {
+        if (loading || recovery != null || operationBusy || sessionState.contains("exportId")) return@launch
+        operationBusy = true
+        try {
+            persistDraft()
+            // Keep the picker snapshot independent of autosave and its draft cleanup.
+            val id = java.util.UUID.randomUUID().toString()
+            val snapshot = EditorDraft(route.vault, "export:$id", document, name, text.text.toString(), 0, 0,
+                version, sourceFingerprint, bom, directory = route.directory,
+                displayPath = displayPath, updatedAt = System.currentTimeMillis(), recoveryId = id,
+                manualSave = true)
+            drafts.save(snapshot)
+            sessionState["exportId"] = "draft:${snapshot.identity()}"
+            launch(name)
+        } catch (e: Exception) { fail(e) }
+        finally { operationBusy = false }
+    }
+    fun export(exporter: suspend (EditorDraft) -> Unit) = viewModelScope.launch {
+        val id = sessionState.remove<String>("exportId")
+        try {
+            val value = requireNotNull(id?.let { drafts.entry(it)?.draft })
+            exporter(value)
+            notice = R.string.recovery_exported
+        }
+        catch (e: Exception) { if (e is CancellationException) throw e; notice = R.string.recovery_export_failed }
+    }
+    fun cancelExport() { sessionState.remove<String>("exportId") }
+    private fun rememberDestination() {
+        sessionState.set("document", document)
+        sessionState.set("name", name)
+        sessionState.set("target", target)
+        sessionState.set("recoveryId", recoveryEntryId)
+    }
+    fun onReauthorized() = viewModelScope.launch {
+        if (loading || operationBusy || state == EditorSaveState.Saving) return@launch
+        if (!writable) { load(); return@launch }
+        operationBusy = true
+        try {
+            val source = document?.let { documents.read(it) }
+            conflict = source != null && source.fingerprint != sourceFingerprint
+            blocked = conflict
+            error = if (conflict) R.string.editor_conflict else null
+            if (!conflict) state = if (dirty) EditorSaveState.Unsaved else EditorSaveState.Saved
+        } catch (e: Exception) { fail(e) }
+        finally { operationBusy = false }
+    }
     fun retryLoad() { if (loading) return; load() }
     private fun fail(e: Exception) {
         if (e is CancellationException) throw e
