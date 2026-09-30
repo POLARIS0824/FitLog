@@ -29,6 +29,7 @@ import com.example.fitlog.today.TodayScreen
 import com.example.fitlog.vault.VaultSetupRoute
 import com.example.fitlog.vault.DiarySettingsScreen
 import com.example.fitlog.vault.DiarySettingsViewModel
+import com.example.fitlog.data.index.SourceIndexRepository
 import com.example.fitlog.data.vault.VaultConfigState
 import com.example.fitlog.editor.RecoveryViewModel
 import com.example.fitlog.editor.RecoveryScreen
@@ -40,6 +41,7 @@ fun FitLogNavGraph(
     backStack: NavBackStack<NavKey>,
     vaultPreferences: VaultPreferences,
     vaultRepository: VaultRepository,
+    sourceIndex: SourceIndexRepository,
     onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
     onOpenRoute: (FitLogRoute) -> Unit,
     onBack: () -> Unit,
@@ -87,7 +89,7 @@ fun FitLogNavGraph(
 
             entry<FitLogRoute.Log> {
                 val vm = viewModel<LogViewModel> {
-                    LogViewModel(createSavedStateHandle(), vaultPreferences.vaultConfig, documents, vaultPreferences.log)
+                    LogViewModel(createSavedStateHandle(), vaultPreferences.vaultConfig, sourceIndex, vaultPreferences.log)
                 }
                 LogScreen(vm,
                     onOpen = { vault, file -> onOpenRoute(FitLogRoute.Editor(vault, file.uri, directory = file.directory ?: vault, fileName = file.name, displayPath = file.path)) },
@@ -103,7 +105,9 @@ fun FitLogNavGraph(
 
             entry<FitLogRoute.Editor> { route ->
                 val vm = viewModel<EditorViewModel>(key = route.sessionId) {
-                    EditorViewModel(route, documents, drafts, createSavedStateHandle())
+                    EditorViewModel(route, documents, drafts, createSavedStateHandle()) { snapshot, directory, path ->
+                        sourceIndex.recordSaved(route.vault, snapshot, directory, path)
+                    }
                 }
                 DisposableEffect(vm) {
                     backHandlers[route] = { vm.requestExit(onBack) }

@@ -29,6 +29,7 @@ class EditorViewModel(
     private val documents: MarkdownDocuments,
     private val drafts: Drafts,
     private val sessionState: SavedStateHandle = SavedStateHandle(),
+    private val onSaved: suspend (MarkdownSnapshot, String, String?) -> Unit = { _, _, _ -> },
 ) : ViewModel() {
     val text = TextFieldState()
     var loading by mutableStateOf(true); private set
@@ -275,6 +276,8 @@ class EditorViewModel(
                 state = if (dirty) EditorSaveState.Unsaved else EditorSaveState.Saved
                 try { drafts.completeBackup(route.vault, uri) }
                 catch (e: Exception) { if (e is CancellationException) throw e; notice = R.string.recovery_bookkeeping_failed }
+                try { onSaved(result, route.directory, displayPath) }
+                catch (e: Exception) { if (e is CancellationException) throw e; notice = R.string.index_save_failed }
             }
             if (dirty) schedule()
             true

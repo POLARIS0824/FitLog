@@ -16,6 +16,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.fitlog.R
 import com.example.fitlog.data.vault.MarkdownFile
+import com.example.fitlog.data.index.IndexedScan
+import com.example.fitlog.data.index.IndexedSource
 
 @Composable
 fun LogScreen(
@@ -64,6 +66,19 @@ fun LogScreen(
             TextButton(onClick = { vm.vault?.let(onSettings) }, enabled = vm.vault != null) { Text(stringResource(R.string.diary_settings_title)) }
         }
         if (vm.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        Text(stringResource(when {
+            vm.loading && vm.vault != null -> R.string.index_scanning
+            vm.scanStatus == IndexedScan.COMPLETE -> R.string.index_complete
+            vm.scanStatus == IndexedScan.PARTIAL -> R.string.index_partial
+            vm.scanStatus == IndexedScan.INTERRUPTED -> R.string.index_interrupted
+            vm.scanStatus == IndexedScan.FAILED -> R.string.index_failed
+            else -> R.string.index_not_scanned
+        }))
+        if (vm.files.isNotEmpty() && (vm.loading || vm.error != null || vm.scanStatus != IndexedScan.COMPLETE)) {
+            Text(stringResource(R.string.index_cached))
+        }
+        FilterChip(selected = vm.showMissing, onClick = vm::toggleMissing,
+            label = { Text(stringResource(R.string.index_show_missing)) })
         vm.error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
         vm.sortError?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
         if (vm.partial) Text(stringResource(R.string.log_partial))
@@ -79,8 +94,9 @@ fun LogScreen(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             itemsIndexed(files, key = { _, file -> file.uri }) { index, file ->
+                val status = vm.sources.firstOrNull { it.uri == file.uri }?.status
                 SegmentedListItem(
-                    onClick = { vm.vault?.let { onOpen(it, file) } },
+                    onClick = { if (status != IndexedSource.MISSING) vm.vault?.let { onOpen(it, file) } },
                     shapes = ListItemDefaults.segmentedShapes(index = index, count = files.size),
                     leadingContent = {
                         Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
@@ -88,7 +104,11 @@ fun LogScreen(
                                 tint = MaterialTheme.colorScheme.onSecondaryContainer)
                         }
                     },
-                    supportingContent = { Text(file.path, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                    supportingContent = { Column {
+                        Text(file.path, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        if (status == IndexedSource.MISSING || status == IndexedSource.READ_FAILED) Text(stringResource(
+                            if (status == IndexedSource.MISSING) R.string.index_source_missing else R.string.index_source_unreadable))
+                    } },
                     trailingContent = { Icon(painterResource(R.drawable.chevron_right_24px), null) },
                 ) { Text(file.name, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }

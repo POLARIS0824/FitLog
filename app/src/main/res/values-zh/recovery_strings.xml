@@ -24,4 +24,16 @@
     <string name="vault_disconnect">解除当前资料库连接</string>
     <string name="vault_disconnect_message">仅解除当前资料库连接。原文件、本地草稿、日记设置及已有系统目录授权均保留。</string>
     <string name="vault_disconnect_failed">解除连接失败，当前连接未改变，请重试。</string>
+    <string name="index_save_failed">Markdown 已保存，但列表索引更新失败，请刷新 Log 重试。</string>
+    <string name="index_read_failed">读取已保存的文件索引失败，请刷新重试。</string>
+    <string name="index_scanning">已连接，正在扫描 Markdown 文件并核验正文…</string>
+    <string name="index_complete">扫描完成</string>
+    <string name="index_partial">部分目录或文件未能完成核验，请刷新重试。</string>
+    <string name="index_interrupted">扫描已中断，请刷新重新开始。</string>
+    <string name="index_failed">扫描失败，资料库连接仍保留。</string>
+    <string name="index_not_scanned">尚无已完成的扫描</string>
+    <string name="index_cached">正在显示已保存的扫描结果，不代表文件当前仍可访问。</string>
+    <string name="index_show_missing">显示缺失文件</string>
+    <string name="index_source_missing">上次完整目录扫描未发现此文件</string>
+    <string name="index_source_unreadable">正文未能完成核验</string>
 </resources>

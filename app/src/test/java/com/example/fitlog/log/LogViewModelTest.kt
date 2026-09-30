@@ -121,6 +121,14 @@ class LogViewModelTest {
     }
 }
 
+private fun LogViewModel(
+    state: SavedStateHandle,
+    config: kotlinx.coroutines.flow.Flow<VaultConfigState>,
+    documents: MarkdownDocuments,
+    settings: LogSettingsStore,
+) = LogViewModel(state, config, com.example.fitlog.data.index.SourceIndexRepository(
+    documents, com.example.fitlog.data.index.MemorySourceIndexStore()), settings)
+
 private class TestLogSettings : LogSettingsStore {
     var order = LogSortOrder.Descending
     var failSave = false
@@ -131,7 +139,7 @@ private class TestLogSettings : LogSettingsStore {
 private class ScanDocuments(private val scan: suspend (String) -> MarkdownScan) : MarkdownDocuments {
     override suspend fun scan(vault: String) = scan.invoke(vault)
     override suspend fun find(vault: String, name: String): MarkdownFile? = error("unused")
-    override suspend fun read(uri: String): MarkdownSnapshot = error("unused")
+    override suspend fun read(uri: String) = MarkdownSnapshot(MarkdownFile(uri, "$uri.md", "$uri.md", true), "body", "hash", false)
     override suspend fun create(vault: String, name: String): MarkdownFile = error("unused")
     override suspend fun write(uri: String, text: String, bom: Boolean, expected: String): MarkdownSnapshot = error("unused")
 }

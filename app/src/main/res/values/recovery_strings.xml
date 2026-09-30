@@ -24,4 +24,16 @@
     <string name="vault_disconnect">Disconnect current vault</string>
     <string name="vault_disconnect_message">Only the current vault connection is removed. Original files, local drafts, diary settings and existing system folder permissions are retained.</string>
     <string name="vault_disconnect_failed">Could not disconnect. The current connection is unchanged. Try again.</string>
+    <string name="index_save_failed">Markdown was saved, but its list entry could not be updated. Refresh Log to retry.</string>
+    <string name="index_read_failed">Could not read the saved file index. Refresh to retry.</string>
+    <string name="index_scanning">Connected · Scanning Markdown files and checking contents…</string>
+    <string name="index_complete">Scan complete</string>
+    <string name="index_partial">Some folders or files could not be checked. Refresh to retry.</string>
+    <string name="index_interrupted">Scan interrupted. Refresh to start again.</string>
+    <string name="index_failed">Scan failed. The vault connection is retained.</string>
+    <string name="index_not_scanned">No completed scan</string>
+    <string name="index_cached">Showing saved scan results; current file access is not guaranteed.</string>
+    <string name="index_show_missing">Show missing files</string>
+    <string name="index_source_missing">Not found during the last complete folder scan</string>
+    <string name="index_source_unreadable">Contents could not be verified</string>
 </resources>

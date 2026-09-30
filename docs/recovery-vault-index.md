@@ -1,4 +1,4 @@
-# 原文恢复与资料库管理
+# 原文恢复、资料库管理与来源索引
 
 ## 已实现行为
 
@@ -11,8 +11,24 @@
 - 资料库管理支持查看能力、切换/重新授权及确认解除连接。解除仅清除当前配置，保留文件、草稿、设置、索引和既有系统权限。
 - Import 保存配置后进入 Log，扫描结果分别反馈；空目录扫描成功。今日日记不等待整库扫描。
 
+## 索引与并发
+
+Room `source-index.db` 仅保存来源身份、路径、权限能力、正文指纹、核验时间及扫描状态，schema 位于 `app/schemas`。数据库不保存正文或 AI 字段。
+
+完整扫描枚举 Markdown 后逐篇读取核验；相同资料库/文档 URI 更新同一来源。目录枚举完整才标记未发现来源为缺失；部分枚举或取消不标记缺失。正文读取失败保留旧指纹，并明确标记未核验。文档 URI 改变作为新来源处理，不猜测重命名关系。
+
+索引协调器为使用 Application Context 的进程级单例，Activity 重建后的旧 Log 与新 Editor 共享每库锁和保存修订号。扫描结果事务提交，运行中显示上次结果。进程中断留下的扫描状态按中断显示；下次从头刷新。同库任务防重，取消及资料库切换使过期任务失效。保存回调与扫描提交以每库锁和保存修订号协调，较早的扫描结果不能覆盖较新的保存结果。
+
+Log 保留搜索和排序，默认隐藏缺失文件，可显式显示。索引失败不改变原文件保存成功状态。索引存在不保证 SAF 授权或原文可读，不提供正文离线缓存。
+
 ## 验证范围
 
 运行 `./gradlew.bat :app:testDebugUnitTest :app:assembleDebug --console=plain`。
 
-JVM 测试包含导出快照跨进程恢复、恢复快照与普通草稿隔离、退出恢复详情后的过期跳转保护。未运行设备或 AndroidTest 验收。
+2026-09-30 本轮结果：15 个测试套件、120 个 JVM 测试全部通过，失败、错误和跳过均为 0；Debug APK 构建成功。36 条新增默认语言/中文字符串键一致，`git diff --check` 通过，AndroidTest 目录无改动。
+
+JVM 测试覆盖 Activity 配置重建后共享索引协调器、导出期间进程重建与快照隔离、取消恢复后的过期导航保护、旧草稿兼容、别名去重、损坏隔离、备份重试保护、恢复时暂停自动保存、导出读回校验、解除连接失败/防重、索引去重与隔离、部分扫描保护、旧扫描/新保存竞态、Room 事务回滚和关闭重开持久性。
+
+Windows JVM 测试通过小范围 AtomicFile rename shadow 提供 Android/POSIX 的原子替换语义；真实 AtomicFile 的写入、读取及恢复逻辑仍执行。依据 [Android 14 AtomicFile 源码](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-14.0.0_r1/core/java/android/util/AtomicFile.java)。DataStore 测试明确使用 SDK 34，避免低于项目 minSdk 的默认环境。
+
+本轮不新增、修改或运行 AndroidTest，不启动模拟器或虚拟机。JVM 和构建结果不代表系统文件选择器、真实 SAF 提供方、输入法或 UI 已经设备验收。不包含 AI 解析、Today/Insight 扩展或完整版本历史。

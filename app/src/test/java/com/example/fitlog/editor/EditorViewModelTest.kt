@@ -109,6 +109,15 @@ class EditorViewModelTest {
         assertEquals(EditorSaveState.Saved, vm.state)
     }
 
+    @Test fun indexFailureDoesNotTurnSuccessfulMarkdownSaveIntoFailure() = runTest(dispatcher) {
+        val vm = EditorViewModel(FitLogRoute.Editor("vault", date = "2026-09-29"), repository, drafts) { _, _, _ -> throw IOException() }
+        store.put("editor", vm); runCurrent()
+        type(vm, "saved locally"); runCurrent(); vm.saveNow(); runCurrent()
+        assertEquals(EditorSaveState.Saved, vm.state)
+        assertEquals("saved locally", repository.files.values.single().text)
+        assertEquals(com.example.fitlog.R.string.index_save_failed, vm.notice)
+    }
+
     @Test fun restoredBackupRequiresExplicitSaveAndChecksNewExternalChanges() = runTest(dispatcher) {
         repository.files["file"] = repository.snapshot("file", "old.md", "current")
         val draft = EditorDraft("vault", "recovered", "file", "old.md", "preimage", 0, 0, 1, "old-hash", false,

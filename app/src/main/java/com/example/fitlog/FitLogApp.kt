@@ -28,6 +28,7 @@ import com.example.fitlog.data.vault.VaultPreferences
 import com.example.fitlog.data.vault.VaultRepository
 import com.example.fitlog.data.vault.MarkdownDocumentRepository
 import com.example.fitlog.data.vault.TodayLogResolver
+import com.example.fitlog.data.index.SourceIndexRepository
 import com.example.fitlog.navigation.FitLogNavGraph
 import com.example.fitlog.navigation.FitLogRoute
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
@@ -48,6 +49,7 @@ fun FitLogApp() {
     val vaultRepository = remember { VaultRepository(context) }
     val documents = remember { MarkdownDocumentRepository(context) }
     val todayLog = remember { TodayLogResolver(vaultPreferences.diary, documents, documents) }
+    val sourceIndex = remember { SourceIndexRepository.get(context) }
 
     // 当前导航历史
     val backStack = rememberNavBackStack(FitLogRoute.Today)
@@ -82,6 +84,7 @@ fun FitLogApp() {
                 backStack = backStack,
                 vaultPreferences = vaultPreferences,
                 vaultRepository = vaultRepository,
+                sourceIndex = sourceIndex,
                 onSetupCompleted = vaultFlow::onSetupCompleted,
                 onOpenRoute = vaultFlow::openRoute,
                 onBack = vaultFlow::back,
