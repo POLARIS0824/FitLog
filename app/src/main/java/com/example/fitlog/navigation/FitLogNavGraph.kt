@@ -32,6 +32,8 @@ import com.example.fitlog.vault.DiarySettingsViewModel
 import com.example.fitlog.data.vault.VaultConfigState
 import com.example.fitlog.editor.RecoveryViewModel
 import com.example.fitlog.editor.RecoveryScreen
+import com.example.fitlog.vault.VaultManagementViewModel
+import com.example.fitlog.vault.VaultManagementScreen
 
 @Composable
 fun FitLogNavGraph(
@@ -91,7 +93,8 @@ fun FitLogNavGraph(
                     onOpen = { vault, file -> onOpenRoute(FitLogRoute.Editor(vault, file.uri, directory = file.directory ?: vault, fileName = file.name, displayPath = file.path)) },
                     onSettings = { vault -> onOpenRoute(FitLogRoute.DiarySettings(vault)) },
                     onConnect = { onOpenRoute(FitLogRoute.VaultSetup()) },
-                    onRecovery = { onOpenRoute(FitLogRoute.RecoveryCenter) })
+                    onRecovery = { onOpenRoute(FitLogRoute.RecoveryCenter) },
+                    onManage = { onOpenRoute(FitLogRoute.VaultManagement) })
             }
 
             entry<FitLogRoute.Insight> {
@@ -138,7 +141,16 @@ fun FitLogNavGraph(
                 }
                 RecoveryScreen(vm, (config as? VaultConfigState.Configured)?.uri?.toString(), onOpenRoute, onBack)
             }
-
+            entry<FitLogRoute.VaultManagement> {
+                val vm = viewModel<VaultManagementViewModel> {
+                    VaultManagementViewModel(vaultPreferences.vaultConfig, vaultRepository::inspectFolder, vaultPreferences::clearVaultUri)
+                }
+                DisposableEffect(vm) {
+                    backHandlers[FitLogRoute.VaultManagement] = { if (!vm.busy) onBack() }
+                    onDispose { backHandlers.remove(FitLogRoute.VaultManagement) }
+                }
+                VaultManagementScreen(vm, { onOpenRoute(FitLogRoute.VaultSetup()) }, onBack)
+            }
         },
     )
 }

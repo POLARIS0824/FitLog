@@ -18,4 +18,10 @@
     <string name="recovery_delete">删除本地恢复记录</string>
     <string name="recovery_delete_message">删除此本地草稿或备份？不会删除原 Markdown 文件。</string>
     <string name="recovery_empty">暂无本地草稿或备份。</string>
+    <string name="vault_management_title">资料库管理</string>
+    <string name="vault_access_writable">目录可访问，支持创建文件</string>
+    <string name="vault_switch_reauthorize">连接、切换或重新授权目录</string>
+    <string name="vault_disconnect">解除当前资料库连接</string>
+    <string name="vault_disconnect_message">仅解除当前资料库连接。原文件、本地草稿、日记设置及已有系统目录授权均保留。</string>
+    <string name="vault_disconnect_failed">解除连接失败，当前连接未改变，请重试。</string>
 </resources>

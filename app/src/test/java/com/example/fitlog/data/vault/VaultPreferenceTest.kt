@@ -20,6 +20,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.File
 import java.io.IOException
 import java.time.LocalDate
@@ -27,6 +28,7 @@ import com.example.fitlog.log.LogSortOrder
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class VaultPreferencesTest {
 
     @get:Rule

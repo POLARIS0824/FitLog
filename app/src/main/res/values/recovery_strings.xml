@@ -18,4 +18,10 @@
     <string name="recovery_delete">Delete local recovery record</string>
     <string name="recovery_delete_message">Delete this local draft or backup? The original Markdown file will not be deleted.</string>
     <string name="recovery_empty">No local drafts or backups.</string>
+    <string name="vault_management_title">Vault management</string>
+    <string name="vault_access_writable">Folder is accessible and supports creating files</string>
+    <string name="vault_switch_reauthorize">Connect, switch or authorize folder</string>
+    <string name="vault_disconnect">Disconnect current vault</string>
+    <string name="vault_disconnect_message">Only the current vault connection is removed. Original files, local drafts, diary settings and existing system folder permissions are retained.</string>
+    <string name="vault_disconnect_failed">Could not disconnect. The current connection is unchanged. Try again.</string>
 </resources>

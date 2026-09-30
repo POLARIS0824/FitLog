@@ -52,7 +52,8 @@ internal class VaultFlowController(
     }
 
     fun openRoute(route: FitLogRoute) {
-        val nested = backStack.lastOrNull() == FitLogRoute.RecoveryCenter && route is FitLogRoute.Editor
+        val nested = (backStack.lastOrNull() == FitLogRoute.RecoveryCenter && route is FitLogRoute.Editor) ||
+            (backStack.lastOrNull() == FitLogRoute.VaultManagement && route is FitLogRoute.VaultSetup)
         if (!isTopLevel() && !nested) return
         invalidate()
         backStack.add(route)
@@ -134,8 +135,9 @@ internal class VaultFlowController(
     }
 
     private fun returnToLog(route: FitLogRoute.VaultSetup) {
-        backStack.remove(route)
-        if (backStack.isEmpty()) backStack.add(FitLogRoute.Log) else backStack[0] = FitLogRoute.Log
+        if (backStack.lastOrNull() != route) return
+        backStack.clear()
+        backStack.add(FitLogRoute.Log)
     }
 
     private fun openError(error: Exception): Int = when (error) {

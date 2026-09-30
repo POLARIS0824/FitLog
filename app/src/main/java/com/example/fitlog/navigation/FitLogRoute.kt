@@ -40,4 +40,7 @@ sealed interface FitLogRoute : NavKey {
 
     @Serializable
     data object RecoveryCenter : FitLogRoute
+
+    @Serializable
+    data object VaultManagement : FitLogRoute
 }
