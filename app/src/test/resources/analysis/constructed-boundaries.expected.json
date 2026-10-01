@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "sessions": [
+    {
+      "date": "2026-09-29",
+      "notes": "状态一般",
+      "exercises": [
+        {
+          "rawName": "划船",
+          "evidence": {
+            "segmentId": "diary",
+            "quote": "- 划船：60lb 8,8,6"
+          },
+          "groups": [
+            {
+              "rawText": "60lb 8,8,6",
+              "weight": 60,
+              "unit": "LB",
+              "basis": "TOTAL",
+              "repsList": [
+                8,
+                8,
+                6
+              ]
+            }
+          ]
+        },
+        {
+          "rawName": "练腹",
+          "evidence": {
+            "segmentId": "diary",
+            "quote": "- 练腹"
+          },
+          "groups": []
+        }
+      ]
+    },
+    {
+      "date": "2026-09-30",
+      "exercises": [
+        {
+          "rawName": "自重深蹲",
+          "evidence": {
+            "segmentId": "diary",
+            "quote": "- 自重深蹲：2x12"
+          },
+          "groups": [
+            {
+              "rawText": "2x12",
+              "basis": "BODYWEIGHT",
+              "count": 2,
+              "reps": 12
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "sessions": [
+    {
+      "date": null,
+      "exercises": [
+        {
+          "rawName": "面拉",
+          "evidence": {
+            "segmentId": "diary",
+            "quote": "- **面拉**：18kg 3✖️12"
+          },
+          "groups": [
+            {
+              "rawText": "18kg 3✖️12",
+              "weight": 18,
+              "unit": "KG",
+              "reps": 12,
+              "count": 3
+            }
+          ]
+        },
+        {
+          "rawName": "哑铃平板卧推",
+          "evidence": {
+            "segmentId": "diary",
+            "quote": "- **哑铃平板卧推**：22.5kg 4✖️8"
+          },
+          "groups": [
+            {
+              "rawText": "22.5kg 4✖️8",
+              "weight": 22.5,
+              "unit": "KG",
+              "basis": "PER_SIDE",
+              "reps": 8,
+              "count": 4
+            }
+          ]
+        },
+        {
+          "rawName": "杠铃上斜卧推",
+          "evidence": {
+            "segmentId": "diary",
+            "quote": "- **杠铃上斜卧推**：40kg 2✖️7➕1✖️4"
+          },
+          "groups": [
+            {
+              "rawText": "40kg 2✖️7",
+              "weight": 40,
+              "unit": "KG",
+              "basis": "TOTAL",
+              "reps": 7,
+              "count": 2
+            },
+            {
+              "rawText": "1✖️4",
+              "count": 1,
+              "reps": 4
+            }
+          ]
+        },
+        {
+          "rawName": "坐姿哑铃推肩",
+          "evidence": {
+            "segmentId": "diary",
+            "quote": "- **坐姿哑铃推肩**：17.5kg 1✖️5➕12.5kg 3✖️8"
+          },
+          "groups": [
+            {
+              "rawText": "17.5kg 1✖️5",
+              "weight": 17.5,
+              "unit": "KG",
+              "basis": "PER_SIDE",
+              "count": 1,
+              "reps": 5
+            },
+            {
+              "rawText": "12.5kg 3✖️8",
+              "weight": 12.5,
+              "unit": "KG",
+              "basis": "PER_SIDE",
+              "count": 3,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "rawName": "练腹",
+          "evidence": {
+            "segmentId": "diary",
+            "quote": "- **练腹**"
+          },
+          "groups": []
+        }
+      ]
+    }
+  ],
+  "issues": [
+    {
+      "path": "$.sessions[0].exercises[4].groups",
+      "question": "没有记录具体动作或组数，需核对"
+    }
+  ]
+}
