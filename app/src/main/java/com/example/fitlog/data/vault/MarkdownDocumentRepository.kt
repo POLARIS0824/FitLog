@@ -11,12 +11,15 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.security.MessageDigest
 
-data class MarkdownFile(val uri: String, val name: String, val path: String, val writable: Boolean, val directory: String? = null)
+data class MarkdownFile(val uri: String, val name: String, val path: String, val writable: Boolean,
+    val directory: String? = null, val lastModified: Long? = null, val size: Long? = null)
 data class MarkdownSnapshot(val file: MarkdownFile, val text: String, val fingerprint: String, val bom: Boolean)
 data class MarkdownScan(val files: List<MarkdownFile>, val partial: Boolean)
 class DocumentConflict : IOException()
@@ -69,18 +72,28 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments, DiaryDir
 
     private fun children(directory: Uri): List<Pair<MarkdownFile, Boolean>> {
         val uri = DocumentsContract.buildChildDocumentsUriUsingTree(directory, DocumentsContract.getDocumentId(directory))
+        val writeGranted = appContext.checkUriPermission(directory, Process.myPid(), Process.myUid(),
+            Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == PackageManager.PERMISSION_GRANTED
         return resolver.query(uri, arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME,
             DocumentsContract.Document.COLUMN_MIME_TYPE,
             DocumentsContract.Document.COLUMN_FLAGS,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+            DocumentsContract.Document.COLUMN_SIZE,
         ), null, null, null)?.use { cursor ->
+            // Cloud providers may return a temporary incomplete listing while loading.
+            if (cursor.extras.getBoolean(DocumentsContract.EXTRA_LOADING, false) ||
+                cursor.extras.getString(DocumentsContract.EXTRA_ERROR) != null) throw IOException()
             buildList {
                 while (cursor.moveToNext()) {
                     val child = DocumentsContract.buildDocumentUriUsingTree(directory, cursor.getString(0))
                     val name = cursor.getString(1) ?: throw IOException()
                     add(MarkdownFile(child.toString(), name, name,
-                        cursor.getInt(3) and DocumentsContract.Document.FLAG_SUPPORTS_WRITE != 0) to
+                        cursor.getInt(3) and DocumentsContract.Document.FLAG_SUPPORTS_WRITE != 0 && writeGranted,
+                        directory.toString(),
+                        if (cursor.isNull(4)) null else cursor.getLong(4).takeIf { it > 0 },
+                        if (cursor.isNull(5)) null else cursor.getLong(5).takeIf { it >= 0 }) to
                         (cursor.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR))
                 }
             }
@@ -88,10 +101,12 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments, DiaryDir
     }
 
     override suspend fun scan(vault: String): MarkdownScan = withContext(Dispatchers.IO) {
+        val scanContext = currentCoroutineContext()
         val found = linkedMapOf<String, MarkdownFile>()
         val visited = mutableSetOf<String>()
         var partial = false
         fun visit(directory: Uri, path: String, isRoot: Boolean) {
+            scanContext.ensureActive()
             if (!visited.add(directory.toString())) return
             val entries = try { children(directory) } catch (e: Exception) {
                 if (e is CancellationException || isRoot) throw e
@@ -99,6 +114,7 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments, DiaryDir
                 return
             }
             entries.forEach { (file, isDirectory) ->
+                scanContext.ensureActive()
                 val relative = path + file.name
                 if (isDirectory) {
                     if (!file.name.startsWith('.')) visit(Uri.parse(file.uri), "$relative/", false)
@@ -117,12 +133,15 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments, DiaryDir
 
     private fun metadata(uri: Uri): MarkdownFile = resolver.query(uri, arrayOf(
         DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_FLAGS,
+        DocumentsContract.Document.COLUMN_LAST_MODIFIED, DocumentsContract.Document.COLUMN_SIZE,
     ), null, null, null)?.use { cursor ->
         if (!cursor.moveToFirst()) throw IOException()
         val name = cursor.getString(0) ?: throw IOException()
         MarkdownFile(uri.toString(), name, name,
             cursor.getInt(1) and DocumentsContract.Document.FLAG_SUPPORTS_WRITE != 0 &&
-                appContext.checkUriPermission(uri, Process.myPid(), Process.myUid(), Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == PackageManager.PERMISSION_GRANTED)
+                appContext.checkUriPermission(uri, Process.myPid(), Process.myUid(), Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == PackageManager.PERMISSION_GRANTED,
+            lastModified = if (cursor.isNull(2)) null else cursor.getLong(2).takeIf { it > 0 },
+            size = if (cursor.isNull(3)) null else cursor.getLong(3).takeIf { it >= 0 })
     } ?: throw IOException()
 
     override suspend fun read(uri: String): MarkdownSnapshot = withContext(Dispatchers.IO) {

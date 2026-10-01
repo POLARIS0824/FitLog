@@ -26,7 +26,7 @@
     <string name="vault_disconnect_failed">Could not disconnect. The current connection is unchanged. Try again.</string>
     <string name="index_save_failed">Markdown was saved, but its list entry could not be updated. Refresh Log to retry.</string>
     <string name="index_read_failed">Could not read the saved file index. Refresh to retry.</string>
-    <string name="index_scanning">Connected · Scanning Markdown files and checking contents…</string>
+    <string name="index_scanning">Connected · Checking for Markdown file changes…</string>
     <string name="index_complete">Scan complete</string>
     <string name="index_partial">Some folders or files could not be checked. Refresh to retry.</string>
     <string name="index_interrupted">Scan interrupted. Refresh to start again.</string>

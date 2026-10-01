@@ -115,6 +115,21 @@ class MarkdownDocumentRepositoryTest {
         assertEquals(listOf("A.MD", "sub/A.MD"), result.files.map { it.path })
         assertEquals(result.files, repository.scan(vault).files)
     }
+    @Test fun loadingDirectoryIsNeverTreatedAsCompleteEnumeration() = runTest {
+        provider.add("root/sub", "daily", "root", null)
+        provider.loadingDirectory = "root/sub"
+        assertTrue(repository.scan(vault).partial)
+        provider.loadingDirectory = "root"
+        try { repository.scan(vault); fail() } catch (_: IOException) { }
+    }
+    @Test fun scanAndReadExposeMetadataWithoutReadingEveryBody() = runTest {
+        provider.add("root/a", "a.md", "root", "hello".toByteArray())
+        val file = repository.scan(vault).files.single()
+        assertEquals(5L, file.size)
+        assertNotNull(file.lastModified)
+        assertEquals(file.size, repository.read(file.uri).file.size)
+        assertEquals(file.lastModified, repository.read(file.uri).file.lastModified)
+    }
     @Test fun utf8BomAndCrlfRoundTripAndTruncation() = runTest {
         val bytes = byteArrayOf(0xef.toByte(), 0xbb.toByte(), 0xbf.toByte()) + "卧推\r\n123456".toByteArray()
         provider.add("root/a", "a.md", "root", bytes)
@@ -168,6 +183,7 @@ private class TestMarkdownProvider : ContentProvider() {
     data class Node(val name: String, val parent: String?, val file: File?, var writable: Boolean = true)
     val nodes = linkedMapOf("root" to Node("root", null, null))
     var failDirectory: String? = null
+    var loadingDirectory: String? = null
     var rename = false
     var failReadAfterWrite = false
     private var wrote = false
@@ -183,13 +199,19 @@ private class TestMarkdownProvider : ContentProvider() {
         if (children && id == failDirectory) throw SecurityException()
         val rows = if (children) nodes.filterValues { it.parent == id } else nodes.filterKeys { it == id }
         val columns = requireNotNull(projection)
-        return MatrixCursor(columns).apply {
+        return object : MatrixCursor(columns) {
+            override fun getExtras() = Bundle().apply {
+                putBoolean(DocumentsContract.EXTRA_LOADING, children && id == loadingDirectory)
+            }
+        }.apply {
             rows.forEach { (key, node) ->
                 addRow(columns.map<String, Any?> { column -> when (column) {
                     DocumentsContract.Document.COLUMN_DOCUMENT_ID -> key
                     DocumentsContract.Document.COLUMN_DISPLAY_NAME -> node.name
                     DocumentsContract.Document.COLUMN_MIME_TYPE -> if (node.file == null) DocumentsContract.Document.MIME_TYPE_DIR else "text/markdown"
                     DocumentsContract.Document.COLUMN_FLAGS -> if (node.writable) DocumentsContract.Document.FLAG_SUPPORTS_WRITE or DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE else 0
+                    DocumentsContract.Document.COLUMN_LAST_MODIFIED -> node.file?.lastModified()
+                    DocumentsContract.Document.COLUMN_SIZE -> node.file?.length()
                     else -> null
                 } }.toTypedArray())
             }

@@ -38,6 +38,7 @@ class LogViewModel(
     var sortBusy by mutableStateOf(true); private set
     var sortError by mutableStateOf<Int?>(null); private set
     var loading by mutableStateOf(true); private set
+    var refreshing by mutableStateOf(false); private set
     var partial by mutableStateOf(false); private set
     var error by mutableStateOf<Int?>(null); private set
     var scanStatus by mutableStateOf<String?>(null); private set
@@ -48,8 +49,6 @@ class LogViewModel(
     }
     fun toggleMissing() { showMissing = !showMissing; savedState["showMissing"] = showMissing }
     private var currentConfig: VaultConfigState = VaultConfigState.Loading
-    private var generation = 0
-    private var scanJob: Job? = null
     private var configJob: Job? = null
     private var indexJob: Job? = null
 
@@ -69,13 +68,14 @@ class LogViewModel(
                 currentConfig = value
                 val nextVault = (value as? VaultConfigState.Configured)?.uri?.toString()
                 if (vault != nextVault) {
-                    vault?.let(index::cancel)
                     indexJob?.cancel()
-                    files = emptyList(); sources = emptyList(); partial = false; scanStatus = null
+                    files = emptyList(); sources = emptyList(); partial = false; scanStatus = null; refreshing = false
                 }
                 vault = nextVault
+                error = if (value is VaultConfigState.Failed) R.string.vault_error_load_config_failed else null
+                loading = value is VaultConfigState.Loading || nextVault != null
+                if (value !is VaultConfigState.Loading) index.activate(nextVault)
                 nextVault?.let(::observeIndex)
-                startScan()
             }
         }
     }
@@ -92,10 +92,13 @@ class LogViewModel(
                     files = sources.map { it.file() }
                     scanStatus = snapshot.scan?.status
                     partial = scanStatus == IndexedScan.PARTIAL
+                    refreshing = snapshot.refreshing || scanStatus == IndexedScan.SCANNING
+                    loading = sources.isEmpty() && refreshing && snapshot.scan?.metadataCheckedAt == null
+                    error = if (snapshot.refreshFailed || scanStatus == IndexedScan.FAILED) R.string.log_failed else null
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                if (vault == source) error = R.string.index_read_failed
+                if (vault == source) { error = R.string.index_read_failed; loading = false; refreshing = false }
             }
         }
     }
@@ -114,31 +117,6 @@ class LogViewModel(
     fun refresh() {
         vault?.let(::observeIndex)
         if (currentConfig is VaultConfigState.Failed) observeConfig()
-        else if (scanJob?.isActive != true) startScan()
+        else vault?.let(index::forceRefresh)
     }
-
-    private fun startScan() {
-        val token = ++generation
-        scanJob?.cancel()
-        error = null
-        loading = currentConfig != VaultConfigState.NotConfigured
-        when (currentConfig) {
-            VaultConfigState.Loading -> return
-            VaultConfigState.NotConfigured -> { loading = false; return }
-            is VaultConfigState.Failed -> { loading = false; error = R.string.vault_error_load_config_failed; return }
-            is VaultConfigState.Configured -> Unit
-        }
-        val source = vault ?: return
-        scanJob = viewModelScope.launch {
-            try {
-                index.refresh(source)
-                if (token != generation) return@launch
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                if (token == generation) error = R.string.log_failed
-            } finally { if (token == generation) loading = false }
-        }
-    }
-
-    override fun onCleared() { vault?.let(index::cancel); super.onCleared() }
 }

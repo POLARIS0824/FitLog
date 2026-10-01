@@ -13,7 +13,7 @@ class SourceIndexRepositoryTest {
     private val vault = "vault"
     private val store = MemorySourceIndexStore()
     private val documents = IndexDocuments()
-    private val index = SourceIndexRepository(documents, store) { 42 }
+    private val index = SourceIndexRepository(documents, store, now = { 42 })
 
     @Test fun rescanningUpdatesFingerprintWithoutDuplicatesAndIsolatesVaults() = runTest {
         documents.body = "one"

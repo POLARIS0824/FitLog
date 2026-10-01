@@ -2,6 +2,8 @@ package com.example.fitlog.data.index
 
 import android.content.Context
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.fitlog.data.vault.MarkdownFile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -17,8 +19,10 @@ data class IndexedSource(
     val fingerprint: String?,
     val verifiedAt: Long?,
     val status: String = AVAILABLE,
+    val lastModified: Long? = null,
+    val size: Long? = null,
 ) {
-    fun file() = MarkdownFile(uri, name, path, writable, directory)
+    fun file() = MarkdownFile(uri, name, path, writable, directory, lastModified, size)
     companion object {
         const val AVAILABLE = "available"
         const val READ_FAILED = "read_failed"
@@ -27,7 +31,8 @@ data class IndexedSource(
 }
 
 @Entity(tableName = "scans")
-data class IndexedScan(@PrimaryKey val vault: String, val status: String, val completedAt: Long? = null) {
+data class IndexedScan(@PrimaryKey val vault: String, val status: String, val completedAt: Long? = null,
+    val metadataCheckedAt: Long? = null, val fullVerifiedAt: Long? = null) {
     companion object {
         const val SCANNING = "scanning"
         const val COMPLETE = "complete"
@@ -37,7 +42,8 @@ data class IndexedScan(@PrimaryKey val vault: String, val status: String, val co
     }
 }
 
-data class SourceIndexSnapshot(val sources: List<IndexedSource>, val scan: IndexedScan?)
+data class SourceIndexSnapshot(val sources: List<IndexedSource>, val scan: IndexedScan?,
+    val refreshing: Boolean = false, val refreshFailed: Boolean = false)
 
 interface SourceIndexStore {
     fun observe(vault: String): Flow<SourceIndexSnapshot>
@@ -57,14 +63,22 @@ interface SourceIndexDao {
     @Upsert suspend fun putScan(scan: IndexedScan)
 }
 
-@Database(entities = [IndexedSource::class, IndexedScan::class], version = 1, exportSchema = true)
+@Database(entities = [IndexedSource::class, IndexedScan::class], version = 2, exportSchema = true)
 abstract class SourceIndexDatabase : RoomDatabase() {
     abstract fun index(): SourceIndexDao
     companion object {
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE sources ADD COLUMN lastModified INTEGER")
+                db.execSQL("ALTER TABLE sources ADD COLUMN size INTEGER")
+                db.execSQL("ALTER TABLE scans ADD COLUMN metadataCheckedAt INTEGER")
+                db.execSQL("ALTER TABLE scans ADD COLUMN fullVerifiedAt INTEGER")
+            }
+        }
         @Volatile private var instance: SourceIndexDatabase? = null
         fun get(context: Context): SourceIndexDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, SourceIndexDatabase::class.java, "source-index.db")
-                .build().also { instance = it }
+                .addMigrations(MIGRATION_1_2).build().also { instance = it }
         }
     }
 }

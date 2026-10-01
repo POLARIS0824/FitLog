@@ -12,6 +12,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import com.example.fitlog.data.vault.VaultConfigState
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +76,31 @@ fun FitLogApp() {
         )
     }
     val currentRoute = backStack.lastOrNull()
+    val config by vaultPreferences.vaultConfig.collectAsState(initial = VaultConfigState.Loading)
+    val currentVault = (config as? VaultConfigState.Configured)?.uri?.toString()
+    val processLifecycle = remember { ProcessLifecycleOwner.get().lifecycle }
+    LaunchedEffect(config) {
+        // Loading is not a disconnect; do not cancel an active scan during collection restart.
+        if (config !is VaultConfigState.Loading) sourceIndex.activate(currentVault)
+    }
+    val latestVault = rememberUpdatedState(currentVault)
+    DisposableEffect(processLifecycle) {
+        val observer = SourceIndexForegroundObserver(processLifecycle) {
+            latestVault.value?.let { sourceIndex.ensureFresh(it, SourceIndexRepository.Reason.Foreground) }
+        }
+        processLifecycle.addObserver(observer)
+        onDispose { processLifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(currentRoute, currentVault, processLifecycle) {
+        if (currentRoute == FitLogRoute.Log && currentVault != null) {
+            processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    delay(SourceIndexRepository.VISIBLE_INTERVAL)
+                    sourceIndex.ensureFresh(currentVault, SourceIndexRepository.Reason.VisiblePeriodic)
+                }
+            }
+        }
+    }
 
     val showNavigationToolbar =
         currentRoute == FitLogRoute.Today ||

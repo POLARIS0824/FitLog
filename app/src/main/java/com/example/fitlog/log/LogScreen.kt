@@ -12,8 +12,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.fitlog.R
 import com.example.fitlog.data.vault.MarkdownFile
 import com.example.fitlog.data.index.IndexedScan
@@ -29,7 +27,6 @@ fun LogScreen(
     onManage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
     var sortExpanded by remember { mutableStateOf(false) }
     val files = vm.visibleFiles
     Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -59,22 +56,22 @@ fun LogScreen(
             },
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = vm::refresh, enabled = !vm.loading) { Text(stringResource(R.string.log_refresh)) }
+            TextButton(onClick = vm::refresh, enabled = !vm.refreshing) { Text(stringResource(R.string.log_refresh)) }
             TextButton(onClick = onConnect) { Text(stringResource(R.string.log_connect)) }
             TextButton(onClick = onManage) { Text(stringResource(R.string.vault_management_title)) }
             TextButton(onClick = onRecovery) { Text(stringResource(R.string.recovery_title)) }
             TextButton(onClick = { vm.vault?.let(onSettings) }, enabled = vm.vault != null) { Text(stringResource(R.string.diary_settings_title)) }
         }
-        if (vm.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (vm.refreshing) LinearProgressIndicator(Modifier.fillMaxWidth())
         Text(stringResource(when {
-            vm.loading && vm.vault != null -> R.string.index_scanning
+            vm.refreshing && vm.vault != null -> R.string.index_scanning
             vm.scanStatus == IndexedScan.COMPLETE -> R.string.index_complete
             vm.scanStatus == IndexedScan.PARTIAL -> R.string.index_partial
             vm.scanStatus == IndexedScan.INTERRUPTED -> R.string.index_interrupted
             vm.scanStatus == IndexedScan.FAILED -> R.string.index_failed
             else -> R.string.index_not_scanned
         }))
-        if (vm.files.isNotEmpty() && (vm.loading || vm.error != null || vm.scanStatus != IndexedScan.COMPLETE)) {
+        if (vm.files.isNotEmpty() && (vm.refreshing || vm.error != null || vm.scanStatus != IndexedScan.COMPLETE)) {
             Text(stringResource(R.string.index_cached))
         }
         FilterChip(selected = vm.showMissing, onClick = vm::toggleMissing,

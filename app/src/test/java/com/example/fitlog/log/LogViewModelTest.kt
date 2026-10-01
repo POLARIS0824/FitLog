@@ -27,6 +27,37 @@ class LogViewModelTest {
     @Before fun before() { Dispatchers.setMain(dispatcher) }
     @After fun after() { store.clear(); Dispatchers.resetMain() }
 
+    @Test fun recreatedLogObservesEditorSaveWithoutRescanningAndClearingVmDoesNotCancelScan() = runTest(dispatcher) {
+        val config = MutableStateFlow<VaultConfigState>(VaultConfigState.Configured(Uri.parse("vault")))
+        var scans = 0
+        val release = CompletableDeferred<Unit>()
+        val documents = ScanDocuments {
+            scans++
+            release.await()
+            MarkdownScan(listOf(file("1", "note.md")), false)
+        }
+        val index = com.example.fitlog.data.index.SourceIndexRepository(documents,
+            com.example.fitlog.data.index.MemorySourceIndexStore(), scope = this)
+        val first = LogViewModel(SavedStateHandle(), config, index, TestLogSettings())
+        store.put("log", first)
+        runCurrent()
+        assertEquals(1, scans)
+        store.clear()
+        release.complete(Unit)
+        runCurrent()
+        val second = LogViewModel(SavedStateHandle(), config, index, TestLogSettings())
+        store.put("log", second)
+        runCurrent()
+        assertEquals(1, scans)
+        second.search("note")
+        index.recordSaved("vault", MarkdownSnapshot(file("2", "new-note.md"), "saved", "new", false), "vault", null)
+        runCurrent()
+        assertEquals(2, second.visibleFiles.size)
+        assertEquals(1, scans)
+        assertFalse(second.refreshing)
+        assertFalse(second.loading)
+    }
+
     @Test fun filenameAndPathSearchUseStableOrdering() {
         val files = listOf(file("3", "a.md", "z/a.md"), file("1", "B.md"), file("2", "A.md", "a/A.md"))
         val sorted = filterAndSortFiles(files, "", LogSortOrder.Ascending)
@@ -127,7 +158,8 @@ private fun LogViewModel(
     documents: MarkdownDocuments,
     settings: LogSettingsStore,
 ) = LogViewModel(state, config, com.example.fitlog.data.index.SourceIndexRepository(
-    documents, com.example.fitlog.data.index.MemorySourceIndexStore()), settings)
+    documents, com.example.fitlog.data.index.MemorySourceIndexStore(),
+    scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)), settings)
 
 private class TestLogSettings : LogSettingsStore {
     var order = LogSortOrder.Descending

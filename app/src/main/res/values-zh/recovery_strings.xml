@@ -26,7 +26,7 @@
     <string name="vault_disconnect_failed">解除连接失败，当前连接未改变，请重试。</string>
     <string name="index_save_failed">Markdown 已保存，但列表索引更新失败，请刷新 Log 重试。</string>
     <string name="index_read_failed">读取已保存的文件索引失败，请刷新重试。</string>
-    <string name="index_scanning">已连接，正在扫描 Markdown 文件并核验正文…</string>
+    <string name="index_scanning">已连接 · 正在核对 Markdown 文件变化…</string>
     <string name="index_complete">扫描完成</string>
     <string name="index_partial">部分目录或文件未能完成核验，请刷新重试。</string>
     <string name="index_interrupted">扫描已中断，请刷新重新开始。</string>

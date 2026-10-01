@@ -122,6 +122,10 @@ fun FitLogNavGraph(
                     vaultPreferences = vaultPreferences,
                     vaultRepository = vaultRepository,
                     onSetupCompleted = onSetupCompleted,
+                    onImportConnected = { vault ->
+                        // Explicit Import is a synchronization request, including reconnecting the same folder.
+                        if (backStack.lastOrNull() == route) sourceIndex.activate(vault, force = true)
+                    },
                     onBack = onBack,
                 )
             }
