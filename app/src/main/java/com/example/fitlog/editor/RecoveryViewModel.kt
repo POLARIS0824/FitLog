@@ -11,7 +11,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import java.util.UUID
 
-class RecoveryViewModel(private val state: SavedStateHandle, private val drafts: Drafts) : ViewModel() {
+class RecoveryViewModel(
+    private val state: SavedStateHandle,
+    private val drafts: Drafts,
+    private val resolveVaultId: suspend (String) -> String? = { null },
+) : ViewModel() {
     private val operations = Mutex()
     private var selectionGeneration = 0L
     var entries by mutableStateOf<List<RecoveryEntry>>(emptyList()); private set
@@ -36,17 +40,21 @@ class RecoveryViewModel(private val state: SavedStateHandle, private val drafts:
             var draft = requireNotNull(entry.draft)
             val directory = requireNotNull(draft.originalDirectory())
             require(draft.vault.isNotEmpty())
+            val resolvedId = resolveVaultId(draft.vault)
+            require(draft.vaultId == null || resolvedId == null || draft.vaultId == resolvedId)
+            val vaultId = resolvedId ?: draft.vaultId
             var id = entry.id
             if (entry.backup) {
                 val target = "recovered:${UUID.randomUUID()}"
                 draft = draft.copy(target = target, originTarget = target, recoveryId = UUID.randomUUID().toString(),
-                    manualSave = true, restoredBackup = true, directory = directory, updatedAt = System.currentTimeMillis())
+                    manualSave = true, restoredBackup = true, directory = directory, updatedAt = System.currentTimeMillis(),
+                    vaultId = vaultId)
                 drafts.save(draft)
                 id = "draft:${draft.identity()}"
             }
             if (generation != selectionGeneration) return@runOperation
             onOpen(FitLogRoute.Editor(vault = draft.vault, document = draft.document, directory = directory,
-                fileName = draft.name, recoveryId = id, displayPath = draft.displayPath))
+                fileName = draft.name, recoveryId = id, displayPath = draft.displayPath, vaultId = vaultId))
         }
     }
     fun prepareExport(launch: (String) -> Unit, fallbackName: String) {

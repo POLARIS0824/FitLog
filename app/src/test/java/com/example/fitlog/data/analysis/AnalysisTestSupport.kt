@@ -12,7 +12,7 @@ internal fun fixture(name: String): String = requireNotNull(
 ).bufferedReader(Charsets.UTF_8).use { it.readText() }
 
 internal fun fullInput(text: String): DiaryParseInput = DiaryParseInput.fromSnapshot(
-    SourceKey("fixture-vault", "daily/fixture.md"), text, "fixture-v1",
+    SourceKey("00000000-0000-4000-8000-000000000003", "daily/fixture.md"), text, "fixture-v1",
 )
 
 internal fun candidateJson(vararg exercises: ExerciseCandidate): String =

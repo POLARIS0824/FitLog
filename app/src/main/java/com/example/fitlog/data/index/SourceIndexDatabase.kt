@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.combine
 
 @Entity(tableName = "sources", primaryKeys = ["vault", "uri"])
 data class IndexedSource(
-    val vault: String,
+    @ColumnInfo(name = "vault") val vaultId: String,
     val uri: String,
     val name: String,
     val path: String,
@@ -31,7 +31,7 @@ data class IndexedSource(
 }
 
 @Entity(tableName = "scans")
-data class IndexedScan(@PrimaryKey val vault: String, val status: String, val completedAt: Long? = null,
+data class IndexedScan(@PrimaryKey @ColumnInfo(name = "vault") val vaultId: String, val status: String, val completedAt: Long? = null,
     val metadataCheckedAt: Long? = null, val fullVerifiedAt: Long? = null) {
     companion object {
         const val SCANNING = "scanning"
@@ -49,6 +49,7 @@ interface SourceIndexStore {
     fun observe(vault: String): Flow<SourceIndexSnapshot>
     suspend fun sources(vault: String): List<IndexedSource>
     suspend fun commit(sources: List<IndexedSource>, scan: IndexedScan? = null)
+    suspend fun migrateVault(legacyUri: String, vaultId: String)
 }
 
 @Dao
@@ -59,6 +60,12 @@ interface SourceIndexDao {
     fun observeScan(vault: String): Flow<IndexedScan?>
     @Query("SELECT * FROM sources WHERE vault = :vault")
     suspend fun sources(vault: String): List<IndexedSource>
+    @Query("SELECT * FROM scans WHERE vault = :vault")
+    suspend fun scan(vault: String): IndexedScan?
+    @Query("DELETE FROM sources WHERE vault = :vault")
+    suspend fun deleteSources(vault: String)
+    @Query("DELETE FROM scans WHERE vault = :vault")
+    suspend fun deleteScan(vault: String)
     @Upsert suspend fun putSources(sources: List<IndexedSource>)
     @Upsert suspend fun putScan(scan: IndexedScan)
 }
@@ -87,6 +94,15 @@ class RoomSourceIndexStore(private val database: SourceIndexDatabase) : SourceIn
     private val dao = database.index()
     override fun observe(vault: String) = combine(dao.observeSources(vault), dao.observeScan(vault), ::SourceIndexSnapshot)
     override suspend fun sources(vault: String) = dao.sources(vault)
+    override suspend fun migrateVault(legacyUri: String, vaultId: String) = database.withTransaction {
+        if (legacyUri != vaultId) {
+            val existing = dao.sources(vaultId).mapTo(mutableSetOf()) { it.uri }
+            dao.putSources(dao.sources(legacyUri).filter { it.uri !in existing }.map { it.copy(vaultId = vaultId) })
+            if (dao.scan(vaultId) == null) dao.scan(legacyUri)?.let { dao.putScan(it.copy(vaultId = vaultId)) }
+            dao.deleteSources(legacyUri)
+            dao.deleteScan(legacyUri)
+        }
+    }
     override suspend fun commit(sources: List<IndexedSource>, scan: IndexedScan?) = database.withTransaction {
         dao.putSources(sources)
         if (scan != null) dao.putScan(scan)

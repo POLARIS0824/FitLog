@@ -59,7 +59,7 @@ class VaultFlowControllerTest {
     @Test
     fun firstAdd_entersVaultSetup_andOnCompleteReplacesWithEditor_andBackReturnsToOrigin() = runTest {
         var configured = false
-        val flow = controller(config = { if (configured) VaultConfigState.Configured(uri) else VaultConfigState.NotConfigured })
+        val flow = controller(config = { if (configured) VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001") else VaultConfigState.NotConfigured })
         flow.openTodayLog()
         advanceUntilIdle()
         val route = stack.last() as FitLogRoute.VaultSetup
@@ -109,7 +109,7 @@ class VaultFlowControllerTest {
         val result = CompletableDeferred<VaultAccessStatus>()
         var checks = 0
         val flow = controller(
-            config = { VaultConfigState.Configured(uri) },
+            config = { VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001") },
             access = { checks++; result.await() },
         )
         flow.openTodayLog()
@@ -130,7 +130,7 @@ class VaultFlowControllerTest {
     fun importDuringAddCheck_rejectsLateEditorNavigation() = runTest {
         val result = CompletableDeferred<VaultAccessStatus>()
         val flow = controller(
-            config = { VaultConfigState.Configured(uri) },
+            config = { VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001") },
             access = { withContext(NonCancellable) { result.await() } },
         )
         flow.openTodayLog()
@@ -148,7 +148,7 @@ class VaultFlowControllerTest {
     fun tabSwitchDuringAddCheck_rejectsLateNavigationEvenAfterReturning() = runTest {
         val result = CompletableDeferred<VaultAccessStatus>()
         val flow = controller(
-            config = { VaultConfigState.Configured(uri) },
+            config = { VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001") },
             access = { withContext(NonCancellable) { result.await() } },
         )
         flow.openTodayLog()
@@ -173,7 +173,7 @@ class VaultFlowControllerTest {
     @Test
     fun reauthorization_preservesAddPurpose() = runTest {
         val flow = controller(
-            config = { VaultConfigState.Configured(uri) },
+            config = { VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001") },
             access = { VaultAccessStatus.NeedsReauthorization },
         )
         flow.openTodayLog()
@@ -193,7 +193,7 @@ class VaultFlowControllerTest {
         var date = LocalDate.of(2026, 9, 30)
         var configured = false
         val flow = VaultFlowController(stack, this,
-            { if (configured) VaultConfigState.Configured(uri) else VaultConfigState.NotConfigured },
+            { if (configured) VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001") else VaultConfigState.NotConfigured },
             { VaultAccessStatus.CanCreateFiles }, errors::add,
             { vault, captured -> FitLogRoute.Editor(vault, date = captured.toString()) }, { date })
         flow.openTodayLog()
@@ -208,7 +208,7 @@ class VaultFlowControllerTest {
 
     @Test fun lateTodayResolutionCannotNavigateAfterOpeningAnotherNote() = runTest {
         val pending = CompletableDeferred<FitLogRoute.Editor>()
-        val flow = VaultFlowController(stack, this, { VaultConfigState.Configured(uri) },
+        val flow = VaultFlowController(stack, this, { VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001") },
             { VaultAccessStatus.CanCreateFiles }, errors::add,
             { _, _ -> withContext(NonCancellable) { pending.await() } })
         flow.openTodayLog()
@@ -224,7 +224,7 @@ class VaultFlowControllerTest {
 
     @Test fun readOnlyExistingTodayIsOpenedWithoutCreationPermission() = runTest {
         val existing = FitLogRoute.Editor(uri.toString(), "existing")
-        val flow = VaultFlowController(stack, this, { VaultConfigState.Configured(uri) },
+        val flow = VaultFlowController(stack, this, { VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001") },
             { VaultAccessStatus.ReadOnly }, errors::add, { _, _ -> existing })
         flow.openTodayLog()
         advanceUntilIdle()
@@ -235,7 +235,7 @@ class VaultFlowControllerTest {
     @Test fun connectedReadOnlyMissingTodayReturnsToLogWithFeedback() = runTest {
         val setup = FitLogRoute.VaultSetup(createAfterSetup = true)
         stack.add(setup)
-        val flow = VaultFlowController(stack, this, { VaultConfigState.Configured(uri) },
+        val flow = VaultFlowController(stack, this, { VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001") },
             { VaultAccessStatus.ReadOnly }, errors::add, { _, _ -> throw DiaryCreationUnavailable() })
         flow.onSetupCompleted(setup)
         advanceUntilIdle()

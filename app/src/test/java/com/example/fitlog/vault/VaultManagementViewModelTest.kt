@@ -25,7 +25,7 @@ class VaultManagementViewModelTest {
     @After fun after() { store.clear(); Dispatchers.resetMain() }
     @Test fun cancelAndFailedClearKeepConnectionAndOnlySuccessfulClearDisconnects() = runTest(dispatcher) {
         val uri = Uri.parse("content://test/tree/vault")
-        val config = MutableStateFlow<VaultConfigState>(VaultConfigState.Configured(uri))
+        val config = MutableStateFlow<VaultConfigState>(VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001"))
         var calls = 0; var fail = true
         val vm = VaultManagementViewModel(config, { VaultFolderInfo(it, "Vault", VaultAccessStatus.CanCreateFiles) }, {
             calls++
@@ -40,7 +40,7 @@ class VaultManagementViewModelTest {
         assertNull(vm.folder); assertFalse(vm.confirmDisconnect); assertNull(vm.error)
     }
     @Test fun repeatedDisconnectIsSingleFlight() = runTest(dispatcher) {
-        val config = MutableStateFlow<VaultConfigState>(VaultConfigState.Configured(Uri.parse("vault")))
+        val config = MutableStateFlow<VaultConfigState>(VaultConfigState.Configured(Uri.parse("vault"), "00000000-0000-4000-8000-000000000001"))
         val gate = CompletableDeferred<Unit>(); var calls = 0
         val vm = VaultManagementViewModel(config, { VaultFolderInfo(it, "Vault", VaultAccessStatus.ReadOnly) }, {
             calls++; gate.await(); config.value = VaultConfigState.NotConfigured; Result.success(Unit)

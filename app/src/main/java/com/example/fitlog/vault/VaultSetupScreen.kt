@@ -78,7 +78,7 @@ fun VaultSetupRoute(
     onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    onImportConnected: (String) -> Unit = {},
+    onImportConnected: suspend (String) -> Unit = {},
 ) {
     val viewModel: VaultSetupViewModel = viewModel(
         factory = VaultSetupViewModel.Factory(
@@ -100,7 +100,7 @@ fun VaultSetupRoute(
     LaunchedEffect(uiState.completedResult) {
         val result = uiState.completedResult ?: return@LaunchedEffect
         if (result.requestId == route.requestId) {
-            if (!route.createAfterSetup) uiState.targetVault?.uri?.toString()?.let(onImportConnected)
+            if (!route.createAfterSetup) uiState.targetVault?.uri?.toString()?.let { onImportConnected(it) }
             viewModel.onCompletionConsumed()
             onSetupCompleted(route)
         }

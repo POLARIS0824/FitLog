@@ -15,6 +15,30 @@ import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RecoveryViewModelTest {
+    @Test fun legacyRecoveryObtainsUuidForItsOwnUriAndKeepsOriginalLocation() = runTest(dispatcher) {
+        drafts.save(draft)
+        val id = "00000000-0000-4000-8000-000000000001"
+        val vm = RecoveryViewModel(SavedStateHandle(), drafts) { uri ->
+            assertEquals(draft.vault, uri); id
+        }.also { viewModels.put("recovery", it) }
+        vm.refresh(); runCurrent(); vm.select(vm.entries.single().id)
+        var route: FitLogRoute.Editor? = null
+        vm.restore { route = it }; runCurrent()
+        assertEquals(id, route?.vaultId)
+        assertEquals(draft.vault, route?.vault)
+        assertEquals(draft.directory, route?.directory)
+        assertEquals(draft.name, route?.fileName)
+    }
+
+    @Test fun mismatchedUuidCannotAssociateARecoveryWithAnotherVault() = runTest(dispatcher) {
+        drafts.save(draft.copy(vaultId = "00000000-0000-4000-8000-000000000001"))
+        val vm = RecoveryViewModel(SavedStateHandle(), drafts) { "00000000-0000-4000-8000-000000000002" }
+            .also { viewModels.put("recovery", it) }
+        vm.refresh(); runCurrent(); vm.select(vm.entries.single().id)
+        vm.restore { fail("Mismatched identity must not navigate") }; runCurrent()
+        assertNotNull(vm.notice)
+        assertEquals(1, drafts.values.size)
+    }
     private val dispatcher = StandardTestDispatcher()
     private val viewModels = ViewModelStore()
     private val drafts = RecoveryMemory()

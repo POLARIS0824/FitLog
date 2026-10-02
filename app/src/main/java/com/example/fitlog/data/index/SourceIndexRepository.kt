@@ -5,10 +5,13 @@ import android.os.SystemClock
 import com.example.fitlog.data.vault.MarkdownDocumentRepository
 import com.example.fitlog.data.vault.MarkdownDocuments
 import com.example.fitlog.data.vault.MarkdownSnapshot
+import com.example.fitlog.data.vault.VaultPreferences
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -21,6 +24,7 @@ class SourceIndexRepository(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val elapsedNow: () -> Long = now,
     private val invalidations: IndexInvalidations = MemoryIndexInvalidations(),
+    private val resolveVaultUri: suspend (String) -> String = { it },
 ) {
     enum class Reason { Activation, Foreground, VisiblePeriodic }
     companion object {
@@ -34,12 +38,14 @@ class SourceIndexRepository(
                 RoomSourceIndexStore(SourceIndexDatabase.get(context.applicationContext)),
                 elapsedNow = SystemClock::elapsedRealtime,
                 invalidations = PreferenceIndexInvalidations(context.applicationContext),
+                resolveVaultUri = VaultPreferences(context.applicationContext)::getVaultUri,
             ).also { instance = it }
         }
     }
     private data class Activity(val busy: Boolean = false, val failed: Boolean = false)
     private class Slot {
         val gate = Mutex()
+        var preparedUri: String? = null
         var generation = 0L
         var job: Job? = null
         var coordinator: Job? = null
@@ -65,7 +71,23 @@ class SourceIndexRepository(
         vault?.let { if (force) forceRefresh(it) else ensureFresh(it, Reason.Activation) }
     }
 
-    fun observe(vault: String) = combine(store.observe(vault), slot(vault).activity) { value, activity ->
+    private suspend fun prepareVault(vaultId: String): String = slot(vaultId).gate.withLock {
+        val slot = slot(vaultId)
+        slot.preparedUri ?: resolveVaultUri(vaultId).also { uri ->
+            if (uri != vaultId) {
+                val dirty = invalidations.contains(uri)
+                if (dirty) invalidations.mark(vaultId)
+                store.migrateVault(uri, vaultId)
+                if (dirty) invalidations.clear(uri)
+            }
+            slot.preparedUri = uri
+        }
+    }
+
+    fun observe(vault: String) = combine(flow {
+        prepareVault(vault)
+        emitAll(store.observe(vault))
+    }, slot(vault).activity) { value, activity ->
         val scan = if (value.scan?.status == IndexedScan.SCANNING && !activity.busy &&
             synchronized(slot(vault)) { slot(vault).job?.isActive != true })
             value.scan.copy(status = IndexedScan.INTERRUPTED) else value.scan
@@ -170,6 +192,7 @@ class SourceIndexRepository(
         var startRevision = 0L
         var priorScan: IndexedScan? = null
         try {
+            val treeUri = prepareVault(vault)
             val previous = slot.gate.withLock {
                 checkCurrent()
                 startRevision = slot.revision
@@ -178,7 +201,7 @@ class SourceIndexRepository(
                     metadataCheckedAt = priorScan?.metadataCheckedAt, fullVerifiedAt = priorScan?.fullVerifiedAt))
                 store.sources(vault).associateBy { it.uri }
             }
-            val discovered = documents.scan(vault)
+            val discovered = documents.scan(treeUri)
             checkCurrent()
             var readFailed = false
             val updates = discovered.files.map { file ->
@@ -240,6 +263,15 @@ class SourceIndexRepository(
 
     suspend fun recordSaved(vault: String, snapshot: MarkdownSnapshot, directory: String, path: String?) {
         val slot = slot(vault)
+        try { prepareVault(vault) }
+        catch (e: Exception) {
+            synchronized(slot) {
+                slot.dirty = true
+                if (slot.coordinator?.isActive == true) slot.pendingDirty = true
+            }
+            try { invalidations.mark(vault) } catch (markerFailure: Exception) { e.addSuppressed(markerFailure) }
+            throw e
+        }
         slot.gate.withLock {
             slot.saved[snapshot.file.uri] = ++slot.revision
             try {

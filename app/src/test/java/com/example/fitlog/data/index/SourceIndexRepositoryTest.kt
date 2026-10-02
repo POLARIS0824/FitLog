@@ -10,6 +10,50 @@ import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SourceIndexRepositoryTest {
+    @Test fun uuidKeysMigrateLegacyRowsWhileSafStillReceivesTheTreeUri() = runTest {
+        val uri = "content://test/tree/a"
+        val id = "00000000-0000-4000-8000-000000000001"
+        val legacy = IndexedSource(uri, "file", "note.md", "daily/note.md", uri, true, "old", 1)
+        store.commit(listOf(legacy), IndexedScan(uri, IndexedScan.COMPLETE, 1))
+        var scanned: String? = null
+        documents.beforeScan = { }
+        documents.onScan = { scanned = it }
+        val index = SourceIndexRepository(documents, store, resolveVaultUri = { requested ->
+            assertEquals(id, requested); uri
+        })
+        val cached = index.observe(id).first()
+        assertEquals("old", cached.sources.single().fingerprint)
+        assertEquals(id, cached.sources.single().vaultId)
+        index.refresh(id)
+        assertEquals(uri, scanned)
+        assertTrue(store.sources(uri).isEmpty())
+        assertEquals(id, store.sources(id).single().vaultId)
+        assertEquals(id, store.observe(id).first().scan?.vaultId)
+    }
+
+    @Test fun identityMigrationFailureAfterMarkdownSaveLeavesARepairMarker() = runTest {
+        val id = "00000000-0000-4000-8000-000000000001"
+        val dirty = MemoryIndexInvalidations()
+        store.fail = true
+        val index = SourceIndexRepository(documents, store, invalidations = dirty,
+            resolveVaultUri = { "content://test/tree/a" })
+        try { index.recordSaved(id, documents.snapshot("saved"), "directory", "note.md"); fail() }
+        catch (_: IOException) { }
+        assertTrue(dirty.contains(id))
+        store.fail = false
+        index.recordSaved(id, documents.snapshot("saved"), "directory", "note.md")
+        assertEquals("saved", store.sources(id).single().fingerprint)
+    }
+
+    @Test fun legacyRepairMarkerSurvivesIdentityMigration() = runTest {
+        val uri = "content://test/tree/a"
+        val id = "00000000-0000-4000-8000-000000000001"
+        val dirty = MemoryIndexInvalidations().apply { mark(uri) }
+        val index = SourceIndexRepository(documents, store, invalidations = dirty, resolveVaultUri = { uri })
+        index.observe(id).first()
+        assertTrue(dirty.contains(id))
+        assertFalse(dirty.contains(uri))
+    }
     private val vault = "vault"
     private val store = MemorySourceIndexStore()
     private val documents = IndexDocuments()
@@ -97,9 +141,10 @@ private class IndexDocuments : MarkdownDocuments {
     var failRead = false
     var scanCount = 0
     var beforeScan: suspend () -> Unit = {}
+    var onScan: (String) -> Unit = {}
     var beforeRead: suspend () -> Unit = {}
     fun snapshot(text: String, uri: String = "file") = MarkdownSnapshot(MarkdownFile(uri, "note.md", "note.md", true), text, text, false)
-    override suspend fun scan(vault: String): MarkdownScan { scanCount++; beforeScan(); if (failScan) throw IOException(); return MarkdownScan(files, partial) }
+    override suspend fun scan(vault: String): MarkdownScan { scanCount++; onScan(vault); beforeScan(); if (failScan) throw IOException(); return MarkdownScan(files, partial) }
     override suspend fun read(uri: String): MarkdownSnapshot { beforeRead(); if (failRead) throw IOException(); return snapshot(body, uri) }
     override suspend fun find(vault: String, name: String): MarkdownFile? = error("unused")
     override suspend fun create(vault: String, name: String): MarkdownFile = error("unused")

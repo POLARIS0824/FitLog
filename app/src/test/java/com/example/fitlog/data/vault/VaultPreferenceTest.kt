@@ -5,6 +5,11 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -30,6 +35,78 @@ import com.example.fitlog.log.LogSortOrder
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class VaultPreferencesTest {
+
+    @Test fun legacyUriGetsOnePersistedUuidAndKeepsDiarySettings() = testScope.runTest {
+        val store = createTestDataStore()
+        val uri = "content://test/tree/old"
+        val expected = DiarySettings(listOf("daily"), DiaryDateFormat.Compact)
+        val prefs = VaultPreferences(store)
+        prefs.diary.save(uri, expected)
+        store.edit { it[stringPreferencesKey("vault_uri")] = uri }
+
+        val states = List(3) { async { prefs.getVaultConfig() as VaultConfigState.Configured } }.awaitAll()
+        val id = states.first().vaultId
+        assertEquals(id, requireVaultId(id))
+        assertTrue(states.all { it.vaultId == id && it.uri.toString() == uri })
+        assertEquals(id, store.data.first()[stringPreferencesKey("vault_id")])
+        assertEquals(expected, prefs.diary.read(id))
+        assertEquals(id, (VaultPreferences(store).getVaultConfig() as VaultConfigState.Configured).vaultId)
+        assertEquals(uri, prefs.getVaultUri(id))
+    }
+
+    @Test fun switchingAndDisconnectingRetainUuidAndSettingsForEachKnownUri() = testScope.runTest {
+        val prefs = VaultPreferences(createTestDataStore())
+        val a = Uri.parse("content://test/tree/a")
+        val b = Uri.parse("content://test/tree/b")
+        prefs.setVaultUri(a).getOrThrow()
+        val first = prefs.getVaultConfig() as VaultConfigState.Configured
+        val settings = DiarySettings(listOf("training"), DiaryDateFormat.Chinese)
+        prefs.diary.save(first.vaultId, settings)
+        prefs.setVaultUri(b).getOrThrow()
+        val second = prefs.getVaultConfig() as VaultConfigState.Configured
+        assertTrue(first.vaultId != second.vaultId)
+        prefs.clearVaultUri().getOrThrow()
+        assertEquals(VaultConfigState.NotConfigured, prefs.getVaultConfig())
+        assertEquals(a.toString(), prefs.getVaultUri(first.vaultId))
+        assertEquals(b.toString(), prefs.getVaultUri(second.vaultId))
+        prefs.setVaultUri(a).getOrThrow()
+        assertEquals(first, prefs.getVaultConfig())
+        assertEquals(settings, prefs.diary.read(first.vaultId))
+    }
+
+    @Test fun recoveryIdentityRegistrationDoesNotSwitchCurrentConnection() = testScope.runTest {
+        val prefs = VaultPreferences(createTestDataStore())
+        prefs.setVaultUri(Uri.parse("content://test/tree/current")).getOrThrow()
+        val current = prefs.getVaultConfig()
+        val ids = List(3) { async { prefs.getVaultId("content://test/tree/recovery") } }.awaitAll()
+        assertEquals(1, ids.toSet().size)
+        assertEquals("content://test/tree/recovery", prefs.getVaultUri(ids.first()))
+        assertEquals(current, prefs.getVaultConfig())
+    }
+
+    @Test fun invalidPersistedIdentityIsReportedInsteadOfSilentlyReplaced() = testScope.runTest {
+        val store = createTestDataStore()
+        store.edit {
+            it[stringPreferencesKey("vault_uri")] = "content://test/tree/a"
+            it[stringPreferencesKey("vault_id")] = "content://test/tree/a"
+        }
+        val prefs = VaultPreferences(store)
+        assertTrue(prefs.getVaultConfig() is VaultConfigState.Failed)
+        assertEquals("content://test/tree/a", store.data.first()[stringPreferencesKey("vault_id")])
+    }
+
+    @Test fun legacyMigrationWriteFailureDoesNotPublishAnUnpersistedUuid() = testScope.runTest {
+        val legacy = androidx.datastore.preferences.core.preferencesOf(
+            stringPreferencesKey("vault_uri") to "content://test/tree/a")
+        val failure = IOException("Migration write failed")
+        val store = object : DataStore<Preferences> {
+            override val data = flow { emit(legacy) }
+            override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences = throw failure
+        }
+        val state = VaultPreferences(store).getVaultConfig() as VaultConfigState.Failed
+        assertEquals(failure, state.cause)
+        assertEquals("content://test/tree/a", store.data.first()[stringPreferencesKey("vault_uri")])
+    }
 
     @get:Rule
     val tempFolder = TemporaryFolder()

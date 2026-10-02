@@ -15,6 +15,7 @@ class DiarySettingsViewModel(
     private val vault: String,
     private val settings: DiarySettingsStore,
     private val directories: DiaryDirectories,
+    private val resolveVaultId: suspend (String) -> String = { it },
 ) : ViewModel() {
     var path by mutableStateOf<List<String>>(emptyList()); private set
     var format by mutableStateOf(DiaryDateFormat.Dashed); private set
@@ -27,6 +28,7 @@ class DiarySettingsViewModel(
     private var directoryValid = false
     private var generation = 0
     private var job: Job? = null
+    private var vaultId = vault
     val canSave get() = initialized && directoryValid && !loading && !saving
 
     init { load() }
@@ -39,7 +41,7 @@ class DiarySettingsViewModel(
         error = null
         job = viewModelScope.launch {
             try {
-                val config = settings.read(vault)
+                val config = settings.read(resolveVaultId(vault).also { vaultId = it })
                 if (token != generation) return@launch
                 path = config.directoryPath
                 format = config.dateFormat
@@ -87,7 +89,7 @@ class DiarySettingsViewModel(
         viewModelScope.launch {
             try {
                 directories.resolveDirectory(vault, config.directoryPath)
-                settings.save(vault, config)
+                settings.save(vaultId, config)
                 completed = true
             } catch (e: Exception) {
                 if (e is CancellationException) throw e

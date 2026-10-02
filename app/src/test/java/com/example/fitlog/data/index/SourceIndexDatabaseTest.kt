@@ -16,6 +16,30 @@ import java.util.UUID
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SourceIndexDatabaseTest {
+    @Test fun uriIdentityMigrationIsPersistentIdempotentAndPreservesNewerUuidRows() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val name = "identity-${UUID.randomUUID()}.db"
+        val id = UUID.randomUUID().toString()
+        val legacy = "content://test/tree/old"
+        val db = Room.databaseBuilder(context, SourceIndexDatabase::class.java, name).build()
+        try {
+            val store = RoomSourceIndexStore(db)
+            val row = IndexedSource(legacy, "file", "note.md", "daily/note.md", legacy, true, "old", 1)
+            store.commit(listOf(row, row.copy(uri = "other")), IndexedScan(legacy, IndexedScan.COMPLETE, 42, 42, 42))
+            store.commit(listOf(row.copy(vaultId = id, fingerprint = "new", verifiedAt = 2)))
+            repeat(2) { store.migrateVault(legacy, id) }
+            assertTrue(store.sources(legacy).isEmpty())
+            assertNull(store.observe(legacy).first().scan)
+            val migrated = store.sources(id)
+            assertEquals(2, migrated.size)
+            assertEquals("new", migrated.single { it.uri == "file" }.fingerprint)
+            assertEquals("daily/note.md", migrated.single { it.uri == "other" }.path)
+            assertEquals(42L, store.observe(id).first().scan?.fullVerifiedAt)
+        } finally { db.close() }
+        val reopened = Room.databaseBuilder(context, SourceIndexDatabase::class.java, name).build()
+        try { assertEquals(2, reopened.index().sources(id).size) }
+        finally { reopened.close(); context.deleteDatabase(name) }
+    }
     @Test fun migrationPreservesVersionOneSourcesAndRequiresMetadataRevalidation() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
         val name = "migration-${UUID.randomUUID()}.db"

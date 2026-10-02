@@ -31,6 +31,8 @@ data class EditorDraft(
     val recoveryId: String = "",
     val manualSave: Boolean = false,
     val restoredBackup: Boolean = false,
+    // The URI above remains the original recovery location; old records may lack application identity.
+    val vaultId: String? = null,
 )
 
 @Serializable

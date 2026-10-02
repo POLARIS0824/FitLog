@@ -11,12 +11,22 @@ class MemorySourceIndexStore : SourceIndexStore {
     override suspend fun commit(sources: List<IndexedSource>, scan: IndexedScan?) {
         if (fail) throw java.io.IOException()
         val next = state.value.toMutableMap()
-        (sources.map { it.vault } + listOfNotNull(scan?.vault)).distinct().forEach { vault ->
+        (sources.map { it.vaultId } + listOfNotNull(scan?.vaultId)).distinct().forEach { vault ->
             val old = next[vault] ?: SourceIndexSnapshot(emptyList(), null)
             val rows = old.sources.associateBy { it.uri }.toMutableMap()
-            sources.filter { it.vault == vault }.forEach { rows[it.uri] = it }
-            next[vault] = SourceIndexSnapshot(rows.values.toList(), scan?.takeIf { it.vault == vault } ?: old.scan)
+            sources.filter { it.vaultId == vault }.forEach { rows[it.uri] = it }
+            next[vault] = SourceIndexSnapshot(rows.values.toList(), scan?.takeIf { it.vaultId == vault } ?: old.scan)
         }
         state.value = next
+    }
+
+    override suspend fun migrateVault(legacyUri: String, vaultId: String) {
+        if (fail) throw java.io.IOException()
+        if (legacyUri == vaultId) return
+        val old = state.value[legacyUri] ?: return
+        val current = state.value[vaultId]
+        val rows = (old.sources.map { it.copy(vaultId = vaultId) } + current?.sources.orEmpty()).associateBy { it.uri }
+        state.value = state.value - legacyUri + (vaultId to SourceIndexSnapshot(rows.values.toList(),
+            current?.scan ?: old.scan?.copy(vaultId = vaultId)))
     }
 }

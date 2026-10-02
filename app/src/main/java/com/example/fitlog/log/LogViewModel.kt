@@ -32,6 +32,7 @@ class LogViewModel(
     private val settings: LogSettingsStore,
 ) : ViewModel() {
     var vault by mutableStateOf<String?>(null); private set
+    var vaultId by mutableStateOf<String?>(null); private set
     var files by mutableStateOf<List<MarkdownFile>>(emptyList()); private set
     var query by mutableStateOf(savedState.get<String>("query") ?: ""); private set
     var sort by mutableStateOf(LogSortOrder.Descending); private set
@@ -67,15 +68,17 @@ class LogViewModel(
             config.distinctUntilChanged().collect { value ->
                 currentConfig = value
                 val nextVault = (value as? VaultConfigState.Configured)?.uri?.toString()
-                if (vault != nextVault) {
+                val nextId = (value as? VaultConfigState.Configured)?.vaultId
+                if (vaultId != nextId) {
                     indexJob?.cancel()
                     files = emptyList(); sources = emptyList(); partial = false; scanStatus = null; refreshing = false
                 }
                 vault = nextVault
+                vaultId = nextId
                 error = if (value is VaultConfigState.Failed) R.string.vault_error_load_config_failed else null
                 loading = value is VaultConfigState.Loading || nextVault != null
-                if (value !is VaultConfigState.Loading) index.activate(nextVault)
-                nextVault?.let(::observeIndex)
+                if (value !is VaultConfigState.Loading) index.activate(nextId)
+                nextId?.let(::observeIndex)
             }
         }
     }
@@ -87,7 +90,7 @@ class LogViewModel(
         indexJob = viewModelScope.launch {
             try {
                 index.observe(source).collect { snapshot ->
-                    if (vault != source) return@collect
+                    if (vaultId != source) return@collect
                     sources = snapshot.sources
                     files = sources.map { it.file() }
                     scanStatus = snapshot.scan?.status
@@ -98,7 +101,7 @@ class LogViewModel(
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                if (vault == source) { error = R.string.index_read_failed; loading = false; refreshing = false }
+                if (vaultId == source) { error = R.string.index_read_failed; loading = false; refreshing = false }
             }
         }
     }
@@ -115,8 +118,8 @@ class LogViewModel(
     }
 
     fun refresh() {
-        vault?.let(::observeIndex)
+        vaultId?.let(::observeIndex)
         if (currentConfig is VaultConfigState.Failed) observeConfig()
-        else vault?.let(index::forceRefresh)
+        else vaultId?.let(index::forceRefresh)
     }
 }

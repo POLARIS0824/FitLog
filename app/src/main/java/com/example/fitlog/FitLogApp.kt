@@ -69,7 +69,7 @@ fun FitLogApp() {
             scope = coroutineScope,
             getConfig = vaultPreferences::getVaultConfig,
             checkAccess = vaultRepository::checkAccess,
-            resolveToday = todayLog::resolve,
+            resolveToday = { vault, date -> todayLog.resolve(vault, date, vaultPreferences.getVaultId(vault)) },
             showError = { message ->
                 coroutineScope.launch { snackbarHostState.showSnackbar(context.getString(message)) }
             },
@@ -77,7 +77,7 @@ fun FitLogApp() {
     }
     val currentRoute = backStack.lastOrNull()
     val config by vaultPreferences.vaultConfig.collectAsState(initial = VaultConfigState.Loading)
-    val currentVault = (config as? VaultConfigState.Configured)?.uri?.toString()
+    val currentVault = (config as? VaultConfigState.Configured)?.vaultId
     val processLifecycle = remember { ProcessLifecycleOwner.get().lifecycle }
     LaunchedEffect(config) {
         // Loading is not a disconnect; do not cancel an active scan during collection restart.

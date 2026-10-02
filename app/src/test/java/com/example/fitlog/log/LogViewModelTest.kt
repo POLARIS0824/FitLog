@@ -28,7 +28,7 @@ class LogViewModelTest {
     @After fun after() { store.clear(); Dispatchers.resetMain() }
 
     @Test fun recreatedLogObservesEditorSaveWithoutRescanningAndClearingVmDoesNotCancelScan() = runTest(dispatcher) {
-        val config = MutableStateFlow<VaultConfigState>(VaultConfigState.Configured(Uri.parse("vault")))
+        val config = MutableStateFlow<VaultConfigState>(configuredVault(Uri.parse("vault")))
         var scans = 0
         val release = CompletableDeferred<Unit>()
         val documents = ScanDocuments {
@@ -37,7 +37,7 @@ class LogViewModelTest {
             MarkdownScan(listOf(file("1", "note.md")), false)
         }
         val index = com.example.fitlog.data.index.SourceIndexRepository(documents,
-            com.example.fitlog.data.index.MemorySourceIndexStore(), scope = this)
+            com.example.fitlog.data.index.MemorySourceIndexStore(), scope = this, resolveVaultUri = ::testVaultUri)
         val first = LogViewModel(SavedStateHandle(), config, index, TestLogSettings())
         store.put("log", first)
         runCurrent()
@@ -50,7 +50,7 @@ class LogViewModelTest {
         runCurrent()
         assertEquals(1, scans)
         second.search("note")
-        index.recordSaved("vault", MarkdownSnapshot(file("2", "new-note.md"), "saved", "new", false), "vault", null)
+        index.recordSaved(testVaultId("vault"), MarkdownSnapshot(file("2", "new-note.md"), "saved", "new", false), "vault", null)
         runCurrent()
         assertEquals(2, second.visibleFiles.size)
         assertEquals(1, scans)
@@ -69,7 +69,7 @@ class LogViewModelTest {
     }
 
     @Test fun refreshPreservesQueryAndSortAndLoadsSavedFile() = runTest(dispatcher) {
-        val config = MutableStateFlow<VaultConfigState>(VaultConfigState.Configured(Uri.parse("vault")))
+        val config = MutableStateFlow<VaultConfigState>(configuredVault(Uri.parse("vault")))
         var files = listOf(file("1", "2026-09-29.md"))
         val settings = TestLogSettings()
         val saved = SavedStateHandle()
@@ -90,7 +90,7 @@ class LogViewModelTest {
     }
 
     @Test fun switchingVaultDiscardsLateScanEvenIfProviderIgnoresCancellation() = runTest(dispatcher) {
-        val config = MutableStateFlow<VaultConfigState>(VaultConfigState.Configured(Uri.parse("old")))
+        val config = MutableStateFlow<VaultConfigState>(configuredVault(Uri.parse("old")))
         val old = CompletableDeferred<MarkdownScan>()
         val vm = LogViewModel(SavedStateHandle(), config, ScanDocuments { vault ->
             if (vault == "old") withContext(NonCancellable) { old.await() }
@@ -98,18 +98,19 @@ class LogViewModelTest {
         }, TestLogSettings())
         store.put("log", vm)
         runCurrent()
-        config.value = VaultConfigState.Configured(Uri.parse("new"))
+        config.value = configuredVault(Uri.parse("new"))
         runCurrent()
         old.complete(MarkdownScan(listOf(file("old", "old.md")), false))
         advanceUntilIdle()
         assertEquals("new", vm.vault)
+        assertEquals(testVaultId("new"), vm.vaultId)
         assertEquals(listOf("new"), vm.files.map { it.uri })
         assertTrue(vm.partial)
         assertFalse(vm.loading)
     }
 
     @Test fun scanAndSortFailuresCanBeRetriedWithoutLosingQuery() = runTest(dispatcher) {
-        val config = MutableStateFlow<VaultConfigState>(VaultConfigState.Configured(Uri.parse("vault")))
+        val config = MutableStateFlow<VaultConfigState>(configuredVault(Uri.parse("vault")))
         var fail = true
         val settings = TestLogSettings().apply { failSave = true }
         val vm = LogViewModel(SavedStateHandle(), config, ScanDocuments {
@@ -138,7 +139,7 @@ class LogViewModelTest {
         var attempt = 0
         val config = flow<VaultConfigState> {
             attempt++
-            emit(if (attempt == 1) VaultConfigState.Failed(IOException()) else VaultConfigState.Configured(Uri.parse("vault")))
+            emit(if (attempt == 1) VaultConfigState.Failed(IOException()) else configuredVault(Uri.parse("vault")))
         }
         val vm = LogViewModel(SavedStateHandle(), config, ScanDocuments { MarkdownScan(emptyList(), false) }, TestLogSettings())
         store.put("log", vm)
@@ -159,7 +160,7 @@ private fun LogViewModel(
     settings: LogSettingsStore,
 ) = LogViewModel(state, config, com.example.fitlog.data.index.SourceIndexRepository(
     documents, com.example.fitlog.data.index.MemorySourceIndexStore(),
-    scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)), settings)
+    scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate), resolveVaultUri = ::testVaultUri), settings)
 
 private class TestLogSettings : LogSettingsStore {
     var order = LogSortOrder.Descending
@@ -175,3 +176,7 @@ private class ScanDocuments(private val scan: suspend (String) -> MarkdownScan) 
     override suspend fun create(vault: String, name: String): MarkdownFile = error("unused")
     override suspend fun write(uri: String, text: String, bom: Boolean, expected: String): MarkdownSnapshot = error("unused")
 }
+
+private fun testVaultId(uri: String) = java.util.UUID.nameUUIDFromBytes(uri.toByteArray(Charsets.UTF_8)).toString()
+private fun testVaultUri(id: String) = listOf("vault", "old", "new").single { testVaultId(it) == id }
+private fun configuredVault(uri: Uri) = VaultConfigState.Configured(uri, testVaultId(uri.toString()))

@@ -50,6 +50,24 @@ class MarkdownDocumentRepositoryTest {
         }, repository, repository,
     )
 
+    @Test fun todayReadsUuidSettingsButLocatesTheFileUsingItsSafUri() = runTest {
+        val id = "00000000-0000-4000-8000-000000000001"
+        provider.add("root/sub", "daily", "root", null)
+        provider.add("root/sub/a", "20260930.md", "root/sub", "child".toByteArray())
+        val settings = object : DiarySettingsStore {
+            override suspend fun read(vault: String): DiarySettings {
+                assertEquals(id, vault)
+                return DiarySettings(listOf("daily"), DiaryDateFormat.Compact)
+            }
+            override suspend fun save(vault: String, settings: DiarySettings) = error("unused")
+        }
+        val route = TodayLogResolver(settings, repository, repository).resolve(vault, LocalDate.of(2026, 9, 30), id)
+        assertEquals(id, route.vaultId)
+        assertEquals(vault, route.vault)
+        assertEquals(uri("root/sub/a"), route.document)
+        assertEquals(uri("root/sub"), route.directory)
+    }
+
     @Test fun todayOpensExistingChildWithoutConfusingRootFile() = runTest {
         provider.add("root/sub", "daily", "root", null)
         provider.add("root/a", "2026-09-30.md", "root", "root".toByteArray())

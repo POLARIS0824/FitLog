@@ -17,6 +17,29 @@ import java.io.IOException
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class DiarySettingsViewModelTest {
+    @Test fun uuidOwnsSettingsWhileDirectoryBrowsingUsesTheOriginalUri() = runTest(dispatcher) {
+        val uri = "content://test/tree/a"
+        val id = "00000000-0000-4000-8000-000000000001"
+        var saved: DiarySettings? = null
+        val settings = object : DiarySettingsStore {
+            override suspend fun read(vault: String): DiarySettings { assertEquals(id, vault); return DiarySettings() }
+            override suspend fun save(vault: String, settings: DiarySettings) { assertEquals(id, vault); saved = settings }
+        }
+        val dirs = object : DiaryDirectories {
+            override suspend fun resolveDirectory(vault: String, path: List<String>): String {
+                assertEquals(uri, vault); return uri
+            }
+            override suspend fun directories(directory: String) = emptyList<DiaryDirectory>()
+            override suspend fun canCreate(directory: String) = true
+        }
+        val vm = DiarySettingsViewModel(uri, settings, dirs) { requested -> assertEquals(uri, requested); id }
+        store.put("settings", vm)
+        advanceUntilIdle()
+        vm.chooseFormat(DiaryDateFormat.Compact)
+        vm.save(); advanceUntilIdle()
+        assertEquals(DiarySettings(dateFormat = DiaryDateFormat.Compact), saved)
+        assertTrue(vm.completed)
+    }
     private val dispatcher = StandardTestDispatcher()
     private val store = ViewModelStore()
     @Before fun before() { Dispatchers.setMain(dispatcher) }

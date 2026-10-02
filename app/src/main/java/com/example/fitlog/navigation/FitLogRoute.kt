@@ -26,6 +26,7 @@ sealed interface FitLogRoute : NavKey {
         val fileName: String = date + ".md",
         val recoveryId: String? = null,
         val displayPath: String? = null,
+        val vaultId: String? = null,
     ) : FitLogRoute
 
     @Serializable
@@ -36,7 +37,7 @@ sealed interface FitLogRoute : NavKey {
     ) : FitLogRoute
 
     @Serializable
-    data class DiarySettings(val vault: String) : FitLogRoute
+    data class DiarySettings(val vault: String, val vaultId: String? = null) : FitLogRoute
 
     @Serializable
     data object RecoveryCenter : FitLogRoute

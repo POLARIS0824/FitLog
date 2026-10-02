@@ -32,14 +32,15 @@ interface DiarySettingsStore {
     suspend fun save(vault: String, settings: DiarySettings)
 }
 
-class DiaryPreferences(private val store: DataStore<Preferences>) : DiarySettingsStore {
-    private fun key(vault: String) = stringPreferencesKey("diary_" + fingerprint(vault.toByteArray(Charsets.UTF_8)))
+internal fun diarySettingsKey(vault: String) = stringPreferencesKey("diary_" + fingerprint(vault.toByteArray(Charsets.UTF_8)))
 
-    override suspend fun read(vault: String): DiarySettings = store.data.first()[key(vault)]
+class DiaryPreferences(private val store: DataStore<Preferences>) : DiarySettingsStore {
+
+    override suspend fun read(vault: String): DiarySettings = store.data.first()[diarySettingsKey(vault)]
         ?.let { Json.decodeFromString<DiarySettings>(it) } ?: DiarySettings()
 
     override suspend fun save(vault: String, settings: DiarySettings) {
-        store.edit { it[key(vault)] = Json.encodeToString(settings) }
+        store.edit { it[diarySettingsKey(vault)] = Json.encodeToString(settings) }
     }
 }
 
@@ -58,8 +59,8 @@ class TodayLogResolver(
     private val directories: DiaryDirectories,
     private val documents: MarkdownDocuments,
 ) {
-    suspend fun resolve(vault: String, date: LocalDate): FitLogRoute.Editor {
-        val config = settings.read(vault)
+    suspend fun resolve(vault: String, date: LocalDate, vaultId: String = vault): FitLogRoute.Editor {
+        val config = settings.read(vaultId)
         val directory = directories.resolveDirectory(vault, config.directoryPath)
         val name = config.dateFormat.fileName(date)
         val existing = documents.find(directory, name)
@@ -68,6 +69,7 @@ class TodayLogResolver(
             vault = vault, document = existing?.uri, date = date.toString(),
             directory = directory, fileName = name,
             displayPath = (config.directoryPath + name).joinToString("/"),
+            vaultId = vaultId.takeIf { it != vault },
         )
     }
 }

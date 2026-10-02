@@ -225,7 +225,7 @@ class EditorViewModel(
             text.selection.start, text.selection.end, version, sourceFingerprint, bom,
             directory = route.directory, displayPath = displayPath,
             updatedAt = System.currentTimeMillis(), recoveryId = recoveryIdentity,
-            manualSave = manualSave)
+            manualSave = manualSave, vaultId = route.vaultId)
         drafts.save(snapshot)
         if (recoveryEntryId == null) document?.takeIf { it != target }?.let { drafts.save(snapshot.copy(target = it)) }
     }
@@ -266,7 +266,7 @@ class EditorViewModel(
                 val original = (if (before.bom) byteArrayOf(0xef.toByte(), 0xbb.toByte(), 0xbf.toByte()) else byteArrayOf()) + before.text.toByteArray(Charsets.UTF_8)
                 drafts.prepareBackup(EditorDraft(route.vault, uri, uri, name, before.text, 0, 0, version,
                     before.fingerprint, before.bom, directory = route.directory,
-                    displayPath = displayPath, updatedAt = System.currentTimeMillis()), original)
+                    displayPath = displayPath, updatedAt = System.currentTimeMillis(), vaultId = route.vaultId), original)
                 val result = documents.write(uri, value, bom, requireNotNull(sourceFingerprint))
                 baseline = value
                 sourceFingerprint = result.fingerprint
@@ -355,7 +355,7 @@ class EditorViewModel(
             val snapshot = EditorDraft(route.vault, "export:$id", document, name, text.text.toString(), 0, 0,
                 version, sourceFingerprint, bom, directory = route.directory,
                 displayPath = displayPath, updatedAt = System.currentTimeMillis(), recoveryId = id,
-                manualSave = true)
+                manualSave = true, vaultId = route.vaultId)
             drafts.save(snapshot)
             sessionState["exportId"] = "draft:${snapshot.identity()}"
             launch(name)
