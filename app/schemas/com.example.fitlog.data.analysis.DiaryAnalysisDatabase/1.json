@@ -1,0 +1,665 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "28434c24c1c2bd8c66477d3dcaf771a3",
+    "entities": [
+      {
+        "tableName": "parse_run",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `vaultId` TEXT NOT NULL, `relPath` TEXT NOT NULL, `contentHash` TEXT NOT NULL, `hashVersion` INTEGER NOT NULL, `extractorVersion` TEXT NOT NULL, `status` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `finishedAt` INTEGER, `failureCode` TEXT, `rawModelJson` TEXT, `candidateJson` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vaultId",
+            "columnName": "vaultId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relPath",
+            "columnName": "relPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contentHash",
+            "columnName": "contentHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hashVersion",
+            "columnName": "hashVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "extractorVersion",
+            "columnName": "extractorVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "startedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finishedAt",
+            "columnName": "finishedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "failureCode",
+            "columnName": "failureCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "rawModelJson",
+            "columnName": "rawModelJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "candidateJson",
+            "columnName": "candidateJson",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_parse_run_vaultId_relPath_contentHash_hashVersion_extractorVersion_status",
+            "unique": false,
+            "columnNames": [
+              "vaultId",
+              "relPath",
+              "contentHash",
+              "hashVersion",
+              "extractorVersion",
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_parse_run_vaultId_relPath_contentHash_hashVersion_extractorVersion_status` ON `${TABLE_NAME}` (`vaultId`, `relPath`, `contentHash`, `hashVersion`, `extractorVersion`, `status`)"
+          }
+        ]
+      },
+      {
+        "tableName": "confirmed_diary",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `vaultId` TEXT NOT NULL, `relPath` TEXT NOT NULL, `date` TEXT NOT NULL, `contentHash` TEXT NOT NULL, `hashVersion` INTEGER NOT NULL, `parseRunId` TEXT NOT NULL, `confirmedAt` INTEGER NOT NULL, `revision` INTEGER NOT NULL, `acceptedPartialResult` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`parseRunId`) REFERENCES `parse_run`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vaultId",
+            "columnName": "vaultId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relPath",
+            "columnName": "relPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contentHash",
+            "columnName": "contentHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hashVersion",
+            "columnName": "hashVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parseRunId",
+            "columnName": "parseRunId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confirmedAt",
+            "columnName": "confirmedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acceptedPartialResult",
+            "columnName": "acceptedPartialResult",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_confirmed_diary_vaultId_relPath",
+            "unique": true,
+            "columnNames": [
+              "vaultId",
+              "relPath"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_confirmed_diary_vaultId_relPath` ON `${TABLE_NAME}` (`vaultId`, `relPath`)"
+          },
+          {
+            "name": "index_confirmed_diary_parseRunId",
+            "unique": false,
+            "columnNames": [
+              "parseRunId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_confirmed_diary_parseRunId` ON `${TABLE_NAME}` (`parseRunId`)"
+          },
+          {
+            "name": "index_confirmed_diary_vaultId_date",
+            "unique": false,
+            "columnNames": [
+              "vaultId",
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_confirmed_diary_vaultId_date` ON `${TABLE_NAME}` (`vaultId`, `date`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "parse_run",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "parseRunId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "confirmed_session",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `diaryId` TEXT NOT NULL, `position` INTEGER NOT NULL, `notes` TEXT, `sourcePath` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`diaryId`) REFERENCES `confirmed_diary`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "diaryId",
+            "columnName": "diaryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourcePath",
+            "columnName": "sourcePath",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_confirmed_session_diaryId_position",
+            "unique": true,
+            "columnNames": [
+              "diaryId",
+              "position"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_confirmed_session_diaryId_position` ON `${TABLE_NAME}` (`diaryId`, `position`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "confirmed_diary",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "diaryId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "confirmed_exercise",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `sessionId` TEXT NOT NULL, `position` INTEGER NOT NULL, `rawName` TEXT NOT NULL, `notes` TEXT, `sourcePath` TEXT, `evidence_segmentId` TEXT, `evidence_quote` TEXT, `evidence_normalizedStart` INTEGER, `evidence_normalizedEndExclusive` INTEGER, PRIMARY KEY(`id`), FOREIGN KEY(`sessionId`) REFERENCES `confirmed_session`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rawName",
+            "columnName": "rawName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourcePath",
+            "columnName": "sourcePath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "evidence.segmentId",
+            "columnName": "evidence_segmentId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "evidence.quote",
+            "columnName": "evidence_quote",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "evidence.normalizedStart",
+            "columnName": "evidence_normalizedStart",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "evidence.normalizedEndExclusive",
+            "columnName": "evidence_normalizedEndExclusive",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_confirmed_exercise_sessionId_position",
+            "unique": true,
+            "columnNames": [
+              "sessionId",
+              "position"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_confirmed_exercise_sessionId_position` ON `${TABLE_NAME}` (`sessionId`, `position`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "confirmed_session",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "confirmed_set",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `exerciseId` TEXT NOT NULL, `position` INTEGER NOT NULL, `weight` REAL, `unit` TEXT, `basis` TEXT, `reps` INTEGER, `weightKg` REAL, `groupIndex` INTEGER, `setInGroup` INTEGER, `countOrigin` TEXT, `weight_origin` TEXT, `weight_inferred` INTEGER NOT NULL, `weight_inheritedFromGroup` INTEGER, `weight_userEdited` INTEGER NOT NULL, `unit_origin` TEXT, `unit_inferred` INTEGER NOT NULL, `unit_inheritedFromGroup` INTEGER, `unit_userEdited` INTEGER NOT NULL, `basis_origin` TEXT, `basis_inferred` INTEGER NOT NULL, `basis_inheritedFromGroup` INTEGER, `basis_userEdited` INTEGER NOT NULL, `reps_origin` TEXT, `reps_inferred` INTEGER NOT NULL, `reps_inheritedFromGroup` INTEGER, `reps_userEdited` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`exerciseId`) REFERENCES `confirmed_exercise`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exerciseId",
+            "columnName": "exerciseId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weight",
+            "columnName": "weight",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "unit",
+            "columnName": "unit",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "basis",
+            "columnName": "basis",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reps",
+            "columnName": "reps",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "weightKg",
+            "columnName": "weightKg",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "groupIndex",
+            "columnName": "groupIndex",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "setInGroup",
+            "columnName": "setInGroup",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "countOrigin",
+            "columnName": "countOrigin",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "weightProvenance.origin",
+            "columnName": "weight_origin",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "weightProvenance.inferred",
+            "columnName": "weight_inferred",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weightProvenance.inheritedFromGroup",
+            "columnName": "weight_inheritedFromGroup",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "weightProvenance.userEdited",
+            "columnName": "weight_userEdited",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unitProvenance.origin",
+            "columnName": "unit_origin",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "unitProvenance.inferred",
+            "columnName": "unit_inferred",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unitProvenance.inheritedFromGroup",
+            "columnName": "unit_inheritedFromGroup",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "unitProvenance.userEdited",
+            "columnName": "unit_userEdited",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "basisProvenance.origin",
+            "columnName": "basis_origin",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "basisProvenance.inferred",
+            "columnName": "basis_inferred",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "basisProvenance.inheritedFromGroup",
+            "columnName": "basis_inheritedFromGroup",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "basisProvenance.userEdited",
+            "columnName": "basis_userEdited",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repsProvenance.origin",
+            "columnName": "reps_origin",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "repsProvenance.inferred",
+            "columnName": "reps_inferred",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repsProvenance.inheritedFromGroup",
+            "columnName": "reps_inheritedFromGroup",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "repsProvenance.userEdited",
+            "columnName": "reps_userEdited",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_confirmed_set_exerciseId_position",
+            "unique": true,
+            "columnNames": [
+              "exerciseId",
+              "position"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_confirmed_set_exerciseId_position` ON `${TABLE_NAME}` (`exerciseId`, `position`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "confirmed_exercise",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "exerciseId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "confirmation_snapshot",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `vaultId` TEXT NOT NULL, `relPath` TEXT NOT NULL, `revision` INTEGER NOT NULL, `confirmedAt` INTEGER NOT NULL, `archivedAt` INTEGER NOT NULL, `parseRunId` TEXT NOT NULL, `formatVersion` INTEGER NOT NULL, `snapshotJson` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`parseRunId`) REFERENCES `parse_run`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vaultId",
+            "columnName": "vaultId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relPath",
+            "columnName": "relPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confirmedAt",
+            "columnName": "confirmedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "archivedAt",
+            "columnName": "archivedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parseRunId",
+            "columnName": "parseRunId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "formatVersion",
+            "columnName": "formatVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "snapshotJson",
+            "columnName": "snapshotJson",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_confirmation_snapshot_vaultId_relPath_revision",
+            "unique": true,
+            "columnNames": [
+              "vaultId",
+              "relPath",
+              "revision"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_confirmation_snapshot_vaultId_relPath_revision` ON `${TABLE_NAME}` (`vaultId`, `relPath`, `revision`)"
+          },
+          {
+            "name": "index_confirmation_snapshot_parseRunId",
+            "unique": false,
+            "columnNames": [
+              "parseRunId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_confirmation_snapshot_parseRunId` ON `${TABLE_NAME}` (`parseRunId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "parse_run",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "parseRunId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '28434c24c1c2bd8c66477d3dcaf771a3')"
+    ]
+  }
+}

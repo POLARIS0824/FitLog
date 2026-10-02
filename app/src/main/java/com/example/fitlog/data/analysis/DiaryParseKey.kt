@@ -1,6 +1,9 @@
 package com.example.fitlog.data.analysis
 
+import kotlinx.serialization.Serializable
+
 /** Whole-file candidate reuse identity. Only successful extraction may be reused under this key. */
+@Serializable
 data class DiaryParseKey(
     val sourceKey: SourceKey,
     val contentHash: String,

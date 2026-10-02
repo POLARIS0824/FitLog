@@ -54,8 +54,10 @@ enum class WeightBasis { UNKNOWN, PER_SIDE, TOTAL, BODYWEIGHT, ADDED, ASSISTED }
 @Serializable
 data class CandidateIssue(val path: String, val question: String)
 
+@Serializable
 enum class IssueSeverity { REVIEW, ERROR }
 
+@Serializable
 enum class ValidationCode {
     INVALID_FIELD,
     UNKNOWN_SEGMENT, EVIDENCE_NOT_FOUND, AMBIGUOUS_EVIDENCE, EMPTY_NAME,
@@ -66,10 +68,13 @@ enum class ValidationCode {
 }
 
 /** UI can translate codes using resources; diagnostics never contain fixed UI wording. */
+@Serializable
 data class ValidationIssue(val path: String, val code: ValidationCode, val severity: IssueSeverity)
 
+@Serializable
 enum class CandidateOrigin { EXPLICIT, INHERITED, INFERRED, MISSING }
 
+@Serializable
 data class CandidateValue<T>(
     val value: T?,
     val origin: CandidateOrigin,
@@ -79,6 +84,7 @@ data class CandidateValue<T>(
 )
 
 /** UTF-16 range in normalized input, start inclusive/end exclusive; null when ambiguous. */
+@Serializable
 data class LocatedEvidence(
     val segmentId: String,
     val quote: String,
@@ -86,6 +92,7 @@ data class LocatedEvidence(
     val normalizedEndExclusive: Int?,
 )
 
+@Serializable
 data class ExpandedSet(
     val groupIndex: Int,
     val setInGroup: Int,
@@ -98,6 +105,7 @@ data class ExpandedSet(
     val weightKg: Double?,
 )
 
+@Serializable
 data class ValidatedExercise(
     val path: String,
     val candidate: ExerciseCandidate,
@@ -105,14 +113,17 @@ data class ValidatedExercise(
     val sets: List<ExpandedSet>,
 )
 
+@Serializable
 data class ValidatedSession(
     val path: String,
     /** Model-reported candidate only; authoritative diary date is resolved separately. */
+    @Serializable(with = LocalDateSerializer::class)
     val date: java.time.LocalDate?,
     val notes: String?,
     val exercises: List<ValidatedExercise>,
 )
 
+@Serializable
 data class DiaryAnalysis(
     val parseKey: DiaryParseKey,
     val sessions: List<ValidatedSession>,

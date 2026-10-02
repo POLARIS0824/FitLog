@@ -16,14 +16,19 @@ internal sealed interface DiaryModelResponse {
 }
 
 /** In a single module this package boundary is a convention, not compiler-enforced isolation. */
-internal class JsonDiaryParser(private val source: DiaryModelSource) : DiaryParser {
-    override suspend fun parse(input: DiaryParseInput): DiaryParseResult = when (val response = source.request(input.text)) {
-        is DiaryModelResponse.Failure -> DiaryParseResult.Failure(response.reason)
-        is DiaryModelResponse.Json -> when (val decoded = DiaryCandidateCodec.decode(response.text)) {
-            is DecodedDiaryResult.Failure -> DiaryParseResult.Failure(decoded.reason)
-            is DecodedDiaryResult.Success -> DiaryParseResult.Success(
-                DiaryCandidateValidator().validate(input, decoded.diary),
-            )
+internal class JsonDiaryParser(private val source: DiaryModelSource) : DiaryParser, RecordingDiaryParser {
+    override suspend fun parse(input: DiaryParseInput): DiaryParseResult = execute(input).result
+
+    override suspend fun execute(input: DiaryParseInput): DiaryParseExecution = when (val response = source.request(input.text)) {
+        is DiaryModelResponse.Failure -> DiaryParseExecution(DiaryParseResult.Failure(response.reason))
+        is DiaryModelResponse.Json -> {
+            val result = when (val decoded = DiaryCandidateCodec.decode(response.text)) {
+                is DecodedDiaryResult.Failure -> DiaryParseResult.Failure(decoded.reason)
+                is DecodedDiaryResult.Success -> DiaryParseResult.Success(
+                    DiaryCandidateValidator().validate(input, decoded.diary),
+                )
+            }
+            DiaryParseExecution(result, response.text)
         }
     }
 }

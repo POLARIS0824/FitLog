@@ -1,13 +1,13 @@
 # 整篇日记提取契约
 
-解析层提供来源身份、内容版本、类型化提取结果、适配器内部 JSON 解码、证据校验和逐组展开。尚未接入真实模型、网络、分析数据库、任务调度、候选缓存或确认界面。资料库 UUID 已由 VaultPreferences 持久化，文件索引也使用该身份。测试模型源只返回预先写好的 JSON 或失败类型，不证明自然语言提取质量。
+解析层提供来源身份、内容版本、类型化提取结果、适配器内部 JSON 解码、证据校验和逐组展开。分析数据库、串行执行器、候选复用和确认事务已实现，见 [日记分析数据库](diary-analysis-database.md)。真实模型、网络和确认界面尚未接入。资料库 UUID 已由 VaultPreferences 持久化，文件索引也使用该身份。测试模型源只返回预先写好的 JSON 或失败类型，不证明自然语言提取质量。
 
 ## 业务接口与成功、失败
 
 ```kotlin
 val input = DiaryParseInput.fromSnapshot(
     sourceKey = SourceKey(vaultId, "daily/2026-09-30.md"),
-    rawText = snapshot.text,
+    snapshot = snapshot,
     extractorVersion = "extractor-v1",
 )
 when (val result = parser.parse(input)) {
@@ -17,7 +17,7 @@ when (val result = parser.parse(input)) {
     }
     is DiaryParseResult.Failure -> {
         val reason = result.reason
-        // 明确失败，不作为空训练缓存；重试由后续协调器安排。
+        // 明确失败，不作为空训练缓存；仅在主动重试时再发起请求。
     }
 }
 ```
@@ -29,7 +29,7 @@ when (val result = parser.parse(input)) {
 - 只有 `Success` 可以进入后续候选复用。`Failure` 不得进入复用，不代表没有训练。合法空训练是成功，但只表示未提取到训练，不表示休息日；有局部错误时更不能据此断言没有训练。
 - 预期请求失败由模型适配器明确报告。`CancellationException` 原样抛出；请求超时须由适配器明确识别，不能把协程取消吞掉后当作超时。编程异常不兜底转换为空结果。
 
-JSON 获取、解码与校验放在 `analysis.adapter` 包。原始 JSON 仅在适配器处理期间存在，不持久化、不穿过业务层；`DiaryAnalysis` 不含 rawJson。未知 JSON 字段忽略，不提供原始 JSON 的回放或检查入口。测试 JSON 文件是适配器样例，不是运行时存储。
+JSON 获取、解码与校验放在 `analysis.adapter` 包。`DiaryParser` 仍只返回类型化结果，`DiaryAnalysis` 不含 rawJson。适配器另外实现内部 `RecordingDiaryParser.execute`，以 `DiaryParseExecution` 向持久化层提供类型化结果和未经改写的原始响应；收到响应但解码失败时也保留原始响应。分析库分别保存原始响应与已校验候选，未知模型字段仍不参与业务解析。当前不提供跨版本回放入口。
 
 当前 app 只有一个模块，因此 `internal` 并不能阻止同模块业务代码调用适配器；业务层只依赖类型化入口属于项目约定，未来拆模块后才能由编译器强制。
 
@@ -46,7 +46,7 @@ relPath 使用实际文件名构成的根相对路径：
 
 `DiaryParseKey(sourceKey, contentHash, hashVersion, extractorVersion)` 是整篇文件候选的复用身份。输入及成功结果携带同一个键。来源、内容或任一版本变化都会改变键。失败结果不能用这个键占据成功候选缓存。
 
-extractorVersion 由调用方提供，覆盖模型配置、提示词、模型输出契约和本地后处理规则，包括重量沿用、日期和证据匹配规则。任一变化都必须更新版本。旧候选因此失效；由于不存原始 JSON，将来可能需重新调用模型。候选属于可丢弃草稿，版本变化不得自动清除用户确认的修正。
+extractorVersion 由调用方提供，覆盖模型配置、提示词、模型输出契约和本地后处理规则，包括重量沿用、日期和证据匹配规则。任一变化都必须更新版本。旧候选因此失效；保存原始响应并不允许跨提取器版本自动复用。未来重新校验还需要匹配的原文内容版本。候选属于可重算草稿，版本变化不得自动清除用户确认的修正；当前及历史确认引用的解析记录必须保留。
 
 模型输出的 schemaVersion 与未来候选存储格式版本独立。本次仅有模型 schema v1，不引入存储格式或缓存实现。
 
@@ -104,7 +104,7 @@ inferredFields 标识 weight、unit、basis、reps、count 等推断字段；未
 
 出现多个不同的有效非空候选日期时，相关日期报告 `DATE_CONFLICT / REVIEW`。保留场次供核对，不把它们当作已确定的多日训练，也不自动选择第一个日期或拆分日记。
 
-本次仅检测模型报告日期之间的冲突，尚不检测单个日期与文件名不符。最终日记日期和文件名优先流程属于后续提交，须在确认和分析使用日期前落实。
+解析器仅检测模型报告日期之间的冲突。审阅入口使用 `suggestDiaryDate` 严格识别三种现有文件名日期格式，并检测模型日期与文件名的冲突。确认请求必须明确携带最终日记日期，不补今天；所有确认场次归属于该日期。审阅 UI 后续接入。
 
 ## 证据匹配与偏移
 
@@ -134,4 +134,4 @@ inferredFields 标识 weight、unit、basis、reps、count 等推断字段；未
 
 测试覆盖顶层失败与合法空成功、预期请求失败和取消传播、局部隔离、来源及版本、单次归一化、严格日期和跨日冲突、重复摘录、多行换行及 UTF-16 偏移、重量沿用和逐组展开。
 
-user-sample.md 是用户提供的摘录，预期 JSON 是手写候选；constructed-boundaries.md 是跨日冲突构造样例，不是有效多日日记。测试不验证真实模型质量、真实网络、SAF provider、候选缓存、确认事务或分析数据库。
+user-sample.md 是用户提供的摘录，预期 JSON 是手写候选；constructed-boundaries.md 是跨日冲突构造样例，不是有效多日日记。分析库测试另覆盖候选复用、串行执行、确认事务及磁盘重开持久化。测试不验证真实模型质量、真实网络、真实 SAF provider 或尚未接入的审阅 UI。

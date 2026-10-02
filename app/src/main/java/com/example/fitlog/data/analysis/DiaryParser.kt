@@ -1,6 +1,7 @@
 package com.example.fitlog.data.analysis
 
 import com.example.fitlog.data.hash.ContentTextSnapshot
+import com.example.fitlog.data.vault.MarkdownSnapshot
 
 /** Business code consumes typed outcomes; only Success is eligible for candidate reuse. */
 fun interface DiaryParser {
@@ -14,6 +15,17 @@ class DiaryParseInput private constructor(
 ) {
     companion object {
         const val SEGMENT_ID = "diary"
+
+        /** The document reader has already removed the file BOM; restore it before normalization. */
+        fun fromSnapshot(
+            sourceKey: SourceKey,
+            snapshot: MarkdownSnapshot,
+            extractorVersion: String,
+        ): DiaryParseInput = fromSnapshot(
+            sourceKey,
+            (if (snapshot.bom) "\uFEFF" else "") + snapshot.text,
+            extractorVersion,
+        )
 
         fun fromSnapshot(
             sourceKey: SourceKey,

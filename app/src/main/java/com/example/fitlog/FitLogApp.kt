@@ -38,6 +38,8 @@ import com.example.fitlog.data.vault.VaultRepository
 import com.example.fitlog.data.vault.MarkdownDocumentRepository
 import com.example.fitlog.data.vault.TodayLogResolver
 import com.example.fitlog.data.index.SourceIndexRepository
+import com.example.fitlog.data.analysis.DiaryAnalysisRepository
+import com.example.fitlog.data.analysis.DiaryAnalysisStorageException
 import com.example.fitlog.navigation.FitLogNavGraph
 import com.example.fitlog.navigation.FitLogRoute
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
@@ -59,6 +61,14 @@ fun FitLogApp() {
     val documents = remember { MarkdownDocumentRepository(context) }
     val todayLog = remember { TodayLogResolver(vaultPreferences.diary, documents, documents) }
     val sourceIndex = remember { SourceIndexRepository.get(context) }
+    val diaryAnalysis = remember { DiaryAnalysisRepository.get(context) }
+    LaunchedEffect(diaryAnalysis) {
+        try {
+            diaryAnalysis.initialize()
+        } catch (_: DiaryAnalysisStorageException) {
+            // Failure remains observable through storageState; diary access must stay available.
+        }
+    }
 
     // 当前导航历史
     val backStack = rememberNavBackStack(FitLogRoute.Today)
