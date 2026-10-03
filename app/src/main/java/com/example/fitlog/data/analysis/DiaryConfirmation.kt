@@ -6,7 +6,12 @@ import java.time.format.ResolverStyle
 import java.util.Locale
 import kotlinx.serialization.Serializable
 
-/** Original extraction provenance, separate from the final user-reviewed value. */
+/**
+ * Original extraction provenance, separate from the final user-reviewed value.
+ *
+ * 包含 ReviewedSession / Exercise / Set、字段 provenance、DiaryConfirmation、
+ * 日期建议、revision 冲突和 freshness 判断，是 Candidate → Confirmed data 之间的业务契约
+ */
 @Serializable
 data class FieldProvenance(
     val origin: CandidateOrigin? = null,

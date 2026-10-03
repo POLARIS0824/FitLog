@@ -46,9 +46,14 @@ import com.example.fitlog.navigation.FitLogRoute
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
 import com.example.fitlog.vault.VaultFlowController
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * 负责整个 App 的 UI 框架
+ *
+ * 创建 VaultPreferences、VaultRepository、MarkdownDocumentRepository、SourceIndexRepository、DiaryAnalysisRepository 等全局对象，
+ *
+ * 维护 Navigation3 back stack、VaultFlowController、索引刷新生命周期，并放置 Scaffold、NavGraph 和底部浮动导航
  */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
@@ -107,7 +112,7 @@ fun FitLogApp() {
         if (currentRoute == FitLogRoute.Log && currentVault != null) {
             processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 while (true) {
-                    delay(SourceIndexRepository.VISIBLE_INTERVAL)
+                    delay(SourceIndexRepository.VISIBLE_INTERVAL.milliseconds)
                     sourceIndex.ensureFresh(currentVault, SourceIndexRepository.Reason.VisiblePeriodic)
                 }
             }

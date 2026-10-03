@@ -39,6 +39,9 @@ import com.example.fitlog.editor.RecoveryScreen
 import com.example.fitlog.vault.VaultManagementViewModel
 import com.example.fitlog.vault.VaultManagementScreen
 
+/**
+ * Navigation3 的核心路由表，entry<Route> 中决定该 Route 显示哪个 Screen、ViewModel 如何创建、点击后去哪里，同时注册编辑器等页面的返回拦截
+ */
 @Composable
 fun FitLogNavGraph(
     backStack: NavBackStack<NavKey>,

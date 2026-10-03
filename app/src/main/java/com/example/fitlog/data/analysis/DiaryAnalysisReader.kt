@@ -2,7 +2,12 @@ package com.example.fitlog.data.analysis
 
 import kotlinx.coroutines.flow.Flow
 
-/** Read-only business boundary. Opening a diary never starts extraction. */
+/**
+ * Read-only business boundary. Opening a diary never starts extraction.
+ *
+ * 只暴露 observeParses 和 observeConfirmed，同时定义 DiaryParseRecords、StoredDiaryCandidate、freshness 等读取模型，
+ * 让 DiaryDetail 不需要拿到整个可写 Repository
+ */
 interface DiaryAnalysisReader {
     fun observeParses(sourceKey: SourceKey): Flow<DiaryParseRecords>
     fun observeConfirmed(sourceKey: SourceKey): Flow<ConfirmedDiaryRecord?>

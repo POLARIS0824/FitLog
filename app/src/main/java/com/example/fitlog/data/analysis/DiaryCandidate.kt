@@ -4,7 +4,11 @@ import kotlinx.serialization.Serializable
 
 const val DIARY_SCHEMA_VERSION = 1
 
-/** All values are candidates, even when a model claims that they are explicit. */
+/**
+ * All values are candidates, even when a model claims that they are explicit.
+ *
+ * AI 提取出来的候选训练数据模型
+ */
 @Serializable
 data class DiaryCandidate(
     val schemaVersion: Int,

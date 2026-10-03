@@ -17,6 +17,7 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.security.MessageDigest
+import androidx.core.net.toUri
 
 data class MarkdownFile(val uri: String, val name: String, val path: String, val writable: Boolean,
     val directory: String? = null, val lastModified: Long? = null, val size: Long? = null)
@@ -41,7 +42,7 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments, DiaryDir
     private companion object { val writes = Mutex() }
 
     private fun root(vault: String): Uri {
-        val tree = Uri.parse(vault)
+        val tree = vault.toUri()
         val id = try { DocumentsContract.getDocumentId(tree) }
             catch (_: IllegalArgumentException) { DocumentsContract.getTreeDocumentId(tree) }
         return DocumentsContract.buildDocumentUriUsingTree(tree, id)

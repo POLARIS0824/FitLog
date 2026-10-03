@@ -15,7 +15,12 @@ internal sealed interface DiaryModelResponse {
     data class Failure(val reason: DiaryParseFailure) : DiaryModelResponse
 }
 
-/** In a single module this package boundary is a convention, not compiler-enforced isolation. */
+/**
+ * In a single module this package boundary is a convention, not compiler-enforced isolation.
+ *
+ * 请求 DiaryModelSource，收到 JSON 后交给 DiaryCandidateCodec，
+ * 再交给 DiaryCandidateValidator，最终返回 DiaryParseResult，同时保留原始响应供持久化
+ */
 internal class JsonDiaryParser(private val source: DiaryModelSource) : DiaryParser, RecordingDiaryParser {
     override suspend fun parse(input: DiaryParseInput): DiaryParseResult = execute(input).result
 

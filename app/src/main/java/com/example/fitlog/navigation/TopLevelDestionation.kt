@@ -4,7 +4,9 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.example.fitlog.R
 
-// FitLog 有哪些顶级页面，以及这些页面在导航 UI 中怎么显示
+/**
+ * 把 route、文字资源、选中图标、未选中图标绑在一起，topLevelDestinations 就是底部主导航的三个入口
+ */
 data class TopLevelDestination(
     val route: FitLogRoute,
     @get:StringRes val labelRes: Int,

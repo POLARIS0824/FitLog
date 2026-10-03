@@ -19,7 +19,11 @@ import com.example.fitlog.data.hash.normalizeLineEndings
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
-/** Validates candidates only. It never saves, confirms, or reads a different source snapshot. */
+/**
+ * Validates candidates only. It never saves, confirms, or reads a different source snapshot.
+ *
+ * 检查候选结果是否和原输入、位置证据、重量次数等规则一致，并产生业务可接受的 DiaryAnalysis 与 issues
+ */
 internal class DiaryCandidateValidator {
     fun validate(input: DiaryParseInput, decoded: DecodedDiary): DiaryAnalysis {
         val issues = decoded.issues.toMutableList()

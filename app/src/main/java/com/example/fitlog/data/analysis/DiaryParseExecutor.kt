@@ -7,7 +7,12 @@ import kotlinx.coroutines.channels.Channel
 
 data class StoredDiaryParse(val parseRunId: String, val result: DiaryParseResult, val reused: Boolean)
 
-/** One consumer owns attempts; cancelling an individual waiter does not cancel shared application work. */
+/**
+ * One consumer owns attempts; cancelling an individual waiter does not cancel shared application work.
+ *
+ * 对相同 DiaryParseKey 去重、复用已有 SUCCEEDED 结果、串行消费请求、
+ * 维护 RUNNING / SUCCEEDED / FAILED / INTERRUPTED，并确保取消和持久化失败被正确处理
+ */
 internal class DiaryParseExecutor(
     private val repository: DiaryAnalysisRepository,
     private val parser: RecordingDiaryParser,

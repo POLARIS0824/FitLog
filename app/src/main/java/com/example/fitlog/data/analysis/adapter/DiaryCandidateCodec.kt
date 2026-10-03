@@ -46,7 +46,11 @@ internal data class DecodedExercise(
     val groups: List<SetGroupCandidate?>,
 )
 
-/** Decode each session, exercise and group separately so a bad sibling cannot erase good data. */
+/**
+ * Decode each session, exercise and group separately so a bad sibling cannot erase good data.
+ *
+ * 处理外部 JSON 格式，属于模型边界适配层，不直接负责 Room 内部 JSON 持久化
+ */
 internal object DiaryCandidateCodec {
     fun decode(rawJson: String): DecodedDiaryResult {
         val parsed = try {

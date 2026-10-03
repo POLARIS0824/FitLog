@@ -17,9 +17,7 @@ data class VaultFolderInfo(
 )
 
 /**
- * Vault 文件与目录操作的统一入口仓库。
- *
- * 当前仅提供目录访问性校验，为后续读取与创建 Markdown 保留扩展点，不提前引入未使用的逻辑。
+ * Vault 文件与目录操作的统一入口 Repository
  */
 class VaultRepository(
     private val safAccessor: SafDirectoryAccessor,

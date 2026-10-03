@@ -5,6 +5,8 @@ import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable
 
+// 定义 parse_run、confirmed_diary、confirmed_session、confirmed_exercise、confirmed_set、confirmation_snapshot，以及对应查询和事务所需 DAO
+
 enum class ParseRunStatus { RUNNING, SUCCEEDED, FAILED, INTERRUPTED }
 
 @Entity(tableName = "parse_run", indices = [Index(value = ["vaultId", "relPath", "contentHash", "hashVersion", "extractorVersion", "status"])])

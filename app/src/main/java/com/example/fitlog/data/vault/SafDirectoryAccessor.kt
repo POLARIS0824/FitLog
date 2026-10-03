@@ -26,7 +26,9 @@ interface SafDirectoryAccessor {
 }
 
 /**
- * 基于 Android DocumentsContract 和 ContentResolver 的标准实现。
+ * 基于 Android DocumentsContract 和 ContentResolver 的标准实现
+ *
+ * 负责解析目录、枚举子目录以及与 Document URI 交互，是 DiarySettings 等上层逻辑访问目录树时使用的低层适配器
  */
 class AndroidSafDirectoryAccessor(
     private val context: Context,
