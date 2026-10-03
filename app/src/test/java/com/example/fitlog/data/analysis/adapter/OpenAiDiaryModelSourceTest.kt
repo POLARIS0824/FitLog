@@ -231,6 +231,17 @@ class OpenAiDiaryModelSourceTest {
         }
     }
 
+    @Test fun refusalTextIsRetainedWhenContentIsMissing() = runTest {
+        val refusal = "  Cannot comply\n"
+        createAiHttpClient(MockEngine {
+            respond(completion(null, refusal = refusal), HttpStatusCode.OK, jsonHeaders)
+        }).use { client ->
+            val execution = JsonDiaryParser(source(client)).execute(input("diary"))
+            assertEquals(DiaryParseResult.Failure(DiaryParseFailure.MODEL_REFUSAL), execution.result)
+            assertEquals(refusal, execution.rawModelJson)
+        }
+    }
+
     @Test fun neverTreatsUnfinishedOrToolAnswersAsCompletedExtractions() = runTest {
         listOf(null, "tool_calls", "function_call", "unknown").forEach { finishReason ->
             createAiHttpClient(MockEngine {

@@ -94,7 +94,7 @@ internal class OpenAiDiaryModelSource(
             ?: return failure(DiaryParseFailure.INVALID_RESPONSE)
         val message = choice.message ?: return failure(DiaryParseFailure.INVALID_RESPONSE)
         if (!message.refusal.isNullOrBlank() || choice.finishReason == "content_filter") {
-            return failure(DiaryParseFailure.MODEL_REFUSAL, message.content)
+            return failure(DiaryParseFailure.MODEL_REFUSAL, message.content ?: message.refusal)
         }
         if (choice.finishReason == "length") {
             return failure(DiaryParseFailure.TRUNCATED_RESPONSE, message.content)
