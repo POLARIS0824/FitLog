@@ -78,6 +78,10 @@ dependencies {
     implementation(libs.androidx.runtime)
     implementation(libs.androidx.ui)
 
+    // AI transport: Ktor handles HTTP; the existing JSON library handles the wire format.
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.okhttp)
+
     // Serialization
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.navigation3.runtime)
@@ -87,6 +91,7 @@ dependencies {
 
     // Test
     testImplementation(libs.junit)
+    testImplementation(libs.ktor.client.mock)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
 

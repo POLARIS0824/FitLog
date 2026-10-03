@@ -258,10 +258,17 @@ private fun originLabel(origin: CandidateOrigin?) = when (origin) {
 }
 
 private fun failureLabel(attempt: DiaryParseAttempt) = when (attempt.failureCode) {
-    "MALFORMED_JSON", "INVALID_TOP_LEVEL", "UNSUPPORTED_SCHEMA" -> R.string.detail_failure_response
+    "MALFORMED_JSON", "INVALID_TOP_LEVEL", "UNSUPPORTED_SCHEMA", "INVALID_RESPONSE" -> R.string.detail_failure_response
     "MODEL_REFUSAL" -> R.string.detail_failure_refusal
     "TIMEOUT" -> R.string.detail_failure_timeout
     "NETWORK_ERROR" -> R.string.detail_failure_network
+    "AUTHENTICATION_ERROR" -> R.string.detail_failure_authentication
+    "PERMISSION_DENIED" -> R.string.detail_failure_permission
+    "RATE_LIMITED" -> R.string.detail_failure_rate_limit
+    "REQUEST_REJECTED" -> R.string.detail_failure_request
+    "SERVICE_UNAVAILABLE" -> R.string.detail_failure_service
+    "EMPTY_RESPONSE" -> R.string.detail_failure_empty
+    "TRUNCATED_RESPONSE" -> R.string.detail_failure_truncated
     "PROCESS_INTERRUPTED" -> R.string.detail_failure_process
     else -> if (attempt.status == ParseRunStatus.INTERRUPTED) R.string.detail_parse_interrupted else R.string.detail_parse_failed
 }

@@ -88,4 +88,11 @@
     <string name="detail_issue_count_missing">Set count was not recorded.</string>
     <string name="detail_issue_inferred">An inferred value needs review.</string>
     <string name="detail_issue_unknown">An extracted value needs clarification.</string>
+    <string name="detail_failure_authentication">The API key was rejected. Check AI settings.</string>
+    <string name="detail_failure_permission">The provider denied access to this model.</string>
+    <string name="detail_failure_rate_limit">The provider rate limit or quota was reached. Check your account before retrying.</string>
+    <string name="detail_failure_request">The provider rejected the request. Check the address, model and JSON mode in AI settings.</string>
+    <string name="detail_failure_service">The AI provider is temporarily unavailable.</string>
+    <string name="detail_failure_empty">The model returned no answer.</string>
+    <string name="detail_failure_truncated">The model answer was cut off. No candidate was accepted.</string>
 </resources>

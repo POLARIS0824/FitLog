@@ -88,4 +88,11 @@
     <string name="detail_issue_count_missing">组数未记录。</string>
     <string name="detail_issue_inferred">推断值需要核对。</string>
     <string name="detail_issue_unknown">提取值需要澄清。</string>
+    <string name="detail_failure_authentication">API Key 被拒绝，请检查 AI 设置。</string>
+    <string name="detail_failure_permission">接入商未允许访问此模型。</string>
+    <string name="detail_failure_rate_limit">接入商的请求频率或额度受限，请检查账户后重试。</string>
+    <string name="detail_failure_request">接入商拒绝了请求，请检查 AI 设置中的地址、模型和 JSON 模式。</string>
+    <string name="detail_failure_service">AI 接入商暂时不可用。</string>
+    <string name="detail_failure_empty">模型未返回回答。</string>
+    <string name="detail_failure_truncated">模型回答被截断，本次未接受任何候选结果。</string>
 </resources>

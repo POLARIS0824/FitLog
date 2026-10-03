@@ -12,7 +12,8 @@ internal fun interface DiaryModelSource {
 
 internal sealed interface DiaryModelResponse {
     data class Json(val text: String) : DiaryModelResponse
-    data class Failure(val reason: DiaryParseFailure) : DiaryModelResponse
+    /** Only model answer text may be retained, never an HTTP error body or credentials. */
+    data class Failure(val reason: DiaryParseFailure, val rawText: String? = null) : DiaryModelResponse
 }
 
 /**
@@ -25,7 +26,9 @@ internal class JsonDiaryParser(private val source: DiaryModelSource) : DiaryPars
     override suspend fun parse(input: DiaryParseInput): DiaryParseResult = execute(input).result
 
     override suspend fun execute(input: DiaryParseInput): DiaryParseExecution = when (val response = source.request(input.text)) {
-        is DiaryModelResponse.Failure -> DiaryParseExecution(DiaryParseResult.Failure(response.reason))
+        is DiaryModelResponse.Failure -> DiaryParseExecution(
+            DiaryParseResult.Failure(response.reason), response.rawText,
+        )
         is DiaryModelResponse.Json -> {
             val result = when (val decoded = DiaryCandidateCodec.decode(response.text)) {
                 is DecodedDiaryResult.Failure -> DiaryParseResult.Failure(decoded.reason)

@@ -16,6 +16,7 @@ hilt = "2.59.2"
 hiltNavigationCompose = "1.2.0"
 ksp = "2.3.7"
 coroutines = "1.10.2"
+ktor = "3.4.3"
 datastore = "1.2.1"
 retrofit = "3.0.0"
 okhttpBom = "5.3.2"
@@ -34,6 +35,9 @@ foundationLayout = "1.12.1"
 
 
 [libraries]
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle" }
 androidx-concurrent-futures = { module = "androidx.concurrent:concurrent-futures", version = "1.2.0" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
