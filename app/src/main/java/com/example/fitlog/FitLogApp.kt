@@ -1,5 +1,6 @@
 package com.example.fitlog
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -49,6 +50,7 @@ import kotlinx.coroutines.launch
 /**
  * 负责整个 App 的 UI 框架
  */
+@SuppressLint("LocalContextGetResourceValueCall")
 @Composable
 fun FitLogApp() {
 
@@ -129,6 +131,7 @@ fun FitLogApp() {
                 vaultPreferences = vaultPreferences,
                 vaultRepository = vaultRepository,
                 sourceIndex = sourceIndex,
+                analysisRepository = diaryAnalysis,
                 onSetupCompleted = vaultFlow::onSetupCompleted,
                 onOpenRoute = vaultFlow::openRoute,
                 onBack = vaultFlow::back,

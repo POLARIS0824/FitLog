@@ -30,6 +30,9 @@ import com.example.fitlog.vault.VaultSetupRoute
 import com.example.fitlog.vault.DiarySettingsScreen
 import com.example.fitlog.vault.DiarySettingsViewModel
 import com.example.fitlog.data.index.SourceIndexRepository
+import com.example.fitlog.data.analysis.DiaryAnalysisRepository
+import com.example.fitlog.diary.DiaryDetailScreen
+import com.example.fitlog.diary.DiaryDetailViewModel
 import com.example.fitlog.data.vault.VaultConfigState
 import com.example.fitlog.editor.RecoveryViewModel
 import com.example.fitlog.editor.RecoveryScreen
@@ -42,6 +45,7 @@ fun FitLogNavGraph(
     vaultPreferences: VaultPreferences,
     vaultRepository: VaultRepository,
     sourceIndex: SourceIndexRepository,
+    analysisRepository: DiaryAnalysisRepository,
     onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
     onOpenRoute: (FitLogRoute) -> Unit,
     onBack: () -> Unit,
@@ -92,7 +96,12 @@ fun FitLogNavGraph(
                     LogViewModel(createSavedStateHandle(), vaultPreferences.vaultConfig, sourceIndex, vaultPreferences.log)
                 }
                 LogScreen(vm,
-                    onOpen = { vault, file -> onOpenRoute(FitLogRoute.Editor(vault, file.uri, directory = file.directory ?: vault, fileName = file.name, displayPath = file.path, vaultId = vm.vaultId)) },
+                    onOpen = { vault, file -> vm.vaultId?.let { vaultId ->
+                        if (backStack.lastOrNull() == FitLogRoute.Log && vm.vault == vault &&
+                            vm.visibleFiles.any { it.uri == file.uri && it.path == file.path }) {
+                            onOpenRoute(FitLogRoute.DiaryDetail(vault, vaultId, file.uri, file.path, file.directory ?: vault, file.name))
+                        }
+                    } },
                     onSettings = { vault -> onOpenRoute(FitLogRoute.DiarySettings(vault, vm.vaultId)) },
                     onConnect = { onOpenRoute(FitLogRoute.VaultSetup()) },
                     onRecovery = { onOpenRoute(FitLogRoute.RecoveryCenter) },
@@ -101,6 +110,15 @@ fun FitLogNavGraph(
 
             entry<FitLogRoute.Insight> {
                 InsightScreen()
+            }
+
+            entry<FitLogRoute.DiaryDetail> { route ->
+                val vm = viewModel<DiaryDetailViewModel> {
+                    DiaryDetailViewModel(route, documents, analysisRepository, createSavedStateHandle())
+                }
+                DiaryDetailScreen(vm,
+                    onEdit = { if (backStack.lastOrNull() == route) vm.editorRoute()?.let(onOpenRoute) },
+                    onBack = { if (backStack.lastOrNull() == route) onBack() })
             }
 
             entry<FitLogRoute.Editor> { route ->

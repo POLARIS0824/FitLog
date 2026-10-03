@@ -29,6 +29,34 @@ import com.example.fitlog.data.vault.DiaryCreationUnavailable
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class VaultFlowControllerTest {
+    @Test fun diaryDetailEditorReturnsThroughDetailAndLog() = runTest {
+        val flow = controller()
+        flow.navigateTo(FitLogRoute.Log)
+        val detail = FitLogRoute.DiaryDetail("content://vault", "00000000-0000-4000-8000-000000000001",
+            "content://document", "daily/note.md", "content://daily", "note.md")
+        val restored = Json.decodeFromString<FitLogRoute>(Json.encodeToString<FitLogRoute>(detail))
+        assertEquals(detail, restored)
+        flow.openRoute(detail)
+        val editor = FitLogRoute.Editor(detail.vault, detail.document, directory = detail.directory,
+            fileName = detail.fileName, displayPath = detail.relPath, vaultId = detail.vaultId)
+        flow.openRoute(editor)
+        flow.openRoute(editor)
+        assertEquals(listOf(FitLogRoute.Log, detail, editor), stack)
+        flow.back(); assertEquals(detail, stack.last())
+        flow.back(); assertEquals(listOf(FitLogRoute.Log), stack)
+    }
+
+    @Test fun diaryDetailRejectsAnEditorForAnotherSource() = runTest {
+        val flow = controller()
+        val detail = FitLogRoute.DiaryDetail("content://vault", "00000000-0000-4000-8000-000000000001",
+            "content://document", "daily/note.md", "content://daily", "note.md")
+        flow.openRoute(detail)
+        flow.openRoute(FitLogRoute.Editor(detail.vault, "content://other", vaultId = detail.vaultId))
+        flow.openRoute(FitLogRoute.Editor(detail.vault, detail.document, vaultId = "00000000-0000-4000-8000-000000000002"))
+        assertEquals(detail, stack.last())
+        assertEquals(2, stack.size)
+    }
+
     @Test fun managementImportReturnsToLog() = runTest {
         val flow = controller()
         flow.openRoute(FitLogRoute.VaultManagement)

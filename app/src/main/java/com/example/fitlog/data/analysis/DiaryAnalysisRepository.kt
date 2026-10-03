@@ -12,9 +12,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 class DiaryAnalysisStorageException(cause: Exception) : IOException("Diary analysis persistence failed", cause)
 enum class AnalysisStorageState { UNINITIALIZED, READY, FAILED }
@@ -24,7 +29,7 @@ class DiaryAnalysisRepository internal constructor(
     private val database: DiaryAnalysisDatabase,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) {
+) : DiaryAnalysisReader {
     private val dao = database.analysis()
     private val initialization = Mutex()
     private var initialized = false
@@ -64,8 +69,41 @@ class DiaryAnalysisRepository internal constructor(
         return persist { dao.confirmed(sourceKey.vaultId, sourceKey.relPath)?.ordered() }
     }
 
-    fun observeConfirmed(sourceKey: SourceKey) = dao.observeConfirmed(sourceKey.vaultId, sourceKey.relPath)
-        .map { it?.ordered() }
+    override fun observeConfirmed(sourceKey: SourceKey) = flow {
+        initialize()
+        emitAll(dao.observeConfirmed(sourceKey.vaultId, sourceKey.relPath).map { it?.ordered() })
+    }.catch { throw readFailure(it) }
+
+    suspend fun readParses(sourceKey: SourceKey): DiaryParseRecords {
+        initialize()
+        val rows = persist { dao.runs(sourceKey.vaultId, sourceKey.relPath) }
+        return withContext(Dispatchers.Default) { parseRecords(rows) }
+    }
+
+    override fun observeParses(sourceKey: SourceKey) = flow {
+        initialize()
+        emitAll(dao.observeRuns(sourceKey.vaultId, sourceKey.relPath).map(::parseRecords))
+    }.flowOn(Dispatchers.IO).catch { throw readFailure(it) }
+
+    private fun parseRecords(rows: List<ParseRunRow>): DiaryParseRecords {
+        val attempts = rows.map { row ->
+            DiaryParseAttempt(row.id, row.parseKey(), row.status, row.startedAt, row.finishedAt, row.failureCode)
+        }
+        val successful = rows.indexOfLast { it.status == ParseRunStatus.SUCCEEDED }
+        if (successful < 0) return DiaryParseRecords(attempts)
+        // A damaged candidate must not hide attempt metadata or independently stored confirmation.
+        return try {
+            DiaryParseRecords(attempts, StoredDiaryCandidate(attempts[successful], decodeCandidate(rows[successful])))
+        } catch (_: DiaryAnalysisStorageException) {
+            DiaryParseRecords(attempts, candidateReadFailed = true)
+        }
+    }
+
+    private fun readFailure(error: Throwable): Throwable {
+        if (error is CancellationException) return error
+        mutableState.value = AnalysisStorageState.FAILED
+        return if (error is Exception && error !is DiaryAnalysisStorageException) DiaryAnalysisStorageException(error) else error
+    }
 
     suspend fun snapshots(sourceKey: SourceKey): List<ConfirmationSnapshotRow> {
         initialize()

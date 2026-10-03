@@ -116,8 +116,10 @@ class AnalysisConverters {
 interface DiaryAnalysisDao {
     @Insert suspend fun insertRun(row: ParseRunRow)
     @Query("SELECT * FROM parse_run WHERE id = :id") suspend fun run(id: String): ParseRunRow?
-    @Query("SELECT * FROM parse_run WHERE vaultId = :vaultId AND relPath = :relPath ORDER BY startedAt, id")
+    @Query("SELECT * FROM parse_run WHERE vaultId = :vaultId AND relPath = :relPath ORDER BY startedAt, rowid")
     suspend fun runs(vaultId: String, relPath: String): List<ParseRunRow>
+    @Query("SELECT * FROM parse_run WHERE vaultId = :vaultId AND relPath = :relPath ORDER BY startedAt, rowid")
+    fun observeRuns(vaultId: String, relPath: String): Flow<List<ParseRunRow>>
     @Query("SELECT * FROM parse_run WHERE vaultId = :vaultId AND relPath = :relPath AND contentHash = :hash AND hashVersion = :hashVersion AND extractorVersion = :extractorVersion AND status = 'SUCCEEDED' ORDER BY finishedAt DESC, id DESC LIMIT 1")
     suspend fun successful(vaultId: String, relPath: String, hash: String, hashVersion: Int, extractorVersion: String): ParseRunRow?
     @Query("UPDATE parse_run SET status = :status, finishedAt = :finishedAt, failureCode = :failureCode, rawModelJson = :rawModelJson, candidateJson = :candidateJson WHERE id = :id AND status = 'RUNNING'")

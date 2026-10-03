@@ -17,6 +17,16 @@ sealed interface FitLogRoute : NavKey {
     data object Insight : FitLogRoute
 
     @Serializable
+    data class DiaryDetail(
+        val vault: String,
+        val vaultId: String,
+        val document: String,
+        val relPath: String,
+        val directory: String,
+        val fileName: String,
+    ) : FitLogRoute
+
+    @Serializable
     data class Editor(
         val vault: String,
         val document: String? = null,
