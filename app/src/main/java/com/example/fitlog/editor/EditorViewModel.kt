@@ -92,7 +92,8 @@ class EditorViewModel(
             try {
                 val draft = if (recoveryEntryId != null) {
                     drafts.entry(requireNotNull(recoveryEntryId))?.draft
-                } else drafts.read(route.vault, target)
+                } else drafts.read(route.vaultId, target)
+                draft?.let { require(it.vaultId == route.vaultId && it.vaultUri == route.vaultUri) }
                 recovery = draft
                 if (recoveryEntryId != null && draft != null) { writable = true; return@launch }
                 if (recoveryEntryId != null && document == null) {
@@ -177,8 +178,8 @@ class EditorViewModel(
         try {
             val old = recovery
             deleteDraft()
-            old?.document?.takeIf { it != target }?.let { drafts.remove(route.vault, it) }
-            old?.originTarget?.takeIf { it != target }?.let { drafts.remove(route.vault, it) }
+            old?.document?.takeIf { it != target }?.let { drafts.remove(route.vaultId, it) }
+            old?.originTarget?.takeIf { it != target }?.let { drafts.remove(route.vaultId, it) }
             recovery = null; blocked = collision != null
         }
         catch (e: Exception) { fail(e) }
@@ -199,7 +200,7 @@ class EditorViewModel(
             collision = null
             blocked = false
             error = null
-            recovery = drafts.read(route.vault, file.uri)
+            recovery = drafts.read(route.vaultId, file.uri)
             if (recovery != null) blocked = true
         } catch (e: Exception) { fail(e) }
         finally { operationBusy = false }
@@ -221,7 +222,7 @@ class EditorViewModel(
     }
 
     private suspend fun persistDraft() = draftLock.withLock {
-        val snapshot = EditorDraft(route.vault, target, document, name, text.text.toString(),
+        val snapshot = EditorDraft(route.vaultUri, target, document, name, text.text.toString(),
             text.selection.start, text.selection.end, version, sourceFingerprint, bom,
             directory = route.directory, displayPath = displayPath,
             updatedAt = System.currentTimeMillis(), recoveryId = recoveryIdentity,
@@ -232,8 +233,8 @@ class EditorViewModel(
 
     private suspend fun deleteDraft() = draftLock.withLock {
         recoveryEntryId?.let { drafts.deleteEntry(it) }
-        drafts.remove(route.vault, target)
-        if (recoveryEntryId == null) document?.takeIf { it != target }?.let { drafts.remove(route.vault, it) }
+        drafts.remove(route.vaultId, target)
+        if (recoveryEntryId == null) document?.takeIf { it != target }?.let { drafts.remove(route.vaultId, it) }
     }
 
     fun saveNow() = viewModelScope.launch {
@@ -263,10 +264,9 @@ class EditorViewModel(
                 val uri = requireNotNull(document)
                 val before = documents.read(uri)
                 if (before.fingerprint != sourceFingerprint) throw DocumentConflict()
-                val original = (if (before.bom) byteArrayOf(0xef.toByte(), 0xbb.toByte(), 0xbf.toByte()) else byteArrayOf()) + before.text.toByteArray(Charsets.UTF_8)
-                drafts.prepareBackup(EditorDraft(route.vault, uri, uri, name, before.text, 0, 0, version,
+                drafts.prepareBackup(EditorDraft(route.vaultUri, uri, uri, name, before.text, 0, 0, version,
                     before.fingerprint, before.bom, directory = route.directory,
-                    displayPath = displayPath, updatedAt = System.currentTimeMillis(), vaultId = route.vaultId), original)
+                    displayPath = displayPath, updatedAt = System.currentTimeMillis(), vaultId = route.vaultId))
                 val result = documents.write(uri, value, bom, requireNotNull(sourceFingerprint))
                 baseline = value
                 sourceFingerprint = result.fingerprint
@@ -274,7 +274,7 @@ class EditorViewModel(
                 blocked = false
                 if (dirty) persistDraft() else deleteDraft()
                 state = if (dirty) EditorSaveState.Unsaved else EditorSaveState.Saved
-                try { drafts.completeBackup(route.vault, uri) }
+                try { drafts.completeBackup(route.vaultId, uri) }
                 catch (e: Exception) { if (e is CancellationException) throw e; notice = R.string.recovery_bookkeeping_failed }
                 try { onSaved(result, route.directory, displayPath) }
                 catch (e: Exception) { if (e is CancellationException) throw e; notice = R.string.index_save_failed }
@@ -352,7 +352,7 @@ class EditorViewModel(
             persistDraft()
             // Keep the picker snapshot independent of autosave and its draft cleanup.
             val id = java.util.UUID.randomUUID().toString()
-            val snapshot = EditorDraft(route.vault, "export:$id", document, name, text.text.toString(), 0, 0,
+            val snapshot = EditorDraft(route.vaultUri, "export:$id", document, name, text.text.toString(), 0, 0,
                 version, sourceFingerprint, bom, directory = route.directory,
                 displayPath = displayPath, updatedAt = System.currentTimeMillis(), recoveryId = id,
                 manualSave = true, vaultId = route.vaultId)
@@ -407,13 +407,4 @@ class EditorViewModel(
     }
 }
 
-internal fun newDraftTarget(route: FitLogRoute.Editor): String {
-    // Preserve legacy root draft keys; child folders must not share date-based drafts.
-    val root = runCatching {
-        val uri = android.net.Uri.parse(route.vault)
-        android.provider.DocumentsContract.buildDocumentUriUsingTree(uri,
-            android.provider.DocumentsContract.getTreeDocumentId(uri)).toString()
-    }.getOrNull()
-    return if (route.directory == route.vault || route.directory == root) route.fileName
-    else route.directory + "\n" + route.fileName
-}
+internal fun newDraftTarget(route: FitLogRoute.Editor): String = route.directory + "\n" + route.fileName

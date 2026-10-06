@@ -36,12 +36,12 @@ class LogPreferencesTest {
         store.edit { it[sortKey] = LogSortOrder.Ascending.name }
         assertEquals(LogSortOrder.Ascending, logPreferences.readSort())
 
-        vaultPreferences.diary.save("vault-a", diarySettings)
+        vaultPreferences.diary.save("00000000-0000-4000-8000-000000000001", diarySettings)
         logPreferences.saveSort(LogSortOrder.Descending)
         vaultPreferences.clearVaultUri().getOrThrow()
 
         assertEquals(LogSortOrder.Descending.name, store.data.first()[sortKey])
         assertEquals(LogSortOrder.Descending, LogPreferences(store).readSort())
-        assertEquals(diarySettings, VaultPreferences(store).diary.read("vault-a"))
+        assertEquals(diarySettings, VaultPreferences(store).diary.read("00000000-0000-4000-8000-000000000001"))
     }
 }

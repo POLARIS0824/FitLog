@@ -37,7 +37,7 @@ class VaultFlowControllerTest {
         val restored = Json.decodeFromString<FitLogRoute>(Json.encodeToString<FitLogRoute>(detail))
         assertEquals(detail, restored)
         flow.openRoute(detail)
-        val editor = FitLogRoute.Editor(detail.vault, detail.document, directory = detail.directory,
+        val editor = FitLogRoute.Editor(detail.vaultUri, detail.document, directory = detail.directory,
             fileName = detail.fileName, displayPath = detail.relPath, vaultId = detail.vaultId)
         flow.openRoute(editor)
         flow.openRoute(editor)
@@ -51,8 +51,8 @@ class VaultFlowControllerTest {
         val detail = FitLogRoute.DiaryDetail("content://vault", "00000000-0000-4000-8000-000000000001",
             "content://document", "daily/note.md", "content://daily", "note.md")
         flow.openRoute(detail)
-        flow.openRoute(FitLogRoute.Editor(detail.vault, "content://other", vaultId = detail.vaultId))
-        flow.openRoute(FitLogRoute.Editor(detail.vault, detail.document, vaultId = "00000000-0000-4000-8000-000000000002"))
+        flow.openRoute(FitLogRoute.Editor(detail.vaultUri, "content://other", vaultId = detail.vaultId))
+        flow.openRoute(FitLogRoute.Editor(detail.vaultUri, detail.document, vaultId = "00000000-0000-4000-8000-000000000002"))
         assertEquals(detail, stack.last())
         assertEquals(2, stack.size)
     }
@@ -69,7 +69,7 @@ class VaultFlowControllerTest {
     @Test fun recoveryCanOpenEditorAndReturnToCenter() = runTest {
         val flow = controller()
         flow.openRoute(FitLogRoute.RecoveryCenter)
-        val editor = FitLogRoute.Editor("old-vault", directory = "old-directory", recoveryId = "draft:id")
+        val editor = FitLogRoute.Editor("old-vault", directory = "old-directory", recoveryId = "draft:id", vaultId = "00000000-0000-4000-8000-000000000001")
         flow.openRoute(editor)
         assertEquals(editor, stack.last())
         flow.back()
@@ -82,7 +82,7 @@ class VaultFlowControllerTest {
     private fun TestScope.controller(
         config: suspend () -> VaultConfigState = { VaultConfigState.NotConfigured },
         access: suspend (Uri) -> VaultAccessStatus = { VaultAccessStatus.CanCreateFiles },
-    ) = VaultFlowController(stack, this, config, access, errors::add, { vault, date -> FitLogRoute.Editor(vault, date = date.toString()) })
+    ) = VaultFlowController(stack, this, config, access, errors::add, { config, date -> FitLogRoute.Editor(config.uri.toString(), date = date.toString(), vaultId = config.vaultId) })
 
     @Test
     fun firstAdd_entersVaultSetup_andOnCompleteReplacesWithEditor_andBackReturnsToOrigin() = runTest {
@@ -98,7 +98,7 @@ class VaultFlowControllerTest {
         flow.onSetupCompleted(route)
         advanceUntilIdle()
         assertEquals(2, stack.size)
-        assertEquals(uri.toString(), (stack.last() as FitLogRoute.Editor).vault)
+        assertEquals(uri.toString(), (stack.last() as FitLogRoute.Editor).vaultUri)
 
         flow.back()
         assertEquals(listOf(FitLogRoute.Today), stack)
@@ -151,7 +151,7 @@ class VaultFlowControllerTest {
         flow.importFolder()
         advanceUntilIdle()
         assertEquals(2, stack.size)
-        assertEquals(uri.toString(), (stack.last() as FitLogRoute.Editor).vault)
+        assertEquals(uri.toString(), (stack.last() as FitLogRoute.Editor).vaultUri)
     }
 
     @Test
@@ -223,7 +223,7 @@ class VaultFlowControllerTest {
         val flow = VaultFlowController(stack, this,
             { if (configured) VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001") else VaultConfigState.NotConfigured },
             { VaultAccessStatus.CanCreateFiles }, errors::add,
-            { vault, captured -> FitLogRoute.Editor(vault, date = captured.toString()) }, { date })
+            { config, captured -> FitLogRoute.Editor(config.uri.toString(), date = captured.toString(), vaultId = config.vaultId) }, { date })
         flow.openTodayLog()
         advanceUntilIdle()
         val setup = stack.last() as FitLogRoute.VaultSetup
@@ -241,17 +241,17 @@ class VaultFlowControllerTest {
             { _, _ -> withContext(NonCancellable) { pending.await() } })
         flow.openTodayLog()
         runCurrent()
-        val other = FitLogRoute.Editor(uri.toString(), "other")
+        val other = FitLogRoute.Editor(uri.toString(), "other", vaultId = "00000000-0000-4000-8000-000000000001")
         flow.openRoute(other)
         flow.back()
-        pending.complete(FitLogRoute.Editor(uri.toString(), "today"))
+        pending.complete(FitLogRoute.Editor(uri.toString(), "today", vaultId = "00000000-0000-4000-8000-000000000001"))
         advanceUntilIdle()
         assertEquals(listOf(FitLogRoute.Today), stack)
         assertFalse(flow.busy)
     }
 
     @Test fun readOnlyExistingTodayIsOpenedWithoutCreationPermission() = runTest {
-        val existing = FitLogRoute.Editor(uri.toString(), "existing")
+        val existing = FitLogRoute.Editor(uri.toString(), "existing", vaultId = "00000000-0000-4000-8000-000000000001")
         val flow = VaultFlowController(stack, this, { VaultConfigState.Configured(uri, "00000000-0000-4000-8000-000000000001") },
             { VaultAccessStatus.ReadOnly }, errors::add, { _, _ -> existing })
         flow.openTodayLog()

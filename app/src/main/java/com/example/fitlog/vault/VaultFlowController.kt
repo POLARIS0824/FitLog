@@ -25,7 +25,7 @@ internal class VaultFlowController(
     private val getConfig: suspend () -> VaultConfigState,
     private val checkAccess: suspend (Uri) -> VaultAccessStatus,
     private val showError: (Int) -> Unit,
-    private val resolveToday: suspend (String, LocalDate) -> FitLogRoute.Editor,
+    private val resolveToday: suspend (VaultConfigState.Configured, LocalDate) -> FitLogRoute.Editor,
     private val today: () -> LocalDate = { LocalDate.now() },
 ) {
     var busy by mutableStateOf(false)
@@ -54,7 +54,7 @@ internal class VaultFlowController(
     fun openRoute(route: FitLogRoute) {
         val current = backStack.lastOrNull()
         val detailEditor = current is FitLogRoute.DiaryDetail && route is FitLogRoute.Editor &&
-            current.vault == route.vault && current.vaultId == route.vaultId && current.document == route.document
+            current.vaultUri == route.vaultUri && current.vaultId == route.vaultId && current.document == route.document
         val nested = detailEditor || (current == FitLogRoute.RecoveryCenter && route is FitLogRoute.Editor) ||
             (backStack.lastOrNull() == FitLogRoute.VaultManagement && route is FitLogRoute.VaultSetup)
         if (!isTopLevel() && !nested) return
@@ -82,7 +82,7 @@ internal class VaultFlowController(
                 when (config) {
                     is VaultConfigState.Configured -> when (access) {
                         VaultAccessStatus.CanCreateFiles, VaultAccessStatus.ReadOnly -> {
-                            val editor = resolveToday(config.uri.toString(), date)
+                            val editor = resolveToday(config, date)
                             if (token == generation && backStack.lastOrNull() == origin) backStack.add(editor)
                         }
                         VaultAccessStatus.NeedsReauthorization, VaultAccessStatus.DirectoryUnavailable -> {
@@ -117,7 +117,7 @@ internal class VaultFlowController(
                     if (token != generation || backStack.lastOrNull() != route) return@launch
                     if (config is VaultConfigState.Configured &&
                         (access == VaultAccessStatus.CanCreateFiles || access == VaultAccessStatus.ReadOnly)) {
-                        val editor = resolveToday(config.uri.toString(), LocalDate.parse(route.todayDate))
+                        val editor = resolveToday(config, LocalDate.parse(route.todayDate))
                         if (token == generation && backStack.lastOrNull() == route) backStack[backStack.lastIndex] = editor
                     } else {
                         returnToLog(route)

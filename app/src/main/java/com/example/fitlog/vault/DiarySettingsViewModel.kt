@@ -12,10 +12,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 class DiarySettingsViewModel(
-    private val vault: String,
+    private val vaultUri: String,
+    private val vaultId: String,
     private val settings: DiarySettingsStore,
     private val directories: DiaryDirectories,
-    private val resolveVaultId: suspend (String) -> String = { it },
 ) : ViewModel() {
     var path by mutableStateOf<List<String>>(emptyList()); private set
     var format by mutableStateOf(DiaryDateFormat.Dashed); private set
@@ -28,10 +28,9 @@ class DiarySettingsViewModel(
     private var directoryValid = false
     private var generation = 0
     private var job: Job? = null
-    private var vaultId = vault
     val canSave get() = initialized && directoryValid && !loading && !saving
 
-    init { load() }
+    init { requireVaultId(vaultId); load() }
 
     fun load() {
         if (saving) return
@@ -41,7 +40,7 @@ class DiarySettingsViewModel(
         error = null
         job = viewModelScope.launch {
             try {
-                val config = settings.read(resolveVaultId(vault).also { vaultId = it })
+                val config = settings.read(vaultId)
                 if (token != generation) return@launch
                 path = config.directoryPath
                 format = config.dateFormat
@@ -65,7 +64,7 @@ class DiarySettingsViewModel(
         error = null
         job = viewModelScope.launch {
             try {
-                val uri = directories.resolveDirectory(vault, newPath)
+                val uri = directories.resolveDirectory(vaultUri, newPath)
                 val result = directories.directories(uri)
                 if (token != generation) return@launch
                 children = result
@@ -88,7 +87,7 @@ class DiarySettingsViewModel(
         val config = DiarySettings(path.toList(), format)
         viewModelScope.launch {
             try {
-                directories.resolveDirectory(vault, config.directoryPath)
+                directories.resolveDirectory(vaultUri, config.directoryPath)
                 settings.save(vaultId, config)
                 completed = true
             } catch (e: Exception) {

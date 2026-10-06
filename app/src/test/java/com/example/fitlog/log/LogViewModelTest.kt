@@ -178,5 +178,5 @@ private class ScanDocuments(private val scan: suspend (String) -> MarkdownScan) 
 }
 
 private fun testVaultId(uri: String) = java.util.UUID.nameUUIDFromBytes(uri.toByteArray(Charsets.UTF_8)).toString()
-private fun testVaultUri(id: String) = listOf("vault", "old", "new").single { testVaultId(it) == id }
+private fun testVaultUri(id: String) = Uri.parse(listOf("vault", "old", "new").single { testVaultId(it) == id })
 private fun configuredVault(uri: Uri) = VaultConfigState.Configured(uri, testVaultId(uri.toString()))

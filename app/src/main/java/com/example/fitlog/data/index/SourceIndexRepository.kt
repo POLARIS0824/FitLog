@@ -2,16 +2,16 @@ package com.example.fitlog.data.index
 
 import android.content.Context
 import android.os.SystemClock
+import android.net.Uri
 import com.example.fitlog.data.vault.MarkdownDocumentRepository
 import com.example.fitlog.data.vault.MarkdownDocuments
 import com.example.fitlog.data.vault.MarkdownSnapshot
 import com.example.fitlog.data.vault.VaultPreferences
+import com.example.fitlog.data.vault.requireVaultId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -24,7 +24,7 @@ class SourceIndexRepository(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val elapsedNow: () -> Long = now,
     private val invalidations: IndexInvalidations = MemoryIndexInvalidations(),
-    private val resolveVaultUri: suspend (String) -> String = { it },
+    private val resolveVaultUri: suspend (vaultId: String) -> Uri,
 ) {
     enum class Reason { Activation, Foreground, VisiblePeriodic }
     companion object {
@@ -45,7 +45,6 @@ class SourceIndexRepository(
     private data class Activity(val busy: Boolean = false, val failed: Boolean = false)
     private class Slot {
         val gate = Mutex()
-        var preparedUri: String? = null
         var generation = 0L
         var job: Job? = null
         var coordinator: Job? = null
@@ -58,44 +57,28 @@ class SourceIndexRepository(
         val activity = MutableStateFlow(Activity())
     }
     private val slots = ConcurrentHashMap<String, Slot>()
-    private fun slot(vault: String) = slots.getOrPut(vault) { Slot() }
+    private fun slot(vaultId: String) = slots.getOrPut(requireVaultId(vaultId)) { Slot() }
     private var activeVault: String? = null
 
-    @Synchronized fun activate(vault: String?, force: Boolean = false) {
-        if (activeVault == vault) {
-            if (force && vault != null) forceRefresh(vault)
+    @Synchronized fun activate(vaultId: String?, force: Boolean = false) {
+        if (activeVault == vaultId) {
+            if (force && vaultId != null) forceRefresh(vaultId)
             return
         }
         activeVault?.let(::cancel)
-        activeVault = vault
-        vault?.let { if (force) forceRefresh(it) else ensureFresh(it, Reason.Activation) }
+        activeVault = vaultId
+        vaultId?.let { if (force) forceRefresh(it) else ensureFresh(it, Reason.Activation) }
     }
 
-    private suspend fun prepareVault(vaultId: String): String = slot(vaultId).gate.withLock {
-        val slot = slot(vaultId)
-        slot.preparedUri ?: resolveVaultUri(vaultId).also { uri ->
-            if (uri != vaultId) {
-                val dirty = invalidations.contains(uri)
-                if (dirty) invalidations.mark(vaultId)
-                store.migrateVault(uri, vaultId)
-                if (dirty) invalidations.clear(uri)
-            }
-            slot.preparedUri = uri
-        }
-    }
-
-    fun observe(vault: String) = combine(flow {
-        prepareVault(vault)
-        emitAll(store.observe(vault))
-    }, slot(vault).activity) { value, activity ->
+    fun observe(vaultId: String) = combine(store.observe(requireVaultId(vaultId)), slot(vaultId).activity) { value, activity ->
         val scan = if (value.scan?.status == IndexedScan.SCANNING && !activity.busy &&
-            synchronized(slot(vault)) { slot(vault).job?.isActive != true })
+            synchronized(slot(vaultId)) { slot(vaultId).job?.isActive != true })
             value.scan.copy(status = IndexedScan.INTERRUPTED) else value.scan
         value.copy(scan = scan, refreshing = activity.busy, refreshFailed = activity.failed)
     }
 
-    fun cancel(vault: String) {
-        val slot = slot(vault)
+    fun cancel(vaultId: String) {
+        val slot = slot(vaultId)
         synchronized(slot) {
             slot.generation++
             if (slot.coordinator?.isActive == true || slot.job?.isActive == true) slot.lastAttempt = null
@@ -106,17 +89,17 @@ class SourceIndexRepository(
         }
     }
 
-    fun ensureFresh(vault: String, reason: Reason): Job? = request(vault, reason, false)
-    fun forceRefresh(vault: String): Job? = request(vault, Reason.Activation, true)
+    fun ensureFresh(vaultId: String, reason: Reason): Job? = request(vaultId, reason, false)
+    fun forceRefresh(vaultId: String): Job? = request(vaultId, Reason.Activation, true)
 
-    private fun request(vault: String, reason: Reason, force: Boolean): Job? {
-        val slot = slot(vault)
+    private fun request(vaultId: String, reason: Reason, force: Boolean): Job? {
+        val slot = slot(vaultId)
         synchronized(slot) {
             if (slot.coordinator?.isActive == true) {
                 if (force) slot.pendingFull = true
                 return slot.coordinator
             }
-            val dirty = slot.dirty || invalidations.contains(vault)
+            val dirty = slot.dirty || invalidations.contains(vaultId)
             val interval = if (reason == Reason.Foreground) FOREGROUND_INTERVAL else VISIBLE_INTERVAL
             val elapsed = slot.lastAttempt?.let { elapsedNow() - it }
             if (!force && !dirty && elapsed != null && elapsed in 0 until interval) return null
@@ -133,10 +116,10 @@ class SourceIndexRepository(
                                 if (slot.coordinator != coordinatorJob) throw CancellationException()
                                 slot.lastAttempt = elapsedNow()
                             }
-                            val scan = store.observe(vault).first().scan
+                            val scan = store.observe(vaultId).first().scan
                             val age = scan?.fullVerifiedAt?.let { now() - it }
                             val full = fullRequested || age == null || age < 0 || age >= FULL_INTERVAL
-                            performScan(vault, full)
+                            performScan(vaultId, full)
                         } catch (e: Exception) {
                             if (e is CancellationException) throw e
                             failed = true
@@ -174,11 +157,11 @@ class SourceIndexRepository(
         }
     }
 
-    /** Compatibility for existing direct scan callers; UI uses the app-owned request APIs. */
-    suspend fun refresh(vault: String) = performScan(vault, full = true)
+    /** Direct full scan; UI uses the app-owned request APIs. */
+    suspend fun refresh(vaultId: String) = performScan(vaultId, full = true)
 
-    private suspend fun performScan(vault: String, full: Boolean) {
-        val slot = slot(vault)
+    private suspend fun performScan(vaultId: String, full: Boolean) {
+        val slot = slot(vaultId)
         val job = currentCoroutineContext().job
         val token = synchronized(slot) {
             if (slot.job?.isActive == true) return
@@ -192,14 +175,14 @@ class SourceIndexRepository(
         var startRevision = 0L
         var priorScan: IndexedScan? = null
         try {
-            val treeUri = prepareVault(vault)
+            val treeUri = resolveVaultUri(vaultId).toString()
             val previous = slot.gate.withLock {
                 checkCurrent()
                 startRevision = slot.revision
-                priorScan = store.observe(vault).first().scan
-                store.commit(emptyList(), IndexedScan(vault, IndexedScan.SCANNING,
+                priorScan = store.observe(vaultId).first().scan
+                store.commit(emptyList(), IndexedScan(vaultId, IndexedScan.SCANNING,
                     metadataCheckedAt = priorScan?.metadataCheckedAt, fullVerifiedAt = priorScan?.fullVerifiedAt))
-                store.sources(vault).associateBy { it.uri }
+                store.sources(vaultId).associateBy { it.uri }
             }
             val discovered = documents.scan(treeUri)
             checkCurrent()
@@ -218,7 +201,7 @@ class SourceIndexRepository(
                         readFailed = true
                         null
                     }
-                    IndexedSource(vault, file.uri, snapshot?.file?.name ?: file.name, file.path, file.directory,
+                    IndexedSource(vaultId, file.uri, snapshot?.file?.name ?: file.name, file.path, file.directory,
                         snapshot?.file?.writable ?: file.writable, snapshot?.fingerprint ?: old?.fingerprint,
                         if (snapshot != null) now() else old?.verifiedAt,
                         if (snapshot != null) IndexedSource.AVAILABLE else IndexedSource.READ_FAILED,
@@ -228,7 +211,7 @@ class SourceIndexRepository(
             }
             slot.gate.withLock {
                 checkCurrent()
-                val current = store.sources(vault).associateBy { it.uri }
+                val current = store.sources(vaultId).associateBy { it.uri }
                 val seen = updates.mapTo(mutableSetOf()) { it.uri }
                 val merged = updates.filter { (slot.saved[it.uri] ?: 0L) <= startRevision }.toMutableList()
                 if (!discovered.partial) current.values.filter {
@@ -236,12 +219,12 @@ class SourceIndexRepository(
                 }.forEach { merged += it.copy(status = IndexedSource.MISSING) }
                 val complete = !discovered.partial && !readFailed
                 checkCurrent()
-                store.commit(merged, IndexedScan(vault,
+                store.commit(merged, IndexedScan(vaultId,
                     if (complete) IndexedScan.COMPLETE else IndexedScan.PARTIAL, now(),
                     if (complete) now() else priorScan?.metadataCheckedAt,
                     if (complete && full) now() else priorScan?.fullVerifiedAt))
                 if (complete && slot.revision == startRevision) {
-                    invalidations.clear(vault)
+                    invalidations.clear(vaultId)
                     synchronized(slot) { slot.dirty = false }
                 }
             }
@@ -249,7 +232,7 @@ class SourceIndexRepository(
             withContext(NonCancellable) {
                 slot.gate.withLock {
                     if (synchronized(slot) { slot.job == job || (slot.job == null && slot.generation == token + 1) }) {
-                        runCatching { store.commit(emptyList(), IndexedScan(vault,
+                        runCatching { store.commit(emptyList(), IndexedScan(vaultId,
                             if (e is CancellationException) IndexedScan.INTERRUPTED else IndexedScan.FAILED,
                             metadataCheckedAt = priorScan?.metadataCheckedAt, fullVerifiedAt = priorScan?.fullVerifiedAt)) }
                     }
@@ -261,22 +244,13 @@ class SourceIndexRepository(
         }
     }
 
-    suspend fun recordSaved(vault: String, snapshot: MarkdownSnapshot, directory: String, path: String?) {
-        val slot = slot(vault)
-        try { prepareVault(vault) }
-        catch (e: Exception) {
-            synchronized(slot) {
-                slot.dirty = true
-                if (slot.coordinator?.isActive == true) slot.pendingDirty = true
-            }
-            try { invalidations.mark(vault) } catch (markerFailure: Exception) { e.addSuppressed(markerFailure) }
-            throw e
-        }
+    suspend fun recordSaved(vaultId: String, snapshot: MarkdownSnapshot, directory: String, path: String?) {
+        val slot = slot(vaultId)
         slot.gate.withLock {
             slot.saved[snapshot.file.uri] = ++slot.revision
             try {
-                val old = store.sources(vault).firstOrNull { it.uri == snapshot.file.uri }
-                store.commit(listOf(IndexedSource(vault, snapshot.file.uri, snapshot.file.name,
+                val old = store.sources(vaultId).firstOrNull { it.uri == snapshot.file.uri }
+                store.commit(listOf(IndexedSource(vaultId, snapshot.file.uri, snapshot.file.name,
                     path ?: old?.path ?: snapshot.file.name, directory, snapshot.file.writable,
                     snapshot.fingerprint, now(), lastModified = snapshot.file.lastModified, size = snapshot.file.size)))
             } catch (e: Exception) {
@@ -284,7 +258,7 @@ class SourceIndexRepository(
                     slot.dirty = true
                     if (slot.coordinator?.isActive == true) slot.pendingDirty = true
                 }
-                try { invalidations.mark(vault) } catch (markerFailure: Exception) { e.addSuppressed(markerFailure) }
+                try { invalidations.mark(vaultId) } catch (markerFailure: Exception) { e.addSuppressed(markerFailure) }
                 throw e
             }
         }
@@ -293,19 +267,19 @@ class SourceIndexRepository(
 
 /** Independent from Room so a failed index transaction can be repaired after process restart. */
 interface IndexInvalidations {
-    fun contains(vault: String): Boolean
-    fun mark(vault: String)
-    fun clear(vault: String)
+    fun contains(vaultId: String): Boolean
+    fun mark(vaultId: String)
+    fun clear(vaultId: String)
 }
 class MemoryIndexInvalidations : IndexInvalidations {
     private val vaults = ConcurrentHashMap.newKeySet<String>()
-    override fun contains(vault: String) = vault in vaults
-    override fun mark(vault: String) { vaults.add(vault) }
-    override fun clear(vault: String) { vaults.remove(vault) }
+    override fun contains(vaultId: String) = vaultId in vaults
+    override fun mark(vaultId: String) { vaults.add(vaultId) }
+    override fun clear(vaultId: String) { vaults.remove(vaultId) }
 }
 private class PreferenceIndexInvalidations(context: Context) : IndexInvalidations {
     private val preferences = context.getSharedPreferences("index-invalidations", Context.MODE_PRIVATE)
-    override fun contains(vault: String) = preferences.getBoolean(vault, false)
-    override fun mark(vault: String) { check(preferences.edit().putBoolean(vault, true).commit()) }
-    override fun clear(vault: String) { check(preferences.edit().remove(vault).commit()) }
+    override fun contains(vaultId: String) = preferences.getBoolean(vaultId, false)
+    override fun mark(vaultId: String) { check(preferences.edit().putBoolean(vaultId, true).commit()) }
+    override fun clear(vaultId: String) { check(preferences.edit().remove(vaultId).commit()) }
 }

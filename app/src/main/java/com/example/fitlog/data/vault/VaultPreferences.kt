@@ -67,21 +67,9 @@ class VaultPreferences(
                 if (uriString.isNullOrBlank()) {
                     VaultConfigState.NotConfigured
                 } else {
-                    val id = preferences[VAULT_ID]
-                    if (id != null && identities(preferences)[uriString] == id) {
-                        VaultConfigState.Configured(uriString.toUri(), id)
-                    } else {
-                        // Persist legacy identity before publishing it. Re-read within the transaction:
-                        // another collector, folder switch or disconnect may have changed the snapshot.
-                        val updated = dataStore.edit { latest ->
-                            latest[VAULT_URI]?.takeIf { it.isNotBlank() }?.let { current ->
-                                latest[VAULT_ID] = identityFor(latest, current)
-                            }
-                        }
-                        val current = updated[VAULT_URI]
-                        if (current.isNullOrBlank()) VaultConfigState.NotConfigured
-                        else VaultConfigState.Configured(current.toUri(), requireNotNull(updated[VAULT_ID]))
-                    }
+                    val id = requireNotNull(preferences[VAULT_ID]) { "Missing vault identity" }
+                    require(identities(preferences)[uriString] == id) { "Conflicting vault identity" }
+                    VaultConfigState.Configured(uriString.toUri(), id)
                 }
             }
             .onStart {
@@ -91,18 +79,6 @@ class VaultPreferences(
                 if (exception is CancellationException) throw exception
                 emit(VaultConfigState.Failed(exception))
             }
-
-    /**
-     * 向后兼容属性（标记废弃）。
-     */
-    @Deprecated(
-        message = "Use vaultConfig instead to explicitly handle Loading, NotConfigured, and Failed states.",
-        replaceWith = ReplaceWith("vaultConfig")
-    )
-    val vaultUri: Flow<Uri?> =
-        vaultConfig.map { state ->
-            (state as? VaultConfigState.Configured)?.uri
-        }
 
     /**
      * 单次挂起获取当前的 Vault 配置（自动过滤 Loading 中间态）。
@@ -154,20 +130,11 @@ class VaultPreferences(
         }
     }
 
-    /** Also resolves disconnected recovery locations, without changing the current connection. */
-    suspend fun getVaultId(uri: String): String {
-        require(uri.isNotBlank())
-        val existing = identities(dataStore.data.first())[uri]
-        if (existing != null) return existing
-        val updated = dataStore.edit { identityFor(it, uri) }
-        return requireNotNull(identities(updated)[uri])
-    }
-
-    suspend fun getVaultUri(vaultId: String): String {
+    suspend fun getVaultUri(vaultId: String): Uri {
         requireVaultId(vaultId)
         return requireNotNull(identities(dataStore.data.first()).entries.singleOrNull { it.value == vaultId }) {
             "Unknown vault identity"
-        }.key
+        }.key.toUri()
     }
 
     private fun identities(preferences: Preferences): Map<String, String> {
@@ -179,24 +146,14 @@ class VaultPreferences(
 
     private fun identityFor(preferences: MutablePreferences, uri: String): String {
         val values = identities(preferences).toMutableMap()
-        val current = preferences[VAULT_ID]?.takeIf { preferences[VAULT_URI] == uri }
-        current?.let(::requireVaultId)
-        val existing = values[uri]
-        require(current == null || existing == null || current == existing) { "Conflicting vault identity" }
-        val id = existing ?: current ?: UUID.randomUUID().toString()
+        val id = values[uri] ?: UUID.randomUUID().toString()
         require(values.none { it.key != uri && it.value == id }) { "Duplicate vault identity" }
         values[uri] = id
         preferences[VAULT_IDENTITIES] = Json.encodeToString(values)
-        // Keep the legacy key readable by old recovery/settings routes, while the UUID key is authoritative.
-        val oldSettings = preferences[diarySettingsKey(uri)]
-        if (preferences[diarySettingsKey(id)] == null && oldSettings != null) {
-            preferences[diarySettingsKey(id)] = oldSettings
-        }
         return id
     }
 
     private companion object {
-        // 保持原有键名不变，兼容已保存配置
         val VAULT_URI = stringPreferencesKey("vault_uri")
         val VAULT_ID = stringPreferencesKey("vault_id")
         // Retained on disconnect and independent of the rebuildable Room index.

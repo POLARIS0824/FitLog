@@ -137,7 +137,7 @@ class DiaryDetailViewModel(
     }
 
     fun editorRoute(): FitLogRoute.Editor? = if (!canEdit) null else FitLogRoute.Editor(
-        vault = route.vault,
+        vaultUri = route.vaultUri,
         document = route.document,
         directory = original?.file?.directory ?: route.directory,
         fileName = original?.file?.name ?: route.fileName,

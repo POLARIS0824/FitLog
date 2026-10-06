@@ -8,7 +8,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import com.example.fitlog.data.vault.fingerprint
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
@@ -17,58 +16,52 @@ class EditorDraftStoreTest {
     @get:Rule val folder = TemporaryFolder()
     @Test fun draftSurvivesNewStoreAndCannotCrossVaults() = runTest {
         val store = EditorDraftStore(folder.root)
-        val draft = EditorDraft("vault-a", "today.md", null, "today.md", "卧推💪\r\n", 2, 4, 8, null, false)
+        val draft = EditorDraft("vault-a", "today.md", null, "today.md", "卧推💪\r\n", 2, 4, 8, null, false, directory = "vault-a", vaultId = "00000000-0000-4000-8000-000000000001")
         store.save(draft)
         val reopened = EditorDraftStore(folder.root)
-        assertEquals(draft, reopened.read("vault-a", "today.md"))
-        assertNull(reopened.read("vault-b", "today.md"))
-        reopened.backup("vault-a", "today.md", "original".toByteArray())
-        reopened.remove("vault-a", "today.md")
-        assertNull(reopened.read("vault-a", "today.md"))
-        assertEquals("original", folder.root.listFiles()!!.single { it.extension == "recovery" }.readText())
+        assertEquals(draft, reopened.read("00000000-0000-4000-8000-000000000001", "today.md"))
+        assertNull(reopened.read("00000000-0000-4000-8000-000000000002", "today.md"))
+        reopened.remove("00000000-0000-4000-8000-000000000001", "today.md")
+        assertNull(reopened.read("00000000-0000-4000-8000-000000000001", "today.md"))
+        assertTrue(reopened.entries().isEmpty())
     }
 
     @Test fun enumerationDeduplicatesAliasesAndKeepsOriginalDirectoryAcrossDays() = runTest {
         val store = EditorDraftStore(folder.root)
         val draft = EditorDraft("vault", "old-day.md", "document", "old-day.md", "mine", 0, 0, 3, "old", false,
-            directory = "content://provider/tree/root/document/sub", displayPath = "daily/old-day.md", updatedAt = 123)
+            directory = "content://provider/tree/root/document/sub", displayPath = "daily/old-day.md", updatedAt = 123, vaultId = "00000000-0000-4000-8000-000000000001")
         store.save(draft); store.save(draft.copy(target = "document"))
         val entry = store.entries().single()
-        assertEquals(draft.directory, entry.draft!!.originalDirectory())
+        assertEquals(draft.directory, entry.draft!!.directory)
         assertEquals(123, entry.draft.updatedAt)
         store.deleteEntry(entry.id)
         assertTrue(store.entries().isEmpty())
     }
 
-    @Test fun legacyMetadataIsReadWithoutGuessingDocumentParentAndDamageIsIsolated() = runTest {
-        val name = fingerprint("vault\ncontent://provider/document/file".toByteArray()) + ".json"
-        File(folder.root, name).writeText("""{"vault":"vault","target":"content://provider/document/file","document":"content://provider/document/file","name":"note.md","text":"old text","selectionStart":0,"selectionEnd":0,"version":1,"fingerprint":null,"bom":false}""")
-        File(folder.root, "broken.json").writeText("{")
-        val entries = EditorDraftStore(folder.root).entries()
+    @Test fun damagedRecordDoesNotHideValidDraft() = runTest {
+        val store = EditorDraftStore(folder.root)
+        val valid = EditorDraft("content://test/tree/a", "file", "file", "note.md", "keep me", 0, 0, 1, null, false,
+            directory = "content://test/tree/a", vaultId = "00000000-0000-4000-8000-000000000001")
+        store.save(valid)
+        val missingIdentity = kotlinx.serialization.json.Json.encodeToString(EditorDraft.serializer(), valid)
+            .replace(",\"vaultId\":\"${valid.vaultId}\"", "")
+        File(folder.root, "damaged.json").writeText(missingIdentity)
+        val entries = store.entries()
         assertEquals(2, entries.size)
-        assertEquals("old text", entries.single { !it.damaged }.draft!!.text)
-        assertNull(entries.single { !it.damaged }.draft!!.originalDirectory())
+        assertEquals(valid, entries.single { !it.damaged }.draft)
         assertTrue(entries.single { it.damaged }.damaged)
     }
 
     @Test fun pendingBackupSurvivesRetryUntilVerifiedSuccess() = runTest {
         val store = EditorDraftStore(folder.root)
-        val before = EditorDraft("vault", "file", "file", "note.md", "original", 0, 0, 0, "hash", false, directory = "vault")
-        store.prepareBackup(before, "original".toByteArray())
-        store.prepareBackup(before.copy(text = "truncated"), "truncated".toByteArray())
+        val before = EditorDraft("vault", "file", "file", "note.md", "original", 0, 0, 0, "hash", false, directory = "vault", vaultId = "00000000-0000-4000-8000-000000000001")
+        store.prepareBackup(before)
+        store.prepareBackup(before.copy(text = "truncated"))
         assertEquals("original", store.entries().single().draft!!.text)
         assertTrue(store.entries().single().pending)
-        store.completeBackup("vault", "file")
+        store.completeBackup("00000000-0000-4000-8000-000000000001", "file")
         assertFalse(store.entries().single().pending)
-        store.prepareBackup(before.copy(text = "next preimage"), "next preimage".toByteArray())
+        store.prepareBackup(before.copy(text = "next preimage"))
         assertEquals("next preimage", store.entries().single().draft!!.text)
-    }
-
-    @Test fun unknownLegacyBackupRemainsReadableAndExportable() = runTest {
-        File(folder.root, "unknown.recovery").writeText("保留正文")
-        val entry = EditorDraftStore(folder.root).entries().single()
-        assertTrue(entry.backup)
-        assertEquals("保留正文", entry.draft!!.text)
-        assertNull(entry.draft.originalDirectory())
     }
 }

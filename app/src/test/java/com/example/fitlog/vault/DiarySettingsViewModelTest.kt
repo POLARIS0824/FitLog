@@ -32,7 +32,7 @@ class DiarySettingsViewModelTest {
             override suspend fun directories(directory: String) = emptyList<DiaryDirectory>()
             override suspend fun canCreate(directory: String) = true
         }
-        val vm = DiarySettingsViewModel(uri, settings, dirs) { requested -> assertEquals(uri, requested); id }
+        val vm = DiarySettingsViewModel(uri, id, settings, dirs)
         store.put("settings", vm)
         advanceUntilIdle()
         vm.chooseFormat(DiaryDateFormat.Compact)
@@ -47,7 +47,7 @@ class DiarySettingsViewModelTest {
 
     @Test fun browsingAndCancellingNeverSaveButExplicitSavePersistsSelection() = runTest(dispatcher) {
         val settings = SettingsMemory()
-        val vm = DiarySettingsViewModel("vault", settings, DirectoryMemory())
+        val vm = DiarySettingsViewModel("vault", "00000000-0000-4000-8000-000000000001", settings, DirectoryMemory())
         store.put("settings", vm)
         advanceUntilIdle()
         assertTrue(vm.canSave)
@@ -66,7 +66,7 @@ class DiarySettingsViewModelTest {
 
     @Test fun failedSavePreservesSelectionAndAllowsRetry() = runTest(dispatcher) {
         val settings = SettingsMemory().apply { failSave = true }
-        val vm = DiarySettingsViewModel("vault", settings, DirectoryMemory())
+        val vm = DiarySettingsViewModel("vault", "00000000-0000-4000-8000-000000000001", settings, DirectoryMemory())
         store.put("settings", vm)
         advanceUntilIdle()
         vm.browse(listOf("daily"))
@@ -88,7 +88,7 @@ class DiarySettingsViewModelTest {
         val dirs = DirectoryMemory().apply {
             resolve = { path -> if (path == listOf("slow")) withContext(NonCancellable) { old.await() } else path.joinToString("/") }
         }
-        val vm = DiarySettingsViewModel("vault", SettingsMemory(), dirs)
+        val vm = DiarySettingsViewModel("vault", "00000000-0000-4000-8000-000000000001", SettingsMemory(), dirs)
         store.put("settings", vm)
         advanceUntilIdle()
         vm.browse(listOf("slow"))
@@ -105,7 +105,7 @@ class DiarySettingsViewModelTest {
     @Test fun missingSavedDirectoryRequiresExplicitNewSelection() = runTest(dispatcher) {
         val settings = SettingsMemory().apply { value = DiarySettings(listOf("missing")) }
         val dirs = DirectoryMemory().apply { resolve = { if (it.isNotEmpty()) throw IOException(); "root" } }
-        val vm = DiarySettingsViewModel("vault", settings, dirs)
+        val vm = DiarySettingsViewModel("vault", "00000000-0000-4000-8000-000000000001", settings, dirs)
         store.put("settings", vm)
         advanceUntilIdle()
         assertFalse(vm.canSave)

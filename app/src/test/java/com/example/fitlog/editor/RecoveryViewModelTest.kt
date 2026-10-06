@@ -11,28 +11,33 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class RecoveryViewModelTest {
-    @Test fun legacyRecoveryObtainsUuidForItsOwnUriAndKeepsOriginalLocation() = runTest(dispatcher) {
+    @Test fun storedUuidResolvesItsOriginalUriAndKeepsOriginalLocation() = runTest(dispatcher) {
         drafts.save(draft)
         val id = "00000000-0000-4000-8000-000000000001"
-        val vm = RecoveryViewModel(SavedStateHandle(), drafts) { uri ->
-            assertEquals(draft.vault, uri); id
+        val vm = RecoveryViewModel(SavedStateHandle(), drafts) { requested ->
+            assertEquals(id, requested); android.net.Uri.parse(draft.vaultUri)
         }.also { viewModels.put("recovery", it) }
         vm.refresh(); runCurrent(); vm.select(vm.entries.single().id)
         var route: FitLogRoute.Editor? = null
         vm.restore { route = it }; runCurrent()
         assertEquals(id, route?.vaultId)
-        assertEquals(draft.vault, route?.vault)
+        assertEquals(draft.vaultUri, route?.vaultUri)
         assertEquals(draft.directory, route?.directory)
         assertEquals(draft.name, route?.fileName)
     }
 
-    @Test fun mismatchedUuidCannotAssociateARecoveryWithAnotherVault() = runTest(dispatcher) {
+    @Test fun mismatchedLocatorCannotAssociateARecoveryWithAnotherVault() = runTest(dispatcher) {
         drafts.save(draft.copy(vaultId = "00000000-0000-4000-8000-000000000001"))
-        val vm = RecoveryViewModel(SavedStateHandle(), drafts) { "00000000-0000-4000-8000-000000000002" }
+        val vm = RecoveryViewModel(SavedStateHandle(), drafts) { android.net.Uri.parse("content://test/tree/another") }
             .also { viewModels.put("recovery", it) }
         vm.refresh(); runCurrent(); vm.select(vm.entries.single().id)
         vm.restore { fail("Mismatched identity must not navigate") }; runCurrent()
@@ -43,17 +48,19 @@ class RecoveryViewModelTest {
     private val viewModels = ViewModelStore()
     private val drafts = RecoveryMemory()
     private val draft = EditorDraft("old-vault", "old-day.md", null, "old-day.md", "我的日记", 0, 0, 1, null, false,
-        directory = "old-directory", displayPath = "daily/old-day.md", updatedAt = 123)
+        directory = "old-directory", displayPath = "daily/old-day.md", updatedAt = 123, vaultId = "00000000-0000-4000-8000-000000000001")
     @Before fun before() { Dispatchers.setMain(dispatcher) }
     @After fun after() { viewModels.clear(); Dispatchers.resetMain() }
-    private fun vm(): RecoveryViewModel = RecoveryViewModel(SavedStateHandle(), drafts).also { viewModels.put("recovery", it) }
+    private fun vm(): RecoveryViewModel = RecoveryViewModel(SavedStateHandle(), drafts) { requested ->
+        assertEquals(draft.vaultId, requested); android.net.Uri.parse(draft.vaultUri)
+    }.also { viewModels.put("recovery", it) }
 
     @Test fun disconnectedVaultAndOldDateRestoreUseStoredIdentity() = runTest(dispatcher) {
         drafts.save(draft)
         val vm = vm(); vm.refresh(); runCurrent(); vm.select(vm.entries.single().id)
         var route: FitLogRoute.Editor? = null
         vm.restore { route = it }; runCurrent()
-        assertEquals("old-vault", route?.vault)
+        assertEquals("old-vault", route?.vaultUri)
         assertEquals("old-directory", route?.directory)
         assertEquals("old-day.md", route?.fileName)
         assertEquals("daily/old-day.md", route?.displayPath)
@@ -72,8 +79,8 @@ class RecoveryViewModelTest {
         assertEquals(draft.text, body); assertEquals(1, drafts.values.size)
     }
 
-    @Test fun unknownLocationCannotNavigateAndBackupCreatesSeparateManualDraft() = runTest(dispatcher) {
-        drafts.values["unknown"] = RecoveryEntry("unknown", draft.copy(vault = "", directory = null, name = "", originTarget = "unknown.recovery"), backup = true)
+    @Test fun damagedEntryCannotNavigateAndBackupCreatesSeparateManualDraft() = runTest(dispatcher) {
+        drafts.values["unknown"] = RecoveryEntry("unknown", null, backup = true, damaged = true)
         val vm = vm(); vm.refresh(); runCurrent(); vm.select("unknown")
         vm.restore { fail("Must not guess a location") }; runCurrent()
         assertNotNull(vm.notice)
@@ -138,10 +145,10 @@ private class RecoveryMemory : Drafts {
     var beforeEntries: suspend () -> Unit = {}
     var beforeSave: suspend () -> Unit = {}
     val values = mutableMapOf<String, RecoveryEntry>()
-    override suspend fun read(vault: String, target: String) = values.values.mapNotNull { it.draft }.firstOrNull { it.vault == vault && it.target == target }
+    override suspend fun read(vaultId: String, target: String) = values.values.mapNotNull { it.draft }.firstOrNull { it.vaultId == vaultId && it.target == target }
     override suspend fun save(draft: EditorDraft) { beforeSave(); val id = "draft:${draft.identity()}"; values[id] = RecoveryEntry(id, draft) }
-    override suspend fun remove(vault: String, target: String) { values.entries.removeAll { it.value.draft?.let { d -> d.vault == vault && d.target == target } == true } }
-    override suspend fun backup(vault: String, target: String, bytes: ByteArray) = Unit
+    override suspend fun remove(vaultId: String, target: String) { values.entries.removeAll { it.value.draft?.let { d -> d.vaultId == vaultId && d.target == target } == true } }
+    override suspend fun prepareBackup(draft: EditorDraft) = Unit
     override suspend fun entries(): List<RecoveryEntry> { beforeEntries(); return values.values.toList() }
     override suspend fun deleteEntry(id: String) { values.remove(id) }
 }

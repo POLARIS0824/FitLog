@@ -14,7 +14,7 @@ import java.util.UUID
 class RecoveryViewModel(
     private val state: SavedStateHandle,
     private val drafts: Drafts,
-    private val resolveVaultId: suspend (String) -> String? = { null },
+    private val resolveVaultUri: suspend (vaultId: String) -> android.net.Uri,
 ) : ViewModel() {
     private val operations = Mutex()
     private var selectionGeneration = 0L
@@ -38,23 +38,20 @@ class RecoveryViewModel(
             val entry = requireNotNull(selection?.let { drafts.entry(it) })
             if (generation != selectionGeneration) return@runOperation
             var draft = requireNotNull(entry.draft)
-            val directory = requireNotNull(draft.originalDirectory())
-            require(draft.vault.isNotEmpty())
-            val resolvedId = resolveVaultId(draft.vault)
-            require(draft.vaultId == null || resolvedId == null || draft.vaultId == resolvedId)
-            val vaultId = resolvedId ?: draft.vaultId
+            val directory = draft.directory
+            require(resolveVaultUri(draft.vaultId).toString() == draft.vaultUri) { "Conflicting recovery location" }
             var id = entry.id
             if (entry.backup) {
                 val target = "recovered:${UUID.randomUUID()}"
                 draft = draft.copy(target = target, originTarget = target, recoveryId = UUID.randomUUID().toString(),
                     manualSave = true, restoredBackup = true, directory = directory, updatedAt = System.currentTimeMillis(),
-                    vaultId = vaultId)
+                    vaultId = draft.vaultId)
                 drafts.save(draft)
                 id = "draft:${draft.identity()}"
             }
             if (generation != selectionGeneration) return@runOperation
-            onOpen(FitLogRoute.Editor(vault = draft.vault, document = draft.document, directory = directory,
-                fileName = draft.name, recoveryId = id, displayPath = draft.displayPath, vaultId = vaultId))
+            onOpen(FitLogRoute.Editor(vaultUri = draft.vaultUri, document = draft.document, directory = directory,
+                fileName = draft.name, recoveryId = id, displayPath = draft.displayPath, vaultId = draft.vaultId))
         }
     }
     fun prepareExport(launch: (String) -> Unit, fallbackName: String) {

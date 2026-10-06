@@ -63,7 +63,7 @@ class MarkdownDocumentRepositoryTest {
         }
         val route = TodayLogResolver(settings, repository, repository).resolve(vault, LocalDate.of(2026, 9, 30), id)
         assertEquals(id, route.vaultId)
-        assertEquals(vault, route.vault)
+        assertEquals(vault, route.vaultUri)
         assertEquals(uri("root/sub/a"), route.document)
         assertEquals(uri("root/sub"), route.directory)
     }
@@ -72,7 +72,7 @@ class MarkdownDocumentRepositoryTest {
         provider.add("root/sub", "daily", "root", null)
         provider.add("root/a", "2026-09-30.md", "root", "root".toByteArray())
         provider.add("root/sub/a", "2026-09-30.md", "root/sub", "child".toByteArray())
-        val route = todayResolver(DiarySettings(listOf("daily"))).resolve(vault, LocalDate.of(2026, 9, 30))
+        val route = todayResolver(DiarySettings(listOf("daily"))).resolve(vault, LocalDate.of(2026, 9, 30), "00000000-0000-4000-8000-000000000001")
         assertEquals(uri("root/sub/a"), route.document)
         assertEquals(uri("root/sub"), route.directory)
         assertEquals("child", repository.read(route.document!!).text)
@@ -82,7 +82,7 @@ class MarkdownDocumentRepositoryTest {
     @Test fun missingTodayIsNotCreatedUntilEditorSavesAndCreateUsesChild() = runTest {
         provider.add("root/sub", "daily", "root", null)
         val route = todayResolver(DiarySettings(listOf("daily"), DiaryDateFormat.Compact))
-            .resolve(vault, LocalDate.of(2026, 9, 30))
+            .resolve(vault, LocalDate.of(2026, 9, 30), "00000000-0000-4000-8000-000000000001")
         assertNull(route.document)
         assertEquals("20260930.md", route.fileName)
         assertEquals(2, provider.nodes.size)
@@ -97,9 +97,9 @@ class MarkdownDocumentRepositoryTest {
         provider.add("root/sub/a", "2026-09-30.md", "root/sub", "read only".toByteArray())
         provider.nodes["root/sub/a"]!!.writable = false
         val resolver = todayResolver(DiarySettings(listOf("daily")))
-        val route = resolver.resolve(vault, LocalDate.of(2026, 9, 30))
+        val route = resolver.resolve(vault, LocalDate.of(2026, 9, 30), "00000000-0000-4000-8000-000000000001")
         assertFalse(repository.read(route.document!!).file.writable)
-        try { resolver.resolve(vault, LocalDate.of(2026, 10, 1)); fail() }
+        try { resolver.resolve(vault, LocalDate.of(2026, 10, 1), "00000000-0000-4000-8000-000000000001"); fail() }
         catch (_: DiaryCreationUnavailable) { }
     }
 
@@ -113,7 +113,7 @@ class MarkdownDocumentRepositoryTest {
     }
 
     @Test fun fileAppearingAfterTodayLookupIsNotOverwritten() = runTest {
-        val route = todayResolver().resolve(vault, LocalDate.of(2026, 9, 30))
+        val route = todayResolver().resolve(vault, LocalDate.of(2026, 9, 30), "00000000-0000-4000-8000-000000000001")
         provider.add("root/external", route.fileName, "root", "external".toByteArray())
         try { repository.create(route.directory, route.fileName); fail() } catch (_: NameCollision) { }
         assertEquals("external", provider.bytes("root/external").toString(Charsets.UTF_8))
@@ -188,7 +188,7 @@ class MarkdownDocumentRepositoryTest {
     @Test fun recoveryExportPreservesUtf8BomAndRequiresSuccessfulReadback() = runTest {
         provider.add("root/export", "copy.md", "root", byteArrayOf())
         val exporter = com.example.fitlog.editor.RecoveryExporter(RuntimeEnvironment.getApplication().contentResolver)
-        val draft = com.example.fitlog.editor.EditorDraft("vault", "draft", null, "old.md", "卧推💪\r\n", 0, 0, 1, null, true)
+        val draft = com.example.fitlog.editor.EditorDraft("vault", "draft", null, "old.md", "卧推💪\r\n", 0, 0, 1, null, true, directory = "vault", vaultId = "00000000-0000-4000-8000-000000000001")
         exporter.export(Uri.parse(uri("root/export")), draft)
         val copy = repository.read(uri("root/export"))
         assertEquals(draft.text, copy.text); assertTrue(copy.bom)

@@ -21,7 +21,7 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
-fun RecoveryScreen(vm: RecoveryViewModel, currentVault: String?, onOpen: (FitLogRoute.Editor) -> Unit, onBack: () -> Unit) {
+fun RecoveryScreen(vm: RecoveryViewModel, currentVaultId: String?, onOpen: (FitLogRoute.Editor) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     val exporter = remember(context) { RecoveryExporter(context.contentResolver) }
     val fallbackName = stringResource(R.string.recovery_export_name)
@@ -42,11 +42,11 @@ fun RecoveryScreen(vm: RecoveryViewModel, currentVault: String?, onOpen: (FitLog
             val draft = selected.draft
             Text(draft?.name?.ifBlank { null } ?: stringResource(R.string.recovery_unknown), style = MaterialTheme.typography.titleLarge)
             Text(stringResource(if (selected.backup) R.string.recovery_backup else R.string.recovery_draft))
-            Text(draft?.displayPath ?: draft?.originalDirectory() ?: stringResource(R.string.recovery_unknown_location))
+            Text(draft?.displayPath ?: draft?.directory ?: stringResource(R.string.recovery_unknown_location))
             if (selected.pending) Text(stringResource(R.string.recovery_pending_backup))
             if (selected.damaged) Text(stringResource(R.string.recovery_damaged), color = MaterialTheme.colorScheme.error)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { vm.restore(onOpen) }, enabled = !vm.busy && draft?.originalDirectory() != null && draft.vault.isNotBlank()) {
+                TextButton(onClick = { vm.restore(onOpen) }, enabled = !vm.busy && draft?.directory != null && draft.vaultUri.isNotBlank()) {
                     Text(stringResource(R.string.recovery_continue))
                 }
                 TextButton(onClick = { vm.prepareExport({ export.launch(it) }, fallbackName) }, enabled = !vm.busy && draft != null) {
@@ -58,20 +58,20 @@ fun RecoveryScreen(vm: RecoveryViewModel, currentVault: String?, onOpen: (FitLog
         } else {
             TextButton(onClick = { vm.refresh() }, enabled = !vm.busy) { Text(stringResource(R.string.log_refresh)) }
             if (!vm.busy && vm.entries.isEmpty()) Text(stringResource(R.string.recovery_empty))
-            val groups = vm.entries.groupBy { it.draft?.vault.orEmpty() }.entries.sortedWith(
-                compareByDescending<Map.Entry<String, List<RecoveryEntry>>> { it.key == currentVault }
+            val groups = vm.entries.groupBy { it.draft?.vaultId.orEmpty() }.entries.sortedWith(
+                compareByDescending<Map.Entry<String, List<RecoveryEntry>>> { it.key == currentVaultId }
                     .thenByDescending { it.value.maxOfOrNull { entry -> entry.draft?.updatedAt ?: 0 } ?: 0 })
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 groups.forEach { group ->
                     item(key = "vault:${group.key}") {
-                        Text(group.key.ifBlank { stringResource(R.string.recovery_unknown) }, style = MaterialTheme.typography.titleSmall)
+                        Text(group.value.firstNotNullOfOrNull { it.draft?.vaultUri } ?: stringResource(R.string.recovery_unknown), style = MaterialTheme.typography.titleSmall)
                     }
                     items(group.value.sortedByDescending { it.draft?.updatedAt ?: 0 }, key = { it.id }) { entry ->
                         OutlinedCard(onClick = { vm.select(entry.id) }, modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp)) {
                                 Text(entry.draft?.name?.ifBlank { null } ?: stringResource(R.string.recovery_unknown))
                                 Text(stringResource(if (entry.backup) R.string.recovery_backup else R.string.recovery_draft))
-                                Text(entry.draft?.displayPath ?: entry.draft?.originalDirectory() ?: stringResource(R.string.recovery_unknown_location))
+                                Text(entry.draft?.displayPath ?: entry.draft?.directory ?: stringResource(R.string.recovery_unknown_location))
                                 val time = entry.draft?.updatedAt ?: 0
                                 if (time > 0) Text(DateFormat.getDateTimeInstance().format(Date(time)))
                                 if (entry.damaged) Text(stringResource(R.string.recovery_damaged), color = MaterialTheme.colorScheme.error)

@@ -6,9 +6,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.*
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class SourceIndexFreshnessTest {
     private class Documents : MarkdownDocuments {
         var files = listOf(MarkdownFile("file", "note.md", "note.md", true, "vault", 10, 3))
@@ -39,16 +44,16 @@ class SourceIndexFreshnessTest {
         val documents = Documents()
         val store = MemorySourceIndexStore()
         val dirty = MemoryIndexInvalidations()
-        val index = SourceIndexRepository(documents, store, { time }, scope, { elapsed }, dirty)
-        fun foreground() = index.ensureFresh("vault", SourceIndexRepository.Reason.Foreground)
+        val index = SourceIndexRepository(documents, store, { time }, scope, { elapsed }, dirty, resolveVaultUri = { android.net.Uri.parse("content://test/tree/a") })
+        fun foreground() = index.ensureFresh("00000000-0000-4000-8000-000000000001", SourceIndexRepository.Reason.Foreground)
         fun tick(delta: Long) { time += delta; elapsed += delta }
     }
 
     @Test fun navigationAndForegroundAreThrottledWhileUnchangedBodiesAreReused() = runTest {
         val f = Fixture(this)
-        f.index.activate("vault"); runCurrent()
+        f.index.activate("00000000-0000-4000-8000-000000000001"); runCurrent()
         assertEquals(1, f.documents.reads)
-        f.index.activate("vault"); f.foreground(); runCurrent()
+        f.index.activate("00000000-0000-4000-8000-000000000001"); f.foreground(); runCurrent()
         assertEquals(1, f.documents.scans)
         f.tick(29_999); f.foreground(); runCurrent()
         assertEquals(1, f.documents.scans)
@@ -56,9 +61,9 @@ class SourceIndexFreshnessTest {
         assertEquals(2, f.documents.scans)
         assertEquals(1, f.documents.reads)
         // An ordinary page return never scans, even after the freshness interval.
-        f.tick(SourceIndexRepository.VISIBLE_INTERVAL); f.index.activate("vault"); runCurrent()
+        f.tick(SourceIndexRepository.VISIBLE_INTERVAL); f.index.activate("00000000-0000-4000-8000-000000000001"); runCurrent()
         assertEquals(2, f.documents.scans)
-        f.index.ensureFresh("vault", SourceIndexRepository.Reason.VisiblePeriodic); runCurrent()
+        f.index.ensureFresh("00000000-0000-4000-8000-000000000001", SourceIndexRepository.Reason.VisiblePeriodic); runCurrent()
         assertEquals(3, f.documents.scans)
     }
 
@@ -68,12 +73,12 @@ class SourceIndexFreshnessTest {
         f.documents.files = f.documents.files.map { it.copy(name = "renamed.md", path = "daily/renamed.md") }
         f.tick(30_000); f.foreground(); runCurrent()
         assertEquals(1, f.documents.reads)
-        assertEquals("daily/renamed.md", f.store.sources("vault").single().path)
+        assertEquals("daily/renamed.md", f.store.sources("00000000-0000-4000-8000-000000000001").single().path)
         f.documents.body = "two"
         f.documents.files = f.documents.files.map { it.copy(lastModified = 20) }
         f.tick(30_000); f.foreground(); runCurrent()
         assertEquals(2, f.documents.reads)
-        assertEquals("two", f.store.sources("vault").single().fingerprint)
+        assertEquals("two", f.store.sources("00000000-0000-4000-8000-000000000001").single().fingerprint)
         f.documents.files = f.documents.files.map { it.copy(size = null) }
         repeat(2) { f.tick(30_000); f.foreground(); runCurrent() }
         assertEquals(4, f.documents.reads)
@@ -84,13 +89,13 @@ class SourceIndexFreshnessTest {
         f.foreground(); runCurrent()
         f.documents.body = "two"
         f.tick(30_000); f.foreground(); runCurrent()
-        assertEquals("one", f.store.sources("vault").single().fingerprint)
-        f.index.forceRefresh("vault"); runCurrent()
-        assertEquals("two", f.store.sources("vault").single().fingerprint)
+        assertEquals("one", f.store.sources("00000000-0000-4000-8000-000000000001").single().fingerprint)
+        f.index.forceRefresh("00000000-0000-4000-8000-000000000001"); runCurrent()
+        assertEquals("two", f.store.sources("00000000-0000-4000-8000-000000000001").single().fingerprint)
         f.documents.body = "end"
         f.tick(SourceIndexRepository.FULL_INTERVAL); f.foreground(); runCurrent()
-        assertEquals("end", f.store.sources("vault").single().fingerprint)
-        assertEquals(f.time, f.store.observe("vault").first().scan?.fullVerifiedAt)
+        assertEquals("end", f.store.sources("00000000-0000-4000-8000-000000000001").single().fingerprint)
+        assertEquals(f.time, f.store.observe("00000000-0000-4000-8000-000000000001").first().scan?.fullVerifiedAt)
     }
 
     @Test fun failuresPreserveVerifiedMetadataAndRetryUnreadableSources() = runTest {
@@ -99,14 +104,14 @@ class SourceIndexFreshnessTest {
         f.documents.files = f.documents.files.map { it.copy(lastModified = 20) }
         f.documents.failRead = true
         f.tick(30_000); f.foreground(); runCurrent()
-        val row = f.store.sources("vault").single()
+        val row = f.store.sources("00000000-0000-4000-8000-000000000001").single()
         assertEquals(10L, row.lastModified)
         assertEquals("one", row.fingerprint)
         assertEquals(IndexedSource.READ_FAILED, row.status)
-        assertEquals(1_000L, f.store.observe("vault").first().scan?.metadataCheckedAt)
+        assertEquals(1_000L, f.store.observe("00000000-0000-4000-8000-000000000001").first().scan?.metadataCheckedAt)
         f.documents.failRead = false
         f.tick(30_000); f.foreground(); runCurrent()
-        assertEquals(20L, f.store.sources("vault").single().lastModified)
+        assertEquals(20L, f.store.sources("00000000-0000-4000-8000-000000000001").single().lastModified)
         assertEquals(3, f.documents.reads)
     }
 
@@ -114,20 +119,20 @@ class SourceIndexFreshnessTest {
         val f = Fixture(this)
         f.documents.files = emptyList()
         f.foreground(); runCurrent()
-        assertEquals(IndexedScan.COMPLETE, f.store.observe("vault").first().scan?.status)
+        assertEquals(IndexedScan.COMPLETE, f.store.observe("00000000-0000-4000-8000-000000000001").first().scan?.status)
         f.tick(30_000); f.foreground(); runCurrent()
         assertEquals(0, f.documents.reads)
         f.documents.files = listOf(MarkdownFile("new", "new.md", "sub/new.md", false, "sub", 1, 3))
         f.tick(30_000); f.foreground(); runCurrent()
         f.documents.files = emptyList(); f.documents.partial = true
         f.tick(30_000); f.foreground(); runCurrent()
-        assertEquals(IndexedSource.AVAILABLE, f.store.sources("vault").single().status)
+        assertEquals(IndexedSource.AVAILABLE, f.store.sources("00000000-0000-4000-8000-000000000001").single().status)
         f.documents.partial = false; f.documents.failScan = true
         f.tick(30_000); f.foreground(); runCurrent()
-        assertEquals(IndexedSource.AVAILABLE, f.store.sources("vault").single().status)
+        assertEquals(IndexedSource.AVAILABLE, f.store.sources("00000000-0000-4000-8000-000000000001").single().status)
         f.documents.failScan = false
         f.tick(30_000); f.foreground(); runCurrent()
-        assertEquals(IndexedSource.MISSING, f.store.sources("vault").single().status)
+        assertEquals(IndexedSource.MISSING, f.store.sources("00000000-0000-4000-8000-000000000001").single().status)
     }
 
     @Test fun concurrentAutomaticRequestsMergeAndForceQueuesOneFollowup() = runTest {
@@ -135,11 +140,11 @@ class SourceIndexFreshnessTest {
         val release = CompletableDeferred<Unit>()
         f.documents.beforeScan = { release.await() }
         f.foreground(); runCurrent()
-        repeat(3) { f.foreground(); f.index.forceRefresh("vault") }
+        repeat(3) { f.foreground(); f.index.forceRefresh("00000000-0000-4000-8000-000000000001") }
         assertEquals(1, f.documents.scans)
         release.complete(Unit); runCurrent()
         assertEquals(2, f.documents.scans)
-        assertFalse(f.index.observe("vault").first().refreshing)
+        assertFalse(f.index.observe("00000000-0000-4000-8000-000000000001").first().refreshing)
     }
 
     @Test fun queuedForceStillRunsIfCurrentScanFails() = runTest {
@@ -149,21 +154,21 @@ class SourceIndexFreshnessTest {
             if (f.documents.scans == 1) { release.await(); throw IOException() }
         }
         f.foreground(); runCurrent()
-        f.index.forceRefresh("vault")
+        f.index.forceRefresh("00000000-0000-4000-8000-000000000001")
         release.complete(Unit); runCurrent()
         assertEquals(2, f.documents.scans)
-        assertEquals(IndexedScan.COMPLETE, f.store.observe("vault").first().scan?.status)
-        assertFalse(f.index.observe("vault").first().refreshFailed)
+        assertEquals(IndexedScan.COMPLETE, f.store.observe("00000000-0000-4000-8000-000000000001").first().scan?.status)
+        assertFalse(f.index.observe("00000000-0000-4000-8000-000000000001").first().refreshFailed)
     }
 
-    @Test fun coldStartUsesMetadataAndLegacyRowsAreReadOnce() = runTest {
+    @Test fun coldStartUsesMetadataAndUnverifiedRowsAreReadOnce() = runTest {
         val f = Fixture(this)
         f.foreground(); runCurrent()
-        val cold = SourceIndexRepository(f.documents, f.store, { f.time }, this, { f.elapsed })
-        cold.activate("vault"); runCurrent()
+        val cold = SourceIndexRepository(f.documents, f.store, { f.time }, this, { f.elapsed }, resolveVaultUri = { android.net.Uri.parse("content://test/tree/a") })
+        cold.activate("00000000-0000-4000-8000-000000000001"); runCurrent()
         assertEquals(2, f.documents.scans)
         assertEquals(1, f.documents.reads)
-        val old = f.store.sources("vault").single()
+        val old = f.store.sources("00000000-0000-4000-8000-000000000001").single()
         f.store.commit(listOf(old.copy(lastModified = null, size = null)))
         f.tick(30_000); f.foreground(); runCurrent()
         assertEquals(2, f.documents.reads)
@@ -176,15 +181,15 @@ class SourceIndexFreshnessTest {
         f.foreground(); runCurrent()
         f.store.fail = true
         try {
-            f.index.recordSaved("vault", MarkdownSnapshot(f.documents.files.single(), "two", "two", false), "vault", null)
+            f.index.recordSaved("00000000-0000-4000-8000-000000000001", MarkdownSnapshot(f.documents.files.single(), "two", "two", false), "vault", null)
             fail()
         } catch (_: IOException) { }
-        assertTrue(f.dirty.contains("vault"))
+        assertTrue(f.dirty.contains("00000000-0000-4000-8000-000000000001"))
         f.store.fail = false; f.documents.body = "two"
-        val restarted = SourceIndexRepository(f.documents, f.store, { f.time }, this, { f.elapsed }, f.dirty)
-        restarted.ensureFresh("vault", SourceIndexRepository.Reason.Activation); runCurrent()
-        assertEquals("two", f.store.sources("vault").single().fingerprint)
-        assertFalse(f.dirty.contains("vault"))
+        val restarted = SourceIndexRepository(f.documents, f.store, { f.time }, this, { f.elapsed }, f.dirty, resolveVaultUri = { android.net.Uri.parse("content://test/tree/a") })
+        restarted.ensureFresh("00000000-0000-4000-8000-000000000001", SourceIndexRepository.Reason.Activation); runCurrent()
+        assertEquals("two", f.store.sources("00000000-0000-4000-8000-000000000001").single().fingerprint)
+        assertFalse(f.dirty.contains("00000000-0000-4000-8000-000000000001"))
     }
 
     @Test fun saveDuringScanWinsAndInvalidationQueuesFullRepair() = runTest {
@@ -194,26 +199,26 @@ class SourceIndexFreshnessTest {
         f.documents.beforeScan = { release.await() }
         f.tick(30_000); f.foreground(); runCurrent()
         f.store.fail = true
-        try { f.index.recordSaved("vault", MarkdownSnapshot(f.documents.files.single(), "two", "two", false), "vault", null) }
+        try { f.index.recordSaved("00000000-0000-4000-8000-000000000001", MarkdownSnapshot(f.documents.files.single(), "two", "two", false), "vault", null) }
         catch (_: IOException) { }
         f.store.fail = false; f.documents.body = "two"
         release.complete(Unit); runCurrent()
         assertEquals(3, f.documents.scans)
-        assertEquals("two", f.store.sources("vault").single().fingerprint)
-        assertFalse(f.dirty.contains("vault"))
+        assertEquals("two", f.store.sources("00000000-0000-4000-8000-000000000001").single().fingerprint)
+        assertFalse(f.dirty.contains("00000000-0000-4000-8000-000000000001"))
     }
 
     @Test fun switchingVaultCancelsIgnoredProviderResultsAndPageDisposalDoesNot() = runTest {
         val f = Fixture(this)
         val release = CompletableDeferred<Unit>()
         f.documents.beforeScan = { withContext(NonCancellable) { release.await() } }
-        f.index.activate("vault"); runCurrent()
-        f.index.activate("vault"); runCurrent()
-        assertTrue(f.index.observe("vault").first().refreshing)
+        f.index.activate("00000000-0000-4000-8000-000000000001"); runCurrent()
+        f.index.activate("00000000-0000-4000-8000-000000000001"); runCurrent()
+        assertTrue(f.index.observe("00000000-0000-4000-8000-000000000001").first().refreshing)
         f.index.activate(null)
         release.complete(Unit); runCurrent()
-        assertTrue(f.store.sources("vault").isEmpty())
-        assertEquals(IndexedScan.INTERRUPTED, f.index.observe("vault").first().scan?.status)
+        assertTrue(f.store.sources("00000000-0000-4000-8000-000000000001").isEmpty())
+        assertEquals(IndexedScan.INTERRUPTED, f.index.observe("00000000-0000-4000-8000-000000000001").first().scan?.status)
     }
 
     @Test fun failedScansAreThrottledAndClockChangesDoNotBypassForegroundInterval() = runTest {
@@ -226,6 +231,6 @@ class SourceIndexFreshnessTest {
         f.elapsed += 30_000
         f.foreground(); runCurrent()
         assertEquals(2, f.documents.scans)
-        assertTrue(f.index.observe("vault").first().refreshFailed)
+        assertTrue(f.index.observe("00000000-0000-4000-8000-000000000001").first().refreshFailed)
     }
 }

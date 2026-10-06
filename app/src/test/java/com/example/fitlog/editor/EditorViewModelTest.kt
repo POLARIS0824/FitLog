@@ -19,12 +19,12 @@ import java.io.IOException
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class EditorViewModelTest {
-    @Test fun newDraftKeysSeparateFoldersAndKeepLegacyRootDrafts() {
+    @Test fun newDraftKeysAlwaysIncludeTheDirectoryAndSeparateFolders() {
         val vault = "content://test/tree/root"
         val root = "content://test/tree/root/document/root"
-        val base = FitLogRoute.Editor(vault, date = "2026-09-30")
-        assertEquals("2026-09-30.md", newDraftTarget(base))
-        assertEquals(newDraftTarget(base), newDraftTarget(base.copy(directory = root)))
+        val base = FitLogRoute.Editor(vault, date = "2026-09-30", vaultId = "00000000-0000-4000-8000-000000000001")
+        assertEquals("$vault\n2026-09-30.md", newDraftTarget(base))
+        assertEquals("$root\n2026-09-30.md", newDraftTarget(base.copy(directory = root)))
         assertNotEquals(newDraftTarget(base.copy(directory = "$root%2Fa")), newDraftTarget(base.copy(directory = "$root%2Fb")))
     }
     private val dispatcher = StandardTestDispatcher()
@@ -34,7 +34,7 @@ class EditorViewModelTest {
     private val repository = FakeDocuments()
     private val drafts = FakeDrafts()
     private fun vm(document: String? = null, vault: String = "vault"): EditorViewModel {
-        val vm = EditorViewModel(FitLogRoute.Editor(vault, document, "2026-09-29"), repository, drafts)
+        val vm = EditorViewModel(FitLogRoute.Editor(vault, document, "2026-09-29", vaultId = "00000000-0000-4000-8000-000000000001"), repository, drafts)
         store.put("editor", vm)
         return vm
     }
@@ -76,10 +76,10 @@ class EditorViewModelTest {
         assertTrue(vm.conflict)
         type(vm, "more"); runCurrent(); advanceTimeBy(15000); runCurrent()
         assertEquals(0, repository.writes)
-        assertEquals("more", drafts.values["vault:file"]!!.text)
+        assertEquals("more", drafts.values["00000000-0000-4000-8000-000000000001:file"]!!.text)
     }
     @Test fun sourceMissingStillOffersRecoverableDraft() = runTest(dispatcher) {
-        drafts.values["vault:file"] = EditorDraft("vault", "file", "file", "old.md", "recover me", 0, 0, 2, "old", false)
+        drafts.values["00000000-0000-4000-8000-000000000001:file"] = EditorDraft("vault", "file", "file", "old.md", "recover me", 0, 0, 2, "old", false, directory = "vault", vaultId = "00000000-0000-4000-8000-000000000001")
         val vm = vm("file"); runCurrent()
         assertNotNull(vm.recovery)
         vm.restoreDraft(); runCurrent()
@@ -88,7 +88,7 @@ class EditorViewModelTest {
     }
     @Test fun readOnlyAndDraftVaultIsolation() = runTest(dispatcher) {
         repository.files["file"] = repository.snapshot("file", "old.md", "original").let { it.copy(file = it.file.copy(writable = false)) }
-        drafts.values["other:file"] = EditorDraft("other", "file", "file", "old.md", "other vault", 0, 0, 1, "original", false)
+        drafts.values["00000000-0000-4000-8000-000000000002:file"] = EditorDraft("other", "file", "file", "old.md", "other vault", 0, 0, 1, "original", false, directory = "other", vaultId = "00000000-0000-4000-8000-000000000002")
         val vm = vm("file"); runCurrent()
         assertFalse(vm.canEdit)
         assertNull(vm.recovery)
@@ -100,7 +100,7 @@ class EditorViewModelTest {
         repository.fail = true
         type(vm, "important"); runCurrent(); vm.saveNow(); runCurrent()
         assertEquals(EditorSaveState.Failed, vm.state)
-        assertEquals("important", drafts.values["vault:2026-09-29.md"]!!.text)
+        assertEquals("important", drafts.values["00000000-0000-4000-8000-000000000001:vault\n2026-09-29.md"]!!.text)
         val count = repository.writes
         advanceTimeBy(20000); runCurrent()
         assertEquals(count, repository.writes)
@@ -110,7 +110,7 @@ class EditorViewModelTest {
     }
 
     @Test fun indexFailureDoesNotTurnSuccessfulMarkdownSaveIntoFailure() = runTest(dispatcher) {
-        val vm = EditorViewModel(FitLogRoute.Editor("vault", date = "2026-09-29"), repository, drafts) { _, _, _ -> throw IOException() }
+        val vm = EditorViewModel(FitLogRoute.Editor("vault", date = "2026-09-29", vaultId = "00000000-0000-4000-8000-000000000001"), repository, drafts) { _, _, _ -> throw IOException() }
         store.put("editor", vm); runCurrent()
         type(vm, "saved locally"); runCurrent(); vm.saveNow(); runCurrent()
         assertEquals(EditorSaveState.Saved, vm.state)
@@ -121,9 +121,9 @@ class EditorViewModelTest {
     @Test fun restoredBackupRequiresExplicitSaveAndChecksNewExternalChanges() = runTest(dispatcher) {
         repository.files["file"] = repository.snapshot("file", "old.md", "current")
         val draft = EditorDraft("vault", "recovered", "file", "old.md", "preimage", 0, 0, 1, "old-hash", false,
-            directory = "vault", manualSave = true, restoredBackup = true)
+            directory = "vault", manualSave = true, restoredBackup = true, vaultId = "00000000-0000-4000-8000-000000000001")
         drafts.save(draft)
-        val vm = EditorViewModel(FitLogRoute.Editor("vault", "file", recoveryId = "draft:${draft.identity()}"), repository, drafts)
+        val vm = EditorViewModel(FitLogRoute.Editor("vault", "file", recoveryId = "draft:${draft.identity()}", vaultId = "00000000-0000-4000-8000-000000000001"), repository, drafts)
         store.put("editor", vm); runCurrent(); advanceTimeBy(20000); runCurrent()
         assertEquals("preimage", vm.text.text.toString())
         assertFalse(vm.conflict)
@@ -137,9 +137,9 @@ class EditorViewModelTest {
     }
 
     @Test fun completedRecoveryReopensSavedFileAfterDraftWasRemoved() = runTest(dispatcher) {
-        val draft = EditorDraft("vault", "old-day.md", null, "old-day.md", "recover", 0, 0, 1, null, false, directory = "vault")
+        val draft = EditorDraft("vault", "old-day.md", null, "old-day.md", "recover", 0, 0, 1, null, false, directory = "vault", vaultId = "00000000-0000-4000-8000-000000000001")
         drafts.save(draft)
-        val route = FitLogRoute.Editor("vault", fileName = "old-day.md", recoveryId = "draft:${draft.identity()}")
+        val route = FitLogRoute.Editor("vault", fileName = "old-day.md", recoveryId = "draft:${draft.identity()}", vaultId = "00000000-0000-4000-8000-000000000001")
         val state = androidx.lifecycle.SavedStateHandle()
         val first = EditorViewModel(route, repository, drafts, state)
         store.put("editor", first); runCurrent(); first.saveNow(); runCurrent()
@@ -153,9 +153,9 @@ class EditorViewModelTest {
     }
 
     @Test fun reauthorizationRechecksFingerprintWithoutDiscardingOrAutomaticallyWritingRecovery() = runTest(dispatcher) {
-        val draft = EditorDraft("vault", "file", "file", "note.md", "mine", 0, 0, 1, "original", false, directory = "vault")
+        val draft = EditorDraft("vault", "file", "file", "note.md", "mine", 0, 0, 1, "original", false, directory = "vault", vaultId = "00000000-0000-4000-8000-000000000001")
         drafts.save(draft)
-        val vm = EditorViewModel(FitLogRoute.Editor("vault", "file", recoveryId = "draft:${draft.identity()}"), repository, drafts)
+        val vm = EditorViewModel(FitLogRoute.Editor("vault", "file", recoveryId = "draft:${draft.identity()}", vaultId = "00000000-0000-4000-8000-000000000001"), repository, drafts)
         store.put("editor", vm); runCurrent()
         assertTrue(vm.conflict)
         repository.files["file"] = repository.snapshot("file", "note.md", "original")
@@ -168,7 +168,7 @@ class EditorViewModelTest {
     }
 
     @Test fun exportSnapshotSurvivesProcessRecreationAndAutosaveCleanup() = runTest(dispatcher) {
-        val route = FitLogRoute.Editor("vault", date = "2026-09-29")
+        val route = FitLogRoute.Editor("vault", date = "2026-09-29", vaultId = "00000000-0000-4000-8000-000000000001")
         val state = androidx.lifecycle.SavedStateHandle()
         val first = EditorViewModel(route, repository, drafts, state)
         store.put("editor", first); runCurrent()
@@ -219,8 +219,8 @@ class EditorViewModelTest {
         store.put("editor", restored); runCurrent()
         restored.onBackground(); runCurrent()
         assertEquals("export snapshot", restored.text.text.toString())
-        assertEquals("newer unsaved text", drafts.read("vault", normalTarget)?.text)
-        assertEquals("export snapshot", drafts.read("vault", exported.target)?.text)
+        assertEquals("newer unsaved text", drafts.read("00000000-0000-4000-8000-000000000001", normalTarget)?.text)
+        assertEquals("export snapshot", drafts.read("00000000-0000-4000-8000-000000000001", exported.target)?.text)
         assertEquals(0, repository.writes)
     }
 }
@@ -251,10 +251,10 @@ private class FakeDocuments : MarkdownDocuments {
 }
 private class FakeDrafts : Drafts {
     val values = mutableMapOf<String, EditorDraft>()
-    override suspend fun read(vault: String, target: String) = values["$vault:$target"]
-    override suspend fun save(draft: EditorDraft) { values["${draft.vault}:${draft.target}"] = draft }
-    override suspend fun remove(vault: String, target: String) { values.remove("$vault:$target") }
-    override suspend fun backup(vault: String, target: String, bytes: ByteArray) = Unit
+    override suspend fun read(vaultId: String, target: String) = values["$vaultId:$target"]
+    override suspend fun save(draft: EditorDraft) { values["${draft.vaultId}:${draft.target}"] = draft }
+    override suspend fun remove(vaultId: String, target: String) { values.remove("$vaultId:$target") }
+    override suspend fun prepareBackup(draft: EditorDraft) = Unit
     override suspend fun entries() = values.values.map { RecoveryEntry("draft:${it.identity()}", it) }
     override suspend fun deleteEntry(id: String) { values.entries.removeAll { "draft:${it.value.identity()}" == id } }
 }

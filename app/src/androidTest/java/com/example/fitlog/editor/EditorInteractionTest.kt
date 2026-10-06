@@ -24,7 +24,7 @@ class EditorInteractionTest {
         lateinit var vm: EditorViewModel
         compose.setContent {
             val store = remember { ViewModelStore() }
-            vm = remember { EditorViewModel(FitLogRoute.Editor("test", date = "2026-09-29"), TestDocuments(), TestDrafts()).also { store.put("editor", it) } }
+            vm = remember { EditorViewModel(FitLogRoute.Editor("test", date = "2026-09-29", vaultId = "00000000-0000-4000-8000-000000000001"), TestDocuments(), TestDrafts()).also { store.put("editor", it) } }
             DisposableEffect(Unit) { onDispose { store.clear() } }
             MaterialTheme { EditorScreen(vm, {}) }
         }
@@ -59,8 +59,8 @@ private class TestDocuments : MarkdownDocuments {
     }
 }
 private class TestDrafts : Drafts {
-    override suspend fun read(vault: String, target: String): EditorDraft? = null
+    override suspend fun read(vaultId: String, target: String): EditorDraft? = null
     override suspend fun save(draft: EditorDraft) = Unit
-    override suspend fun remove(vault: String, target: String) = Unit
-    override suspend fun backup(vault: String, target: String, bytes: ByteArray) = Unit
+    override suspend fun remove(vaultId: String, target: String) = Unit
+    override suspend fun prepareBackup(draft: EditorDraft) = Unit
 }

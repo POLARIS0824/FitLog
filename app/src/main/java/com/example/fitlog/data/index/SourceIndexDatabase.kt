@@ -2,15 +2,14 @@ package com.example.fitlog.data.index
 
 import android.content.Context
 import androidx.room.*
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.fitlog.data.vault.MarkdownFile
+import com.example.fitlog.data.vault.requireVaultId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 
-@Entity(tableName = "sources", primaryKeys = ["vault", "uri"])
+@Entity(tableName = "sources", primaryKeys = ["vaultId", "uri"])
 data class IndexedSource(
-    @ColumnInfo(name = "vault") val vaultId: String,
+    val vaultId: String,
     val uri: String,
     val name: String,
     val path: String,
@@ -22,6 +21,7 @@ data class IndexedSource(
     val lastModified: Long? = null,
     val size: Long? = null,
 ) {
+    init { requireVaultId(vaultId) }
     fun file() = MarkdownFile(uri, name, path, writable, directory, lastModified, size)
     companion object {
         const val AVAILABLE = "available"
@@ -31,8 +31,9 @@ data class IndexedSource(
 }
 
 @Entity(tableName = "scans")
-data class IndexedScan(@PrimaryKey @ColumnInfo(name = "vault") val vaultId: String, val status: String, val completedAt: Long? = null,
+data class IndexedScan(@PrimaryKey val vaultId: String, val status: String, val completedAt: Long? = null,
     val metadataCheckedAt: Long? = null, val fullVerifiedAt: Long? = null) {
+    init { requireVaultId(vaultId) }
     companion object {
         const val SCANNING = "scanning"
         const val COMPLETE = "complete"
@@ -46,63 +47,42 @@ data class SourceIndexSnapshot(val sources: List<IndexedSource>, val scan: Index
     val refreshing: Boolean = false, val refreshFailed: Boolean = false)
 
 interface SourceIndexStore {
-    fun observe(vault: String): Flow<SourceIndexSnapshot>
-    suspend fun sources(vault: String): List<IndexedSource>
+    fun observe(vaultId: String): Flow<SourceIndexSnapshot>
+    suspend fun sources(vaultId: String): List<IndexedSource>
     suspend fun commit(sources: List<IndexedSource>, scan: IndexedScan? = null)
-    suspend fun migrateVault(legacyUri: String, vaultId: String)
 }
 
 @Dao
 interface SourceIndexDao {
-    @Query("SELECT * FROM sources WHERE vault = :vault")
-    fun observeSources(vault: String): Flow<List<IndexedSource>>
-    @Query("SELECT * FROM scans WHERE vault = :vault")
-    fun observeScan(vault: String): Flow<IndexedScan?>
-    @Query("SELECT * FROM sources WHERE vault = :vault")
-    suspend fun sources(vault: String): List<IndexedSource>
-    @Query("SELECT * FROM scans WHERE vault = :vault")
-    suspend fun scan(vault: String): IndexedScan?
-    @Query("DELETE FROM sources WHERE vault = :vault")
-    suspend fun deleteSources(vault: String)
-    @Query("DELETE FROM scans WHERE vault = :vault")
-    suspend fun deleteScan(vault: String)
+    @Query("SELECT * FROM sources WHERE vaultId = :vaultId")
+    fun observeSources(vaultId: String): Flow<List<IndexedSource>>
+    @Query("SELECT * FROM scans WHERE vaultId = :vaultId")
+    fun observeScan(vaultId: String): Flow<IndexedScan?>
+    @Query("SELECT * FROM sources WHERE vaultId = :vaultId")
+    suspend fun sources(vaultId: String): List<IndexedSource>
     @Upsert suspend fun putSources(sources: List<IndexedSource>)
     @Upsert suspend fun putScan(scan: IndexedScan)
 }
 
-@Database(entities = [IndexedSource::class, IndexedScan::class], version = 2, exportSchema = true)
+@Database(entities = [IndexedSource::class, IndexedScan::class], version = 3, exportSchema = true)
 abstract class SourceIndexDatabase : RoomDatabase() {
     abstract fun index(): SourceIndexDao
     companion object {
-        val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE sources ADD COLUMN lastModified INTEGER")
-                db.execSQL("ALTER TABLE sources ADD COLUMN size INTEGER")
-                db.execSQL("ALTER TABLE scans ADD COLUMN metadataCheckedAt INTEGER")
-                db.execSQL("ALTER TABLE scans ADD COLUMN fullVerifiedAt INTEGER")
-            }
-        }
+        internal fun open(context: Context, name: String = "source-index.db"): SourceIndexDatabase =
+            Room.databaseBuilder(context.applicationContext, SourceIndexDatabase::class.java, name)
+                .fallbackToDestructiveMigration(dropAllTables = true).build()
+
         @Volatile private var instance: SourceIndexDatabase? = null
         fun get(context: Context): SourceIndexDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, SourceIndexDatabase::class.java, "source-index.db")
-                .addMigrations(MIGRATION_1_2).build().also { instance = it }
+            instance ?: open(context).also { instance = it }
         }
     }
 }
 
 class RoomSourceIndexStore(private val database: SourceIndexDatabase) : SourceIndexStore {
     private val dao = database.index()
-    override fun observe(vault: String) = combine(dao.observeSources(vault), dao.observeScan(vault), ::SourceIndexSnapshot)
-    override suspend fun sources(vault: String) = dao.sources(vault)
-    override suspend fun migrateVault(legacyUri: String, vaultId: String) = database.withTransaction {
-        if (legacyUri != vaultId) {
-            val existing = dao.sources(vaultId).mapTo(mutableSetOf()) { it.uri }
-            dao.putSources(dao.sources(legacyUri).filter { it.uri !in existing }.map { it.copy(vaultId = vaultId) })
-            if (dao.scan(vaultId) == null) dao.scan(legacyUri)?.let { dao.putScan(it.copy(vaultId = vaultId)) }
-            dao.deleteSources(legacyUri)
-            dao.deleteScan(legacyUri)
-        }
-    }
+    override fun observe(vaultId: String) = combine(dao.observeSources(vaultId), dao.observeScan(vaultId), ::SourceIndexSnapshot)
+    override suspend fun sources(vaultId: String) = dao.sources(vaultId)
     override suspend fun commit(sources: List<IndexedSource>, scan: IndexedScan?) = database.withTransaction {
         dao.putSources(sources)
         if (scan != null) dao.putScan(scan)

@@ -1,6 +1,5 @@
 package com.example.fitlog.data.index
 
-import androidx.room.Room
 import androidx.room.withTransaction
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
@@ -16,72 +15,47 @@ import java.util.UUID
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SourceIndexDatabaseTest {
-    @Test fun uriIdentityMigrationIsPersistentIdempotentAndPreservesNewerUuidRows() = runBlocking {
+    @Test fun schemaChangeDestructivelyRebuildsTheIndexDatabase() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
-        val name = "identity-${UUID.randomUUID()}.db"
+        val name = "rebuild-${UUID.randomUUID()}.db"
         val id = UUID.randomUUID().toString()
-        val legacy = "content://test/tree/old"
-        val db = Room.databaseBuilder(context, SourceIndexDatabase::class.java, name).build()
+        val previous = context.openOrCreateDatabase(name, 0, null)
+        previous.execSQL("CREATE TABLE retired_index (body TEXT NOT NULL)")
+        previous.execSQL("INSERT INTO retired_index VALUES ('discardable')")
+        previous.version = 2
+        previous.close()
+        val db = SourceIndexDatabase.open(context, name)
         try {
             val store = RoomSourceIndexStore(db)
-            val row = IndexedSource(legacy, "file", "note.md", "daily/note.md", legacy, true, "old", 1)
-            store.commit(listOf(row, row.copy(uri = "other")), IndexedScan(legacy, IndexedScan.COMPLETE, 42, 42, 42))
-            store.commit(listOf(row.copy(vaultId = id, fingerprint = "new", verifiedAt = 2)))
-            repeat(2) { store.migrateVault(legacy, id) }
-            assertTrue(store.sources(legacy).isEmpty())
-            assertNull(store.observe(legacy).first().scan)
-            val migrated = store.sources(id)
-            assertEquals(2, migrated.size)
-            assertEquals("new", migrated.single { it.uri == "file" }.fingerprint)
-            assertEquals("daily/note.md", migrated.single { it.uri == "other" }.path)
-            assertEquals(42L, store.observe(id).first().scan?.fullVerifiedAt)
-        } finally { db.close() }
-        val reopened = Room.databaseBuilder(context, SourceIndexDatabase::class.java, name).build()
-        try { assertEquals(2, reopened.index().sources(id).size) }
-        finally { reopened.close(); context.deleteDatabase(name) }
-    }
-    @Test fun migrationPreservesVersionOneSourcesAndRequiresMetadataRevalidation() = runBlocking {
-        val context = RuntimeEnvironment.getApplication()
-        val name = "migration-${UUID.randomUUID()}.db"
-        val old = context.openOrCreateDatabase(name, 0, null)
-        old.execSQL("CREATE TABLE sources (vault TEXT NOT NULL, uri TEXT NOT NULL, name TEXT NOT NULL, path TEXT NOT NULL, directory TEXT, writable INTEGER NOT NULL, fingerprint TEXT, verifiedAt INTEGER, status TEXT NOT NULL, PRIMARY KEY(vault, uri))")
-        old.execSQL("CREATE TABLE scans (vault TEXT NOT NULL PRIMARY KEY, status TEXT NOT NULL, completedAt INTEGER)")
-        old.execSQL("INSERT INTO sources VALUES ('vault', 'uri', 'note.md', 'daily/note.md', 'daily', 1, 'hash', 42, 'available')")
-        old.execSQL("INSERT INTO scans VALUES ('vault', 'complete', 42)")
-        old.version = 1
-        old.close()
-        val migrated = Room.databaseBuilder(context, SourceIndexDatabase::class.java, name)
-            .addMigrations(SourceIndexDatabase.MIGRATION_1_2).build()
-        try {
-            val row = migrated.index().sources("vault").single()
-            assertEquals("hash", row.fingerprint)
-            assertEquals("daily/note.md", row.path)
-            assertEquals(42L, row.verifiedAt)
-            assertNull(row.lastModified); assertNull(row.size)
-            val snapshot = RoomSourceIndexStore(migrated).observe("vault").first()
-            assertEquals(42L, snapshot.scan?.completedAt)
-            assertNull(snapshot.scan?.metadataCheckedAt); assertNull(snapshot.scan?.fullVerifiedAt)
-        } finally { migrated.close(); context.deleteDatabase(name) }
+            assertTrue(store.sources(id).isEmpty())
+            assertNull(store.observe(id).first().scan)
+            db.openHelper.readableDatabase.query("SELECT name FROM sqlite_master WHERE name = 'retired_index'").use {
+                assertEquals(0, it.count)
+            }
+            val row = IndexedSource(id, "uri", "note.md", "note.md", "content://test/tree/a", true, "new", 1)
+            store.commit(listOf(row), IndexedScan(id, IndexedScan.COMPLETE, 1))
+            assertEquals(row, store.sources(id).single())
+        } finally { db.close(); context.deleteDatabase(name) }
     }
 
     @Test fun uniquenessTransactionRollbackAndReopenPersistence() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
         val name = "test-${UUID.randomUUID()}.db"
-        fun open() = Room.databaseBuilder(context, SourceIndexDatabase::class.java, name).build()
-        val row = IndexedSource("vault", "uri", "note.md", "note.md", "vault", true, "first", 1)
+        fun open() = SourceIndexDatabase.open(context, name)
+        val row = IndexedSource("00000000-0000-4000-8000-000000000001", "uri", "note.md", "note.md", "vault", true, "first", 1)
         val db = open()
         try {
             val store = RoomSourceIndexStore(db)
-            store.commit(listOf(row), IndexedScan("vault", IndexedScan.COMPLETE, 1))
+            store.commit(listOf(row), IndexedScan("00000000-0000-4000-8000-000000000001", IndexedScan.COMPLETE, 1))
             store.commit(listOf(row.copy(fingerprint = "second")))
-            assertEquals(1, store.sources("vault").size)
+            assertEquals(1, store.sources("00000000-0000-4000-8000-000000000001").size)
             try {
                 db.withTransaction { db.index().putSources(listOf(row.copy(fingerprint = "rollback"))); throw IOException() }
             } catch (_: IOException) { }
-            assertEquals("second", store.sources("vault").single().fingerprint)
+            assertEquals("second", store.sources("00000000-0000-4000-8000-000000000001").single().fingerprint)
         } finally { db.close() }
         val reopened = open()
-        try { assertEquals("second", reopened.index().sources("vault").single().fingerprint) }
+        try { assertEquals("second", reopened.index().sources("00000000-0000-4000-8000-000000000001").single().fingerprint) }
         finally { reopened.close(); context.deleteDatabase(name) }
     }
 }

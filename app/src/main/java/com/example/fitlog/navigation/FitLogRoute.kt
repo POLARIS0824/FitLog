@@ -1,6 +1,7 @@
 package com.example.fitlog.navigation
 
 import androidx.navigation3.runtime.NavKey
+import com.example.fitlog.data.vault.requireVaultId
 import kotlinx.serialization.Serializable
 
 // 负责导航身份 包含顶级页面与二级页面...
@@ -18,26 +19,30 @@ sealed interface FitLogRoute : NavKey {
 
     @Serializable
     data class DiaryDetail(
-        val vault: String,
+        val vaultUri: String,
         val vaultId: String,
         val document: String,
         val relPath: String,
         val directory: String,
         val fileName: String,
-    ) : FitLogRoute
+    ) : FitLogRoute {
+        init { requireVaultId(vaultId) }
+    }
 
     @Serializable
     data class Editor(
-        val vault: String,
+        val vaultUri: String,
         val document: String? = null,
         val date: String = java.time.LocalDate.now().toString(),
         val sessionId: String = java.util.UUID.randomUUID().toString(),
-        val directory: String = vault,
+        val directory: String = vaultUri,
         val fileName: String = date + ".md",
         val recoveryId: String? = null,
         val displayPath: String? = null,
-        val vaultId: String? = null,
-    ) : FitLogRoute
+        val vaultId: String,
+    ) : FitLogRoute {
+        init { requireVaultId(vaultId) }
+    }
 
     @Serializable
     data class VaultSetup(
@@ -47,7 +52,9 @@ sealed interface FitLogRoute : NavKey {
     ) : FitLogRoute
 
     @Serializable
-    data class DiarySettings(val vault: String, val vaultId: String? = null) : FitLogRoute
+    data class DiarySettings(val vaultUri: String, val vaultId: String) : FitLogRoute {
+        init { requireVaultId(vaultId) }
+    }
 
     @Serializable
     data object RecoveryCenter : FitLogRoute

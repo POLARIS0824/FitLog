@@ -90,16 +90,16 @@ fun FitLogApp() {
             scope = coroutineScope,
             getConfig = vaultPreferences::getVaultConfig,
             checkAccess = vaultRepository::checkAccess,
-            resolveToday = { vault, date ->
-                val resolved = todayLog.resolve(vault, date, vaultPreferences.getVaultId(vault))
+            resolveToday = { config, date ->
+                val resolved = todayLog.resolve(config.uri.toString(), date, config.vaultId)
                 FitLogRoute.Editor(
-                    vault = resolved.vault,
+                    vaultUri = resolved.vaultUri,
                     document = resolved.document,
                     date = resolved.date.toString(),
                     directory = resolved.directory,
                     fileName = resolved.fileName,
                     displayPath = resolved.displayPath,
-                    vaultId = resolved.vaultId.takeIf { it != resolved.vault },
+                    vaultId = resolved.vaultId,
                 )
             },
             showError = { message ->

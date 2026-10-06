@@ -27,26 +27,29 @@ data class DiarySettings(
 )
 
 interface DiarySettingsStore {
-    suspend fun read(vault: String): DiarySettings
-    suspend fun save(vault: String, settings: DiarySettings)
+    suspend fun read(vaultId: String): DiarySettings
+    suspend fun save(vaultId: String, settings: DiarySettings)
 }
 
-internal fun diarySettingsKey(vault: String) = stringPreferencesKey("diary_" + fingerprint(vault.toByteArray(Charsets.UTF_8)))
+internal fun diarySettingsKey(vaultId: String): Preferences.Key<String> {
+    requireVaultId(vaultId)
+    return stringPreferencesKey("diary_" + fingerprint(vaultId.toByteArray(Charsets.UTF_8)))
+}
 
 class DiaryPreferences(private val store: DataStore<Preferences>) : DiarySettingsStore {
 
-    override suspend fun read(vault: String): DiarySettings = store.data.first()[diarySettingsKey(vault)]
+    override suspend fun read(vaultId: String): DiarySettings = store.data.first()[diarySettingsKey(vaultId)]
         ?.let { Json.decodeFromString<DiarySettings>(it) } ?: DiarySettings()
 
-    override suspend fun save(vault: String, settings: DiarySettings) {
-        store.edit { it[diarySettingsKey(vault)] = Json.encodeToString(settings) }
+    override suspend fun save(vaultId: String, settings: DiarySettings) {
+        store.edit { it[diarySettingsKey(vaultId)] = Json.encodeToString(settings) }
     }
 }
 
 data class DiaryDirectory(val uri: String, val name: String)
 
 interface DiaryDirectories {
-    suspend fun resolveDirectory(vault: String, path: List<String>): String
+    suspend fun resolveDirectory(vaultUri: String, path: List<String>): String
     suspend fun directories(directory: String): List<DiaryDirectory>
     suspend fun canCreate(directory: String): Boolean
 }
@@ -54,7 +57,7 @@ interface DiaryDirectories {
 class DiaryCreationUnavailable : IOException()
 
 data class ResolvedTodayLog(
-    val vault: String,
+    val vaultUri: String,
     val vaultId: String,
     val document: String?,
     val date: LocalDate,
@@ -68,14 +71,15 @@ class TodayLogResolver(
     private val directories: DiaryDirectories,
     private val documents: MarkdownDocuments,
 ) {
-    suspend fun resolve(vault: String, date: LocalDate, vaultId: String = vault): ResolvedTodayLog {
+    suspend fun resolve(vaultUri: String, date: LocalDate, vaultId: String): ResolvedTodayLog {
+        requireVaultId(vaultId)
         val config = settings.read(vaultId)
-        val directory = directories.resolveDirectory(vault, config.directoryPath)
+        val directory = directories.resolveDirectory(vaultUri, config.directoryPath)
         val name = config.dateFormat.fileName(date)
         val existing = documents.find(directory, name)
         if (existing == null && !directories.canCreate(directory)) throw DiaryCreationUnavailable()
         return ResolvedTodayLog(
-            vault = vault, vaultId = vaultId, document = existing?.uri, date = date,
+            vaultUri = vaultUri, vaultId = vaultId, document = existing?.uri, date = date,
             directory = directory, fileName = name,
             displayPath = (config.directoryPath + name).joinToString("/"),
         )

@@ -48,8 +48,8 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments, DiaryDir
         return DocumentsContract.buildDocumentUriUsingTree(tree, id)
     }
 
-    override suspend fun resolveDirectory(vault: String, path: List<String>): String = withContext(Dispatchers.IO) {
-        var directory = root(vault).toString()
+    override suspend fun resolveDirectory(vaultUri: String, path: List<String>): String = withContext(Dispatchers.IO) {
+        var directory = root(vaultUri).toString()
         for (name in path) {
             require(name.isNotBlank() && name != "." && name != "..")
             directory = directories(directory).singleOrNull { it.name == name }?.uri ?: throw IOException()

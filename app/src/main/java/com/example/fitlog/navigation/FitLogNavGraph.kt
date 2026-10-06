@@ -107,7 +107,7 @@ fun FitLogNavGraph(
                             onOpenRoute(FitLogRoute.DiaryDetail(vault, vaultId, file.uri, file.path, file.directory ?: vault, file.name))
                         }
                     } },
-                    onSettings = { vault -> onOpenRoute(FitLogRoute.DiarySettings(vault, vm.vaultId)) },
+                    onSettings = { vault -> onOpenRoute(FitLogRoute.DiarySettings(vault, requireNotNull(vm.vaultId))) },
                     onConnect = { onOpenRoute(FitLogRoute.VaultSetup()) },
                     onRecovery = { onOpenRoute(FitLogRoute.RecoveryCenter) },
                     onManage = { onOpenRoute(FitLogRoute.VaultManagement) })
@@ -129,7 +129,7 @@ fun FitLogNavGraph(
             entry<FitLogRoute.Editor> { route ->
                 val vm = viewModel<EditorViewModel>(key = route.sessionId) {
                     EditorViewModel(route, documents, drafts, createSavedStateHandle()) { snapshot, directory, path ->
-                        sourceIndex.recordSaved(route.vaultId ?: vaultPreferences.getVaultId(route.vault), snapshot, directory, path)
+                        sourceIndex.recordSaved(route.vaultId, snapshot, directory, path)
                     }
                 }
                 DisposableEffect(vm) {
@@ -157,9 +157,7 @@ fun FitLogNavGraph(
 
             entry<FitLogRoute.DiarySettings> { route ->
                 val vm = viewModel<DiarySettingsViewModel> {
-                    DiarySettingsViewModel(route.vault, vaultPreferences.diary, documents) {
-                        route.vaultId ?: vaultPreferences.getVaultId(it)
-                    }
+                    DiarySettingsViewModel(route.vaultUri, route.vaultId, vaultPreferences.diary, documents)
                 }
                 DisposableEffect(vm) {
                     backHandlers[route] = { vm.requestBack(onBack) }
@@ -169,14 +167,14 @@ fun FitLogNavGraph(
             }
             entry<FitLogRoute.RecoveryCenter> {
                 val vm = viewModel<RecoveryViewModel> {
-                    RecoveryViewModel(createSavedStateHandle(), drafts, vaultPreferences::getVaultId)
+                    RecoveryViewModel(createSavedStateHandle(), drafts, vaultPreferences::getVaultUri)
                 }
                 val config by vaultPreferences.vaultConfig.collectAsState(initial = VaultConfigState.Loading)
                 DisposableEffect(vm) {
                     backHandlers[FitLogRoute.RecoveryCenter] = { if (vm.selectedId != null) vm.select(null) else onBack() }
                     onDispose { backHandlers.remove(FitLogRoute.RecoveryCenter) }
                 }
-                RecoveryScreen(vm, (config as? VaultConfigState.Configured)?.uri?.toString(), onOpenRoute, onBack)
+                RecoveryScreen(vm, (config as? VaultConfigState.Configured)?.vaultId, onOpenRoute, onBack)
             }
             entry<FitLogRoute.VaultManagement> {
                 val vm = viewModel<VaultManagementViewModel> {

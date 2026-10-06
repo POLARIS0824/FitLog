@@ -6,37 +6,44 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.*
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class SourceIndexRepositoryTest {
-    @Test fun uuidKeysMigrateLegacyRowsWhileSafStillReceivesTheTreeUri() = runTest {
+    @Test fun uuidOwnsIndexWhileSafReceivesOnlyTheTreeUri() = runTest {
         val uri = "content://test/tree/a"
         val id = "00000000-0000-4000-8000-000000000001"
-        val legacy = IndexedSource(uri, "file", "note.md", "daily/note.md", uri, true, "old", 1)
-        store.commit(listOf(legacy), IndexedScan(uri, IndexedScan.COMPLETE, 1))
         var scanned: String? = null
-        documents.beforeScan = { }
         documents.onScan = { scanned = it }
         val index = SourceIndexRepository(documents, store, resolveVaultUri = { requested ->
-            assertEquals(id, requested); uri
+            assertEquals(id, requested); android.net.Uri.parse(uri)
         })
-        val cached = index.observe(id).first()
-        assertEquals("old", cached.sources.single().fingerprint)
-        assertEquals(id, cached.sources.single().vaultId)
+        assertTrue(index.observe(id).first().sources.isEmpty())
         index.refresh(id)
         assertEquals(uri, scanned)
-        assertTrue(store.sources(uri).isEmpty())
         assertEquals(id, store.sources(id).single().vaultId)
         assertEquals(id, store.observe(id).first().scan?.vaultId)
     }
 
-    @Test fun identityMigrationFailureAfterMarkdownSaveLeavesARepairMarker() = runTest {
+    @Test fun uriCannotBeUsedAsIndexIdentity() = runTest {
+        try {
+            index.refresh("content://test/tree/a")
+            fail("A locator must not be accepted as a UUID")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(0, documents.scanCount)
+    }
+
+    @Test fun indexFailureAfterMarkdownSaveLeavesARepairMarker() = runTest {
         val id = "00000000-0000-4000-8000-000000000001"
         val dirty = MemoryIndexInvalidations()
         store.fail = true
         val index = SourceIndexRepository(documents, store, invalidations = dirty,
-            resolveVaultUri = { "content://test/tree/a" })
+            resolveVaultUri = { android.net.Uri.parse("content://test/tree/a") })
         try { index.recordSaved(id, documents.snapshot("saved"), "directory", "note.md"); fail() }
         catch (_: IOException) { }
         assertTrue(dirty.contains(id))
@@ -45,29 +52,20 @@ class SourceIndexRepositoryTest {
         assertEquals("saved", store.sources(id).single().fingerprint)
     }
 
-    @Test fun legacyRepairMarkerSurvivesIdentityMigration() = runTest {
-        val uri = "content://test/tree/a"
-        val id = "00000000-0000-4000-8000-000000000001"
-        val dirty = MemoryIndexInvalidations().apply { mark(uri) }
-        val index = SourceIndexRepository(documents, store, invalidations = dirty, resolveVaultUri = { uri })
-        index.observe(id).first()
-        assertTrue(dirty.contains(id))
-        assertFalse(dirty.contains(uri))
-    }
-    private val vault = "vault"
+    private val vault = "00000000-0000-4000-8000-000000000001"
     private val store = MemorySourceIndexStore()
     private val documents = IndexDocuments()
-    private val index = SourceIndexRepository(documents, store, now = { 42 })
+    private val index = SourceIndexRepository(documents, store, now = { 42 }, resolveVaultUri = { android.net.Uri.parse("content://test/tree/a") })
 
     @Test fun rescanningUpdatesFingerprintWithoutDuplicatesAndIsolatesVaults() = runTest {
         documents.body = "one"
         index.refresh(vault)
         documents.body = "two"
         index.refresh(vault)
-        index.refresh("other")
+        index.refresh("00000000-0000-4000-8000-000000000002")
         assertEquals(1, store.sources(vault).size)
         assertEquals("two", store.sources(vault).single().fingerprint)
-        assertEquals(1, store.sources("other").size)
+        assertEquals(1, store.sources("00000000-0000-4000-8000-000000000002").size)
     }
 
     @Test fun partialAndFailedScansNeverMarkUnseenFilesMissing() = runTest {
@@ -101,7 +99,7 @@ class SourceIndexRepositoryTest {
         documents.beforeRead = { read.complete(Unit); release.await() }
         val scan = launch { index.refresh(vault) }
         read.await()
-        index.recordSaved(vault, documents.snapshot("saved"), vault, "daily/note.md")
+        index.recordSaved(vault, documents.snapshot("saved"), "content://test/tree/a", "daily/note.md")
         release.complete(Unit); scan.join()
         assertEquals("saved", store.sources(vault).single().fingerprint)
         assertEquals("daily/note.md", store.sources(vault).single().path)
@@ -124,7 +122,7 @@ class SourceIndexRepositoryTest {
 
     @Test fun changedUriIsANewSourceAndInterruptedPersistedScanIsNotRunning() = runTest {
         index.refresh(vault)
-        documents.files = listOf(MarkdownFile("new", "note.md", "note.md", true, vault))
+        documents.files = listOf(MarkdownFile("new", "note.md", "note.md", true, "content://test/tree/a"))
         index.refresh(vault)
         assertEquals(2, store.sources(vault).size)
         assertEquals(IndexedSource.MISSING, store.sources(vault).first { it.uri == "file" }.status)

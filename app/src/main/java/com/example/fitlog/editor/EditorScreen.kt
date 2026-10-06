@@ -49,7 +49,7 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
-            if (uri.toString() != vm.route.vault) wrongFolder = true
+            if (uri.toString() != vm.route.vaultUri) wrongFolder = true
             else try {
                 com.example.fitlog.data.vault.AndroidSafDirectoryAccessor(context).takePersistablePermission(uri).getOrThrow()
                 wrongFolder = false
@@ -79,7 +79,7 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
             Text(stringResource(error), color = MaterialTheme.colorScheme.error)
             Row(Modifier.horizontalScroll(rememberScrollState())) {
                 Action(R.string.log_retry) { if (!vm.writable) vm.retryLoad() else vm.saveNow() }
-                Action(R.string.editor_reauthorize) { permission.launch(Uri.parse(vm.route.vault)) }
+                Action(R.string.editor_reauthorize) { permission.launch(Uri.parse(vm.route.vaultUri)) }
             }
         }
         vm.notice?.let { Text(stringResource(it)) }

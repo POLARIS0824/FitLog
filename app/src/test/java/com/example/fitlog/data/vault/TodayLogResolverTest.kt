@@ -48,11 +48,11 @@ class TodayLogResolverTest {
         for (path in listOf(emptyList(), listOf("daily"))) {
             for ((format, expectedName) in names) {
                 val files = TestTodayFiles()
-                val resolved = resolver(DiarySettings(path, format), files).resolve(vault, capturedDate)
+                val resolved = resolver(DiarySettings(path, format), files).resolve(vault, capturedDate, vaultId)
 
                 assertNull(resolved.document)
                 assertEquals(capturedDate, resolved.date)
-                assertEquals(vault, resolved.vaultId)
+                assertEquals(vaultId, resolved.vaultId)
                 assertEquals(expectedName, resolved.fileName)
                 assertEquals((path + expectedName).joinToString("/"), resolved.displayPath)
                 assertEquals(vault to path, files.resolvedLocation)
@@ -66,7 +66,7 @@ class TodayLogResolverTest {
         val files = TestTodayFiles(creationAllowed = false)
 
         try {
-            resolver(DiarySettings(listOf("daily")), files).resolve(vault, date)
+            resolver(DiarySettings(listOf("daily")), files).resolve(vault, date, vaultId)
             throw AssertionError("Expected DiaryCreationUnavailable")
         } catch (_: DiaryCreationUnavailable) {
             assertEquals(files.directory to "2026-09-30.md", files.lookup)
@@ -79,7 +79,7 @@ class TodayLogResolverTest {
         val files = TestTodayFiles(directoryFailure = failure)
 
         try {
-            resolver(DiarySettings(listOf("deleted")), files).resolve(vault, date)
+            resolver(DiarySettings(listOf("deleted")), files).resolve(vault, date, vaultId)
             throw AssertionError("Expected directory resolution failure")
         } catch (error: IOException) {
             assertSame(failure, error)

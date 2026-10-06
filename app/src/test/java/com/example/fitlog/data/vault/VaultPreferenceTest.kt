@@ -35,22 +35,23 @@ import java.time.LocalDate
 @Config(sdk = [34])
 class VaultPreferencesTest {
 
-    @Test fun legacyUriGetsOnePersistedUuidAndKeepsDiarySettings() = testScope.runTest {
-        val store = createTestDataStore()
-        val uri = "content://test/tree/old"
-        val expected = DiarySettings(listOf("daily"), DiaryDateFormat.Compact)
-        val prefs = VaultPreferences(store)
-        prefs.diary.save(uri, expected)
-        store.edit { it[stringPreferencesKey("vault_uri")] = uri }
-
-        val states = List(3) { async { prefs.getVaultConfig() as VaultConfigState.Configured } }.awaitAll()
-        val id = states.first().vaultId
-        assertEquals(id, requireVaultId(id))
-        assertTrue(states.all { it.vaultId == id && it.uri.toString() == uri })
-        assertEquals(id, store.data.first()[stringPreferencesKey("vault_id")])
-        assertEquals(expected, prefs.diary.read(id))
-        assertEquals(id, (VaultPreferences(store).getVaultConfig() as VaultConfigState.Configured).vaultId)
-        assertEquals(uri, prefs.getVaultUri(id))
+    @Test fun configuredReadsNeverWritePreferences() = testScope.runTest {
+        val uri = "content://test/tree/a"
+        val id = "00000000-0000-4000-8000-000000000001"
+        val snapshot = androidx.datastore.preferences.core.preferencesOf(
+            stringPreferencesKey("vault_uri") to uri,
+            stringPreferencesKey("vault_id") to id,
+            stringPreferencesKey("vault_identities") to "{\"$uri\":\"$id\"}",
+        )
+        val readOnlyStore = object : DataStore<Preferences> {
+            override val data = flow { emit(snapshot) }
+            override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences =
+                error("Reading configuration must not write preferences")
+        }
+        val prefs = VaultPreferences(readOnlyStore)
+        val states = List(3) { async { prefs.getVaultConfig() } }.awaitAll()
+        assertTrue(states.all { it == VaultConfigState.Configured(Uri.parse(uri), id) })
+        assertEquals(Uri.parse(uri), prefs.getVaultUri(id))
     }
 
     @Test fun switchingAndDisconnectingRetainUuidAndSettingsForEachKnownUri() = testScope.runTest {
@@ -66,21 +67,11 @@ class VaultPreferencesTest {
         assertTrue(first.vaultId != second.vaultId)
         prefs.clearVaultUri().getOrThrow()
         assertEquals(VaultConfigState.NotConfigured, prefs.getVaultConfig())
-        assertEquals(a.toString(), prefs.getVaultUri(first.vaultId))
-        assertEquals(b.toString(), prefs.getVaultUri(second.vaultId))
+        assertEquals(a.toString(), prefs.getVaultUri(first.vaultId).toString())
+        assertEquals(b.toString(), prefs.getVaultUri(second.vaultId).toString())
         prefs.setVaultUri(a).getOrThrow()
         assertEquals(first, prefs.getVaultConfig())
         assertEquals(settings, prefs.diary.read(first.vaultId))
-    }
-
-    @Test fun recoveryIdentityRegistrationDoesNotSwitchCurrentConnection() = testScope.runTest {
-        val prefs = VaultPreferences(createTestDataStore())
-        prefs.setVaultUri(Uri.parse("content://test/tree/current")).getOrThrow()
-        val current = prefs.getVaultConfig()
-        val ids = List(3) { async { prefs.getVaultId("content://test/tree/recovery") } }.awaitAll()
-        assertEquals(1, ids.toSet().size)
-        assertEquals("content://test/tree/recovery", prefs.getVaultUri(ids.first()))
-        assertEquals(current, prefs.getVaultConfig())
     }
 
     @Test fun invalidPersistedIdentityIsReportedInsteadOfSilentlyReplaced() = testScope.runTest {
@@ -94,17 +85,26 @@ class VaultPreferencesTest {
         assertEquals("content://test/tree/a", store.data.first()[stringPreferencesKey("vault_id")])
     }
 
-    @Test fun legacyMigrationWriteFailureDoesNotPublishAnUnpersistedUuid() = testScope.runTest {
-        val legacy = androidx.datastore.preferences.core.preferencesOf(
-            stringPreferencesKey("vault_uri") to "content://test/tree/a")
-        val failure = IOException("Migration write failed")
-        val store = object : DataStore<Preferences> {
-            override val data = flow { emit(legacy) }
-            override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences = throw failure
+    @Test fun incompleteOrInconsistentConfigurationFailsWithoutWriting() = testScope.runTest {
+        val uri = "content://test/tree/a"
+        val id = "00000000-0000-4000-8000-000000000001"
+        val snapshots = listOf(
+            androidx.datastore.preferences.core.preferencesOf(stringPreferencesKey("vault_uri") to uri),
+            androidx.datastore.preferences.core.preferencesOf(
+                stringPreferencesKey("vault_uri") to uri,
+                stringPreferencesKey("vault_id") to id,
+                stringPreferencesKey("vault_identities") to "{}",
+            ),
+        )
+        for (snapshot in snapshots) {
+            val readOnlyStore = object : DataStore<Preferences> {
+                override val data = flow { emit(snapshot) }
+                override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences =
+                    error("Invalid configuration must not be repaired while reading")
+            }
+            assertTrue(VaultPreferences(readOnlyStore).getVaultConfig() is VaultConfigState.Failed)
+            assertEquals(snapshot, readOnlyStore.data.first())
         }
-        val state = VaultPreferences(store).getVaultConfig() as VaultConfigState.Failed
-        assertEquals(failure, state.cause)
-        assertEquals("content://test/tree/a", store.data.first()[stringPreferencesKey("vault_uri")])
     }
 
     @get:Rule
@@ -124,10 +124,10 @@ class VaultPreferencesTest {
         val dataStore = createTestDataStore()
         val first = VaultPreferences(dataStore)
         val settings = DiarySettings(listOf("daily", "training"), DiaryDateFormat.Chinese)
-        first.diary.save("vault-a", settings)
+        first.diary.save("00000000-0000-4000-8000-000000000001", settings)
         val restored = VaultPreferences(dataStore)
-        assertEquals(settings, restored.diary.read("vault-a"))
-        assertEquals(DiarySettings(), restored.diary.read("vault-b"))
+        assertEquals(settings, restored.diary.read("00000000-0000-4000-8000-000000000001"))
+        assertEquals(DiarySettings(), restored.diary.read("00000000-0000-4000-8000-000000000002"))
     }
 
     @Test fun dateFormatsUseCalendarYearAndAlwaysReturnMarkdownNames() {
