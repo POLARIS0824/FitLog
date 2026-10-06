@@ -4,7 +4,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import com.example.fitlog.navigation.FitLogRoute
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -54,22 +53,31 @@ interface DiaryDirectories {
 
 class DiaryCreationUnavailable : IOException()
 
+data class ResolvedTodayLog(
+    val vault: String,
+    val vaultId: String,
+    val document: String?,
+    val date: LocalDate,
+    val directory: String,
+    val fileName: String,
+    val displayPath: String,
+)
+
 class TodayLogResolver(
     private val settings: DiarySettingsStore,
     private val directories: DiaryDirectories,
     private val documents: MarkdownDocuments,
 ) {
-    suspend fun resolve(vault: String, date: LocalDate, vaultId: String = vault): FitLogRoute.Editor {
+    suspend fun resolve(vault: String, date: LocalDate, vaultId: String = vault): ResolvedTodayLog {
         val config = settings.read(vaultId)
         val directory = directories.resolveDirectory(vault, config.directoryPath)
         val name = config.dateFormat.fileName(date)
         val existing = documents.find(directory, name)
         if (existing == null && !directories.canCreate(directory)) throw DiaryCreationUnavailable()
-        return FitLogRoute.Editor(
-            vault = vault, document = existing?.uri, date = date.toString(),
+        return ResolvedTodayLog(
+            vault = vault, vaultId = vaultId, document = existing?.uri, date = date,
             directory = directory, fileName = name,
             displayPath = (config.directoryPath + name).joinToString("/"),
-            vaultId = vaultId.takeIf { it != vault },
         )
     }
 }

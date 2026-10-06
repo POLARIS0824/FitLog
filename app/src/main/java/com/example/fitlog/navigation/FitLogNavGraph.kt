@@ -24,6 +24,7 @@ import com.example.fitlog.data.vault.VaultRepository
 import com.example.fitlog.editor.EditorScreen
 import com.example.fitlog.insight.InsightScreen
 import com.example.fitlog.log.LogScreen
+import com.example.fitlog.log.LogSettingsStore
 import com.example.fitlog.log.LogViewModel
 import com.example.fitlog.today.TodayScreen
 import com.example.fitlog.vault.VaultSetupRoute
@@ -46,6 +47,7 @@ import com.example.fitlog.vault.VaultManagementScreen
 fun FitLogNavGraph(
     backStack: NavBackStack<NavKey>,
     vaultPreferences: VaultPreferences,
+    logSettings: LogSettingsStore,
     vaultRepository: VaultRepository,
     sourceIndex: SourceIndexRepository,
     analysisRepository: DiaryAnalysisRepository,
@@ -96,7 +98,7 @@ fun FitLogNavGraph(
 
             entry<FitLogRoute.Log> {
                 val vm = viewModel<LogViewModel> {
-                    LogViewModel(createSavedStateHandle(), vaultPreferences.vaultConfig, sourceIndex, vaultPreferences.log)
+                    LogViewModel(createSavedStateHandle(), vaultPreferences.vaultConfig, sourceIndex, logSettings)
                 }
                 LogScreen(vm,
                     onOpen = { vault, file -> vm.vaultId?.let { vaultId ->

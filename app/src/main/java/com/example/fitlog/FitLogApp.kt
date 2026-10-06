@@ -38,9 +38,11 @@ import com.example.fitlog.data.vault.VaultPreferences
 import com.example.fitlog.data.vault.VaultRepository
 import com.example.fitlog.data.vault.MarkdownDocumentRepository
 import com.example.fitlog.data.vault.TodayLogResolver
+import com.example.fitlog.data.vault.vaultDataStore
 import com.example.fitlog.data.index.SourceIndexRepository
 import com.example.fitlog.data.analysis.DiaryAnalysisRepository
 import com.example.fitlog.data.analysis.DiaryAnalysisStorageException
+import com.example.fitlog.log.LogPreferences
 import com.example.fitlog.navigation.FitLogNavGraph
 import com.example.fitlog.navigation.FitLogRoute
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
@@ -63,7 +65,9 @@ fun FitLogApp() {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val vaultPreferences = remember { VaultPreferences(context) }
+    val preferencesStore = remember { context.applicationContext.vaultDataStore }
+    val vaultPreferences = remember { VaultPreferences(preferencesStore) }
+    val logPreferences = remember { LogPreferences(preferencesStore) }
     val vaultRepository = remember { VaultRepository(context) }
     val documents = remember { MarkdownDocumentRepository(context) }
     val todayLog = remember { TodayLogResolver(vaultPreferences.diary, documents, documents) }
@@ -86,7 +90,18 @@ fun FitLogApp() {
             scope = coroutineScope,
             getConfig = vaultPreferences::getVaultConfig,
             checkAccess = vaultRepository::checkAccess,
-            resolveToday = { vault, date -> todayLog.resolve(vault, date, vaultPreferences.getVaultId(vault)) },
+            resolveToday = { vault, date ->
+                val resolved = todayLog.resolve(vault, date, vaultPreferences.getVaultId(vault))
+                FitLogRoute.Editor(
+                    vault = resolved.vault,
+                    document = resolved.document,
+                    date = resolved.date.toString(),
+                    directory = resolved.directory,
+                    fileName = resolved.fileName,
+                    displayPath = resolved.displayPath,
+                    vaultId = resolved.vaultId.takeIf { it != resolved.vault },
+                )
+            },
             showError = { message ->
                 coroutineScope.launch { snackbarHostState.showSnackbar(context.getString(message)) }
             },
@@ -134,6 +149,7 @@ fun FitLogApp() {
             FitLogNavGraph(
                 backStack = backStack,
                 vaultPreferences = vaultPreferences,
+                logSettings = logPreferences,
                 vaultRepository = vaultRepository,
                 sourceIndex = sourceIndex,
                 analysisRepository = diaryAnalysis,

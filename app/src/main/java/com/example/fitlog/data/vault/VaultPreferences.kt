@@ -19,7 +19,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.UUID
 
-private val Context.vaultDataStore: DataStore<Preferences> by preferencesDataStore(
+internal val Context.vaultDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "vault_preferences"
 )
 
@@ -48,7 +48,6 @@ class VaultPreferences(
     private val dataStore: DataStore<Preferences>,
 ) {
     val diary = DiaryPreferences(dataStore)
-    val log = com.example.fitlog.log.LogPreferences(dataStore)
     /**
      * 供生产环境调用的便捷构造函数，复用 Context 单例 DataStore
      */
