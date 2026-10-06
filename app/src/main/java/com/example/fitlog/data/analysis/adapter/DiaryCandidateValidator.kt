@@ -6,7 +6,8 @@ import com.example.fitlog.data.analysis.DiaryAnalysis
 import com.example.fitlog.data.analysis.DiaryParseInput
 import com.example.fitlog.data.analysis.EvidenceQuote
 import com.example.fitlog.data.analysis.ExpandedSet
-import com.example.fitlog.data.analysis.LocatedEvidence
+import com.example.fitlog.data.analysis.DiaryCandidate
+import com.example.fitlog.data.analysis.ExerciseCandidate
 import com.example.fitlog.data.analysis.SetGroupCandidate
 import com.example.fitlog.data.analysis.ValidatedExercise
 import com.example.fitlog.data.analysis.ValidatedSession
@@ -25,12 +26,11 @@ import java.time.format.DateTimeParseException
  * 检查候选结果是否和原输入、位置证据、重量次数等规则一致，并产生业务可接受的 DiaryAnalysis 与 issues
  */
 internal class DiaryCandidateValidator {
-    fun validate(input: DiaryParseInput, decoded: DecodedDiary): DiaryAnalysis {
-        val issues = decoded.issues.toMutableList()
-        val sessions = decoded.sessions.mapIndexedNotNull { sessionIndex, session ->
-            if (session == null) return@mapIndexedNotNull null
+    fun validate(input: DiaryParseInput, decoded: DiaryCandidate): DiaryAnalysis {
+        val issues = mutableListOf<ValidationIssue>()
+        val sessions = decoded.sessions.mapIndexed { sessionIndex, session ->
             val path = "$.sessions[$sessionIndex]"
-            val date = session.header.date?.let {
+            val date = session.date?.let {
                 try {
                     if (!it.matches(Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}"))) {
                         throw DateTimeParseException("Invalid ISO date shape", it, 0)
@@ -41,27 +41,26 @@ internal class DiaryCandidateValidator {
                     null
                 }
             }
-            if (session.header.date == null) issues.review("$path.date", ValidationCode.MISSING_DATE)
+            if (session.date == null) issues.review("$path.date", ValidationCode.MISSING_DATE)
             val exercises = session.exercises.mapIndexedNotNull { exerciseIndex, exercise ->
-                exercise?.let { validateExercise(input, it, "$path.exercises[$exerciseIndex]", issues) }
+                validateExercise(input, exercise, "$path.exercises[$exerciseIndex]", issues)
             }
-            ValidatedSession(path, date, session.header.notes, exercises)
+            ValidatedSession(path, date, session.notes, exercises)
         }
         if (sessions.mapNotNull { it.date }.distinct().size > 1) {
             sessions.filter { it.date != null }.forEach {
                 issues.review("${it.path}.date", ValidationCode.DATE_CONFLICT)
             }
         }
-        return DiaryAnalysis(input.parseKey, sessions, decoded.modelIssues, issues.toList())
+        return DiaryAnalysis(input.parseKey, sessions, decoded.issues, issues.toList())
     }
 
     private fun validateExercise(
         input: DiaryParseInput,
-        decoded: DecodedExercise,
+        candidate: ExerciseCandidate,
         path: String,
         issues: MutableList<ValidationIssue>,
     ): ValidatedExercise? {
-        val candidate = decoded.header.copy(groups = decoded.groups.filterNotNull())
         if (candidate.rawName.isBlank()) {
             issues.error("$path.rawName", ValidationCode.EMPTY_NAME)
             return null
@@ -70,14 +69,9 @@ internal class DiaryCandidateValidator {
         val sets = mutableListOf<ExpandedSet>()
         var carried: CarriedWeight? = null
         var evidenceCursor = 0
-        if (decoded.groups.isEmpty()) issues.review("$path.groups", ValidationCode.MISSING_COUNT)
-        decoded.groups.forEachIndexed { groupIndex, group ->
+        if (candidate.groups.isEmpty()) issues.review("$path.groups", ValidationCode.MISSING_COUNT)
+        candidate.groups.forEachIndexed { groupIndex, group ->
             val groupPath = "$path.groups[$groupIndex]"
-            if (group == null) {
-                // A rejected block might have changed the weight. Do not guess past it.
-                carried = null
-                return@forEachIndexed
-            }
             val groupText = normalizeLineEndings(group.rawText)
             val rawOffset = if (groupText.isBlank()) -1 else
                 evidence.quote.indexOf(groupText, evidenceCursor)
@@ -193,7 +187,7 @@ internal class DiaryCandidateValidator {
         evidence: EvidenceQuote,
         path: String,
         issues: MutableList<ValidationIssue>,
-    ): LocatedEvidence? {
+    ): EvidenceQuote? {
         if (evidence.segmentId != DiaryParseInput.SEGMENT_ID) {
             issues.error("$path.segmentId", ValidationCode.UNKNOWN_SEGMENT)
             return null
@@ -206,9 +200,8 @@ internal class DiaryCandidateValidator {
         }
         if (input.text.indexOf(quote, start + 1) >= 0) {
             issues.review("$path.quote", ValidationCode.AMBIGUOUS_EVIDENCE)
-            return LocatedEvidence(evidence.segmentId, quote, null, null)
         }
-        return LocatedEvidence(evidence.segmentId, quote, start, start + quote.length)
+        return EvidenceQuote(evidence.segmentId, quote)
     }
 
     private fun <T> field(value: T?, group: SetGroupCandidate, name: String): CandidateValue<T> {

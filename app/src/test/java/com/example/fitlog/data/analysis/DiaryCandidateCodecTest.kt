@@ -4,53 +4,31 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DiaryCandidateCodecTest {
-
-    @Test fun unknownFieldsAreIgnoredAndEnumLabelsDoNotEraseEntry() {
+    @Test fun unknownFieldsAreIgnoredAndUnknownValuesStayExplicitlyUnknown() {
         val raw = """{"schemaVersion":1,"futureRoot":true,"sessions":[{"exercises":[{
-            "rawName":"动作","futureExercise":{"value":3},
+            "rawName":"exercise","futureExercise":{"value":3},
             "evidence":{"segmentId":"diary","quote":"raw"},
-            "groups":[{"rawText":"raw","weight":20,"unit":"STONE","basis":"FUTURE","count":1,"reps":8}]
+            "groups":[{"rawText":"raw","weight":20,"unit":"UNKNOWN","basis":"UNKNOWN","count":1,"reps":8}]
         }]}]}"""
         val result = analyzeFixture(fullInput("raw"), raw)
         assertFalse(result.hasErrors)
         val exercise = result.sessions.single().exercises.single()
-        assertEquals(WeightUnit.UNKNOWN, exercise.candidate.groups.single().unit)
-        assertEquals(WeightBasis.UNKNOWN, exercise.candidate.groups.single().basis)
         assertNull(exercise.sets.single().weightKg)
         assertTrue(result.issues.any { it.code == ValidationCode.MISSING_UNIT })
     }
 
-    @Test fun malformedGroupDoesNotEraseSiblingsOrTheirOriginalIndices() {
-        val raw = """{"schemaVersion":1,"sessions":[{"exercises":[{
-            "rawName":"动作","evidence":{"segmentId":"diary","quote":"40kg 1x8 + bad + 1x6"},
-            "groups":[
-                {"rawText":"40kg 1x8","weight":40,"unit":"KG","count":1,"reps":8},
-                {"rawText":"bad","count":"bad"},
-                {"rawText":"1x6","count":1,"reps":6}
-            ]
-        }]}]}"""
-        val result = analyzeFixture(fullInput("40kg 1x8 + bad + 1x6"), raw)
-        assertTrue(result.hasErrors)
-        val sets = result.sessions.single().exercises.single().sets
-        assertEquals(listOf(0, 2), sets.map { it.groupIndex })
-        assertEquals(listOf(40.0, null), sets.map { it.weight.value })
-        assertTrue(result.issues.any {
-            it.path == "$.sessions[0].exercises[0].groups[1]" && it.code == ValidationCode.INVALID_FIELD
-        })
-    }
-
-    @Test fun malformedSessionAndExerciseDoNotRenumberHealthySiblings() {
-        val raw = """{"schemaVersion":1,"sessions":[
-            {"date":{},"exercises":[]},
-            {"exercises":[
-                {"rawName":null,"evidence":{"segmentId":"diary","quote":"raw"}},
-                {"rawName":"动作","evidence":{"segmentId":"diary","quote":"raw"}}
-            ]}
-        ]}"""
-        val result = analyzeFixture(fullInput("raw"), raw)
-        assertTrue(result.hasErrors)
-        assertEquals("$.sessions[1]", result.sessions.single().path)
-        assertEquals("$.sessions[1].exercises[1]", result.sessions.single().exercises.single().path)
+    @Test fun malformedChildrenFailTheWholeResponseRatherThanReturningHealthySiblings() {
+        val invalid = listOf(
+            """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":"good","evidence":{"segmentId":"diary","quote":"raw"}},{"rawName":null}]}]}""",
+            """{"schemaVersion":1,"sessions":[{"date":{},"exercises":[]},{"exercises":[]}]}""",
+            """{"schemaVersion":1,"sessions":[{"exercises":"bad"}]}""",
+            """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":"good","evidence":{"segmentId":"diary","quote":"raw"},"groups":"bad"}]}]}""",
+            """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":"good","evidence":{"segmentId":"diary","quote":"raw"},"groups":[{"rawText":"raw","count":"bad"},{"rawText":"raw","count":1,"reps":8}]}]}]}""",
+            """{"schemaVersion":1,"sessions":[],"issues":[{"path":"x"},{"path":"x","question":"review"}]}""",
+            """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":"good","evidence":{"segmentId":"diary","quote":"raw"},"groups":null}]}]}""",
+            """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":"good","evidence":{"segmentId":"diary","quote":"raw"},"groups":[{"rawText":"raw","unit":"STONE"}]}]}]}""",
+        )
+        invalid.forEach { assertEquals(it, DiaryParseResult.Failure(DiaryParseFailure.INVALID_RESPONSE), parseFixture(fullInput("raw"), it)) }
     }
 
     @Test fun malformedJsonRootAndSchemaAreFailuresRatherThanEmptySuccesses() {
@@ -75,18 +53,13 @@ class DiaryCandidateCodecTest {
         assertFalse(empty.analysis.hasErrors)
     }
 
-    @Test fun malformedIssuesAndChildArraysAreReportedWithoutErasingGoodExercise() {
-        val raw = """{"schemaVersion":1,"issues":[{"path":"x"},{"path":"x","question":"核对"}],
-            "sessions":[{"exercises":"bad"},{"exercises":[
-                {"rawName":"动作","evidence":{"segmentId":"diary","quote":"raw"},"groups":"bad"}
-            ]}]}"""
-        val result = analyzeFixture(fullInput("raw"), raw)
-        assertTrue(result.hasErrors)
-        assertEquals(2, result.sessions.size)
-        assertEquals(1, result.sessions[1].exercises.size)
-        assertEquals(listOf(CandidateIssue("x", "核对")), result.modelIssues)
-        assertTrue(result.issues.any { it.path == "$.issues[0]" })
-        assertTrue(result.issues.any { it.path == "$.sessions[0].exercises" })
-        assertTrue(result.issues.any { it.path == "$.sessions[1].exercises[0].groups" })
+    @Test fun decodedSemanticErrorsAndMissingValuesRemainReviewable() {
+        val analysis = analyzeFixture(fullInput("raw"), """{"schemaVersion":1,"sessions":[{"exercises":[
+            {"rawName":"good","evidence":{"segmentId":"diary","quote":"raw"}},
+            {"rawName":"missing","evidence":{"segmentId":"diary","quote":"absent"}}
+        ]}]}""")
+        assertTrue(analysis.hasErrors)
+        assertEquals("good", analysis.sessions.single().exercises.single().candidate.rawName)
+        assertTrue(analysis.issues.any { it.code == ValidationCode.MISSING_COUNT })
     }
 }

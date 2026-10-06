@@ -20,24 +20,22 @@ import org.robolectric.annotation.Config
 class DiaryAnalysisPersistenceTest {
     private lateinit var db: DiaryAnalysisDatabase
     private lateinit var repo: DiaryAnalysisRepository
-    private lateinit var executor: DiaryParseExecutor
+    private lateinit var parser: JsonDiaryParser
     private var response = """{"schemaVersion":1,"sessions":[]}"""
     private val date = LocalDate.of(2026, 10, 2)
 
     @Before fun setUp() {
         db = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), DiaryAnalysisDatabase::class.java).build()
         repo = DiaryAnalysisRepository(db)
-        executor = DiaryParseExecutor(repo, JsonDiaryParser(DiaryModelSource { DiaryModelResponse.Json(response) }))
+        parser = JsonDiaryParser(DiaryModelSource { DiaryModelResponse.Json(response) })
     }
 
     @After fun tearDown() = runBlocking {
-        executor.close()
-        executor.awaitClosed()
         db.close()
     }
 
     private suspend fun parsed(input: DiaryParseInput = fullInput("")): Pair<StoredDiaryParse, DiaryAnalysis> {
-        val result = executor.parse(input)
+        val result = repo.parse(input, parser)
         return result to (result.result as DiaryParseResult.Success).analysis
     }
 
@@ -47,7 +45,6 @@ class DiaryAnalysisPersistenceTest {
         val (run, analysis) = parsed()
         val record = repo.confirm(DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)).record()
         assertTrue(record.sessions.isEmpty())
-        assertEquals(1L, record.diary.revision)
         assertEquals(date.toString(), record.diary.date)
         assertFalse(record.diary.acceptedPartialResult)
         assertEquals(ConfirmationFreshness.CONFIRMED,
@@ -65,7 +62,7 @@ class DiaryAnalysisPersistenceTest {
         assertTrue(record.sessions.flatMap { it.exercises }.all { it.sets.isEmpty() })
     }
 
-    @Test fun confirmationDerivesPerFieldProvenanceAndRecomputesEditedWeights() = runBlocking {
+    @Test fun confirmationDerivesGroupEditFlagsAndRecomputesEditedWeights() = runBlocking {
         val quote = "bench 40kg 1x8 + 1x6"
         response = candidateJson(exercise(quote,
             SetGroupCandidate("40kg 1x8", 40.0, WeightUnit.KG, WeightBasis.PER_SIDE,
@@ -76,28 +73,19 @@ class DiaryAnalysisPersistenceTest {
         val session = review.sessions.single()
         val exercise = session.exercises.single()
         val first = exercise.sets.first()
-        val changed = first.copy(weight = ReviewedValue(50.0), unit = ReviewedValue(WeightUnit.LB))
-        val manual = ReviewedSet(weight = ReviewedValue(10.0, FieldProvenance(CandidateOrigin.EXPLICIT)),
-            unit = ReviewedValue(WeightUnit.KG), basis = ReviewedValue(WeightBasis.TOTAL))
+        val changed = first.copy(weight = 50.0, unit = WeightUnit.LB)
+        val manual = ReviewedSet(weight = 10.0, unit = WeightUnit.KG, basis = WeightBasis.TOTAL)
         val submitted = review.copy(sessions = listOf(session.copy(exercises = listOf(
-            exercise.copy(sets = listOf(changed, exercise.sets.last(), manual))))))
+            exercise.copy(sets = listOf(changed, exercise.sets.last().copy(userEdited = true), manual))))))
         val sets = repo.confirm(submitted).record().sessions.single().exercises.single().sets
         assertEquals(50.0 * 0.45359237, sets.first().weightKg!!, 0.000001)
         assertEquals(WeightBasis.PER_SIDE, sets.first().basis)
-        assertTrue(sets.first().weightProvenance.userEdited)
-        assertTrue(sets.first().unitProvenance.userEdited)
-        assertFalse(sets.first().basisProvenance.userEdited)
-        assertEquals(CandidateOrigin.INFERRED, sets.first().weightProvenance.origin)
-        val inherited = sets[1].weightProvenance
-        assertEquals(CandidateOrigin.INHERITED, inherited.origin)
-        assertTrue(inherited.inferred)
-        assertEquals(0, inherited.inheritedFromGroup)
-        assertFalse(inherited.userEdited)
+        assertTrue(sets.first().userEdited)
+        assertFalse(sets[1].userEdited)
         assertEquals(40.0, sets[1].weightKg!!, 0.0)
-        assertNull(sets.last().weightProvenance.origin)
-        assertTrue(sets.last().weightProvenance.userEdited)
+        assertTrue(sets.last().userEdited)
         assertNull(sets.last().reps)
-        assertNull(sets.last().countOrigin)
+        assertEquals(CandidateOrigin.INHERITED, analysis.sessions.single().exercises.single().sets[1].weight.origin)
     }
 
     @Test fun missingValuesRemainNullAndDoNotReuseCandidateUnitConversions() = runBlocking {
@@ -107,28 +95,25 @@ class DiaryAnalysisPersistenceTest {
         val review = DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)
         val session = review.sessions.single()
         val exercise = session.exercises.single()
-        val set = exercise.sets.single().copy(weight = ReviewedValue(), unit = ReviewedValue(), reps = ReviewedValue())
+        val set = exercise.sets.single().copy(weight = null, unit = null, reps = null)
         val record = repo.confirm(review.copy(sessions = listOf(session.copy(exercises = listOf(
             exercise.copy(sets = listOf(set))))))).record()
         val stored = record.sessions.single().exercises.single().sets.single()
         assertNull(stored.weight); assertNull(stored.unit); assertNull(stored.reps); assertNull(stored.weightKg)
-        assertTrue(stored.weightProvenance.userEdited)
+        assertTrue(stored.userEdited)
     }
 
-    @Test fun replacingConfirmationArchivesCompleteOldTreeAndKeepsDiaryId() = runBlocking {
+    @Test fun replacingConfirmationKeepsDiaryIdWithoutHistory() = runBlocking {
         response = fixture("user-sample.expected.json")
         val (run, analysis) = parsed(fullInput(fixture("user-sample.md")))
         val review = DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)
         val first = repo.confirm(review).record()
-        val second = repo.confirm(review.copy(expectedRevision = 1, sessions = emptyList(), date = date.minusDays(1))).record()
+        val second = repo.confirm(review.copy(sessions = emptyList(), date = date.minusDays(1))).record()
         assertEquals(first.diary.id, second.diary.id)
-        assertEquals(2L, second.diary.revision)
         assertTrue(second.sessions.isEmpty())
-        val snapshot = repo.snapshots(review.sourceKey).single()
-        assertEquals(1L, snapshot.revision)
-        assertEquals(first.diary.confirmedAt, snapshot.confirmedAt)
-        assertEquals(first, DiaryAnalysisCodec.decodeSnapshot(snapshot.snapshotJson))
-        assertEquals(14, DiaryAnalysisCodec.decodeSnapshot(snapshot.snapshotJson).sessions.flatMap { it.exercises }.sumOf { it.sets.size })
+        db.openHelper.readableDatabase.query("SELECT name FROM sqlite_master WHERE name = 'confirmation_snapshot'").use {
+            assertEquals(0, it.count)
+        }
         assertNotNull(db.analysis().run(first.diary.parseRunId))
     }
 
@@ -139,23 +124,20 @@ class DiaryAnalysisPersistenceTest {
         val originalReview = DiaryConfirmation.fromCandidate(oldRun.parseRunId, oldAnalysis, date)
         val session = originalReview.sessions.single()
         val exercise = session.exercises.single()
-        val correctedSet = exercise.sets.single().copy(weight = ReviewedValue(42.0))
+        val correctedSet = exercise.sets.single().copy(weight = 42.0)
         val corrected = repo.confirm(originalReview.copy(sessions = listOf(session.copy(exercises = listOf(
             exercise.copy(sets = listOf(correctedSet))))))).record()
         response = candidateJson(exercise("bench 50kg 1x8", SetGroupCandidate("50kg 1x8",
             50.0, WeightUnit.KG, WeightBasis.TOTAL, reps = 8, count = 1)))
         val (newRun, newAnalysis) = parsed(fullInput("bench 50kg 1x8"))
         assertEquals(corrected, repo.confirmed(originalReview.sourceKey))
-        val second = repo.confirm(DiaryConfirmation.fromCandidate(newRun.parseRunId, newAnalysis, date, 1)).record()
+        val second = repo.confirm(DiaryConfirmation.fromCandidate(newRun.parseRunId, newAnalysis, date)).record()
         assertEquals(50.0, second.sessions.single().exercises.single().sets.single().weight!!, 0.0)
-        val history = DiaryAnalysisCodec.decodeSnapshot(repo.snapshots(originalReview.sourceKey).single().snapshotJson)
-        assertEquals(corrected, history)
-        assertEquals(42.0, history.sessions.single().exercises.single().sets.single().weight!!, 0.0)
         assertNotNull(db.analysis().run(oldRun.parseRunId))
         assertNotNull(db.analysis().run(newRun.parseRunId))
     }
 
-    @Test fun movingExercisesPreservesVerifiedOriginalProvenanceAndRejectsDuplicateReferences() = runBlocking {
+    @Test fun movingExercisesPreservesUnchangedValuesAndRejectsDuplicateReferences() = runBlocking {
         response = candidateJson(exercise("bench 40kg 1x8", SetGroupCandidate("40kg 1x8",
             40.0, WeightUnit.KG, WeightBasis.TOTAL, reps = 8, count = 1)))
         val (run, analysis) = parsed(fullInput("bench 40kg 1x8"))
@@ -164,24 +146,14 @@ class DiaryAnalysisPersistenceTest {
         val manualSession = ReviewedSession(listOf(exercise), notes = "reorganized by user")
         val moved = repo.confirm(originalReview.copy(sessions = listOf(manualSession))).record()
         assertNull(moved.sessions.single().session.sourcePath)
-        assertEquals(CandidateOrigin.EXPLICIT,
-            moved.sessions.single().exercises.single().sets.single().weightProvenance.origin)
+        assertFalse(moved.sessions.single().exercises.single().sets.single().userEdited)
         assertEquals(DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_DATA), repo.confirm(
-            originalReview.copy(expectedRevision = 1, sessions = listOf(manualSession, manualSession))))
+            originalReview.copy(sessions = listOf(manualSession, manualSession))))
         assertEquals(moved, repo.confirmed(originalReview.sourceKey))
     }
 
-    @Test fun olderReviewCannotOverwriteNewerConfirmationOrCreateAnotherSnapshot() = runBlocking {
-        val (run, analysis) = parsed()
-        val review = DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)
-        repo.confirm(review)
-        assertEquals(DiaryConfirmationResult.RevisionConflict(1), repo.confirm(review))
-        assertTrue(repo.snapshots(review.sourceKey).isEmpty())
-        assertEquals(1L, repo.confirmed(review.sourceKey)!!.diary.revision)
-    }
-
     @Test fun partialExtractionNeedsExplicitAcceptanceAndPreservesThatFact() = runBlocking {
-        response = """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":false}]}]}"""
+        response = """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":"missing","evidence":{"segmentId":"diary","quote":"absent"}}]}]}"""
         val (run, analysis) = parsed()
         assertTrue(analysis.hasErrors)
         val review = DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)
@@ -195,7 +167,7 @@ class DiaryAnalysisPersistenceTest {
     @Test fun failedOrDifferentSourceAttemptsCannotBeConfirmed() = runBlocking {
         val input = fullInput("")
         response = "not json"
-        val failed = executor.parse(input)
+        val failed = repo.parse(input, parser)
         val request = DiaryConfirmation(input.parseKey.sourceKey, failed.parseRunId, date, emptyList())
         assertEquals(DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_PARSE_RUN), repo.confirm(request))
         response = """{"schemaVersion":1,"sessions":[]}"""
@@ -208,9 +180,9 @@ class DiaryAnalysisPersistenceTest {
         val (run, analysis) = parsed()
         val base = DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)
         listOf(
-            ReviewedSet(weight = ReviewedValue(Double.NaN)),
-            ReviewedSet(weight = ReviewedValue(-1.0)),
-            ReviewedSet(reps = ReviewedValue(0)),
+            ReviewedSet(weight = Double.NaN),
+            ReviewedSet(weight = -1.0),
+            ReviewedSet(reps = 0),
             ReviewedSet(groupIndex = 0, setInGroup = 0),
         ).forEach { set ->
             val request = base.copy(sessions = listOf(ReviewedSession(listOf(ReviewedExercise("manual", listOf(set))))))
@@ -219,15 +191,14 @@ class DiaryAnalysisPersistenceTest {
         assertNull(repo.confirmed(base.sourceKey))
     }
 
-    @Test fun transactionFailureAfterSnapshotAndDeletionRollsEverythingBack() = runBlocking {
+    @Test fun transactionFailureAfterDeletionRollsEverythingBack() = runBlocking {
         response = candidateJson(exercise("bench", name = "bench"))
         val (run, analysis) = parsed(fullInput("bench"))
         val review = DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)
         val old = repo.confirm(review).record()
         db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fail_exercise BEFORE INSERT ON confirmed_exercise BEGIN SELECT RAISE(ABORT, 'test failure'); END")
-        try { repo.confirm(review.copy(expectedRevision = 1)); fail() } catch (_: DiaryAnalysisStorageException) { }
+        try { repo.confirm(review); fail() } catch (_: DiaryAnalysisStorageException) { }
         assertEquals(old, repo.confirmed(review.sourceKey))
-        assertTrue(repo.snapshots(review.sourceKey).isEmpty())
     }
 
     @Test fun changedOrUnavailableContentDoesNotDiscardReviewOrRelabelItsHash() = runBlocking {
@@ -271,23 +242,22 @@ class DiaryAnalysisPersistenceTest {
         assertNotNull(repo.confirmed(c.parseKey.sourceKey))
     }
 
-    @Test fun confirmationHistorySurvivesReopenAndSourceIndexRecreation() = runBlocking {
+    @Test fun confirmationSurvivesReopenAndSourceIndexRecreation() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
         val name = "analysis-${UUID.randomUUID()}.db"
         val indexName = "index-${UUID.randomUUID()}.db"
         fun open() = Room.databaseBuilder(context, DiaryAnalysisDatabase::class.java, name).build()
         val disk = open()
         val diskRepo = DiaryAnalysisRepository(disk)
-        val diskExecutor = DiaryParseExecutor(diskRepo,
-            JsonDiaryParser(DiaryModelSource { DiaryModelResponse.Json(fixture("user-sample.expected.json")) }))
+        val diskParser = JsonDiaryParser(DiaryModelSource { DiaryModelResponse.Json(fixture("user-sample.expected.json")) })
         val input = fullInput(fixture("user-sample.md"))
         var expected: ConfirmedDiaryRecord? = null
         try {
-            val run = diskExecutor.parse(input)
+            val run = diskRepo.parse(input, diskParser)
             val review = DiaryConfirmation.fromCandidate(run.parseRunId, (run.result as DiaryParseResult.Success).analysis, date)
             diskRepo.confirm(review)
-            expected = diskRepo.confirm(review.copy(expectedRevision = 1)).record()
-        } finally { diskExecutor.close(); diskExecutor.awaitClosed(); disk.close() }
+            expected = diskRepo.confirm(review).record()
+        } finally { disk.close() }
         val index = Room.databaseBuilder(context, SourceIndexDatabase::class.java, indexName).build()
         index.openHelper.writableDatabase
         index.close()
@@ -299,7 +269,6 @@ class DiaryAnalysisPersistenceTest {
         try {
             val reopenedRepo = DiaryAnalysisRepository(reopened)
             assertEquals(expected, reopenedRepo.confirmed(input.parseKey.sourceKey))
-            assertEquals(1, reopenedRepo.snapshots(input.parseKey.sourceKey).size)
             val run = reopened.analysis().run(expected.diary.parseRunId)!!
             assertEquals(fixture("user-sample.expected.json"), run.rawModelJson)
             assertEquals(14, reopenedRepo.confirmed(input.parseKey.sourceKey)!!.sessions.flatMap { it.exercises }.sumOf { it.sets.size })

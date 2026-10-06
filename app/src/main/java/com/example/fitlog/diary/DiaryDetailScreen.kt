@@ -91,7 +91,7 @@ private fun AnalysisContent(vm: DiaryDetailViewModel, modifier: Modifier) {
                 OutlinedCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.detail_latest_failure), style = MaterialTheme.typography.titleMedium)
-                        Text(DateFormat.getDateTimeInstance().format(Date(failure.finishedAt ?: failure.startedAt)))
+                        Text(DateFormat.getDateTimeInstance().format(Date(failure.finishedAt)))
                         Text(stringResource(failureLabel(failure)))
                     }
                 }
@@ -124,8 +124,7 @@ private fun LazyListScope.confirmedItems(record: ConfirmedDiaryRecord) {
             item(key = prefix) { ExerciseHeading(exercise.exercise.rawName, exercise.exercise.notes, exercise.exercise.evidence?.quote, exercise.sets.isEmpty()) }
             exercise.sets.forEachIndexed { index, set ->
                 item(key = "$prefix:$index") {
-                    SetEntry(index, set.weight, set.unit, set.basis, set.reps, set.countOrigin,
-                        set.weightProvenance, set.unitProvenance, set.basisProvenance, set.repsProvenance)
+                    SetEntry(index, set.weight, set.unit, set.basis, set.reps, userEdited = set.userEdited)
                 }
             }
         }
@@ -163,14 +162,12 @@ private fun LazyListScope.candidateItems(candidate: StoredDiaryCandidate, freshn
             exercise.sets.forEachIndexed { index, set ->
                 item(key = "$prefix:$index") {
                     SetEntry(index, set.weight.value, set.unit.value, set.basis.value, set.reps.value, set.countOrigin,
-                        set.weight.provenance(), set.unit.provenance(), set.basis.provenance(), set.reps.provenance())
+                        set.weight, set.unit, set.basis, set.reps)
                 }
             }
         }
     }
 }
-
-private fun CandidateValue<*>.provenance() = FieldProvenance(origin, inferred, inheritedFromGroup)
 
 @Composable
 private fun SessionHeading(index: Int, date: String?, notes: String?) {
@@ -197,14 +194,16 @@ private fun ExerciseHeading(name: String, notes: String?, evidence: String?, noS
 }
 
 @Composable
-private fun SetEntry(index: Int, weight: Double?, unit: WeightUnit?, basis: WeightBasis?, reps: Int?, countOrigin: CandidateOrigin?,
-    weightSource: FieldProvenance, unitSource: FieldProvenance, basisSource: FieldProvenance, repsSource: FieldProvenance) {
+private fun SetEntry(index: Int, weight: Double?, unit: WeightUnit?, basis: WeightBasis?, reps: Int?, countOrigin: CandidateOrigin? = null,
+    weightSource: CandidateValue<*>? = null, unitSource: CandidateValue<*>? = null,
+    basisSource: CandidateValue<*>? = null, repsSource: CandidateValue<*>? = null, userEdited: Boolean = false) {
     val locale = LocalConfiguration.current.locales[0]
     val numbers = remember(locale) { NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = 340; isGroupingUsed = false } }
     val unknown = stringResource(R.string.detail_unknown)
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.detail_set, index + 1), style = MaterialTheme.typography.titleSmall)
+            if (userEdited) Text(stringResource(R.string.detail_user_edited))
             countOrigin?.let { Text(stringResource(R.string.detail_count_source, stringResource(originLabel(it)))) }
             ValueEntry(R.string.detail_weight, weight?.let(numbers::format) ?: unknown, weightSource)
             ValueEntry(R.string.detail_unit, stringResource(when (unit) { WeightUnit.KG -> R.string.detail_kg; WeightUnit.LB -> R.string.detail_lb; else -> R.string.detail_unknown }), unitSource)
@@ -219,14 +218,13 @@ private fun SetEntry(index: Int, weight: Double?, unit: WeightUnit?, basis: Weig
 }
 
 @Composable
-private fun ValueEntry(label: Int, value: String, source: FieldProvenance) {
+private fun ValueEntry(label: Int, value: String, source: CandidateValue<*>?) {
     Column {
         Text(stringResource(R.string.detail_field, stringResource(label), value))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (source != null) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(originLabel(source.origin)), style = MaterialTheme.typography.labelSmall)
             if (source.inferred && source.origin != CandidateOrigin.INFERRED) Text(stringResource(R.string.detail_origin_inferred), style = MaterialTheme.typography.labelSmall)
             source.inheritedFromGroup?.let { Text(stringResource(R.string.detail_inherited_group, it + 1), style = MaterialTheme.typography.labelSmall) }
-            if (source.userEdited) Text(stringResource(R.string.detail_user_edited), style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -236,10 +234,8 @@ private fun ErrorText(message: Int) { Text(stringResource(message), color = Mate
 
 private fun parseStatusLabel(status: ParseRunStatus?) = when (status) {
     null -> R.string.detail_not_parsed
-    ParseRunStatus.RUNNING -> R.string.detail_parse_running
     ParseRunStatus.SUCCEEDED -> R.string.detail_parse_succeeded
     ParseRunStatus.FAILED -> R.string.detail_parse_failed
-    ParseRunStatus.INTERRUPTED -> R.string.detail_parse_interrupted
 }
 
 private fun confirmationLabel(status: ConfirmationFreshness) = when (status) {
@@ -249,12 +245,11 @@ private fun confirmationLabel(status: ConfirmationFreshness) = when (status) {
     ConfirmationFreshness.UNVERIFIABLE -> R.string.detail_unverifiable
 }
 
-private fun originLabel(origin: CandidateOrigin?) = when (origin) {
+private fun originLabel(origin: CandidateOrigin) = when (origin) {
     CandidateOrigin.EXPLICIT -> R.string.detail_origin_explicit
     CandidateOrigin.INHERITED -> R.string.detail_origin_inherited
     CandidateOrigin.INFERRED -> R.string.detail_origin_inferred
     CandidateOrigin.MISSING -> R.string.detail_origin_missing
-    null -> R.string.detail_origin_user
 }
 
 private fun failureLabel(attempt: DiaryParseAttempt) = when (attempt.failureCode) {
@@ -269,12 +264,10 @@ private fun failureLabel(attempt: DiaryParseAttempt) = when (attempt.failureCode
     "SERVICE_UNAVAILABLE" -> R.string.detail_failure_service
     "EMPTY_RESPONSE" -> R.string.detail_failure_empty
     "TRUNCATED_RESPONSE" -> R.string.detail_failure_truncated
-    "PROCESS_INTERRUPTED" -> R.string.detail_failure_process
-    else -> if (attempt.status == ParseRunStatus.INTERRUPTED) R.string.detail_parse_interrupted else R.string.detail_parse_failed
+    else -> R.string.detail_parse_failed
 }
 
 private fun validationLabel(code: ValidationCode) = when (code) {
-    ValidationCode.INVALID_FIELD -> R.string.detail_issue_invalid_field
     ValidationCode.UNKNOWN_SEGMENT -> R.string.detail_issue_unknown_segment
     ValidationCode.EVIDENCE_NOT_FOUND -> R.string.detail_issue_evidence_missing
     ValidationCode.AMBIGUOUS_EVIDENCE -> R.string.detail_issue_evidence_ambiguous

@@ -19,7 +19,7 @@ data class DiaryParseAttempt(
     val parseKey: DiaryParseKey,
     val status: ParseRunStatus,
     val startedAt: Long,
-    val finishedAt: Long?,
+    val finishedAt: Long,
     val failureCode: String?,
 )
 
@@ -32,7 +32,7 @@ data class DiaryParseRecords(
 ) {
     val latestAttempt: DiaryParseAttempt? get() = attempts.lastOrNull()
     val latestFailure: DiaryParseAttempt? get() = attempts.lastOrNull {
-        it.status == ParseRunStatus.FAILED || it.status == ParseRunStatus.INTERRUPTED
+        it.status == ParseRunStatus.FAILED
     }
 }
 

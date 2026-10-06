@@ -41,14 +41,14 @@ class DiaryAnalysisContractTest {
         val sample = analyzeFixture(fullInput(fixture("user-sample.md")), fixture("user-sample.expected.json"))
         assertEquals(sample, DiaryAnalysisCodec.decodeCandidate(DiaryAnalysisCodec.encodeCandidate(sample)))
         val partial = analyzeFixture(fullInput("good\nbad"),
-            """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":"good","evidence":{"segmentId":"diary","quote":"good"}},{"rawName":false}]}]}""")
+            """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":"good","evidence":{"segmentId":"diary","quote":"good"}},{"rawName":"bad","evidence":{"segmentId":"diary","quote":"absent"}}]}]}""")
         assertTrue(partial.hasErrors)
         assertEquals(partial, DiaryAnalysisCodec.decodeCandidate(DiaryAnalysisCodec.encodeCandidate(partial)))
     }
 
     @Test fun unsupportedStorageVersionFailsInsteadOfInventingEmptyAnalysis() {
         val candidate = analyzeFixture(fullInput(""), """{"schemaVersion":1,"sessions":[]}""")
-        val json = DiaryAnalysisCodec.encodeCandidate(candidate).replace("\"formatVersion\":1", "\"formatVersion\":999")
+        val json = DiaryAnalysisCodec.encodeCandidate(candidate).replace("\"formatVersion\":2", "\"formatVersion\":999")
         try { DiaryAnalysisCodec.decodeCandidate(json); fail() } catch (_: IllegalArgumentException) { }
     }
 

@@ -63,7 +63,6 @@ enum class IssueSeverity { REVIEW, ERROR }
 
 @Serializable
 enum class ValidationCode {
-    INVALID_FIELD,
     UNKNOWN_SEGMENT, EVIDENCE_NOT_FOUND, AMBIGUOUS_EVIDENCE, EMPTY_NAME,
     GROUP_TEXT_NOT_FOUND, INVALID_WEIGHT, INVALID_COUNT, INVALID_REPS,
     INCONSISTENT_REPS, TOO_MANY_SETS, INVALID_DATE, DATE_CONFLICT,
@@ -87,15 +86,6 @@ data class CandidateValue<T>(
     val inferred: Boolean = false,
 )
 
-/** UTF-16 range in normalized input, start inclusive/end exclusive; null when ambiguous. */
-@Serializable
-data class LocatedEvidence(
-    val segmentId: String,
-    val quote: String,
-    val normalizedStart: Int?,
-    val normalizedEndExclusive: Int?,
-)
-
 @Serializable
 data class ExpandedSet(
     val groupIndex: Int,
@@ -113,7 +103,7 @@ data class ExpandedSet(
 data class ValidatedExercise(
     val path: String,
     val candidate: ExerciseCandidate,
-    val evidence: LocatedEvidence,
+    val evidence: EvidenceQuote,
     val sets: List<ExpandedSet>,
 )
 

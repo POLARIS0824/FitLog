@@ -89,8 +89,6 @@ class DiaryCandidateValidatorTest {
         assertFalse(result.hasErrors)
         assertEquals(1, result.sessions.single().exercises.size)
         val evidence = result.sessions.single().exercises.single().evidence
-        assertNull(evidence.normalizedStart)
-        assertNull(evidence.normalizedEndExclusive)
         assertTrue(result.issues.any {
             it.code == ValidationCode.AMBIGUOUS_EVIDENCE && it.severity == IssueSeverity.REVIEW
         })

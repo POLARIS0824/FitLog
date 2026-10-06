@@ -26,20 +26,15 @@ class DiaryParseInputTest {
         assertFalse(result.hasErrors)
     }
 
-    @Test fun normalizedEvidenceOffsetsAreUtf16WithExclusiveEnd() {
+    @Test fun evidenceMatchesNormalizedTextWithBomNewlinesAndEmoji() {
         val raw = "\uFEFFprivate\ud83d\ude42\r\n- bench: 40kg 1x8\r\nnotes"
         val input = fullInput(raw)
         val quote = "- bench: 40kg 1x8"
         val result = analyzeFixture(input, candidateJson(exercise(quote,
             SetGroupCandidate("40kg 1x8", 40.0, WeightUnit.KG, WeightBasis.TOTAL, reps = 8, count = 1))))
         val evidence = result.sessions.single().exercises.single().evidence
-        val start = requireNotNull(evidence.normalizedStart)
-        val end = requireNotNull(evidence.normalizedEndExclusive)
-        assertEquals(input.text.indexOf(quote), start)
-        assertNotEquals(raw.indexOf(quote), start)
-        assertEquals(10, start)
-        assertEquals(quote, input.text.substring(start, end))
-        assertEquals(start + quote.length, end)
+        assertEquals(quote, evidence.quote)
+        assertTrue(input.text.contains(evidence.quote))
     }
 
     @Test fun multilineQuotesAndGroupTextMatchAfterOnlyNewlineNormalization() {
@@ -53,8 +48,7 @@ class DiaryParseInputTest {
         assertEquals("bench:\n40kg\n1x8", exercise.evidence.quote)
         assertEquals(group, exercise.candidate.groups.single().rawText)
         assertEquals(1, exercise.sets.size)
-        assertEquals(exercise.evidence.quote, input.text.substring(
-            requireNotNull(exercise.evidence.normalizedStart), requireNotNull(exercise.evidence.normalizedEndExclusive)))
+        assertTrue(input.text.contains(exercise.evidence.quote))
     }
 
     @Test fun repeatedExerciseEvidenceRetainsBothCandidatesWithoutChoosingLocations() {
@@ -65,7 +59,7 @@ class DiaryParseInputTest {
         assertFalse(result.hasErrors)
         assertEquals(2, result.sessions.single().exercises.size)
         assertEquals(2, result.sessions.single().exercises.sumOf { it.sets.size })
-        assertTrue(result.sessions.single().exercises.all { it.evidence.normalizedStart == null && it.evidence.normalizedEndExclusive == null })
+        assertTrue(result.sessions.single().exercises.all { it.evidence.quote == "bench 40kg 1x8" })
         assertEquals(2, result.issues.count { it.code == ValidationCode.AMBIGUOUS_EVIDENCE && it.severity == IssueSeverity.REVIEW })
     }
 

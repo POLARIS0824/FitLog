@@ -43,7 +43,7 @@ class DiaryDetailViewModelTest {
     private fun confirmation(records: DiaryParseRecords): ConfirmedDiaryRecord {
         val key = records.latestCandidate!!.analysis.parseKey
         return ConfirmedDiaryRecord(ConfirmedDiaryRow("confirmed", route.vaultId, route.relPath, "2026-10-02",
-            key.contentHash, key.hashVersion, "run", 3, 1, false), emptyList())
+            key.contentHash, key.hashVersion, "run", 3, false), emptyList())
     }
 
     @Test fun unparsedDiaryShowsExactOriginalAndNeverScansOrWrites() = runTest(dispatcher) {

@@ -6,32 +6,16 @@ import java.time.format.ResolverStyle
 import java.util.Locale
 import kotlinx.serialization.Serializable
 
-/**
- * Original extraction provenance, separate from the final user-reviewed value.
- *
- * 包含 ReviewedSession / Exercise / Set、字段 provenance、DiaryConfirmation、
- * 日期建议、revision 冲突和 freshness 判断，是 Candidate → Confirmed data 之间的业务契约
- */
-@Serializable
-data class FieldProvenance(
-    val origin: CandidateOrigin? = null,
-    val inferred: Boolean = false,
-    val inheritedFromGroup: Int? = null,
-    val userEdited: Boolean = false,
-)
-
-@Serializable
-data class ReviewedValue<T>(val value: T? = null, val provenance: FieldProvenance = FieldProvenance())
-
+/** Final user-reviewed values; detailed extraction provenance stays in the candidate. */
 @Serializable
 data class ReviewedSet(
-    val weight: ReviewedValue<Double> = ReviewedValue(),
-    val unit: ReviewedValue<WeightUnit> = ReviewedValue(),
-    val basis: ReviewedValue<WeightBasis> = ReviewedValue(),
-    val reps: ReviewedValue<Int> = ReviewedValue(),
+    val weight: Double? = null,
+    val unit: WeightUnit? = null,
+    val basis: WeightBasis? = null,
+    val reps: Int? = null,
     val groupIndex: Int? = null,
     val setInGroup: Int? = null,
-    val countOrigin: CandidateOrigin? = null,
+    val userEdited: Boolean = false,
 )
 
 @Serializable
@@ -39,7 +23,7 @@ data class ReviewedExercise(
     val rawName: String,
     val sets: List<ReviewedSet> = emptyList(),
     val notes: String? = null,
-    val evidence: LocatedEvidence? = null,
+    val evidence: EvidenceQuote? = null,
     val sourcePath: String? = null,
 )
 
@@ -55,8 +39,6 @@ data class DiaryConfirmation(
     val parseRunId: String,
     val date: LocalDate,
     val sessions: List<ReviewedSession>,
-    /** Zero means there was no confirmation when review started. */
-    val expectedRevision: Long = 0,
     val acceptedPartialResult: Boolean = false,
 ) {
     companion object {
@@ -64,7 +46,6 @@ data class DiaryConfirmation(
             parseRunId: String,
             analysis: DiaryAnalysis,
             date: LocalDate,
-            expectedRevision: Long = 0,
             acceptedPartialResult: Boolean = false,
         ) = DiaryConfirmation(
             analysis.parseKey.sourceKey, parseRunId, date,
@@ -73,23 +54,19 @@ data class DiaryConfirmation(
                     ReviewedExercise(
                         exercise.candidate.rawName,
                         exercise.sets.map { set ->
-                            ReviewedSet(set.weight.reviewed(), set.unit.reviewed(), set.basis.reviewed(),
-                                set.reps.reviewed(), set.groupIndex, set.setInGroup, set.countOrigin)
+                            ReviewedSet(set.weight.value, set.unit.value, set.basis.value,
+                                set.reps.value, set.groupIndex, set.setInGroup)
                         },
                         exercise.candidate.notes, exercise.evidence, exercise.path,
                     )
                 }, session.notes, session.path)
-            }, expectedRevision, acceptedPartialResult,
+            }, acceptedPartialResult,
         )
     }
 }
 
-private fun <T> CandidateValue<T>.reviewed() = ReviewedValue(value,
-    FieldProvenance(origin, inferred, inheritedFromGroup))
-
 sealed interface DiaryConfirmationResult {
     data class Confirmed(val diary: ConfirmedDiaryRecord) : DiaryConfirmationResult
-    data class RevisionConflict(val currentRevision: Long) : DiaryConfirmationResult
     data class Invalid(val reason: ConfirmationFailure) : DiaryConfirmationResult
 }
 

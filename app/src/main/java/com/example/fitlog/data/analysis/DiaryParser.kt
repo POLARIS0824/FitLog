@@ -8,7 +8,7 @@ fun interface DiaryParser {
     suspend fun parse(input: DiaryParseInput): DiaryParseResult
 }
 
-/** One whole-file snapshot. Text, evidence offsets and digest share one normalization pass. */
+/** One whole-file snapshot. Text, evidence quotes and digest share one normalization pass. */
 class DiaryParseInput private constructor(
     val parseKey: DiaryParseKey,
     val text: String,

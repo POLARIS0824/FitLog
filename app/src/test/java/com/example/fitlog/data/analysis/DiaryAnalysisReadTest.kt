@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
 class DiaryAnalysisReadTest {
     private lateinit var db: DiaryAnalysisDatabase
     private lateinit var repo: DiaryAnalysisRepository
-    private lateinit var executor: DiaryParseExecutor
+    private lateinit var parser: JsonDiaryParser
     private var calls = 0
     private var diskName: String? = null
     private var response: DiaryModelResponse = DiaryModelResponse.Json("""{"schemaVersion":1,"sessions":[]}""")
@@ -28,11 +28,11 @@ class DiaryAnalysisReadTest {
     @Before fun before() {
         db = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), DiaryAnalysisDatabase::class.java).build()
         repo = DiaryAnalysisRepository(db)
-        executor = DiaryParseExecutor(repo, JsonDiaryParser(DiaryModelSource { calls++; response }))
+        parser = JsonDiaryParser(DiaryModelSource { calls++; response })
     }
 
     @After fun after() = runBlocking {
-        executor.close(); executor.awaitClosed(); db.close()
+        db.close()
         diskName?.let { RuntimeEnvironment.getApplication().deleteDatabase(it) }
         Unit
     }
@@ -43,7 +43,7 @@ class DiaryAnalysisReadTest {
         assertTrue(repo.observeParses(input.parseKey.sourceKey).first().attempts.isEmpty())
         assertNull(repo.observeConfirmed(input.parseKey.sourceKey).first())
         assertEquals(0, calls)
-        val run = executor.parse(input)
+        val run = repo.parse(input, parser)
         val records = repo.observeParses(input.parseKey.sourceKey).first()
         assertEquals(run.parseRunId, records.latestCandidate?.attempt?.id)
         assertEquals(1, calls)
@@ -56,12 +56,12 @@ class DiaryAnalysisReadTest {
 
     @Test fun recentFailurePreservesPreviousCandidateAndConfirmation() = runBlocking {
         val oldInput = fullInput("first")
-        val old = executor.parse(oldInput)
+        val old = repo.parse(oldInput, parser)
         val analysis = (old.result as DiaryParseResult.Success).analysis
         val confirmed = (repo.confirm(DiaryConfirmation.fromCandidate(old.parseRunId, analysis, LocalDate.of(2026, 10, 2)))
             as DiaryConfirmationResult.Confirmed).diary
         response = DiaryModelResponse.Failure(DiaryParseFailure.NETWORK_ERROR)
-        val failed = executor.parse(fullInput("changed"))
+        val failed = repo.parse(fullInput("changed"), parser)
         val records = repo.readParses(oldInput.parseKey.sourceKey)
         assertEquals(failed.parseRunId, records.latestAttempt?.id)
         assertEquals(failed.parseRunId, records.latestFailure?.id)
@@ -74,7 +74,7 @@ class DiaryAnalysisReadTest {
 
     @Test fun damagedCandidateDoesNotHideAttemptMetadataOrConfirmedRecord() = runBlocking {
         val input = fullInput("note")
-        val run = executor.parse(input)
+        val run = repo.parse(input, parser)
         val analysis = (run.result as DiaryParseResult.Success).analysis
         val confirmation = repo.confirm(DiaryConfirmation.fromCandidate(run.parseRunId, analysis, LocalDate.of(2026, 10, 2)))
         db.openHelper.writableDatabase.execSQL("UPDATE parse_run SET candidateJson = ? WHERE id = ?", arrayOf("damaged", run.parseRunId))
@@ -86,15 +86,14 @@ class DiaryAnalysisReadTest {
         assertEquals(1, calls)
     }
 
-    @Test fun observersReportRunningThenTerminalStatusWithoutModelCallsOfTheirOwn() = runBlocking {
-        executor.close(); executor.awaitClosed()
+    @Test fun observersReportOnlyCompletedAttemptsWithoutModelCallsOfTheirOwn() = runBlocking {
         val started = CompletableDeferred<Unit>()
         val release = CompletableDeferred<DiaryModelResponse>()
-        executor = DiaryParseExecutor(repo, JsonDiaryParser(DiaryModelSource { calls++; started.complete(Unit); release.await() }))
+        parser = JsonDiaryParser(DiaryModelSource { calls++; started.complete(Unit); release.await() })
         val input = fullInput("note")
-        val pending = async { executor.parse(input) }
+        val pending = async { repo.parse(input, parser) }
         started.await()
-        assertEquals(ParseRunStatus.RUNNING, repo.observeParses(input.parseKey.sourceKey).first().latestAttempt?.status)
+        assertNull(repo.observeParses(input.parseKey.sourceKey).first().latestAttempt)
         release.complete(response)
         pending.await()
         val completed = repo.observeParses(input.parseKey.sourceKey).first()
@@ -104,24 +103,24 @@ class DiaryAnalysisReadTest {
     }
 
     @Test fun diskReopenRetainsCandidateConfirmationAndFailure() = runBlocking {
-        executor.close(); executor.awaitClosed(); db.close()
+        db.close()
         val context = RuntimeEnvironment.getApplication()
         // Robolectric includes the test name in its temp path; keep Windows SQLite paths short.
         val name = "read.db"
         diskName = name
         db = Room.databaseBuilder(context, DiaryAnalysisDatabase::class.java, name).build()
         repo = DiaryAnalysisRepository(db)
-        executor = DiaryParseExecutor(repo, JsonDiaryParser(DiaryModelSource { calls++; response }))
+        parser = JsonDiaryParser(DiaryModelSource { calls++; response })
         val input = fullInput("first")
-        val run = executor.parse(input)
+        val run = repo.parse(input, parser)
         val analysis = (run.result as DiaryParseResult.Success).analysis
         repo.confirm(DiaryConfirmation.fromCandidate(run.parseRunId, analysis, LocalDate.of(2026, 10, 2)))
         response = DiaryModelResponse.Failure(DiaryParseFailure.TIMEOUT)
-        val failed = executor.parse(fullInput("second"))
-        executor.close(); executor.awaitClosed(); db.close()
+        val failed = repo.parse(fullInput("second"), parser)
+        db.close()
         db = Room.databaseBuilder(context, DiaryAnalysisDatabase::class.java, name).build()
         repo = DiaryAnalysisRepository(db)
-        // No executor is installed on the reopened repository.
+        // Reading the reopened repository does not install or invoke a parser.
         val restored = repo.observeParses(input.parseKey.sourceKey).first()
         assertEquals(analysis, restored.latestCandidate?.analysis)
         assertEquals(failed.parseRunId, restored.latestFailure?.id)
@@ -130,7 +129,6 @@ class DiaryAnalysisReadTest {
     }
 
     @Test fun equalTimestampsUseInsertionOrderForTheMostRecentAttempt() = runBlocking {
-        repo.initialize()
         val key = fullInput("note").parseKey
         fun row(id: String) = ParseRunRow(id, key.sourceKey.vaultId, key.sourceKey.relPath, key.contentHash,
             key.hashVersion, key.extractorVersion, ParseRunStatus.FAILED, 1, 2, "TIMEOUT")
