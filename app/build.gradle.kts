@@ -72,26 +72,33 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 
+    // Coroutines are used directly; align production and test modules with their BOM.
+    implementation(platform(libs.kotlinx.coroutines.bom))
+    implementation(libs.kotlinx.coroutines.android)
+
     // Navigation 3
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
-    implementation(libs.androidx.runtime)
-    implementation(libs.androidx.ui)
 
     // AI transport: Ktor handles HTTP; the existing JSON library handles the wire format.
+    implementation(platform(libs.ktor.bom))
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
+    implementation(platform(libs.okhttp.bom))
+    implementation(libs.okhttp)
 
     // Serialization
+    implementation(platform(libs.kotlinx.serialization.bom))
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.navigation3.runtime)
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
 
     // Test
     testImplementation(libs.junit)
+    testImplementation(platform(libs.ktor.bom))
     testImplementation(libs.ktor.client.mock)
+    testImplementation(platform(libs.kotlinx.coroutines.bom))
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
 
