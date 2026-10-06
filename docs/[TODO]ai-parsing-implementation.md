@@ -1,38 +1,38 @@
 # AI 解析：精简实现与逐步讲解
 
-本文件替代上一版 A1–E7 学习任务书。现在由 Codex 编写代码，每一批实现后解释并验收；用户不再需要手写每个类型。最初的产品目标继续保留：Ktor、多接入商 BYOK、自定义 HTTPS 地址、一个接入商可配置多个模型、手动解析单篇日记，以及后续端侧模型的接入空间。
+当前已经实现 Ktor OpenAI-compatible adapter、模型 JSON 整体解码、证据校验、直接解析落库及候选/确认分离。后续目标是多接入商 BYOK、自定义 HTTPS 地址、每个接入商多个模型，以及单篇手动解析。
 
 ## 架构判断
 
-现有代码已经解决了日记身份、内容哈希、模型 JSON 解码、证据校验、候选与确认记录分开持久化、串行执行和中断恢复。这些行为保护用户数据，应复用。
+现有代码已经解决了日记身份、内容哈希、模型 JSON 整体解码、证据校验、候选与当前确认分开持久化。这些行为保护用户数据，应复用。
 
 上一版在现有模型接口之前又增加 TextGenerationRequest、TextGenerationResult、TextGenerationBackend、失败转换、桥接和额外的执行准备层。当前只有日记解析一个调用场景，这些类型的大部分行为是转发，调用者却需要学习两套相近概念。首版删除这部分计划，直接使用现有接口。
 
 ```mermaid
 flowchart LR
-    UI[日记详情：手动触发] --> Queue[现有串行执行器]
-    Queue --> Parser[JsonDiaryParser]
+    UI[日记详情：手动触发] --> Repo[直接 suspend 解析与持久化]
+    Repo --> Parser[JsonDiaryParser]
     Parser --> Source[DiaryModelSource.request]
     Source --> HTTP[OpenAiDiaryModelSource / Ktor]
     Source -. 后续实现 .-> Local[端侧模型]
     HTTP --> Provider[用户选择的接入商]
-    Parser --> Validator[现有解码与证据校验]
-    Queue --> DB[现有解析记录数据库]
+    Parser --> Validator[整体解码与证据校验]
+    Repo --> DB[现有解析记录数据库]
 ```
 
-图中详情页和执行器到真实模型的生产接线尚未完成；第一批实现验证的是 Ktor 到解析器的链路。
+图中详情页到仓库的生产接线尚未完成；模型 adapter 和直接解析入口可被测试调用。
 
 需要保留的接口及其价值：
 
 - `DiaryParser`：业务调用者拿到类型化候选或失败，不需要知道接入商格式。
 - `DiaryModelSource`：真正变化的位置。现在实现 HTTP 调用，测试可以替代网络，后续端侧推理也可以实现同一个接口。
-- `RecordingDiaryParser`：让执行器保存原始模型回答，同时避免把原始回答塞进业务分析数据。
+- `RecordingDiaryParser`：让仓库保存原始模型回答，同时避免把原始回答塞进业务分析数据。
 
 不再预先添加通用文本生成框架、接入商插件注册表、新的依赖注入框架、存储接口加密接口的层层转发，或为每个 HTTP 字段建立单独文件。HTTP 私有数据类型放在实现文件内，调用者不需要学习它们。
 
 ## 实施批次
 
-### 1. Ktor 调用与现有解析器贯通
+### 1. Ktor 调用与现有解析器贯通（已实现）
 
 实现一个 OpenAI-compatible adapter，支持自定义 HTTPS Base URL、模型 ID、每次请求鉴权及可选 JSON 模式。完成完整回答检查、明确的失败类型、取消传播、模型回答留存，以及 MockEngine 测试。
 
@@ -44,13 +44,11 @@ flowchart LR
 
 一开始只有 OpenAI-compatible 协议；DeepSeek 与自定义接入商是不同预设或配置，使用同一个 HTTP 实现。等待第二种实际协议出现再添加协议抽象。
 
-### 3. 接上现有执行队列
+### 3. 直接解析入口（已实现，生产配置待接线）
 
-当前 `DiaryAnalysisRepository.executor(parser)` 会固定第一份 parser。这与切换接入商不兼容，必须调整为每个任务捕获自己的 parser、配置和 Key，排队后不再读取全局当前选择。继续只保留一个应用级串行执行器。
+使用现有 repository.parse(input, recordingParser)，每次调用传入捕获好的 parser、模型配置和 Key，不安装固定配置的应用级执行器。调用方负责按钮防重和协程取消；批量解析以后按顺序循环。
 
-成功缓存的 extractorVersion 必须包含会改变解析结果的配置身份和提示词版本，排除显示名称与 Key。增加显式重新解析入口以跳过成功缓存，同时保留正在执行的同任务共享、明确取消和中断恢复。
-
-只有出现实际的记录展示或迁移需求时才扩展数据库；不为未来假设先增加新表。
+extractorVersion 继续记录影响结果的模型配置、提示词及本地后处理版本，排除显示名称与 Key。每次显式重新解析执行一次请求，没有成功缓存复用或在途共享。取消和进程终止不恢复任务；失败明确提示后由用户重试。
 
 ### 4. 设置页与单篇手动解析
 
@@ -111,7 +109,7 @@ adapter 只解包 HTTP 信封，检查回答完整性；现有 `DiaryCandidateCo
 
 提示词使用现有 schemaVersion 1，没有新建第二份业务模型。要求 JSON、准确的原文引用、不编造日期或训练数据，并保留缺失值和疑问。重量继承继续交给现有本地校验器。
 
-`VERSION` 是提示词版本，后续接线时参与缓存身份。它现在只是准备好的常量；尚未连接缓存，不能宣称已经完成配置变化后的缓存隔离。
+`VERSION` 是提示词版本，后续接线时参与 extractorVersion 的内容版本身份。它现在只是准备好的常量；生产配置尚未接线，每次显式解析都重新请求。
 
 提示词属于发送给模型的协议内容，不属于界面文案。用户看到的错误信息仍使用 res/values 和 res/values-zh。
 
@@ -125,7 +123,7 @@ adapter 只解包 HTTP 信封，检查回答完整性；现有 `DiaryCandidateCo
 
 ## 验收记录
 
-第一批自动验收已通过：
+以下为第一批 adapter 在本次精简前的历史验收记录；当前验证命令和范围见 [Log 扫描与验收](log-refresh-verification.md)。
 
 - `./gradlew.bat testDebugUnitTest assembleDebug`：BUILD SUCCESSFUL。
 - 270 项 JVM 测试全部通过，其中新增 18 项（17 项模型调用测试 + 1 项真实 OkHttp 引擎测试，后者检查 408、503、307 三种响应）。
@@ -135,7 +133,7 @@ adapter 只解包 HTTP 信封，检查回答完整性；现有 `DiaryCandidateCo
 
 测试 Key 和模型 ID 均为虚构值。
 
-后续批次尚未实现。当前应用仍不能从设置页发起真实解析；本批产物是可调用、可测试的模型 adapter。
+BYOK 配置、设置页和单篇解析按钮尚未实现。当前已提供可调用、可测试的模型 adapter 和直接解析落库入口，应用仍不能从设置页发起真实解析。
 
 官方参考：
 

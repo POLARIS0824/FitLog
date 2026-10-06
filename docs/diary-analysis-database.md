@@ -1,42 +1,48 @@
-# 日记分析数据库（Commit 3）
+# 日记分析数据库
 
-`diary-analysis.db` 是独立的 Room v1 数据库。保存解析尝试、候选、当前确认及旧确认快照，不保存输入全文；证据摘录允许保存。`source-index.db` 的扫描、重建和当前资料库切换没有分析库删除权限。禁止破坏性迁移，v1 schema 在 `app/schemas` 中保留。
+`diary-analysis.db` 是独立的 Room schema 2 数据库，保存解析终态、AI 候选和当前用户确认。Source Index 重建与资料库切换不删除分析数据。Markdown 原文不写入分析库；原始模型回答和证据摘录可以保存。
 
-## 数据和入口
+## 直接解析与读取
 
-- `parse_run`：独立尝试 ID、完整 `DiaryParseKey`、状态、时间、失败代码、原始响应及候选 JSON。同一个键允许失败后重试，只有成功记录可复用。
-- `confirmed_diary`：按 `(vaultId, relPath)` 唯一的当前确认，保存最终日期、解析内容版本、来源解析 ID、修订号和接受部分结果标记。
-- `confirmed_session` / `confirmed_exercise` / `confirmed_set`：场次、动作、展开后的组。父子外键级联，父记录内顺序唯一；一篇日记允许多场次及零场次。
-- `confirmation_snapshot`：旧确认的完整树、旧确认时间和归档时间；来源解析外键禁止删除。快照不依赖当前子记录。
+内部入口为 `repository.parse(input, recordingParser)`。调用方持有协程并防止重复按钮动作，每次显式调用只请求模型一次；没有队列、共享等待者、成功缓存复用、运行中持久化状态或启动恢复。
 
-业务使用 `DiaryAnalysisRepository.get(context)`；启动时 `initialize()` 修复上次进程遗留的 RUNNING，失败状态通过 `storageState` 暴露，原文访问保持独立。所有新尝试和确认必须先完成初始化。同一个应用实例中初始化只执行一次，不会把新运行中的尝试再次标为中断。
+请求前先打开数据库；失败时不调用模型。预期模型失败保存为 FAILED，成功保存为 SUCCEEDED；一条插入同时写入时间、来源及内容版本、失败代码、精确原始回答和候选 JSON。取消及编程错误传播；取消或进程终止可能没有此次尝试记录。模型已调用但落库失败时明确报错，只能显式重试。
 
-真实模型尚未接入。后续适配器通过内部 `repository.executor(recordingParser)` 安装唯一的应用级执行器。`executor.parse(input)` 返回 `StoredDiaryParse`，包括尝试 ID、原有类型化结果及是否复用；原始响应不进入 `DiaryAnalysis`。从文件构建输入使用 `DiaryParseInput.fromSnapshot(sourceKey, snapshot, extractorVersion)`，它恢复文件读取器已移除的 BOM 后再归一化一次。
+批量调用以后可在调用方顺序循环。每次传入自己的 parser；仓库不固定第一份模型配置。当前尚未接入配置页及手动解析按钮。
 
-原始响应按收到的文本精确保留，包括非法 JSON；网络失败或超时没有响应时为空。候选 JSON 保存完整类型化分析，使用独立的存储格式版本 v1；确认快照也有独立的 v1 版本。损坏或不支持的缓存返回存储异常，不悄悄构造空结果，也不自动再次调用模型。
+`DiaryAnalysisReader` 按 SourceKey 观察尝试和当前确认，打开详情不会调用模型。最近失败不遮住旧成功候选；损坏候选明确提示，仍可独立读取确认。候选 JSON 当前为存储格式 2，损坏或版本不符明确失败，不兼容读取或自动重新解析。
 
-## 执行与异常
+## 当前确认
 
-单消费者按提交顺序处理不同文件；同键在途请求共享尝试，完整键命中成功缓存后不发请求。只有实际开始执行才插入 RUNNING，队列不持久化，不保证退出进程后继续执行。模型返回后，原始响应、候选和终态一起写入事务。
+- parse_run 保存终态及完整 DiaryParseKey；同一内容可以有多个显式尝试。
+- confirmed_diary 按 UUID/相对路径唯一，保存最终日期、解析内容版本、来源尝试和确认时间。
+- confirmed_session、confirmed_exercise、confirmed_set 保存当前确认树，使用父子外键与顺序约束。
+- 确认组保存普通重量、单位、口径、次数、重量换算和组级 userEdited。逐字段推断及继承仍在 AI 候选中。
 
-预期模型失败记录为 FAILED，不影响后续文件，也不会自动重试。显式 `cancel(key)` 取消共享请求并尽力记为 INTERRUPTED；单个等待者取消不会取消其他等待者共享的工作。取消异常及编程异常继续传播。终态更新仅允许改动该尝试 ID 的 RUNNING 行，不能覆盖其他尝试或已经完成的状态。
+`DiaryConfirmation.fromCandidate` 创建审阅树。提交必须明确携带日期与成功尝试，不能补今天。仓库验证来源匹配、引用有效且不重复、有限非负重量、正次数和日期范围；允许缺失值。含语义 ERROR 的候选需要 `acceptedPartialResult=true`。
 
-数据库写入失败及意外执行错误停止执行器，后续排队请求也收到异常，不继续花费模型调用。应用退出或显式关闭执行器会取消其在途任务；残留 RUNNING 下次启动恢复。模型已返回但落库前进程终止，仍可能再次收费，当前没有服务端幂等保证。
+userEdited 由四个最终值与原候选比较得到，手工组为 true；不相信调用方传入标记。重量换算根据最终值重算，单边重量不乘二。确认返回 Confirmed 或 Invalid，数据库失败抛出 DiaryAnalysisStorageException。
 
-## 审阅与确认
+显式确认在一个事务中替换当前树并保留主记录 ID；失败全部回滚。没有历史快照及 revision。重新解析本身只添加候选，绝不更新确认。原文变化通过归一化内容版本派生待更新或无法核验；不把旧结果改标成新文件版本。零场次不表示休息日。
 
-`suggestDiaryDate(sourceKey, analysis)` 只产生建议：三种文件名格式严格校验真实日期，文件名优先，其次唯一模型日期；冲突、非法日期或缺失需要审阅。`DiaryConfirmation.fromCandidate` 创建可修改的类型化审阅树；提交 `confirm(request)` 必须带最终日期、尝试 ID 和 `expectedRevision`（首次为 0）。日期不补今天，同篇场次使用统一最终日期。
+证据保存 segmentId 和 quote，不保存偏移；候选摘录匹配仍在本地校验。详情将摘录作为旧版本证据展示。
 
-确认返回 `Confirmed`、`RevisionConflict` 或带原因的 `Invalid`；数据库失败抛出 `DiaryAnalysisStorageException`。事务验证成功解析及来源身份、当前修订号和最终数据，原候选包含 ERROR 时要求 `acceptedPartialResult=true`。允许缺失数值，不允许负重量、非有限重量、非正次数或伪造的候选引用。审阅者可删除、增添及重排场次、动作和组。
+## 本次开发安装
 
-原有组的逐字段来源从候选重新推导，`userEdited` 通过最终值与候选值比较，忽略调用方提供的来源标记。保留 INHERITED 与 inferred 同时存在、继承组位置和原始组内编号；手工组没有 AI 来源。重量转换根据最终重量和单位重算，不把单边重量乘二，不补自重。证据坐标仅适用于旧归一化全文；用户新增或修改的摘录没有未经验证的坐标。
+作者已确认没有需要保留的用户修正。本次允许单独重建旧分析库；源码没有迁移、兼容读取或自动破坏性迁移。旧 schema 1 安装直接打开分析库会明确失败，原文访问仍独立。
 
-替换确认前先归档完整旧版本，再替换子树、保留日记主记录 ID 并递增修订号，全部在一个事务中完成。旧审阅页返回修订冲突，不能覆盖刚保存的修改。新解析本身绝不更新确认数据。当前与历史确认引用的尝试都保留，本次不实现清理策略。
+在可使用 run-as 的 Debug 安装上，升级前执行以下命令关闭应用并只清理分析库，然后安装本次 Debug APK：
 
-原文变化仍可确认本次审阅：始终保留它对应的解析哈希，不用新文件哈希重标旧数据。`confirmationFreshness(confirmed, currentContentVersion)` 派生已确认、待更新、无法核验或未确认；不可读文件及不同哈希算法版本无法核验。必须传归一化内容版本，不能传 Source Index 字节指纹。零场次不表示休息日，接受部分结果也不表示原文没有其他训练。
+```powershell
+adb shell am force-stop com.example.fitlog
+adb shell run-as com.example.fitlog rm -f databases/diary-analysis.db databases/diary-analysis.db-wal databases/diary-analysis.db-shm databases/diary-analysis.db-journal
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
 
-## 验证与后续
+这些步骤保留 Markdown、editor-drafts、DataStore 中的 UUID 映射及设置。不要通过卸载或“清除 App 数据”替代。以后已有确认修正时，格式变更必须先成功导出 JSON 快照，再单独重建。
 
-JVM 测试覆盖候选往返、原始响应、完整键复用、串行队列、取消、启动恢复、写入失败、修订冲突、事务回滚、来源信息、日期和文件变化；Robolectric 磁盘重开测试验证确认树、原始响应和历史持久化，以及独立重建 Source Index 不影响分析库。
+## 验证
 
-运行 `./gradlew.bat testDebugUnitTest assembleDebug` 和 `git diff --check`。沿用现有系统备份规则；未验证真实设备上的系统恢复，手动导出恢复后续实现。真实模型、审阅界面、Log 状态展示、标准动作与别名归并、跨版本回放均不在本次范围内。
+2026-10-06：250 项 JVM 回归通过，Debug 构建和 AndroidTest 源码编译成功，当前 schema 2 已导出。测试覆盖每次显式请求、原始回答、整体解码失败、取消、落库失败、旧 schema 拒绝且不花费模型调用、候选读取、组级编辑标记、确认事务回滚，以及磁盘重开和 Source Index 重建后确认保留。
+
+真实模型质量、SAF/UI 与系统恢复仍需设备验收。

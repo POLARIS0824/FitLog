@@ -12,11 +12,11 @@
 
 ## 存储格式
 
-- App 数据按当前格式创建，不提供版本迁移或兼容读取。切换到本版本前由作者清除 App 数据；Markdown 原文件不属于 App 数据。
-- `source-index.db` 使用 schema 3，身份列名为 `vaultId`。数据库通过 `fallbackToDestructiveMigration(dropAllTables = true)` 丢弃并重建索引；重建不访问或改写 Markdown，也不处理独立的分析数据库。
+- App 数据按当前格式读取，不提供版本迁移或兼容分支。本次只重建派生索引和旧分析库，不清除全部 App 数据；UUID 映射、设置、未保存草稿和 Markdown 原文保留。
+- `source-index.db` 使用 schema 4，身份列名为 `vaultId`。数据库通过 `fallbackToDestructiveMigration(dropAllTables = true)` 丢弃并重建索引；重建不访问或改写 Markdown，也不处理独立的分析数据库。
 - 草稿与备份显式保存 UUID、原资料库 URI 和目录 URI。文件键根据 UUID 与目标生成；新日记草稿目标统一包含目录 URI 和文件名。
 - 草稿使用 JSON，备份使用 `.backup.json`。字段缺失或损坏明确提示，其他有效记录仍可查看、恢复或导出。
-- 确认修正的格式如需变更，先导出 JSON 快照再重建。本次未改变分析数据库及确认修正格式。
+- 确认修正的格式如需变更，先导出 JSON 快照再重建。本次分析库改为 schema 2；作者已确认无用户修正，按[分析库说明](diary-analysis-database.md#本次开发安装)单独重建，保留 UUID 映射与草稿。
 
 ## 验证
 
