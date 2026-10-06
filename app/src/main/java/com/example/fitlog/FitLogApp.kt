@@ -13,15 +13,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ProcessLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
 import com.example.fitlog.data.vault.VaultConfigState
-import kotlinx.coroutines.delay
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,14 +35,12 @@ import com.example.fitlog.data.vault.TodayLogResolver
 import com.example.fitlog.data.vault.vaultDataStore
 import com.example.fitlog.data.index.SourceIndexRepository
 import com.example.fitlog.data.analysis.DiaryAnalysisRepository
-import com.example.fitlog.data.analysis.DiaryAnalysisStorageException
 import com.example.fitlog.log.LogPreferences
 import com.example.fitlog.navigation.FitLogNavGraph
 import com.example.fitlog.navigation.FitLogRoute
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
 import com.example.fitlog.vault.VaultFlowController
 import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * 负责整个 App 的 UI 框架
@@ -73,13 +65,6 @@ fun FitLogApp() {
     val todayLog = remember { TodayLogResolver(vaultPreferences.diary, documents, documents) }
     val sourceIndex = remember { SourceIndexRepository.get(context) }
     val diaryAnalysis = remember { DiaryAnalysisRepository.get(context) }
-    LaunchedEffect(diaryAnalysis) {
-        try {
-            diaryAnalysis.initialize()
-        } catch (_: DiaryAnalysisStorageException) {
-            // Failure remains observable through storageState; diary access must stay available.
-        }
-    }
 
     // 当前导航历史
     val backStack = rememberNavBackStack(FitLogRoute.Today)
@@ -110,28 +95,9 @@ fun FitLogApp() {
     val currentRoute = backStack.lastOrNull()
     val config by vaultPreferences.vaultConfig.collectAsState(initial = VaultConfigState.Loading)
     val currentVault = (config as? VaultConfigState.Configured)?.vaultId
-    val processLifecycle = remember { ProcessLifecycleOwner.get().lifecycle }
     LaunchedEffect(config) {
         // Loading is not a disconnect; do not cancel an active scan during collection restart.
         if (config !is VaultConfigState.Loading) sourceIndex.activate(currentVault)
-    }
-    val latestVault = rememberUpdatedState(currentVault)
-    DisposableEffect(processLifecycle) {
-        val observer = SourceIndexForegroundObserver(processLifecycle) {
-            latestVault.value?.let { sourceIndex.ensureFresh(it, SourceIndexRepository.Reason.Foreground) }
-        }
-        processLifecycle.addObserver(observer)
-        onDispose { processLifecycle.removeObserver(observer) }
-    }
-    LaunchedEffect(currentRoute, currentVault, processLifecycle) {
-        if (currentRoute == FitLogRoute.Log && currentVault != null) {
-            processLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                while (true) {
-                    delay(SourceIndexRepository.VISIBLE_INTERVAL.milliseconds)
-                    sourceIndex.ensureFresh(currentVault, SourceIndexRepository.Reason.VisiblePeriodic)
-                }
-            }
-        }
     }
 
     val showNavigationToolbar =

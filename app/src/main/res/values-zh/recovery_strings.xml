@@ -29,7 +29,6 @@
     <string name="index_scanning">已连接 · 正在核对 Markdown 文件变化…</string>
     <string name="index_complete">扫描完成</string>
     <string name="index_partial">部分目录或文件未能完成核验，请刷新重试。</string>
-    <string name="index_interrupted">扫描已中断，请刷新重新开始。</string>
     <string name="index_failed">扫描失败，资料库连接仍保留。</string>
     <string name="index_not_scanned">尚无已完成的扫描</string>
     <string name="index_cached">正在显示已保存的扫描结果，不代表文件当前仍可访问。</string>

@@ -12,7 +12,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SourceIndexLifecycleTest {
-    @Test fun recreatedActivityAndNewActivityShareScanSaveCoordinator() {
+    @Test fun recreatedActivityAndNewActivityShareIndexRepository() {
         val controller = Robolectric.buildActivity(Activity::class.java).setup()
         val before = SourceIndexRepository.get(controller.get())
         val configuration = Configuration(controller.get().resources.configuration).apply {

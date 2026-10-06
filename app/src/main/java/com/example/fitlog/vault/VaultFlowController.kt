@@ -116,7 +116,7 @@ internal class VaultFlowController(
                     val access = if (config is VaultConfigState.Configured) checkAccess(config.uri) else null
                     if (token != generation || backStack.lastOrNull() != route) return@launch
                     if (config is VaultConfigState.Configured &&
-                        (access == VaultAccessStatus.CanCreateFiles || access == VaultAccessStatus.ReadOnly)) {
+                        access?.usable == true) {
                         val editor = resolveToday(config, LocalDate.parse(route.todayDate))
                         if (token == generation && backStack.lastOrNull() == route) backStack[backStack.lastIndex] = editor
                     } else {

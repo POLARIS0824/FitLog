@@ -38,6 +38,7 @@ class LogViewModelTest {
         }
         val index = com.example.fitlog.data.index.SourceIndexRepository(documents,
             com.example.fitlog.data.index.MemorySourceIndexStore(), scope = this, resolveVaultUri = ::testVaultUri)
+        index.activate(testVaultId("vault"))
         val first = LogViewModel(SavedStateHandle(), config, index, TestLogSettings())
         store.put("log", first)
         runCurrent()
@@ -73,7 +74,7 @@ class LogViewModelTest {
         var files = listOf(file("1", "2026-09-29.md"))
         val settings = TestLogSettings()
         val saved = SavedStateHandle()
-        val vm = LogViewModel(saved, config, ScanDocuments { MarkdownScan(files, false) }, settings)
+        val vm = logVm(saved, config, ScanDocuments { MarkdownScan(files, false) }, settings)
         store.put("log", vm)
         advanceUntilIdle()
         assertEquals(LogSortOrder.Descending, vm.sort)
@@ -92,13 +93,17 @@ class LogViewModelTest {
     @Test fun switchingVaultDiscardsLateScanEvenIfProviderIgnoresCancellation() = runTest(dispatcher) {
         val config = MutableStateFlow<VaultConfigState>(configuredVault(Uri.parse("old")))
         val old = CompletableDeferred<MarkdownScan>()
-        val vm = LogViewModel(SavedStateHandle(), config, ScanDocuments { vault ->
+        val index = com.example.fitlog.data.index.SourceIndexRepository(ScanDocuments { vault ->
             if (vault == "old") withContext(NonCancellable) { old.await() }
             else MarkdownScan(listOf(file("new", "new.md")), true)
-        }, TestLogSettings())
+        }, com.example.fitlog.data.index.MemorySourceIndexStore(), scope = this, resolveVaultUri = ::testVaultUri)
+        index.activate(testVaultId("old"))
+        val vm = LogViewModel(SavedStateHandle(), config, index, TestLogSettings())
         store.put("log", vm)
         runCurrent()
         config.value = configuredVault(Uri.parse("new"))
+        index.activate(testVaultId("new"))
+        index.refresh(testVaultId("new"))
         runCurrent()
         old.complete(MarkdownScan(listOf(file("old", "old.md")), false))
         advanceUntilIdle()
@@ -113,7 +118,7 @@ class LogViewModelTest {
         val config = MutableStateFlow<VaultConfigState>(configuredVault(Uri.parse("vault")))
         var fail = true
         val settings = TestLogSettings().apply { failSave = true }
-        val vm = LogViewModel(SavedStateHandle(), config, ScanDocuments {
+        val vm = logVm(SavedStateHandle(), config, ScanDocuments {
             if (fail) throw IOException()
             MarkdownScan(emptyList(), false)
         }, settings)
@@ -141,7 +146,7 @@ class LogViewModelTest {
             attempt++
             emit(if (attempt == 1) VaultConfigState.Failed(IOException()) else configuredVault(Uri.parse("vault")))
         }
-        val vm = LogViewModel(SavedStateHandle(), config, ScanDocuments { MarkdownScan(emptyList(), false) }, TestLogSettings())
+        val vm = logVm(SavedStateHandle(), config, ScanDocuments { MarkdownScan(emptyList(), false) }, TestLogSettings())
         store.put("log", vm)
         advanceUntilIdle()
         assertNotNull(vm.error)
@@ -153,14 +158,17 @@ class LogViewModelTest {
     }
 }
 
-private fun LogViewModel(
+private fun TestScope.logVm(
     state: SavedStateHandle,
     config: kotlinx.coroutines.flow.Flow<VaultConfigState>,
     documents: MarkdownDocuments,
     settings: LogSettingsStore,
-) = LogViewModel(state, config, com.example.fitlog.data.index.SourceIndexRepository(
-    documents, com.example.fitlog.data.index.MemorySourceIndexStore(),
-    scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate), resolveVaultUri = ::testVaultUri), settings)
+): LogViewModel {
+    val index = com.example.fitlog.data.index.SourceIndexRepository(
+        documents, com.example.fitlog.data.index.MemorySourceIndexStore(), scope = this, resolveVaultUri = ::testVaultUri)
+    index.activate((config as? MutableStateFlow<VaultConfigState>)?.value?.let { (it as? VaultConfigState.Configured)?.vaultId })
+    return LogViewModel(state, config, index, settings)
+}
 
 private class TestLogSettings : LogSettingsStore {
     var order = LogSortOrder.Descending

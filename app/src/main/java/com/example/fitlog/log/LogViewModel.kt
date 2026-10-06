@@ -62,7 +62,7 @@ class LogViewModel(
         observeConfig()
     }
 
-    private fun observeConfig() {
+    private fun observeConfig(refreshAfterRead: Boolean = false) {
         configJob?.cancel()
         configJob = viewModelScope.launch {
             config.distinctUntilChanged().collect { value ->
@@ -77,8 +77,10 @@ class LogViewModel(
                 vaultId = nextId
                 error = if (value is VaultConfigState.Failed) R.string.vault_error_load_config_failed else null
                 loading = value is VaultConfigState.Loading || nextVault != null
-                if (value !is VaultConfigState.Loading) index.activate(nextId)
-                nextId?.let(::observeIndex)
+                nextId?.let {
+                    observeIndex(it)
+                    if (refreshAfterRead) index.refresh(it)
+                }
             }
         }
     }
@@ -95,8 +97,8 @@ class LogViewModel(
                     files = sources.map { it.file() }
                     scanStatus = snapshot.scan?.status
                     partial = scanStatus == IndexedScan.PARTIAL
-                    refreshing = snapshot.refreshing || scanStatus == IndexedScan.SCANNING
-                    loading = sources.isEmpty() && refreshing && snapshot.scan?.metadataCheckedAt == null
+                    refreshing = snapshot.refreshing
+                    loading = sources.isEmpty() && refreshing && snapshot.scan == null
                     error = if (snapshot.refreshFailed || scanStatus == IndexedScan.FAILED) R.string.log_failed else null
                 }
             } catch (e: Exception) {
@@ -119,7 +121,7 @@ class LogViewModel(
 
     fun refresh() {
         vaultId?.let(::observeIndex)
-        if (currentConfig is VaultConfigState.Failed) observeConfig()
-        else vaultId?.let(index::forceRefresh)
+        if (currentConfig is VaultConfigState.Failed) observeConfig(refreshAfterRead = true)
+        else vaultId?.let(index::refresh)
     }
 }

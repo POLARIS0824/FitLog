@@ -145,11 +145,14 @@ fun FitLogNavGraph(
                     vaultPreferences = vaultPreferences,
                     vaultRepository = vaultRepository,
                     onSetupCompleted = onSetupCompleted,
-                    onImportConnected = { vault ->
-                        // Explicit Import is a synchronization request, including reconnecting the same folder.
+                    onVaultConnected = { vault ->
+                        // A completed connection explicitly requests a scan, including reconnecting the same folder.
                         val config = vaultPreferences.getVaultConfig()
                         if (backStack.lastOrNull() == route && config is VaultConfigState.Configured &&
-                            config.uri.toString() == vault) sourceIndex.activate(config.vaultId, force = true)
+                            config.uri.toString() == vault) {
+                            sourceIndex.activate(config.vaultId)
+                            sourceIndex.refresh(config.vaultId)
+                        }
                     },
                     onBack = onBack,
                 )

@@ -72,10 +72,6 @@ data class VaultSetupUiState(
             if (stage != VaultOperationStage.Idle) return false
             if (configState is VaultConfigUiState.Loading || configState is VaultConfigUiState.Failed) return false
             val target = targetVault ?: return false
-            return when (target.accessStatus) {
-                VaultAccessStatus.CanCreateFiles -> true
-                VaultAccessStatus.ReadOnly -> true
-                else -> false
-            }
+            return target.accessStatus.usable
         }
 }

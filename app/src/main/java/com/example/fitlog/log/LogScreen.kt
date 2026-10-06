@@ -67,7 +67,6 @@ fun LogScreen(
             vm.refreshing && vm.vault != null -> R.string.index_scanning
             vm.scanStatus == IndexedScan.COMPLETE -> R.string.index_complete
             vm.scanStatus == IndexedScan.PARTIAL -> R.string.index_partial
-            vm.scanStatus == IndexedScan.INTERRUPTED -> R.string.index_interrupted
             vm.scanStatus == IndexedScan.FAILED -> R.string.index_failed
             else -> R.string.index_not_scanned
         }))

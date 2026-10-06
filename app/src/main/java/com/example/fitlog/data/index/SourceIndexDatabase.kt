@@ -15,14 +15,10 @@ data class IndexedSource(
     val path: String,
     val directory: String?,
     val writable: Boolean,
-    val fingerprint: String?,
-    val verifiedAt: Long?,
     val status: String = AVAILABLE,
-    val lastModified: Long? = null,
-    val size: Long? = null,
 ) {
     init { requireVaultId(vaultId) }
-    fun file() = MarkdownFile(uri, name, path, writable, directory, lastModified, size)
+    fun file() = MarkdownFile(uri, name, path, writable, directory)
     companion object {
         const val AVAILABLE = "available"
         const val READ_FAILED = "read_failed"
@@ -31,15 +27,12 @@ data class IndexedSource(
 }
 
 @Entity(tableName = "scans")
-data class IndexedScan(@PrimaryKey val vaultId: String, val status: String, val completedAt: Long? = null,
-    val metadataCheckedAt: Long? = null, val fullVerifiedAt: Long? = null) {
+data class IndexedScan(@PrimaryKey val vaultId: String, val status: String, val completedAt: Long? = null) {
     init { requireVaultId(vaultId) }
     companion object {
-        const val SCANNING = "scanning"
         const val COMPLETE = "complete"
         const val PARTIAL = "partial"
         const val FAILED = "failed"
-        const val INTERRUPTED = "interrupted"
     }
 }
 
@@ -64,7 +57,7 @@ interface SourceIndexDao {
     @Upsert suspend fun putScan(scan: IndexedScan)
 }
 
-@Database(entities = [IndexedSource::class, IndexedScan::class], version = 3, exportSchema = true)
+@Database(entities = [IndexedSource::class, IndexedScan::class], version = 4, exportSchema = true)
 abstract class SourceIndexDatabase : RoomDatabase() {
     abstract fun index(): SourceIndexDao
     companion object {

@@ -29,7 +29,6 @@
     <string name="index_scanning">Connected · Checking for Markdown file changes…</string>
     <string name="index_complete">Scan complete</string>
     <string name="index_partial">Some folders or files could not be checked. Refresh to retry.</string>
-    <string name="index_interrupted">Scan interrupted. Refresh to start again.</string>
     <string name="index_failed">Scan failed. The vault connection is retained.</string>
     <string name="index_not_scanned">No completed scan</string>
     <string name="index_cached">Showing saved scan results; current file access is not guaranteed.</string>

@@ -6,6 +6,9 @@ package com.example.fitlog.data.vault
  * 由授权持久化状态与目标目录实际查询结果共同判定。
  */
 sealed interface VaultAccessStatus {
+    /** Readable directories support browsing; creation and writes require their own checks. */
+    val usable: Boolean get() = this == CanCreateFiles || this == ReadOnly
+
     /**
      * 正常且拥有完整权限：目录存在，可读且支持在其下创建新文件。
      */
