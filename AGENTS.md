@@ -71,3 +71,4 @@ FitLog 是以 Markdown 日记为基础的训练记录与分析工具
 
 - 不允许硬编码界面字符串，使用 res/values 字符串资源，并且做好 i18n
 - 资料库身份只用 UUID；SAF URI
+- 除非我主动说明，否则不要写文档到 docs/ 里面
