@@ -24,7 +24,7 @@ import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -> Unit) {
+fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -> Unit, onAiSettings: () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
     // The app Scaffold already supplies system insets. This page adds only its own spacing.
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -58,17 +58,29 @@ fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -
                     }
                 }
             } else {
-                AnalysisContent(vm, Modifier.weight(1f))
+                AnalysisContent(vm, Modifier.weight(1f), onAiSettings)
             }
         }
     }
 }
 
 @Composable
-private fun AnalysisContent(vm: DiaryDetailViewModel, modifier: Modifier) {
+private fun AnalysisContent(vm: DiaryDetailViewModel, modifier: Modifier, onAiSettings: () -> Unit) {
     LazyColumn(modifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item(key = "status") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = vm::parse, enabled = !vm.parsing && !vm.sourceLoading) {
+                        Text(stringResource(if (vm.parses.latestCandidate == null) R.string.ai_parse else R.string.ai_reparse))
+                    }
+                    OutlinedButton(onClick = onAiSettings) { Text(stringResource(R.string.ai_settings_title)) }
+                    if (vm.parsing) TextButton(onClick = vm::cancelParse) { Text(stringResource(R.string.ai_cancel_request)) }
+                }
+                if (vm.parsing) {
+                    LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+                    Text(stringResource(R.string.ai_parsing))
+                }
+                vm.parseMessage?.let { Text(stringResource(it)) }
                 if (vm.sourceReadFailed) ErrorText(R.string.detail_source_failed)
                 if (vm.parsesLoading || vm.confirmationLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 if (!vm.parsesLoading && !vm.parsesReadFailed) {
@@ -121,7 +133,11 @@ private fun LazyListScope.confirmedItems(record: ConfirmedDiaryRecord) {
         }
         session.exercises.forEachIndexed { exerciseIndex, exercise ->
             val prefix = "confirmed:$sessionIndex:$exerciseIndex"
-            item(key = prefix) { ExerciseHeading(exercise.exercise.rawName, exercise.exercise.notes, exercise.exercise.evidence?.quote, exercise.sets.isEmpty()) }
+            item(key = prefix) {
+                ExerciseHeading(exercise.exercise.rawName, exercise.exercise.notes, exercise.sets.isEmpty()) {
+                    Excerpt(exercise.exercise.evidence?.quote, R.string.detail_evidence)
+                }
+            }
             exercise.sets.forEachIndexed { index, set ->
                 item(key = "$prefix:$index") {
                     SetEntry(index, set.weight, set.unit, set.basis, set.reps, userEdited = set.userEdited)
@@ -131,7 +147,7 @@ private fun LazyListScope.confirmedItems(record: ConfirmedDiaryRecord) {
     }
 }
 
-private fun LazyListScope.candidateItems(candidate: StoredDiaryCandidate, freshness: DiaryResultFreshness?, usedForConfirmation: Boolean) {
+internal fun LazyListScope.candidateItems(candidate: StoredDiaryCandidate, freshness: DiaryResultFreshness?, usedForConfirmation: Boolean) {
     val analysis = candidate.analysis
     item(key = "candidate-heading") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -142,10 +158,10 @@ private fun LazyListScope.candidateItems(candidate: StoredDiaryCandidate, freshn
                 DiaryResultFreshness.NEEDS_UPDATE -> R.string.detail_needs_update
                 else -> R.string.detail_unverifiable
             }))
-            if (analysis.sessions.isEmpty()) Text(stringResource(if (analysis.hasErrors) R.string.detail_partial_no_sessions else R.string.detail_candidate_no_sessions))
+            if (analysis.sessions.all { it.exercises.isEmpty() }) Text(stringResource(if (analysis.hasErrors) R.string.detail_partial_no_sessions else R.string.detail_candidate_no_sessions))
         }
     }
-    analysis.issues.forEachIndexed { index, issue ->
+    analysis.issues.filterNot { it.isExcerptReview() }.forEachIndexed { index, issue ->
         item(key = "validation:$index") {
             Text(stringResource(R.string.detail_issue, stringResource(if (issue.severity == IssueSeverity.ERROR) R.string.detail_issue_error else R.string.detail_issue_review),
                 stringResource(validationLabel(issue.code))), color = if (issue.severity == IssueSeverity.ERROR) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -158,11 +174,31 @@ private fun LazyListScope.candidateItems(candidate: StoredDiaryCandidate, freshn
         item(key = "candidate-session:$sessionIndex") { SessionHeading(sessionIndex, session.date?.toString(), session.notes) }
         session.exercises.forEachIndexed { exerciseIndex, exercise ->
             val prefix = "candidate:$sessionIndex:$exerciseIndex"
-            item(key = prefix) { ExerciseHeading(exercise.candidate.rawName, exercise.candidate.notes, exercise.evidence.quote, exercise.sets.isEmpty()) }
-            exercise.sets.forEachIndexed { index, set ->
-                item(key = "$prefix:$index") {
-                    SetEntry(index, set.weight.value, set.unit.value, set.basis.value, set.reps.value, set.countOrigin,
-                        set.weight, set.unit, set.basis, set.reps)
+            val groupsWithoutCount = exercise.candidate.groups.withIndex().filter { (index, group) ->
+                group.count == null && group.repsList == null && analysis.issues.none {
+                    it.severity == IssueSeverity.ERROR && it.path.startsWith("${exercise.path}.groups[$index]")
+                }
+            }
+            item(key = prefix) {
+                ExerciseHeading(exercise.candidate.rawName, exercise.candidate.notes,
+                    exercise.sets.isEmpty() && groupsWithoutCount.isEmpty()) {
+                    Excerpt(exercise.evidence.quote, R.string.detail_model_excerpt,
+                        analysis.issues.filter { it.isExcerptReview() && it.path.startsWith("${exercise.path}.evidence.") })
+                }
+            }
+            val setsByGroup = exercise.sets.withIndex().groupBy { it.value.groupIndex }
+            exercise.candidate.groups.forEachIndexed { groupIndex, group ->
+                if (groupsWithoutCount.any { it.index == groupIndex }) {
+                    item(key = "$prefix:group:$groupIndex") {
+                        SetEntry(groupIndex, group.weight, group.unit.takeUnless { it == WeightUnit.UNKNOWN },
+                            group.basis.takeUnless { it == WeightBasis.UNKNOWN }, group.reps, countMissing = true)
+                    }
+                }
+                setsByGroup[groupIndex].orEmpty().forEach { (index, set) ->
+                    item(key = "$prefix:$index") {
+                        SetEntry(index, set.weight.value, set.unit.value, set.basis.value, set.reps.value, set.countOrigin,
+                            set.weight, set.unit, set.basis, set.reps)
+                    }
                 }
             }
         }
@@ -179,16 +215,30 @@ private fun SessionHeading(index: Int, date: String?, notes: String?) {
 }
 
 @Composable
-private fun ExerciseHeading(name: String, notes: String?, evidence: String?, noSets: Boolean) {
+private fun ExerciseHeading(name: String, notes: String?, noSets: Boolean, content: @Composable () -> Unit) {
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(name, style = MaterialTheme.typography.titleMedium)
             notes?.takeIf { it.isNotBlank() }?.let { Text(it) }
-            evidence?.let {
-                Text(stringResource(R.string.detail_evidence), style = MaterialTheme.typography.labelLarge)
-                SelectionContainer { Text(it) }
-            }
+            content()
             if (noSets) Text(stringResource(R.string.detail_no_sets))
+        }
+    }
+}
+
+private fun ValidationIssue.isExcerptReview() = severity == IssueSeverity.REVIEW && when (code) {
+    ValidationCode.UNKNOWN_SEGMENT, ValidationCode.EVIDENCE_NOT_FOUND, ValidationCode.AMBIGUOUS_EVIDENCE -> true
+    else -> false
+}
+
+@Composable
+private fun Excerpt(text: String?, label: Int, issues: List<ValidationIssue> = emptyList()) {
+    text?.takeIf { it.isNotBlank() }?.let {
+        Text(stringResource(label), style = MaterialTheme.typography.labelLarge)
+        SelectionContainer { Text(it) }
+        issues.forEach { issue ->
+            Text(stringResource(validationLabel(issue.code)), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -196,13 +246,15 @@ private fun ExerciseHeading(name: String, notes: String?, evidence: String?, noS
 @Composable
 private fun SetEntry(index: Int, weight: Double?, unit: WeightUnit?, basis: WeightBasis?, reps: Int?, countOrigin: CandidateOrigin? = null,
     weightSource: CandidateValue<*>? = null, unitSource: CandidateValue<*>? = null,
-    basisSource: CandidateValue<*>? = null, repsSource: CandidateValue<*>? = null, userEdited: Boolean = false) {
+    basisSource: CandidateValue<*>? = null, repsSource: CandidateValue<*>? = null, userEdited: Boolean = false,
+    countMissing: Boolean = false) {
     val locale = LocalConfiguration.current.locales[0]
     val numbers = remember(locale) { NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = 340; isGroupingUsed = false } }
     val unknown = stringResource(R.string.detail_unknown)
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.detail_set, index + 1), style = MaterialTheme.typography.titleSmall)
+            Text(if (countMissing) stringResource(R.string.detail_count_not_provided) else stringResource(R.string.detail_set, index + 1),
+                style = MaterialTheme.typography.titleSmall)
             if (userEdited) Text(stringResource(R.string.detail_user_edited))
             countOrigin?.let { Text(stringResource(R.string.detail_count_source, stringResource(originLabel(it)))) }
             ValueEntry(R.string.detail_weight, weight?.let(numbers::format) ?: unknown, weightSource)

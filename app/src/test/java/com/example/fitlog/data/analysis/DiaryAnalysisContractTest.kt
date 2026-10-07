@@ -21,7 +21,7 @@ class DiaryAnalysisContractTest {
             DiaryParseInput.fromSnapshot(direct.parseKey.sourceKey, withoutBom, "fixture-v1").parseKey)
     }
 
-    @Test fun candidateStorageRoundTripPreservesIssuesIndicesEvidenceAndInheritedInference() {
+    @Test fun candidateStorageRoundTripPreservesIndicesExcerptInferenceAndMissingValues() {
         val quote = "bench 40kg 1x8 + 1x6"
         val input = fullInput("private personal note\n$quote")
         val candidate = analyzeFixture(input, candidateJson(exercise(quote,
@@ -30,10 +30,12 @@ class DiaryAnalysisContractTest {
             SetGroupCandidate("1x6", reps = 6, count = 1))))
         val restored = DiaryAnalysisCodec.decodeCandidate(DiaryAnalysisCodec.encodeCandidate(candidate))
         assertEquals(candidate, restored)
-        val inherited = restored.sessions.single().exercises.single().sets.last().weight
-        assertEquals(CandidateOrigin.INHERITED, inherited.origin)
-        assertTrue(inherited.inferred)
-        assertEquals(0, inherited.inheritedFromGroup)
+        val sets = restored.sessions.single().exercises.single().sets
+        assertEquals(CandidateOrigin.INFERRED, sets.first().weight.origin)
+        assertTrue(sets.first().weight.inferred)
+        assertEquals(CandidateOrigin.MISSING, sets.last().weight.origin)
+        assertNull(sets.last().weight.value)
+        assertNull(sets.last().weight.inheritedFromGroup)
         assertFalse(DiaryAnalysisCodec.encodeCandidate(candidate).contains("private personal note"))
     }
 
@@ -41,7 +43,7 @@ class DiaryAnalysisContractTest {
         val sample = analyzeFixture(fullInput(fixture("user-sample.md")), fixture("user-sample.expected.json"))
         assertEquals(sample, DiaryAnalysisCodec.decodeCandidate(DiaryAnalysisCodec.encodeCandidate(sample)))
         val partial = analyzeFixture(fullInput("good\nbad"),
-            """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":"good","evidence":{"segmentId":"diary","quote":"good"}},{"rawName":"bad","evidence":{"segmentId":"diary","quote":"absent"}}]}]}""")
+            """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":"good"},{"rawName":""}]}]}""")
         assertTrue(partial.hasErrors)
         assertEquals(partial, DiaryAnalysisCodec.decodeCandidate(DiaryAnalysisCodec.encodeCandidate(partial)))
     }

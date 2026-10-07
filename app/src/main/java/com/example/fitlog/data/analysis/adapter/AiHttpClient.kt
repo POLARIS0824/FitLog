@@ -7,6 +7,9 @@ import io.ktor.client.plugins.HttpTimeout
 import okhttp3.RequestBody
 import okio.BufferedSink
 
+/** Process-owned client survives Activity recreation; request credentials are never client defaults. */
+internal val sharedAiHttpClient: HttpClient by lazy { createAiHttpClient() }
+
 /** Share one client at application scope. Tests supply MockEngine using the same configuration. */
 internal fun createAiHttpClient(
     engine: HttpClientEngine = OkHttp.create {
@@ -14,6 +17,13 @@ internal fun createAiHttpClient(
             retryOnConnectionFailure(false)
             followRedirects(false)
             followSslRedirects(false)
+            addNetworkInterceptor { chain ->
+                val response = chain.proceed(chain.request())
+                // OkHttp retries a GET on 503 + Retry-After: 0 despite connection retries being off.
+                // This client never schedules retries; keep the status for the caller's manual retry UI.
+                if (response.code == 503) response.newBuilder().removeHeader("Retry-After").build()
+                else response
+            }
             addInterceptor { chain ->
                 val request = chain.request()
                 val body = request.body

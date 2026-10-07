@@ -27,6 +27,7 @@ import com.example.fitlog.log.LogScreen
 import com.example.fitlog.log.LogSettingsStore
 import com.example.fitlog.log.LogViewModel
 import com.example.fitlog.today.TodayScreen
+import com.example.fitlog.settings.SettingsScreen
 import com.example.fitlog.vault.VaultSetupRoute
 import com.example.fitlog.vault.DiarySettingsScreen
 import com.example.fitlog.vault.DiarySettingsViewModel
@@ -39,6 +40,15 @@ import com.example.fitlog.editor.RecoveryViewModel
 import com.example.fitlog.editor.RecoveryScreen
 import com.example.fitlog.vault.VaultManagementViewModel
 import com.example.fitlog.vault.VaultManagementScreen
+import com.example.fitlog.ai.AiSettingsScreen
+import com.example.fitlog.ai.AiSettingsViewModel
+import com.example.fitlog.R
+import com.example.fitlog.data.ai.AiProviderRepository
+import com.example.fitlog.data.analysis.SourceKey
+import com.example.fitlog.data.analysis.adapter.fetchOpenAiModels
+import com.example.fitlog.data.analysis.adapter.testOpenAiConnection
+import com.example.fitlog.data.analysis.adapter.parseConfiguredDiary
+import io.ktor.client.HttpClient
 
 /**
  * Navigation3 的核心路由表，entry<Route> 中决定该 Route 显示哪个 Screen、ViewModel 如何创建、点击后去哪里，同时注册编辑器等页面的返回拦截
@@ -51,6 +61,8 @@ fun FitLogNavGraph(
     vaultRepository: VaultRepository,
     sourceIndex: SourceIndexRepository,
     analysisRepository: DiaryAnalysisRepository,
+    aiRepository: AiProviderRepository,
+    aiClient: HttpClient,
     onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
     onOpenRoute: (FitLogRoute) -> Unit,
     onBack: () -> Unit,
@@ -93,7 +105,18 @@ fun FitLogNavGraph(
         },
         entryProvider = entryProvider {
             entry<FitLogRoute.Today> {
-                TodayScreen()
+                TodayScreen(onSettings = {
+                    if (backStack.lastOrNull() == FitLogRoute.Today) onOpenRoute(FitLogRoute.Settings)
+                })
+            }
+
+            entry<FitLogRoute.Settings> {
+                SettingsScreen(
+                    onAiSettings = {
+                        if (backStack.lastOrNull() == FitLogRoute.Settings) onOpenRoute(FitLogRoute.AiSettings)
+                    },
+                    onBack = { if (backStack.lastOrNull() == FitLogRoute.Settings) onBack() },
+                )
             }
 
             entry<FitLogRoute.Log> {
@@ -119,11 +142,37 @@ fun FitLogNavGraph(
 
             entry<FitLogRoute.DiaryDetail> { route ->
                 val vm = viewModel<DiaryDetailViewModel> {
-                    DiaryDetailViewModel(route, documents, analysisRepository, createSavedStateHandle())
+                    DiaryDetailViewModel(route, documents, analysisRepository, createSavedStateHandle(),
+                        parseDiary = { parseConfiguredDiary(SourceKey(route.vaultId, route.relPath), route.document,
+                            aiRepository, documents, analysisRepository, aiClient) })
+                }
+                DisposableEffect(vm) {
+                    backHandlers[route] = { vm.cancelParse(); onBack() }
+                    onDispose { backHandlers.remove(route) }
                 }
                 DiaryDetailScreen(vm,
-                    onEdit = { if (backStack.lastOrNull() == route) vm.editorRoute()?.let(onOpenRoute) },
-                    onBack = { if (backStack.lastOrNull() == route) onBack() })
+                    onEdit = { if (backStack.lastOrNull() == route) vm.editorRoute()?.let {
+                        vm.cancelParse(); onOpenRoute(it)
+                    } },
+                    onBack = { if (backStack.lastOrNull() == route) { vm.cancelParse(); onBack() } },
+                    onAiSettings = { if (backStack.lastOrNull() == route) {
+                        vm.cancelParse(); onOpenRoute(FitLogRoute.AiSettings)
+                    } })
+            }
+
+            entry<FitLogRoute.AiSettings> {
+                val vm = viewModel<AiSettingsViewModel> {
+                    AiSettingsViewModel(aiRepository, context.getString(R.string.ai_deepseek),
+                        fetchModels = { url, key -> fetchOpenAiModels(aiClient, url, key) },
+                        testConnection = { url, model, key -> testOpenAiConnection(aiClient, url, model, key) })
+                }
+                DisposableEffect(vm) {
+                    backHandlers[FitLogRoute.AiSettings] = { if (!vm.saving) { vm.cancelRequest(); onBack() } }
+                    onDispose { backHandlers.remove(FitLogRoute.AiSettings) }
+                }
+                AiSettingsScreen(vm) {
+                    if (backStack.lastOrNull() == FitLogRoute.AiSettings && !vm.saving) onBack()
+                }
             }
 
             entry<FitLogRoute.Editor> { route ->

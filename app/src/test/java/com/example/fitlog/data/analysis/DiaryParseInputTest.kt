@@ -63,11 +63,12 @@ class DiaryParseInputTest {
         assertEquals(2, result.issues.count { it.code == ValidationCode.AMBIGUOUS_EVIDENCE && it.severity == IssueSeverity.REVIEW })
     }
 
-    @Test fun evidenceMatchingDoesNotTrimWhitespaceOrFoldUnicodeOrStripAnExcerptBom() {
+    @Test fun excerptDifferencesAreReportedWithoutTrimmingOrDiscardingCandidates() {
         listOf("bench" to " bench", "\u00e9" to "e\u0301", "bench" to "\uFEFFbench").forEach { (text, quote) ->
             val result = analyzeFixture(fullInput(text), candidateJson(exercise(quote)))
-            assertTrue(result.hasErrors)
-            assertTrue(result.issues.any { it.code == ValidationCode.EVIDENCE_NOT_FOUND })
+            assertFalse(result.hasErrors)
+            assertEquals(quote, result.sessions.single().exercises.single().evidence.quote)
+            assertTrue(result.issues.any { it.code == ValidationCode.EVIDENCE_NOT_FOUND && it.severity == IssueSeverity.REVIEW })
         }
     }
 }

@@ -27,18 +27,18 @@ data class SessionCandidate(
 @Serializable
 data class ExerciseCandidate(
     val rawName: String,
-    val evidence: EvidenceQuote,
+    val evidence: EvidenceQuote = EvidenceQuote(),
     val groups: List<SetGroupCandidate> = emptyList(),
     val notes: String? = null,
 )
 
 @Serializable
-data class EvidenceQuote(val segmentId: String, val quote: String)
+data class EvidenceQuote(val segmentId: String = DiaryParseInput.SEGMENT_ID, val quote: String = "")
 
 @Serializable
 data class SetGroupCandidate(
-    /** Exact substring of the exercise evidence, e.g. "40kg 2×7" or "1×4". */
-    val rawText: String,
+    /** Optional model-provided description; it does not determine whether a group is usable. */
+    val rawText: String = "",
     val weight: Double? = null,
     val unit: WeightUnit = WeightUnit.UNKNOWN,
     val basis: WeightBasis = WeightBasis.UNKNOWN,

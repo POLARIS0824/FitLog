@@ -253,7 +253,7 @@ class OpenAiDiaryModelSourceTest {
         }
     }
 
-    @Test fun validModelJsonPassesThroughExistingEvidenceValidation() = runTest {
+    @Test fun validModelJsonRetainsTrainingAndMissingValuesWithoutFieldWarnings() = runTest {
         val text = "卧推 40kg 2x7"
         val answer = """{"schemaVersion":1,"sessions":[{"date":null,"exercises":[
           {"rawName":"卧推","evidence":{"segmentId":"diary","quote":"卧推 40kg 2x7"},
@@ -266,19 +266,22 @@ class OpenAiDiaryModelSourceTest {
             assertEquals(40.0, exercise.sets.first().weight.value)
             assertEquals(7, exercise.sets.first().reps.value)
             assertNull(result.analysis.sessions.single().date)
-            assertTrue(result.analysis.issues.any { it.code == ValidationCode.MISSING_BASIS })
+            assertNull(exercise.sets.first().basis.value)
+            assertTrue(result.analysis.issues.isEmpty())
             assertEquals(answer, execution.rawModelJson)
         }
     }
 
-    @Test fun plausibleModelOutputStillCannotInventEvidence() = runTest {
+    @Test fun excerptMismatchIsNonBlockingAndTheModelResponseIsRetained() = runTest {
         val answer = """{"schemaVersion":1,"sessions":[{"exercises":[
           {"rawName":"invented","evidence":{"segmentId":"diary","quote":"not in diary"},"groups":[]}]}],"issues":[]}"""
         createAiHttpClient(MockEngine { respond(completion(answer), HttpStatusCode.OK, jsonHeaders) }).use { client ->
-            val result = JsonDiaryParser(source(client)).parse(input("only my actual diary")) as DiaryParseResult.Success
-            assertTrue(result.analysis.hasErrors)
-            assertTrue(result.analysis.sessions.single().exercises.isEmpty())
-            assertTrue(result.analysis.issues.any { it.code == ValidationCode.EVIDENCE_NOT_FOUND })
+            val execution = JsonDiaryParser(source(client)).execute(input("only my actual diary"))
+            val result = execution.result as DiaryParseResult.Success
+            assertFalse(result.analysis.hasErrors)
+            assertEquals(1, result.analysis.sessions.single().exercises.size)
+            assertTrue(result.analysis.issues.any { it.code == ValidationCode.EVIDENCE_NOT_FOUND && it.severity == com.example.fitlog.data.analysis.IssueSeverity.REVIEW })
+            assertEquals(answer, execution.rawModelJson)
         }
     }
 

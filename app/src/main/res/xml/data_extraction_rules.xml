@@ -2,14 +2,14 @@
 <!--
    Data Extraction Rules (API 31+) 备份规则。
 
-   训练历史（workouts / exercise_logs / set_logs）、体重、用户资料是核心用户资产，
-   云备份与设备间迁移均全部纳入。
-
-   AI 服务商 API Key 以 AES-GCM 密文存于 Room：备份迁移到新设备后 Keystore 密钥
-   不存在，但 AIProviderConfigMapper 经 KeystoreManager.decryptOrNull 将密文降级为
-   空字符串（配置仍可展示，仅不可用于请求），不会崩溃——因此无需排除数据库。
+   AI 设置依赖当前设备的 Keystore，不参与云备份或设备迁移。
+   Markdown、草稿与用户确认结果不受此排除影响。
 -->
 <data-extraction-rules>
-    <cloud-backup/>
-    <device-transfer/>
+    <cloud-backup>
+        <exclude domain="file" path="datastore/ai_settings.preferences_pb" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="datastore/ai_settings.preferences_pb" />
+    </device-transfer>
 </data-extraction-rules>

@@ -6,7 +6,12 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.fitlog.R
+import com.example.fitlog.ai.aiConfigurationMessage
+import com.example.fitlog.ai.aiRequestMessage
+import com.example.fitlog.data.ai.AiConfigurationException
 import com.example.fitlog.data.analysis.*
+import com.example.fitlog.data.analysis.adapter.DiaryOriginalReadException
 import com.example.fitlog.data.hash.ContentTextSnapshot
 import com.example.fitlog.data.vault.MarkdownDocuments
 import com.example.fitlog.data.vault.MarkdownSnapshot
@@ -17,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,6 +35,7 @@ class DiaryDetailViewModel(
     private val documents: MarkdownDocuments,
     private val analysis: DiaryAnalysisReader,
     private val savedState: SavedStateHandle,
+    private val parseDiary: suspend () -> StoredDiaryParse,
     private val hashingDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
     val sourceKey = SourceKey(route.vaultId, route.relPath)
@@ -45,6 +52,8 @@ class DiaryDetailViewModel(
     var confirmed by mutableStateOf<ConfirmedDiaryRecord?>(null); private set
     var confirmationLoading by mutableStateOf(true); private set
     var confirmationReadFailed by mutableStateOf(false); private set
+    var parsing by mutableStateOf(false); private set
+    var parseMessage by mutableStateOf<Int?>(null); private set
     val confirmationStatus get() = confirmationFreshness(confirmed?.diary, contentVersion)
     val candidateStatus get() = parses.latestCandidate?.let {
         resultFreshness(DiaryContentVersion(it.analysis.parseKey.contentHash, it.analysis.parseKey.hashVersion), contentVersion)
@@ -54,6 +63,7 @@ class DiaryDetailViewModel(
     private var sourceJob: Job? = null
     private var parsesJob: Job? = null
     private var confirmationJob: Job? = null
+    private var parseJob: Job? = null
     private var sourceGeneration = 0L
     private var analysisGeneration = 0L
 
@@ -134,6 +144,43 @@ class DiaryDetailViewModel(
                 if (generation == analysisGeneration) { confirmationReadFailed = true; confirmationLoading = false }
             }
         }
+    }
+
+    /** Button guard and cancellation belong to this route, not to a global executor. */
+    fun parse() {
+        if (parsing || sourceLoading) return
+        parsing = true; parseMessage = null
+        selectTab(DiaryDetailTab.ANALYSIS)
+        parseJob = viewModelScope.launch {
+            try {
+                val stored = parseDiary()
+                currentCoroutineContext().ensureActive()
+                parseMessage = when (val result = stored.result) {
+                    is DiaryParseResult.Success -> R.string.ai_parse_saved
+                    is DiaryParseResult.Failure -> aiRequestMessage(result.reason)
+                }
+                // The file may have changed during inference. Compare against a fresh read.
+                reloadOriginal()
+                if (parsesReadFailed || confirmationReadFailed || parses.candidateReadFailed) retryAnalysis()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                currentCoroutineContext().ensureActive()
+                parseMessage = when (e) {
+                    is AiConfigurationException -> aiConfigurationMessage(e.reason)
+                    is DiaryOriginalReadException -> {
+                        sourceReadFailed = true; contentVersion = null; original = null
+                        R.string.detail_source_failed
+                    }
+                    is DiaryAnalysisStorageException -> R.string.ai_parse_save_failed
+                    else -> R.string.ai_request_failed
+                }
+            } finally { if (currentCoroutineContext().isActive) parsing = false }
+        }
+    }
+
+    fun cancelParse() {
+        if (!parsing) return
+        parseJob?.cancel(); parsing = false; parseMessage = R.string.ai_parse_cancelled
     }
 
     fun editorRoute(): FitLogRoute.Editor? = if (!canEdit) null else FitLogRoute.Editor(

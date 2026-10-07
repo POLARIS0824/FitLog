@@ -31,7 +31,9 @@
     <string name="detail_model_question">Extraction question: %1$s</string>
     <string name="detail_session">Session %1$d · %2$s</string>
     <string name="detail_date_unknown">Date not confirmed</string>
-    <string name="detail_evidence">Excerpt from the original version used for extraction</string>
+    <string name="detail_evidence">Saved excerpt</string>
+    <string name="detail_model_excerpt">Model excerpt</string>
+    <string name="detail_count_not_provided">Set count not provided</string>
     <string name="detail_no_sets">No set details were recorded.</string>
     <string name="detail_set">Set %1$d</string>
     <string name="detail_unknown">Unknown or not recorded</string>
@@ -55,7 +57,7 @@
     <string name="detail_inherited_group">From group %1$d</string>
     <string name="detail_user_edited">Changed by user</string>
     <string name="detail_not_parsed">Not parsed</string>
-    <string name="detail_parse_succeeded">Succeeded</string>
+    <string name="detail_parse_succeeded">Candidate generated</string>
     <string name="detail_parse_failed">Failed</string>
     <string name="detail_not_confirmed">Not confirmed</string>
     <string name="detail_confirmed">Confirmed against current original</string>
@@ -63,9 +65,9 @@
     <string name="detail_failure_refusal">The model declined the extraction.</string>
     <string name="detail_failure_timeout">The extraction timed out.</string>
     <string name="detail_failure_network">The extraction failed because of a network error.</string>
-    <string name="detail_issue_unknown_segment">The evidence refers to an unknown source.</string>
-    <string name="detail_issue_evidence_missing">The evidence excerpt was not found in the original.</string>
-    <string name="detail_issue_evidence_ambiguous">The evidence excerpt appears more than once.</string>
+    <string name="detail_issue_unknown_segment">The model excerpt refers to an unknown source. Training records are retained.</string>
+    <string name="detail_issue_evidence_missing">The model excerpt does not match the original text exactly. Training records are retained.</string>
+    <string name="detail_issue_evidence_ambiguous">The model excerpt appears more than once in the original.</string>
     <string name="detail_issue_name">The exercise name is missing.</string>
     <string name="detail_issue_group_text">The set description was not found in its evidence.</string>
     <string name="detail_issue_weight">The extracted weight is invalid.</string>
@@ -86,7 +88,7 @@
     <string name="detail_failure_authentication">The API key was rejected. Check AI settings.</string>
     <string name="detail_failure_permission">The provider denied access to this model.</string>
     <string name="detail_failure_rate_limit">The provider rate limit or quota was reached. Check your account before retrying.</string>
-    <string name="detail_failure_request">The provider rejected the request. Check the address, model and JSON mode in AI settings.</string>
+    <string name="detail_failure_request">The provider rejected the request. Check the address and model in AI settings.</string>
     <string name="detail_failure_service">The AI provider is temporarily unavailable.</string>
     <string name="detail_failure_empty">The model returned no answer.</string>
     <string name="detail_failure_truncated">The model answer was cut off. No candidate was accepted.</string>

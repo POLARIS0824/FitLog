@@ -16,6 +16,7 @@ import io.ktor.http.content.TextContent
 import java.io.IOException
 import java.net.URI
 import java.net.URISyntaxException
+import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -39,7 +40,7 @@ internal class OpenAiDiaryModelSource(
     private val config: OpenAiModelConfig,
     private val apiKey: String,
 ) : DiaryModelSource {
-    private val endpoint = completionEndpoint(config.baseUrl)
+    private val endpoint = openAiEndpoint(config.baseUrl, "chat/completions")
 
     init {
         require(config.modelId.isNotBlank()) { "A model ID is required" }
@@ -70,7 +71,7 @@ internal class OpenAiDiaryModelSource(
             else -> failure(DiaryParseFailure.REQUEST_REJECTED)
         }
     } catch (e: CancellationException) {
-        // User cancellation is control flow; the executor records it as interruption.
+        // Cancellation is control flow; it does not become a failed model answer.
         throw e
     } catch (_: HttpRequestTimeoutException) {
         failure(DiaryParseFailure.TIMEOUT)
@@ -117,24 +118,34 @@ internal class OpenAiDiaryModelSource(
             encodeDefaults = true
             explicitNulls = false
         }
-
-        fun completionEndpoint(baseUrl: String): String {
-            val uri = try {
-                URI(baseUrl.trim())
-            } catch (_: URISyntaxException) {
-                throw IllegalArgumentException("Invalid AI base URL")
-            }
-            require(uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrBlank() &&
-                uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null) {
-                "AI base URL must be HTTPS without credentials, query or fragment"
-            }
-            return URLBuilder(uri.toASCIIString()).apply {
-                // Retain custom prefixes such as /proxy/v1; never append /v1 automatically.
-                encodedPath = encodedPath.trimEnd('/') + "/chat/completions"
-            }.buildString()
-        }
     }
 }
+
+/** Shared validation and path handling for completion and model discovery requests. */
+internal fun openAiEndpoint(baseUrl: String, path: String): String {
+    val uri = try { URI(baseUrl.trim()) } catch (_: URISyntaxException) {
+        throw IllegalArgumentException("Invalid AI base URL")
+    }
+    require(uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrBlank() &&
+        uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null) {
+        "AI base URL must be HTTPS without credentials, query or fragment"
+    }
+    return URLBuilder(uri.toASCIIString()).apply {
+        encodedPath = encodedPath.trimEnd('/') + "/" + path
+    }.buildString()
+}
+
+/** Only values affecting extraction participate; credentials and connection display names never do. */
+internal fun OpenAiModelConfig.extractorVersion(): String {
+    val identity = Json.encodeToString(ExtractionIdentity(openAiEndpoint(baseUrl, "chat/completions"),
+        modelId, jsonOutput, DiaryExtractionPrompt.VERSION, DiaryCandidateValidator.VERSION))
+    return "openai-compatible:" + MessageDigest.getInstance("SHA-256")
+        .digest(identity.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+}
+
+@Serializable
+private data class ExtractionIdentity(val endpoint: String, val model: String, val jsonOutput: Boolean,
+    val prompt: String, val postprocessor: String)
 
 // Wire types remain private to this adapter; callers only see DiaryModelResponse.
 @Serializable

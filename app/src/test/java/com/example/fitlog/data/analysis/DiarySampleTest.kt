@@ -6,6 +6,19 @@ import org.junit.Test
 
 class DiarySampleTest {
 
+    @Test fun deviceResponseRetainsAllThreeExercisesDespiteMarkdownExcerptDifferences() {
+        val input = fullInput(fixture("device-2026-09-29.md"))
+        val result = analyzeFixture(input, fixture("device-2026-09-29.response.json"))
+        assertFalse(result.hasErrors)
+        val exercises = result.sessions.single().exercises
+        assertEquals(listOf("自重引体向上", "器械划船", "高位下拉"), exercises.map { it.candidate.rawName })
+        assertEquals(listOf(5, 4, 3), exercises.map { it.sets.size })
+        assertEquals(listOf(6, 6, 5, 5, 5), exercises[0].sets.map { it.reps.value })
+        assertTrue(exercises[0].sets.all { it.weight.value == null && it.basis.value == WeightBasis.BODYWEIGHT })
+        assertTrue(exercises.drop(1).flatMap { it.sets }.all { it.weightKg == 38.0 && it.reps.value == 8 })
+        assertEquals(3, result.issues.count { it.code == ValidationCode.EVIDENCE_NOT_FOUND && it.severity == IssueSeverity.REVIEW })
+    }
+
     @Test fun userExcerptExpandsFourteenSetsAndKeepsUnspecifiedAbdominalActivity() = runTest {
         val input = fullInput(fixture("user-sample.md"))
         val parser = FixtureDiaryParser(fixture("user-sample.expected.json"))
@@ -26,8 +39,8 @@ class DiarySampleTest {
         val incline = session.exercises[2].sets
         assertEquals(listOf(40.0, 40.0, 40.0), incline.map { it.weight.value })
         assertEquals(listOf(7, 7, 4), incline.map { it.reps.value })
-        assertEquals(CandidateOrigin.INHERITED, incline.last().weight.origin)
-        assertEquals(0, incline.last().weight.inheritedFromGroup)
+        assertEquals(CandidateOrigin.EXPLICIT, incline.last().weight.origin)
+        assertNull(incline.last().weight.inheritedFromGroup)
         assertEquals(WeightBasis.TOTAL, incline.last().basis.value)
         val shoulder = session.exercises[3].sets
         assertEquals(listOf(17.5, 12.5, 12.5, 12.5), shoulder.map { it.weight.value })
@@ -38,16 +51,15 @@ class DiarySampleTest {
         assertFalse(session.exercises.any { it.candidate.rawName.contains("ChatGPT") })
     }
 
-    @Test fun constructedFixtureMarksCrossDayClaimsForReviewAndKeepsSetsAndNotes() {
+    @Test fun modelDatesRemainCandidatesAndConfirmationSuggestionDetectsConflicts() {
         val result = analyzeFixture(
             fullInput(fixture("constructed-boundaries.md")),
             fixture("constructed-boundaries.expected.json"),
         )
         assertFalse(result.hasErrors)
         assertEquals(listOf("2026-09-29", "2026-09-30"), result.sessions.map { it.date.toString() })
-        assertEquals(2, result.issues.count {
-            it.code == ValidationCode.DATE_CONFLICT && it.severity == IssueSeverity.REVIEW
-        })
+        assertTrue(result.issues.isEmpty())
+        assertTrue(suggestDiaryDate(result.parseKey.sourceKey, result).requiresReview)
         assertEquals("状态一般", result.sessions[0].notes)
         val rows = result.sessions[0].exercises[0].sets
         assertEquals(listOf(8, 8, 6), rows.map { it.reps.value })
@@ -67,7 +79,7 @@ class DiarySampleTest {
             val quote = "卧推：$first$plus$second"
             val response = candidateJson(exercise(quote,
                 SetGroupCandidate(first, 40.0, WeightUnit.KG, WeightBasis.TOTAL, reps = 7, count = 2),
-                SetGroupCandidate(second, reps = 4, count = 1),
+                SetGroupCandidate(second, 40.0, WeightUnit.KG, WeightBasis.TOTAL, reps = 4, count = 1),
             ))
             val result = analyzeFixture(fullInput(quote), response)
             assertFalse(result.hasErrors)

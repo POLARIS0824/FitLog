@@ -82,10 +82,10 @@ class DiaryAnalysisPersistenceTest {
         assertEquals(WeightBasis.PER_SIDE, sets.first().basis)
         assertTrue(sets.first().userEdited)
         assertFalse(sets[1].userEdited)
-        assertEquals(40.0, sets[1].weightKg!!, 0.0)
+        assertNull(sets[1].weightKg)
         assertTrue(sets.last().userEdited)
         assertNull(sets.last().reps)
-        assertEquals(CandidateOrigin.INHERITED, analysis.sessions.single().exercises.single().sets[1].weight.origin)
+        assertEquals(CandidateOrigin.MISSING, analysis.sessions.single().exercises.single().sets[1].weight.origin)
     }
 
     @Test fun missingValuesRemainNullAndDoNotReuseCandidateUnitConversions() = runBlocking {
@@ -153,7 +153,7 @@ class DiaryAnalysisPersistenceTest {
     }
 
     @Test fun partialExtractionNeedsExplicitAcceptanceAndPreservesThatFact() = runBlocking {
-        response = """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":"missing","evidence":{"segmentId":"diary","quote":"absent"}}]}]}"""
+        response = """{"schemaVersion":1,"sessions":[{"exercises":[{"rawName":""}]}]}"""
         val (run, analysis) = parsed()
         assertTrue(analysis.hasErrors)
         val review = DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)
@@ -162,6 +162,32 @@ class DiaryAnalysisPersistenceTest {
         val confirmed = repo.confirm(review.copy(acceptedPartialResult = true)).record()
         assertTrue(confirmed.diary.acceptedPartialResult)
         assertTrue(confirmed.sessions.single().exercises.isEmpty())
+    }
+
+    @Test fun optionalAndWrongSourceExcerptsNeverPreventConfirmationOfTraining() = runBlocking {
+        response = """{"schemaVersion":1,"sessions":[{"exercises":[
+            {"rawName":"bench","groups":[{"weight":40,"unit":"KG","count":1,"reps":8}]},
+            {"rawName":"abs","evidence":{"segmentId":"unknown","quote":"model description"}}
+        ]}]}"""
+        val (run, analysis) = parsed(fullInput("bench 40kg 1x8\nabs"))
+        assertFalse(analysis.hasErrors)
+        val review = DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)
+        assertTrue(review.sessions.single().exercises.all { it.evidence == null })
+        val stored = repo.confirm(review).record().sessions.single().exercises
+        assertTrue(stored.all { it.exercise.evidence == null })
+        assertEquals(40.0, stored.first().sets.single().weightKg!!, 0.0)
+    }
+
+    @Test fun deviceResponsePersistsAllSetsAndRawJsonWithoutRequiringPartialAcceptance() = runBlocking {
+        response = fixture("device-2026-09-29.response.json")
+        val input = fullInput(fixture("device-2026-09-29.md"))
+        val (run, analysis) = parsed(input)
+        assertFalse(analysis.hasErrors)
+        assertEquals(response, db.analysis().run(run.parseRunId)!!.rawModelJson)
+        assertEquals(analysis, repo.readParses(input.parseKey.sourceKey).latestCandidate!!.analysis)
+        val record = repo.confirm(DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)).record()
+        assertFalse(record.diary.acceptedPartialResult)
+        assertEquals(listOf(5, 4, 3), record.sessions.single().exercises.map { it.sets.size })
     }
 
     @Test fun failedOrDifferentSourceAttemptsCannotBeConfirmed() = runBlocking {

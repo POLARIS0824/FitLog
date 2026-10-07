@@ -2,6 +2,10 @@ package com.example.fitlog.diary
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModelStore
+import com.example.fitlog.R
+import com.example.fitlog.data.ai.AiConfigurationException
+import com.example.fitlog.data.ai.AiConfigurationFailure
+import com.example.fitlog.data.analysis.adapter.DiaryOriginalReadException
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.data.hash.contentTextHash
 import com.example.fitlog.data.vault.*
@@ -31,8 +35,9 @@ class DiaryDetailViewModelTest {
     @Before fun before() { Dispatchers.setMain(dispatcher) }
     @After fun after() { store.clear(); Dispatchers.resetMain() }
 
-    private fun vm(saved: SavedStateHandle = SavedStateHandle()): DiaryDetailViewModel =
-        DiaryDetailViewModel(route, documents, reader, saved, dispatcher).also { store.put("detail", it) }
+    private fun vm(saved: SavedStateHandle = SavedStateHandle(), parse: suspend () -> StoredDiaryParse = { error("No model call expected") }): DiaryDetailViewModel =
+        DiaryDetailViewModel(route, documents, reader, saved, parse, dispatcher)
+            .also { store.put("detail", it) }
 
     private fun records(text: String): DiaryParseRecords {
         val input = DiaryParseInput.fromSnapshot(SourceKey(route.vaultId, route.relPath), text, "test-v1")
@@ -161,12 +166,80 @@ class DiaryDetailViewModelTest {
         val newRoute = route.copy(vaultId = "00000000-0000-4000-8000-000000000002", document = "content://other")
         val newDocuments = Documents().apply { text = "other diary" }
         val newReader = Reader()
-        val current = DiaryDetailViewModel(newRoute, newDocuments, newReader, SavedStateHandle(), dispatcher)
+        val current = DiaryDetailViewModel(newRoute, newDocuments, newReader, SavedStateHandle(),
+            { error("No model call expected") }, dispatcher)
         store.put("other", current); runCurrent()
         gate.complete(Unit); runCurrent()
         assertNull(old.original)
         assertEquals("other diary", current.original?.text)
         assertTrue(newReader.keys.all { it.vaultId == newRoute.vaultId })
+    }
+
+    @Test fun manualParseIsSingleFlightAndPublishedCandidateTracksExternalChangesWithoutReplacingConfirmation() = runTest(dispatcher) {
+        val saved = records("note")
+        reader.confirmed.value = confirmation(saved)
+        val gate = CompletableDeferred<Unit>()
+        var calls = 0
+        val vm = vm(parse = {
+            calls++; gate.await()
+            reader.parses.value = saved
+            StoredDiaryParse("run", DiaryParseResult.Success(saved.latestCandidate!!.analysis))
+        })
+        runCurrent(); assertEquals(0, calls)
+        vm.parse(); vm.parse(); runCurrent()
+        assertEquals(1, calls); assertTrue(vm.parsing)
+        documents.text = "externally changed during inference"
+        gate.complete(Unit); runCurrent()
+        assertFalse(vm.parsing); assertEquals(R.string.ai_parse_saved, vm.parseMessage)
+        assertEquals(DiaryResultFreshness.NEEDS_UPDATE, vm.candidateStatus)
+        assertEquals(ConfirmationFreshness.NEEDS_UPDATE, vm.confirmationStatus)
+        assertEquals(reader.confirmed.value, vm.confirmed)
+    }
+
+    @Test fun cancelledLateResponseCannotReplaceNewAttemptFeedbackOrLoadingState() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>(); var calls = 0
+        val vm = vm(parse = {
+            calls++
+            if (calls == 1) {
+                withContext(NonCancellable) { gate.await() }
+                StoredDiaryParse("old", DiaryParseResult.Failure(DiaryParseFailure.TIMEOUT))
+            } else StoredDiaryParse("new", DiaryParseResult.Success(records("note").latestCandidate!!.analysis))
+        })
+        runCurrent(); vm.parse(); runCurrent(); vm.cancelParse()
+        assertFalse(vm.parsing); assertEquals(R.string.ai_parse_cancelled, vm.parseMessage)
+        vm.parse(); runCurrent()
+        assertEquals(R.string.ai_parse_saved, vm.parseMessage)
+        gate.complete(Unit); runCurrent()
+        assertEquals(R.string.ai_parse_saved, vm.parseMessage); assertFalse(vm.parsing)
+    }
+
+    @Test fun configurationAndPersistenceFailuresRemainManualAndLeaveOriginalAvailable() = runTest(dispatcher) {
+        var calls = 0
+        val vm = vm(parse = {
+            calls++
+            if (calls == 1) throw AiConfigurationException(AiConfigurationFailure.NOT_CONFIGURED)
+            throw DiaryAnalysisStorageException(IOException())
+        })
+        runCurrent(); vm.parse(); runCurrent()
+        assertEquals(R.string.ai_not_configured, vm.parseMessage)
+        assertEquals(1, calls); assertEquals("note", vm.original?.text)
+        vm.parse(); runCurrent()
+        assertEquals(R.string.ai_parse_save_failed, vm.parseMessage)
+        assertEquals(2, calls); assertEquals("note", vm.original?.text)
+        vm.refresh(); runCurrent(); assertEquals(2, calls)
+    }
+
+    @Test fun failedFreshSourceReadCannotClaimSavedResultsAreCurrent() = runTest(dispatcher) {
+        val saved = records("note")
+        reader.parses.value = saved; reader.confirmed.value = confirmation(saved)
+        val vm = vm(parse = { throw DiaryOriginalReadException(IOException()) })
+        runCurrent(); assertEquals(DiaryResultFreshness.CURRENT, vm.candidateStatus)
+        vm.parse(); runCurrent()
+        assertEquals(R.string.detail_source_failed, vm.parseMessage)
+        assertTrue(vm.sourceReadFailed); assertNull(vm.original)
+        assertEquals(DiaryResultFreshness.UNVERIFIABLE, vm.candidateStatus)
+        assertEquals(ConfirmationFreshness.UNVERIFIABLE, vm.confirmationStatus)
+        assertNotNull(vm.confirmed); assertNotNull(vm.parses.latestCandidate)
     }
 
     private class Reader : DiaryAnalysisReader {

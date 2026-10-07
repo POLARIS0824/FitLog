@@ -29,6 +29,35 @@ import com.example.fitlog.data.vault.DiaryCreationUnavailable
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class VaultFlowControllerTest {
+    @Test fun todaySettingsOpensAiWithoutVaultAccessAndBackPreservesBothParents() = runTest {
+        val flow = controller(config = { error("AI settings must not request a vault") },
+            access = { error("AI settings must not request SAF access") })
+        flow.openRoute(FitLogRoute.Settings)
+        flow.openRoute(FitLogRoute.Settings)
+        assertEquals(listOf(FitLogRoute.Today, FitLogRoute.Settings), stack)
+        flow.openRoute(FitLogRoute.AiSettings)
+        flow.openRoute(FitLogRoute.AiSettings)
+        assertEquals(listOf(FitLogRoute.Today, FitLogRoute.Settings, FitLogRoute.AiSettings), stack)
+        assertEquals(FitLogRoute.Settings,
+            Json.decodeFromString<FitLogRoute>(Json.encodeToString<FitLogRoute>(FitLogRoute.Settings)))
+        flow.back(); assertEquals(FitLogRoute.Settings, stack.last())
+        flow.back(); assertEquals(listOf(FitLogRoute.Today), stack)
+    }
+
+    @Test fun diaryDetailCanOpenAiSettingsAndReturnToTheSameDiary() = runTest {
+        val flow = controller()
+        flow.navigateTo(FitLogRoute.Log)
+        val detail = FitLogRoute.DiaryDetail("content://vault", "00000000-0000-4000-8000-000000000001",
+            "content://document", "daily/note.md", "content://daily", "note.md")
+        flow.openRoute(detail)
+        flow.openRoute(FitLogRoute.AiSettings)
+        assertEquals(listOf(FitLogRoute.Log, detail, FitLogRoute.AiSettings), stack)
+        flow.openRoute(FitLogRoute.AiSettings)
+        assertEquals(3, stack.size)
+        flow.back()
+        assertEquals(detail, stack.last())
+    }
+
     @Test fun diaryDetailEditorReturnsThroughDetailAndLog() = runTest {
         val flow = controller()
         flow.navigateTo(FitLogRoute.Log)

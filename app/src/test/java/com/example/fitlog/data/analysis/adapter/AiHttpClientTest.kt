@@ -1,6 +1,7 @@
 package com.example.fitlog.data.analysis.adapter
 
 import com.sun.net.httpserver.HttpServer
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -12,6 +13,24 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AiHttpClientTest {
+    @Test fun realOkHttpEngineNeverRetriesModelDiscoveryOnRetryAfterResponse() = runTest {
+        val calls = AtomicInteger()
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/models") { exchange ->
+            calls.incrementAndGet()
+            exchange.responseHeaders.add("Retry-After", "0")
+            exchange.sendResponseHeaders(503, -1)
+            exchange.close()
+        }
+        server.start()
+        try {
+            createAiHttpClient().use { client ->
+                assertEquals(503, client.get("http://127.0.0.1:${server.address.port}/models").status.value)
+                assertEquals(1, calls.get())
+            }
+        } finally { server.stop(0) }
+    }
+
     @Test fun realOkHttpEngineNeverReplaysPostOnRetryOrRedirectResponses() = runTest {
         // Loopback HTTP isolates engine behavior. Production model addresses still require HTTPS.
         listOf(408, 503, 307).forEach { status ->

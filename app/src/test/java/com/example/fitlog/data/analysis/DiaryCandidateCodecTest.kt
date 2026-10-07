@@ -14,7 +14,7 @@ class DiaryCandidateCodecTest {
         assertFalse(result.hasErrors)
         val exercise = result.sessions.single().exercises.single()
         assertNull(exercise.sets.single().weightKg)
-        assertTrue(result.issues.any { it.code == ValidationCode.MISSING_UNIT })
+        assertTrue(result.issues.isEmpty())
     }
 
     @Test fun malformedChildrenFailTheWholeResponseRatherThanReturningHealthySiblings() {
@@ -53,13 +53,29 @@ class DiaryCandidateCodecTest {
         assertFalse(empty.analysis.hasErrors)
     }
 
-    @Test fun decodedSemanticErrorsAndMissingValuesRemainReviewable() {
+    @Test fun missingGroupsAndMismatchedExcerptsRemainReviewableCandidates() {
         val analysis = analyzeFixture(fullInput("raw"), """{"schemaVersion":1,"sessions":[{"exercises":[
             {"rawName":"good","evidence":{"segmentId":"diary","quote":"raw"}},
             {"rawName":"missing","evidence":{"segmentId":"diary","quote":"absent"}}
         ]}]}""")
-        assertTrue(analysis.hasErrors)
-        assertEquals("good", analysis.sessions.single().exercises.single().candidate.rawName)
-        assertTrue(analysis.issues.any { it.code == ValidationCode.MISSING_COUNT })
+        assertFalse(analysis.hasErrors)
+        assertEquals(listOf("good", "missing"), analysis.sessions.single().exercises.map { it.candidate.rawName })
+        assertTrue(analysis.sessions.single().exercises.all { it.sets.isEmpty() })
+        assertEquals(1, analysis.issues.size)
+        assertEquals(ValidationCode.EVIDENCE_NOT_FOUND, analysis.issues.single().code)
+    }
+
+    @Test fun auxiliaryTextsMayBeOmittedWithoutWarningsOrInventedValues() {
+        val analysis = analyzeFixture(fullInput("自重引体向上 2x6"), """{"schemaVersion":1,"sessions":[{"exercises":[
+            {"rawName":"自重引体向上","groups":[{"basis":"BODYWEIGHT","count":2,"reps":6}]},
+            {"rawName":"练腹","evidence":{"quote":""},"groups":[]}
+        ]}]}""")
+        assertTrue(analysis.issues.isEmpty())
+        val exercises = analysis.sessions.single().exercises
+        assertTrue(exercises.all { it.evidence == EvidenceQuote("diary", "") })
+        assertEquals("", exercises.first().candidate.groups.single().rawText)
+        assertEquals(2, exercises.first().sets.size)
+        assertTrue(exercises.first().sets.all { it.weight.value == null && it.unit.value == null })
+        assertTrue(exercises.last().sets.isEmpty())
     }
 }

@@ -23,7 +23,7 @@ import java.time.format.DateTimeParseException
 /**
  * Validates candidates only. It never saves, confirms, or reads a different source snapshot.
  *
- * 检查候选结果是否和原输入、位置证据、重量次数等规则一致，并产生业务可接受的 DiaryAnalysis 与 issues
+ * Checks basic data validity and expands model-provided groups, without interpreting training text.
  */
 internal class DiaryCandidateValidator {
     fun validate(input: DiaryParseInput, decoded: DiaryCandidate): DiaryAnalysis {
@@ -37,20 +37,14 @@ internal class DiaryCandidateValidator {
                     }
                     LocalDate.parse(it)
                 } catch (_: DateTimeParseException) {
-                    issues.error("$path.date", ValidationCode.INVALID_DATE)
+                    issues.review("$path.date", ValidationCode.INVALID_DATE)
                     null
                 }
             }
-            if (session.date == null) issues.review("$path.date", ValidationCode.MISSING_DATE)
             val exercises = session.exercises.mapIndexedNotNull { exerciseIndex, exercise ->
                 validateExercise(input, exercise, "$path.exercises[$exerciseIndex]", issues)
             }
             ValidatedSession(path, date, session.notes, exercises)
-        }
-        if (sessions.mapNotNull { it.date }.distinct().size > 1) {
-            sessions.filter { it.date != null }.forEach {
-                issues.review("${it.path}.date", ValidationCode.DATE_CONFLICT)
-            }
         }
         return DiaryAnalysis(input.parseKey, sessions, decoded.issues, issues.toList())
     }
@@ -65,73 +59,21 @@ internal class DiaryCandidateValidator {
             issues.error("$path.rawName", ValidationCode.EMPTY_NAME)
             return null
         }
-        val evidence = locate(input, candidate.evidence, "$path.evidence", issues) ?: return null
+        val evidence = checkExcerpt(input, candidate.evidence, "$path.evidence", issues)
         val sets = mutableListOf<ExpandedSet>()
-        var carried: CarriedWeight? = null
-        var evidenceCursor = 0
-        if (candidate.groups.isEmpty()) issues.review("$path.groups", ValidationCode.MISSING_COUNT)
         candidate.groups.forEachIndexed { groupIndex, group ->
             val groupPath = "$path.groups[$groupIndex]"
-            val groupText = normalizeLineEndings(group.rawText)
-            val rawOffset = if (groupText.isBlank()) -1 else
-                evidence.quote.indexOf(groupText, evidenceCursor)
-            if (rawOffset < 0) {
-                issues.error("$groupPath.rawText", ValidationCode.GROUP_TEXT_NOT_FOUND)
-                carried = null
-                return@forEachIndexed
-            }
-            evidenceCursor = rawOffset + groupText.length
-            if (!validGroup(group, groupPath, issues)) {
-                carried = null
-                return@forEachIndexed
-            }
-            group.inferredFields.forEach {
-                if (it !in knownFields) issues.review("$groupPath.inferredFields", ValidationCode.UNKNOWN_VALUE)
-            }
-            if (group.weight != null) {
-                carried = CarriedWeight(
-                    groupIndex,
-                    field(group.weight, group, "weight"),
-                    field(group.unit.takeUnless { it == WeightUnit.UNKNOWN }, group, "unit"),
-                    field(group.basis.takeUnless { it == WeightBasis.UNKNOWN }, group, "basis"),
-                )
-            }
-            val weight: CandidateValue<Double> = when {
-                group.weight != null -> carried!!.weight
-                carried != null -> carried.weight.inherit(carried.groupIndex)
-                else -> CandidateValue(null, CandidateOrigin.MISSING)
-            }
-            val unit: CandidateValue<WeightUnit> = when {
-                group.weight != null -> carried!!.unit
-                carried != null -> carried.unit.inherit(carried.groupIndex)
-                else -> CandidateValue(null, CandidateOrigin.MISSING)
-            }
-            val basis: CandidateValue<WeightBasis> = when {
-                group.basis != WeightBasis.UNKNOWN -> field(group.basis, group, "basis")
-                group.weight == null && carried != null -> carried.basis.inherit(carried.groupIndex)
-                else -> carried?.basis ?: CandidateValue(null, CandidateOrigin.MISSING)
-            }
-            if (weight.value == null) issues.review("$groupPath.weight", ValidationCode.MISSING_WEIGHT)
-            if (weight.value != null && unit.value == null) issues.review("$groupPath.unit", ValidationCode.MISSING_UNIT)
-            if (basis.value == null) issues.review("$groupPath.basis", ValidationCode.MISSING_BASIS)
-            listOf("weight" to weight.inferred, "unit" to unit.inferred, "basis" to basis.inferred)
-                .filter { it.second }.forEach { issues.review("$groupPath.${it.first}", ValidationCode.INFERRED_VALUE) }
-            if ("count" in group.inferredFields) issues.review("$groupPath.count", ValidationCode.INFERRED_VALUE)
-            if ("reps" in group.inferredFields) issues.review("$groupPath.reps", ValidationCode.INFERRED_VALUE)
+            if (!validGroup(group, groupPath, issues)) return@forEachIndexed
+            val weight = field(group.weight, group, "weight")
+            val unit = field(group.unit.takeUnless { it == WeightUnit.UNKNOWN }, group, "unit")
+            val basis = field(group.basis.takeUnless { it == WeightBasis.UNKNOWN }, group, "basis")
             val repetitions: List<Int?> = when {
                 group.repsList != null -> group.repsList
-                group.count != null -> {
-                    if (group.reps == null) issues.review("$groupPath.reps", ValidationCode.MISSING_REPS)
-                    List(group.count) { group.reps }
-                }
-                else -> {
-                    issues.review("$groupPath.count", ValidationCode.MISSING_COUNT)
-                    emptyList()
-                }
+                group.count != null -> List(group.count) { group.reps }
+                else -> emptyList()
             }
             if (sets.size + repetitions.size > MAX_SETS_PER_EXERCISE) {
                 issues.error(groupPath, ValidationCode.TOO_MANY_SETS)
-                carried = null
                 return@forEachIndexed
             }
             val countOrigin = if ("count" in group.inferredFields ||
@@ -164,9 +106,6 @@ internal class DiaryCandidateValidator {
         if (group.weight != null && (!group.weight.isFinite() || group.weight < 0)) {
             reject("weight", ValidationCode.INVALID_WEIGHT)
         }
-        if (group.weight == null && group.unit != WeightUnit.UNKNOWN) {
-            reject("unit", ValidationCode.INVALID_WEIGHT)
-        }
         if (group.count != null && group.count <= 0) reject("count", ValidationCode.INVALID_COUNT)
         if (group.count != null && group.count > MAX_SETS_PER_EXERCISE) {
             reject("count", ValidationCode.TOO_MANY_SETS)
@@ -182,26 +121,26 @@ internal class DiaryCandidateValidator {
         return valid
     }
 
-    private fun locate(
+    private fun checkExcerpt(
         input: DiaryParseInput,
         evidence: EvidenceQuote,
         path: String,
         issues: MutableList<ValidationIssue>,
-    ): EvidenceQuote? {
+    ): EvidenceQuote {
+        val normalized = evidence.copy(quote = normalizeLineEndings(evidence.quote))
+        if (normalized.quote.isBlank()) return normalized
         if (evidence.segmentId != DiaryParseInput.SEGMENT_ID) {
-            issues.error("$path.segmentId", ValidationCode.UNKNOWN_SEGMENT)
-            return null
+            issues.review("$path.segmentId", ValidationCode.UNKNOWN_SEGMENT)
+            return normalized
         }
-        val quote = normalizeLineEndings(evidence.quote)
-        val start = if (quote.isBlank()) -1 else input.text.indexOf(quote)
+        val quote = normalized.quote
+        val start = input.text.indexOf(quote)
         if (start < 0) {
-            issues.error("$path.quote", ValidationCode.EVIDENCE_NOT_FOUND)
-            return null
-        }
-        if (input.text.indexOf(quote, start + 1) >= 0) {
+            issues.review("$path.quote", ValidationCode.EVIDENCE_NOT_FOUND)
+        } else if (input.text.indexOf(quote, start + 1) >= 0) {
             issues.review("$path.quote", ValidationCode.AMBIGUOUS_EVIDENCE)
         }
-        return EvidenceQuote(evidence.segmentId, quote)
+        return normalized
     }
 
     private fun <T> field(value: T?, group: SetGroupCandidate, name: String): CandidateValue<T> {
@@ -214,18 +153,8 @@ internal class DiaryCandidateValidator {
         return CandidateValue(value, origin, inferred = inferred)
     }
 
-    private fun <T> CandidateValue<T>.inherit(groupIndex: Int): CandidateValue<T> =
-        if (value == null) this else copy(origin = CandidateOrigin.INHERITED, inheritedFromGroup = groupIndex)
-
-    private data class CarriedWeight(
-        val groupIndex: Int,
-        val weight: CandidateValue<Double>,
-        val unit: CandidateValue<WeightUnit>,
-        val basis: CandidateValue<WeightBasis>,
-    )
-
-    private companion object {
+    companion object {
+        const val VERSION = "diary-basic-v2"
         const val MAX_SETS_PER_EXERCISE = 1_000
-        val knownFields = setOf("weight", "unit", "basis", "reps", "count")
     }
 }

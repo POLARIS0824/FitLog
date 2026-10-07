@@ -54,6 +54,9 @@
             },
             {
               "rawText": "1✖️4",
+              "weight": 40,
+              "unit": "KG",
+              "basis": "TOTAL",
               "count": 1,
               "reps": 4
             }

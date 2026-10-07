@@ -18,6 +18,12 @@ sealed interface FitLogRoute : NavKey {
     data object Insight : FitLogRoute
 
     @Serializable
+    data object Settings : FitLogRoute
+
+    @Serializable
+    data object AiSettings : FitLogRoute
+
+    @Serializable
     data class DiaryDetail(
         val vaultUri: String,
         val vaultId: String,

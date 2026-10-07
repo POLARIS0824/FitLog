@@ -57,7 +57,9 @@ data class DiaryConfirmation(
                             ReviewedSet(set.weight.value, set.unit.value, set.basis.value,
                                 set.reps.value, set.groupIndex, set.setInGroup)
                         },
-                        exercise.candidate.notes, exercise.evidence, exercise.path,
+                        exercise.candidate.notes,
+                        exercise.evidence.takeIf { it.segmentId == DiaryParseInput.SEGMENT_ID && it.quote.isNotBlank() },
+                        exercise.path,
                     )
                 }, session.notes, session.path)
             }, acceptedPartialResult,
