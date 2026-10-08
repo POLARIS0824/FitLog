@@ -1,0 +1,16 @@
+<resources>
+    <string name="today_hero_title">今天，值得记录</string>
+    <string name="today_hero_description">写下训练、感受，以及任何想留住的瞬间。</string>
+    <string name="today_write">今日日记</string>
+    <string name="today_library">你的日记</string>
+    <string name="today_browse">浏览日记</string>
+    <string name="today_browse_description">查看原文与已保存的分析</string>
+    <string name="today_import_description">连接已有的 Markdown 文件夹</string>
+    <string name="insight_unavailable_title">洞察，还在生长</string>
+    <string name="insight_unavailable_description">训练趋势尚未开放。你可以在「记录」中阅读和解析单篇日记。</string>
+    <string name="log_description">每一篇记录，都在这里</string>
+    <string name="log_options">日记选项</string>
+    <string name="settings_description">让记录贴合你的训练习惯</string>
+    <string name="settings_analysis_heading">日记分析</string>
+    <string name="vault_management_description">管理 Markdown 文件夹的连接与访问权限</string>
+</resources>

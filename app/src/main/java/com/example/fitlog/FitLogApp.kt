@@ -128,7 +128,10 @@ fun FitLogApp() {
                 aiClient = aiClient,
                 onSetupCompleted = vaultFlow::onSetupCompleted,
                 onOpenRoute = vaultFlow::openRoute,
+                onNavigateTo = vaultFlow::navigateTo,
                 onBack = vaultFlow::back,
+                onOpenToday = vaultFlow::openTodayLog,
+                onImportFolder = vaultFlow::importFolder,
                 modifier = Modifier.padding(innerPadding)
             )
 

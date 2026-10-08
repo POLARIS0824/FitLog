@@ -5,7 +5,6 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +17,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
+import com.example.fitlog.ui.components.FitLogPageHeader
+import com.example.fitlog.ui.components.FitLogSectionTitle
 
 /** Connection credentials and model selection remain separate groups with one explicit Save action. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,14 +33,11 @@ internal fun AiSettingsScreen(vm: AiSettingsViewModel, onBack: () -> Unit) {
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.widthIn(max = 640.dp).fillMaxSize().imePadding(),
-            contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             item {
-                IconButton(onClick = { if (!vm.saving) { vm.cancelRequest(); onBack() } }, enabled = !vm.saving) {
-                    Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
-                }
-                Text(stringResource(R.string.ai_settings_title), style = MaterialTheme.typography.headlineLarge)
-                Text(stringResource(R.string.ai_settings_description), style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FitLogPageHeader(stringResource(R.string.ai_settings_title),
+                    stringResource(R.string.ai_settings_description),
+                    onBack = { if (!vm.saving) { vm.cancelRequest(); onBack() } }, backEnabled = !vm.saving)
                 if (vm.initialized) {
                     val active = vm.currentSelection
                     val activeProvider = vm.providers.firstOrNull { it.id == active?.providerId }
@@ -48,8 +46,8 @@ internal fun AiSettingsScreen(vm: AiSettingsViewModel, onBack: () -> Unit) {
                             stringResource(R.string.ai_active_selection, activeProvider.name, active.modelId)
                         else stringResource(R.string.ai_no_active_selection),
                         modifier = Modifier.padding(top = 12.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLargeEmphasized,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 if (vm.loading || vm.saving || vm.requestRunning) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
@@ -66,7 +64,7 @@ internal fun AiSettingsScreen(vm: AiSettingsViewModel, onBack: () -> Unit) {
             }
             item {
                 AiSectionLabel(R.string.ai_connection_heading)
-                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
+                Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.largeIncreased,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically,
@@ -76,7 +74,7 @@ internal fun AiSettingsScreen(vm: AiSettingsViewModel, onBack: () -> Unit) {
                             else Icon(painterResource(R.drawable.auto_awesome_24px), contentDescription = null,
                                 modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
                             Text(vm.name.ifBlank { stringResource(R.string.ai_new_connection) },
-                                style = MaterialTheme.typography.titleMedium)
+                                style = MaterialTheme.typography.titleMediumEmphasized)
                         }
                         ExposedDropdownMenuBox(expanded = providerExpanded,
                             onExpandedChange = { if (vm.canEdit) providerExpanded = it }) {
@@ -115,7 +113,7 @@ internal fun AiSettingsScreen(vm: AiSettingsViewModel, onBack: () -> Unit) {
             }
             item {
                 AiSectionLabel(R.string.ai_credentials_heading)
-                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
+                Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.largeIncreased,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(vm.baseUrl, vm::changeBaseUrl, label = { Text(stringResource(R.string.ai_base_url)) },
@@ -135,7 +133,7 @@ internal fun AiSettingsScreen(vm: AiSettingsViewModel, onBack: () -> Unit) {
             }
             item {
                 AiSectionLabel(R.string.ai_models_heading)
-                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
+                Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.largeIncreased,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(stringResource(R.string.ai_models_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -170,7 +168,7 @@ internal fun AiSettingsScreen(vm: AiSettingsViewModel, onBack: () -> Unit) {
             }
             item {
                 AiSectionLabel(R.string.ai_connection_test)
-                OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
+                OutlinedCard(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.largeIncreased) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(stringResource(R.string.ai_test_description), style = MaterialTheme.typography.bodyMedium)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -186,9 +184,10 @@ internal fun AiSettingsScreen(vm: AiSettingsViewModel, onBack: () -> Unit) {
             }
             item {
                 Button(onClick = vm::save, enabled = vm.canSave,
-                    shapes = ButtonDefaults.shapesFor(56.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
-                    Text(stringResource(R.string.ai_save_selection))
+                    shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
+                    contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = ButtonDefaults.MediumContainerHeight)) {
+                    Text(stringResource(R.string.ai_save_selection), style = MaterialTheme.typography.titleMediumEmphasized)
                 }
             }
         }
@@ -203,6 +202,5 @@ internal fun AiSettingsScreen(vm: AiSettingsViewModel, onBack: () -> Unit) {
 
 @Composable
 private fun AiSectionLabel(@StringRes title: Int) {
-    Text(stringResource(title), modifier = Modifier.padding(start = 8.dp, bottom = 8.dp),
-        style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    FitLogSectionTitle(stringResource(title))
 }

@@ -11,12 +11,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.fitlog.R
+import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.data.analysis.*
 import java.text.DateFormat
 import java.text.NumberFormat
@@ -26,18 +28,27 @@ import java.util.Date
 @Composable
 fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -> Unit, onAiSettings: () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     // The app Scaffold already supplies system insets. This page adds only its own spacing.
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        Column(Modifier.widthIn(max = 840.dp).fillMaxSize()) {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onBack) { Text(stringResource(R.string.cd_back)) }
-                    TextButton(onClick = onEdit, enabled = vm.canEdit) { Text(stringResource(R.string.detail_edit)) }
-                    TextButton(onClick = vm::refresh, enabled = !vm.sourceLoading) { Text(stringResource(R.string.log_refresh)) }
-                }
-                Text(vm.route.fileName, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(vm.route.relPath, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
+        Column(Modifier.widthIn(max = 840.dp).fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection)) {
+            MediumFlexibleTopAppBar(
+                title = { Text(vm.route.fileName, style = MaterialTheme.typography.headlineSmallEmphasized) },
+                subtitle = { Text(vm.route.relPath, style = MaterialTheme.typography.bodySmall) },
+                navigationIcon = { IconButton(onClick = onBack) {
+                    Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
+                } },
+                actions = {
+                    IconButton(onClick = vm::refresh, enabled = !vm.sourceLoading) {
+                        Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.log_refresh))
+                    }
+                    FilledTonalButton(onClick = onEdit, enabled = vm.canEdit, shapes = ButtonDefaults.shapes()) {
+                        Text(stringResource(R.string.detail_edit), style = MaterialTheme.typography.labelLargeEmphasized)
+                    }
+                },
+                windowInsets = WindowInsets(0),
+                scrollBehavior = scrollBehavior,
+            )
             PrimaryTabRow(selectedTabIndex = vm.tab.ordinal) {
                 DiaryDetailTab.entries.forEach { tab ->
                     Tab(selected = vm.tab == tab, onClick = { vm.selectTab(tab) }, text = {
@@ -45,7 +56,7 @@ fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -
                     })
                 }
             }
-            if (vm.sourceLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (vm.sourceLoading) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
             if (vm.tab == DiaryDetailTab.ORIGINAL) {
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (vm.sourceReadFailed) item { ErrorText(R.string.detail_source_failed) }
@@ -53,7 +64,10 @@ fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -
                         if (!snapshot.file.writable) item { Text(stringResource(R.string.detail_read_only)) }
                         item {
                             if (snapshot.text.isEmpty()) Text(stringResource(R.string.detail_original_empty))
-                            else SelectionContainer { Text(snapshot.text, fontFamily = FontFamily.Monospace) }
+                            else SelectionContainer {
+                                Text(snapshot.text, style = MaterialTheme.typography.bodyLarge,
+                                    fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+                            }
                         }
                     }
                 }
@@ -68,10 +82,16 @@ fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -
 private fun AnalysisContent(vm: DiaryDetailViewModel, modifier: Modifier, onAiSettings: () -> Unit) {
     LazyColumn(modifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item(key = "status") {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = vm::parse, enabled = !vm.parsing && !vm.sourceLoading) {
-                        Text(stringResource(if (vm.parses.latestCandidate == null) R.string.ai_parse else R.string.ai_reparse))
+                    Button(onClick = vm::parse, enabled = !vm.parsing && !vm.sourceLoading,
+                        shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
+                        contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight),
+                        modifier = Modifier.heightIn(min = ButtonDefaults.MediumContainerHeight)) {
+                        Icon(painterResource(R.drawable.auto_awesome_24px), null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(if (vm.parses.latestCandidate == null) R.string.ai_parse else R.string.ai_reparse),
+                            style = MaterialTheme.typography.titleMediumEmphasized)
                     }
                     OutlinedButton(onClick = onAiSettings) { Text(stringResource(R.string.ai_settings_title)) }
                     if (vm.parsing) TextButton(onClick = vm::cancelParse) { Text(stringResource(R.string.ai_cancel_request)) }
@@ -82,12 +102,13 @@ private fun AnalysisContent(vm: DiaryDetailViewModel, modifier: Modifier, onAiSe
                 }
                 vm.parseMessage?.let { Text(stringResource(it)) }
                 if (vm.sourceReadFailed) ErrorText(R.string.detail_source_failed)
-                if (vm.parsesLoading || vm.confirmationLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (vm.parsesLoading || vm.confirmationLoading) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
                 if (!vm.parsesLoading && !vm.parsesReadFailed) {
-                    Text(stringResource(R.string.detail_parse_state, stringResource(parseStatusLabel(vm.parses.latestAttempt?.status))))
+                    FitLogNotice(stringResource(R.string.detail_parse_state, stringResource(parseStatusLabel(vm.parses.latestAttempt?.status))))
                 }
                 if (!vm.confirmationLoading && !vm.confirmationReadFailed) {
-                    Text(stringResource(R.string.detail_confirmation_state, stringResource(confirmationLabel(vm.confirmationStatus))))
+                    Text(stringResource(R.string.detail_confirmation_state, stringResource(confirmationLabel(vm.confirmationStatus))),
+                        style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (vm.parsesReadFailed || vm.confirmationReadFailed) ErrorText(R.string.detail_analysis_failed)
                 if (vm.parses.candidateReadFailed) ErrorText(R.string.detail_candidate_damaged)
@@ -121,7 +142,8 @@ private fun AnalysisContent(vm: DiaryDetailViewModel, modifier: Modifier, onAiSe
 private fun LazyListScope.confirmedItems(record: ConfirmedDiaryRecord) {
     item(key = "confirmed-heading") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.detail_confirmed_result), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.detail_confirmed_result), style = MaterialTheme.typography.headlineSmallEmphasized,
+                color = MaterialTheme.colorScheme.tertiary)
             Text(stringResource(R.string.detail_confirmed_date, record.diary.date))
             if (record.diary.acceptedPartialResult) Text(stringResource(R.string.detail_partial_confirmation))
             if (record.sessions.isEmpty()) Text(stringResource(R.string.detail_confirmed_no_sessions))
@@ -151,7 +173,7 @@ internal fun LazyListScope.candidateItems(candidate: StoredDiaryCandidate, fresh
     val analysis = candidate.analysis
     item(key = "candidate-heading") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.detail_candidate_result), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.detail_candidate_result), style = MaterialTheme.typography.headlineSmallEmphasized)
             Text(stringResource(if (usedForConfirmation) R.string.detail_candidate_used else R.string.detail_candidate_unconfirmed))
             Text(stringResource(when (freshness) {
                 DiaryResultFreshness.CURRENT -> R.string.detail_candidate_current
@@ -208,17 +230,19 @@ internal fun LazyListScope.candidateItems(candidate: StoredDiaryCandidate, fresh
 @Composable
 private fun SessionHeading(index: Int, date: String?, notes: String?) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        HorizontalDivider()
-        Text(stringResource(R.string.detail_session, index + 1, date ?: stringResource(R.string.detail_date_unknown)), style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        Text(stringResource(R.string.detail_session, index + 1, date ?: stringResource(R.string.detail_date_unknown)),
+            style = MaterialTheme.typography.titleMediumEmphasized, color = MaterialTheme.colorScheme.secondary)
         notes?.takeIf { it.isNotBlank() }?.let { Text(it) }
     }
 }
 
 @Composable
 private fun ExerciseHeading(name: String, notes: String?, noSets: Boolean, content: @Composable () -> Unit) {
-    OutlinedCard(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(name, style = MaterialTheme.typography.titleMedium)
+            Text(name, style = MaterialTheme.typography.titleLargeEmphasized)
             notes?.takeIf { it.isNotBlank() }?.let { Text(it) }
             content()
             if (noSets) Text(stringResource(R.string.detail_no_sets))
@@ -251,28 +275,33 @@ private fun SetEntry(index: Int, weight: Double?, unit: WeightUnit?, basis: Weig
     val locale = LocalConfiguration.current.locales[0]
     val numbers = remember(locale) { NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = 340; isGroupingUsed = false } }
     val unknown = stringResource(R.string.detail_unknown)
-    OutlinedCard(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(if (countMissing) stringResource(R.string.detail_count_not_provided) else stringResource(R.string.detail_set, index + 1),
                 style = MaterialTheme.typography.titleSmall)
             if (userEdited) Text(stringResource(R.string.detail_user_edited))
             countOrigin?.let { Text(stringResource(R.string.detail_count_source, stringResource(originLabel(it)))) }
-            ValueEntry(R.string.detail_weight, weight?.let(numbers::format) ?: unknown, weightSource)
-            ValueEntry(R.string.detail_unit, stringResource(when (unit) { WeightUnit.KG -> R.string.detail_kg; WeightUnit.LB -> R.string.detail_lb; else -> R.string.detail_unknown }), unitSource)
-            ValueEntry(R.string.detail_basis, stringResource(when (basis) {
-                WeightBasis.PER_SIDE -> R.string.detail_basis_per_side; WeightBasis.TOTAL -> R.string.detail_basis_total
-                WeightBasis.BODYWEIGHT -> R.string.detail_basis_bodyweight; WeightBasis.ADDED -> R.string.detail_basis_added
-                WeightBasis.ASSISTED -> R.string.detail_basis_assisted; else -> R.string.detail_unknown
-            }), basisSource)
-            ValueEntry(R.string.detail_reps, reps?.let(numbers::format) ?: unknown, repsSource)
+            FlowRow(maxItemsInEachRow = 2, horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                ValueEntry(R.string.detail_weight, weight?.let(numbers::format) ?: unknown, weightSource, Modifier.weight(1f))
+                ValueEntry(R.string.detail_reps, reps?.let(numbers::format) ?: unknown, repsSource, Modifier.weight(1f))
+                ValueEntry(R.string.detail_unit, stringResource(when (unit) { WeightUnit.KG -> R.string.detail_kg; WeightUnit.LB -> R.string.detail_lb; else -> R.string.detail_unknown }), unitSource, Modifier.weight(1f))
+                ValueEntry(R.string.detail_basis, stringResource(when (basis) {
+                    WeightBasis.PER_SIDE -> R.string.detail_basis_per_side; WeightBasis.TOTAL -> R.string.detail_basis_total
+                    WeightBasis.BODYWEIGHT -> R.string.detail_basis_bodyweight; WeightBasis.ADDED -> R.string.detail_basis_added
+                    WeightBasis.ASSISTED -> R.string.detail_basis_assisted; else -> R.string.detail_unknown
+                }), basisSource, Modifier.weight(1f))
+            }
         }
     }
 }
 
 @Composable
-private fun ValueEntry(label: Int, value: String, source: CandidateValue<*>?) {
-    Column {
-        Text(stringResource(R.string.detail_field, stringResource(label), value))
+private fun ValueEntry(label: Int, value: String, source: CandidateValue<*>?, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleLargeEmphasized)
         if (source != null) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(originLabel(source.origin)), style = MaterialTheme.typography.labelSmall)
             if (source.inferred && source.origin != CandidateOrigin.INFERRED) Text(stringResource(R.string.detail_origin_inferred), style = MaterialTheme.typography.labelSmall)
@@ -282,7 +311,7 @@ private fun ValueEntry(label: Int, value: String, source: CandidateValue<*>?) {
 }
 
 @Composable
-private fun ErrorText(message: Int) { Text(stringResource(message), color = MaterialTheme.colorScheme.error) }
+private fun ErrorText(message: Int) { FitLogNotice(stringResource(message), error = true) }
 
 private fun parseStatusLabel(status: ParseRunStatus?) = when (status) {
     null -> R.string.detail_not_parsed

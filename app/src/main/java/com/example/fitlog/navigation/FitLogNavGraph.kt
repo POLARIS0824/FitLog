@@ -65,7 +65,10 @@ fun FitLogNavGraph(
     aiClient: HttpClient,
     onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
     onOpenRoute: (FitLogRoute) -> Unit,
+    onNavigateTo: (FitLogRoute) -> Unit,
     onBack: () -> Unit,
+    onOpenToday: () -> Unit,
+    onImportFolder: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val motionScheme = MaterialTheme.motionScheme
@@ -105,9 +108,12 @@ fun FitLogNavGraph(
         },
         entryProvider = entryProvider {
             entry<FitLogRoute.Today> {
-                TodayScreen(onSettings = {
-                    if (backStack.lastOrNull() == FitLogRoute.Today) onOpenRoute(FitLogRoute.Settings)
-                })
+                TodayScreen(
+                    onSettings = { if (backStack.lastOrNull() == FitLogRoute.Today) onOpenRoute(FitLogRoute.Settings) },
+                    onOpenToday = { if (backStack.lastOrNull() == FitLogRoute.Today) onOpenToday() },
+                    onOpenLog = { if (backStack.lastOrNull() == FitLogRoute.Today) onNavigateTo(FitLogRoute.Log) },
+                    onImportFolder = { if (backStack.lastOrNull() == FitLogRoute.Today) onImportFolder() },
+                )
             }
 
             entry<FitLogRoute.Settings> {
@@ -137,7 +143,9 @@ fun FitLogNavGraph(
             }
 
             entry<FitLogRoute.Insight> {
-                InsightScreen()
+                InsightScreen(onOpenLog = {
+                    if (backStack.lastOrNull() == FitLogRoute.Insight) onNavigateTo(FitLogRoute.Log)
+                })
             }
 
             entry<FitLogRoute.DiaryDetail> { route ->

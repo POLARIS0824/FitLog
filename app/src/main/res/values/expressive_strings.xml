@@ -1,0 +1,16 @@
+<resources>
+    <string name="today_hero_title">Your day, in your words</string>
+    <string name="today_hero_description">Record your training, how it felt, and anything worth remembering.</string>
+    <string name="today_write">Today’s diary</string>
+    <string name="today_library">Your diaries</string>
+    <string name="today_browse">Browse diaries</string>
+    <string name="today_browse_description">Read your notes and their saved analysis</string>
+    <string name="today_import_description">Connect your existing Markdown folder</string>
+    <string name="insight_unavailable_title">Insights are still taking shape</string>
+    <string name="insight_unavailable_description">Training trends are not available yet. You can read and analyze individual diaries in Log.</string>
+    <string name="log_description">Your notes, always within reach</string>
+    <string name="log_options">Diary options</string>
+    <string name="settings_description">Make room for the way you train</string>
+    <string name="settings_analysis_heading">Diary analysis</string>
+    <string name="vault_management_description">Access and connection for your Markdown folder</string>
+</resources>
