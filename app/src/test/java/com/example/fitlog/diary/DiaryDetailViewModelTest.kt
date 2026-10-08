@@ -255,6 +255,8 @@ class DiaryDetailViewModelTest {
             keys += sourceKey
             return if (fail) flow { throw IOException() } else confirmed
         }
+        override suspend fun readCandidate(sourceKey: SourceKey, parseRunId: String): StoredDiaryCandidate? =
+            parses.value.latestCandidate?.takeIf { it.analysis.parseKey.sourceKey == sourceKey && it.attempt.id == parseRunId }
     }
 
     private class Documents : MarkdownDocuments {

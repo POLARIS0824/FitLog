@@ -72,6 +72,15 @@ class DiaryAnalysisRepository internal constructor(
         dao.observeRuns(sourceKey.vaultId, sourceKey.relPath).map(::parseRecords)
             .flowOn(Dispatchers.IO).catch { throw readFailure(it) }
 
+    override suspend fun readCandidate(sourceKey: SourceKey, parseRunId: String): StoredDiaryCandidate? {
+        val run = persist { dao.run(parseRunId) } ?: return null
+        if (run.status != ParseRunStatus.SUCCEEDED || run.parseKey().sourceKey != sourceKey) return null
+        return withContext(Dispatchers.Default) {
+            StoredDiaryCandidate(DiaryParseAttempt(run.id, run.parseKey(), run.status, run.startedAt, run.finishedAt,
+                run.failureCode), decodeCandidate(run))
+        }
+    }
+
     private fun parseRecords(rows: List<ParseRunRow>): DiaryParseRecords {
         val attempts = rows.map { row ->
             DiaryParseAttempt(row.id, row.parseKey(), row.status, row.startedAt, row.finishedAt, row.failureCode)

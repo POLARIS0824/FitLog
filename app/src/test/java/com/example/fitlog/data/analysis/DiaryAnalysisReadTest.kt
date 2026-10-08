@@ -72,6 +72,20 @@ class DiaryAnalysisReadTest {
         assertEquals(2, calls)
     }
 
+    @Test fun exactCandidateReadsUseParseAndSourceIdentityWithoutStartingExtraction() = runBlocking {
+        val input = fullInput("first")
+        val old = repo.parse(input, parser)
+        val newer = repo.parse(fullInput("second"), parser)
+        assertEquals(newer.parseRunId, repo.readParses(input.parseKey.sourceKey).latestCandidate?.attempt?.id)
+        val original = repo.readCandidate(input.parseKey.sourceKey, old.parseRunId)
+        assertEquals(old.parseRunId, original?.attempt?.id)
+        assertEquals((old.result as DiaryParseResult.Success).analysis, original?.analysis)
+        assertNull(repo.readCandidate(input.parseKey.sourceKey.copy(relPath = "other.md"), old.parseRunId))
+        assertNull(repo.readCandidate(SourceKey(UUID.randomUUID().toString(), input.parseKey.sourceKey.relPath), old.parseRunId))
+        assertNull(repo.readCandidate(input.parseKey.sourceKey, "missing-run"))
+        assertEquals(2, calls)
+    }
+
     @Test fun damagedCandidateDoesNotHideAttemptMetadataOrConfirmedRecord() = runBlocking {
         val input = fullInput("note")
         val run = repo.parse(input, parser)

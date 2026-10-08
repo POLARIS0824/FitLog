@@ -28,8 +28,9 @@ class DiaryCandidateDisplayTest {
             {"rawName":"bench","groups":[{"weight":38,"unit":"KG","reps":8}]}
         ]}]}""")
         show(context.getString(R.string.detail_count_not_provided))
-        show(value(R.string.detail_weight, 38))
-        show(value(R.string.detail_reps, 8))
+        show(weight(38))
+        show(context.getString(R.string.detail_reps_short, 8))
+        compose.onAllNodesWithContentDescription(context.getString(R.string.detail_issue_review), useUnmergedTree = true).assertCountEquals(0)
         compose.onNodeWithText(context.getString(R.string.detail_set, 1)).assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.detail_model_excerpt)).assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.detail_no_sets)).assertDoesNotExist()
@@ -40,12 +41,15 @@ class DiaryCandidateDisplayTest {
             {"rawName":"bench","evidence":{"quote":"bench：38kg 1x8"},
              "groups":[{"weight":38,"unit":"KG","count":1,"reps":8}]}
         ]}]}""")
+        val disclosure = hasText(context.getString(R.string.detail_sources), substring = true)
+        compose.onNodeWithTag("candidate-list").performScrollToNode(disclosure)
+        compose.onNode(disclosure).performClick()
         show(context.getString(R.string.detail_model_excerpt))
         show(context.getString(R.string.detail_issue_evidence_missing))
         compose.onAllNodes(hasText(context.getString(R.string.detail_issue_error), substring = true)).assertCountEquals(0)
         compose.onAllNodes(hasText(context.getString(R.string.detail_issue_review), substring = true)).assertCountEquals(0)
         show(context.getString(R.string.detail_set, 1))
-        show(value(R.string.detail_weight, 38))
+        show(weight(38))
     }
 
     private fun show(text: String) {
@@ -53,8 +57,16 @@ class DiaryCandidateDisplayTest {
         compose.onNodeWithText(text).assertIsDisplayed()
     }
 
-    private fun value(label: Int, number: Int) = context.getString(R.string.detail_field,
-        context.getString(label), NumberFormat.getNumberInstance(context.resources.configuration.locales[0]).format(number))
+    private fun weight(number: Int) = context.getString(R.string.detail_weight_short,
+        NumberFormat.getNumberInstance(context.resources.configuration.locales[0]).format(number), context.getString(R.string.detail_unit_kg_short))
+
+    @Test fun identicalWeightsRemainVisibleInEverySetRow() {
+        display("bench 60kg 3x8", """{"schemaVersion":1,"sessions":[{"exercises":[
+            {"rawName":"bench","groups":[{"weight":60,"unit":"KG","basis":"TOTAL","count":3,"reps":8}]}
+        ]}]}""")
+        compose.onNodeWithTag("candidate-list").performScrollToNode(hasText(context.getString(R.string.detail_set, 3)))
+        compose.onAllNodesWithText(weight(60)).assertCountEquals(3)
+    }
 
     private fun display(original: String, response: String) {
         val input = DiaryParseInput.fromSnapshot(

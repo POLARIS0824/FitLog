@@ -26,6 +26,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 enum class DiaryDetailTab { ORIGINAL, ANALYSIS }
 
@@ -37,6 +39,7 @@ class DiaryDetailViewModel(
     private val savedState: SavedStateHandle,
     private val parseDiary: suspend () -> StoredDiaryParse,
     private val hashingDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val confirmDiary: (suspend (DiaryConfirmation) -> DiaryConfirmationResult)? = null,
 ) : ViewModel() {
     val sourceKey = SourceKey(route.vaultId, route.relPath)
     var tab by mutableStateOf(DiaryDetailTab.entries.firstOrNull {
@@ -54,6 +57,22 @@ class DiaryDetailViewModel(
     var confirmationReadFailed by mutableStateOf(false); private set
     var parsing by mutableStateOf(false); private set
     var parseMessage by mutableStateOf<Int?>(null); private set
+    private val restoredReview = runCatching { savedState.get<String>("reviewDraft")?.let {
+        Json.decodeFromString<DiaryReviewDraft>(it)
+    } }
+    internal var review by mutableStateOf(restoredReview.getOrNull()); private set
+    var reviewSaving by mutableStateOf(false); private set
+    var reviewMessage by mutableStateOf<Int?>(if (restoredReview.isFailure) R.string.detail_review_restore_failed else null); private set
+    var leaveRequested by mutableStateOf(false); private set
+    var showCandidate by mutableStateOf(savedState.get<Boolean>("showCandidate") ?: false); private set
+    private var pendingLeave: (() -> Unit)? = null
+    private var confirmationOriginal: StoredDiaryCandidate? = null
+    private val selectedConfirmedOriginal get() = confirmationOriginal?.takeIf { it.attempt.id == confirmed?.diary?.parseRunId }
+        ?: parses.latestCandidate?.takeIf { it.attempt.id == confirmed?.diary?.parseRunId }
+    val canReview get() = confirmDiary != null && restoredReview.isSuccess && !reviewSaving && !parsing &&
+        !confirmationLoading && !parsesLoading && !confirmationReadFailed && (review != null ||
+        ((showCandidate || confirmed == null) && parses.latestCandidate != null) ||
+        (!showCandidate && confirmed != null && selectedConfirmedOriginal != null))
     val confirmationStatus get() = confirmationFreshness(confirmed?.diary, contentVersion)
     val candidateStatus get() = parses.latestCandidate?.let {
         resultFreshness(DiaryContentVersion(it.analysis.parseKey.contentHash, it.analysis.parseKey.hashVersion), contentVersion)
@@ -134,9 +153,31 @@ class DiaryDetailViewModel(
         }
         confirmationJob = viewModelScope.launch {
             try {
-                analysis.observeConfirmed(sourceKey).collect {
-                    currentCoroutineContext().ensureActive()
-                    if (generation == analysisGeneration) { confirmed = it; confirmationLoading = false }
+                analysis.observeConfirmed(sourceKey).collect { record ->
+                    val targetRun = if (confirmDiary != null) review?.parseRunId ?: record?.diary?.parseRunId else null
+                    try {
+                        val original = targetRun?.let { requireNotNull(analysis.readCandidate(sourceKey, it)) }
+                        currentCoroutineContext().ensureActive()
+                        if (generation == analysisGeneration) {
+                            confirmed = record
+                            confirmationOriginal = original?.takeIf { it.attempt.id == record?.diary?.parseRunId }
+                            review?.let { draft ->
+                                if (original != null) {
+                                    val restored = draft.withOriginalValues(original)
+                                    review = restored; savedState["reviewDraft"] = Json.encodeToString(restored)
+                                }
+                            }
+                            confirmationReadFailed = false; confirmationLoading = false
+                        }
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        currentCoroutineContext().ensureActive()
+                        if (generation == analysisGeneration) {
+                            // A damaged parse must not hide the independently stored confirmation.
+                            confirmed = record; confirmationOriginal = null
+                            confirmationReadFailed = true; confirmationLoading = false
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -148,7 +189,7 @@ class DiaryDetailViewModel(
 
     /** Button guard and cancellation belong to this route, not to a global executor. */
     fun parse() {
-        if (parsing || sourceLoading) return
+        if (parsing || sourceLoading || reviewSaving || review != null) return
         parsing = true; parseMessage = null
         selectTab(DiaryDetailTab.ANALYSIS)
         parseJob = viewModelScope.launch {
@@ -181,6 +222,99 @@ class DiaryDetailViewModel(
     fun cancelParse() {
         if (!parsing) return
         parseJob?.cancel(); parsing = false; parseMessage = R.string.ai_parse_cancelled
+    }
+
+    fun selectResult(candidate: Boolean) {
+        if (review != null || reviewSaving) return
+        showCandidate = candidate
+        savedState["showCandidate"] = candidate
+        reviewMessage = null
+    }
+
+    internal fun beginReview(): Boolean {
+        if (!canReview) return false
+        if (review == null) {
+            val draft = selectedReviewDraft() ?: return false
+            storeReview(draft)
+        }
+        return true
+    }
+
+    internal fun cancelReviewConfirmation() {
+        if (!reviewSaving && review != null && review == selectedReviewDraft()) storeReview(null)
+    }
+
+    internal fun updateWeight(address: DiarySetAddress, value: Double?) {
+        if (value != null && (!value.isFinite() || value < 0)) return
+        val current = draftForReview()?.sessions?.getOrNull(address.session)?.exercises?.getOrNull(address.exercise)?.sets?.getOrNull(address.set)
+        if (current == null || current.weight == value) return
+        if (beginReview()) storeEditedReview(requireNotNull(review).withWeight(address, value))
+    }
+
+    internal fun updateReps(address: DiarySetAddress, value: Int?) {
+        if (value != null && value <= 0) return
+        val current = draftForReview()?.sessions?.getOrNull(address.session)?.exercises?.getOrNull(address.exercise)?.sets?.getOrNull(address.set)
+        if (current == null || current.reps == value) return
+        if (beginReview()) storeEditedReview(requireNotNull(review).withReps(address, value))
+    }
+
+    private fun draftForReview(): DiaryReviewDraft? = review ?: selectedReviewDraft()
+
+    private fun selectedReviewDraft(): DiaryReviewDraft? = if (!showCandidate && confirmed != null)
+        selectedConfirmedOriginal?.let { DiaryReviewDraft.fromConfirmed(requireNotNull(confirmed), it) }
+        else parses.latestCandidate?.let { DiaryReviewDraft.fromCandidate(it, confirmed) }
+
+    private fun storeEditedReview(draft: DiaryReviewDraft) = storeReview(draft.takeUnless { it == selectedReviewDraft() })
+
+    private fun storeReview(value: DiaryReviewDraft?) {
+        review = value
+        if (value == null) savedState.remove<String>("reviewDraft")
+        else savedState["reviewDraft"] = Json.encodeToString(value)
+        reviewMessage = null
+    }
+
+    fun saveReview(dateText: String, acceptPartial: Boolean) {
+        if (!canReview || !beginReview()) return
+        val draft = requireNotNull(review).copy(date = dateText, acceptedPartial = acceptPartial)
+        storeReview(draft)
+        val date = reviewDate(dateText)
+        if (date == null) { reviewMessage = R.string.detail_review_date_invalid; return }
+        if (draft.partial && !acceptPartial) { reviewMessage = R.string.detail_review_partial_required; return }
+        if (confirmed?.diary?.confirmedAt != draft.expectedConfirmedAt) {
+            reviewMessage = R.string.detail_review_changed; return
+        }
+        reviewSaving = true
+        viewModelScope.launch {
+            try {
+                val request = DiaryConfirmation(sourceKey, draft.parseRunId, date, draft.sessions, acceptPartial)
+                when (val result = requireNotNull(confirmDiary).invoke(request)) {
+                    is DiaryConfirmationResult.Confirmed -> {
+                        confirmed = result.diary
+                        storeReview(null)
+                        showCandidate = false; savedState["showCandidate"] = false
+                        reviewMessage = R.string.detail_review_saved
+                    }
+                    is DiaryConfirmationResult.Invalid -> reviewMessage = R.string.detail_review_save_failed
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                reviewMessage = R.string.detail_review_save_failed
+            } finally { if (currentCoroutineContext().isActive) reviewSaving = false }
+        }
+    }
+
+    /** All ways out share this guard; the draft also survives normal process restoration. */
+    fun requestLeave(action: () -> Unit) {
+        if (reviewSaving) return
+        if (review != null) { pendingLeave = action; leaveRequested = true }
+        else { cancelParse(); action() }
+    }
+
+    fun cancelLeave() { pendingLeave = null; leaveRequested = false }
+    fun discardAndLeave() {
+        if (reviewSaving) return
+        val action = pendingLeave
+        storeReview(null); cancelLeave(); cancelParse(); action?.invoke()
     }
 
     fun editorRoute(): FitLogRoute.Editor? = if (!canEdit) null else FitLogRoute.Editor(

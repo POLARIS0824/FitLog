@@ -152,19 +152,20 @@ fun FitLogNavGraph(
                 val vm = viewModel<DiaryDetailViewModel> {
                     DiaryDetailViewModel(route, documents, analysisRepository, createSavedStateHandle(),
                         parseDiary = { parseConfiguredDiary(SourceKey(route.vaultId, route.relPath), route.document,
-                            aiRepository, documents, analysisRepository, aiClient) })
+                            aiRepository, documents, analysisRepository, aiClient) },
+                        confirmDiary = analysisRepository::confirm)
                 }
                 DisposableEffect(vm) {
-                    backHandlers[route] = { vm.cancelParse(); onBack() }
+                    backHandlers[route] = { vm.requestLeave(onBack) }
                     onDispose { backHandlers.remove(route) }
                 }
                 DiaryDetailScreen(vm,
                     onEdit = { if (backStack.lastOrNull() == route) vm.editorRoute()?.let {
-                        vm.cancelParse(); onOpenRoute(it)
+                        vm.requestLeave { onOpenRoute(it) }
                     } },
-                    onBack = { if (backStack.lastOrNull() == route) { vm.cancelParse(); onBack() } },
+                    onBack = { if (backStack.lastOrNull() == route) vm.requestLeave(onBack) },
                     onAiSettings = { if (backStack.lastOrNull() == route) {
-                        vm.cancelParse(); onOpenRoute(FitLogRoute.AiSettings)
+                        vm.requestLeave { onOpenRoute(FitLogRoute.AiSettings) }
                     } })
             }
 
