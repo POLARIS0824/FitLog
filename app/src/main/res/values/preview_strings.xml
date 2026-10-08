@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="preview_diary_markdown"># 2026-10-08\n\n## Training\nBench press: 60 kg total, 3 sets × 8 reps.\n\nFelt good today. Keep the movement controlled.</string>
+    <string name="preview_exercise_name">Bench press</string>
+    <string name="preview_exercise_quote">Bench press: 60 kg total, 3 sets × 8 reps.</string>
+    <string name="preview_vault_name">Fitness diary</string>
+    <string name="preview_directory_name">Training</string>
+</resources>

@@ -9,6 +9,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.fitlog.ui.preview.FitLogPreviews
+import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.R
 import com.example.fitlog.ui.components.FitLogPageHeader
 
@@ -40,4 +42,10 @@ fun InsightScreen(onOpenLog: () -> Unit, modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+@FitLogPreviews
+@Composable
+private fun InsightPreview() {
+    FitLogPreview { InsightScreen({}) }
 }

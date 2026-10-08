@@ -1,5 +1,8 @@
 package com.example.fitlog.diary
 
+import com.example.fitlog.ui.preview.FitLogPreviews
+import com.example.fitlog.ui.preview.FitLogPreview
+import com.example.fitlog.ui.preview.PreviewDiary
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -28,39 +31,72 @@ import java.util.Date
 @Composable
 fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -> Unit, onAiSettings: () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
+    DiaryDetailContent(
+        state = DiaryDetailUiState(
+            route = vm.route,
+            tab = vm.tab,
+            sourceLoading = vm.sourceLoading,
+            sourceReadFailed = vm.sourceReadFailed,
+            original = vm.original,
+            canEdit = vm.canEdit,
+            parses = vm.parses,
+            parsesLoading = vm.parsesLoading,
+            confirmationLoading = vm.confirmationLoading,
+            parsesReadFailed = vm.parsesReadFailed,
+            confirmationReadFailed = vm.confirmationReadFailed,
+            confirmed = vm.confirmed,
+            parsing = vm.parsing,
+            parseMessage = vm.parseMessage,
+            confirmationStatus = vm.confirmationStatus,
+            candidateStatus = vm.candidateStatus,
+        ),
+        actions = DiaryDetailActions(
+            refresh = { vm.refresh() },
+            parse = { vm.parse() },
+            cancelParse = { vm.cancelParse() },
+            retryAnalysis = { vm.retryAnalysis() },
+            selectTab = { vm.selectTab(it) },
+        ),
+        onEdit = onEdit, onBack = onBack, onAiSettings = onAiSettings,
+    )
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailActions, onEdit: () -> Unit, onBack: () -> Unit, onAiSettings: () -> Unit) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     // The app Scaffold already supplies system insets. This page adds only its own spacing.
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 840.dp).fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection)) {
             MediumFlexibleTopAppBar(
-                title = { Text(vm.route.fileName, style = MaterialTheme.typography.headlineSmallEmphasized) },
-                subtitle = { Text(vm.route.relPath, style = MaterialTheme.typography.bodySmall) },
+                title = { Text(state.route.fileName, style = MaterialTheme.typography.headlineSmallEmphasized) },
+                subtitle = { Text(state.route.relPath, style = MaterialTheme.typography.bodySmall) },
                 navigationIcon = { IconButton(onClick = onBack) {
                     Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
                 } },
                 actions = {
-                    IconButton(onClick = vm::refresh, enabled = !vm.sourceLoading) {
+                    IconButton(onClick = actions.refresh, enabled = !state.sourceLoading) {
                         Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.log_refresh))
                     }
-                    FilledTonalButton(onClick = onEdit, enabled = vm.canEdit, shapes = ButtonDefaults.shapes()) {
+                    FilledTonalButton(onClick = onEdit, enabled = state.canEdit, shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.detail_edit), style = MaterialTheme.typography.labelLargeEmphasized)
                     }
                 },
                 windowInsets = WindowInsets(0),
                 scrollBehavior = scrollBehavior,
             )
-            PrimaryTabRow(selectedTabIndex = vm.tab.ordinal) {
+            PrimaryTabRow(selectedTabIndex = state.tab.ordinal) {
                 DiaryDetailTab.entries.forEach { tab ->
-                    Tab(selected = vm.tab == tab, onClick = { vm.selectTab(tab) }, text = {
+                    Tab(selected = state.tab == tab, onClick = { actions.selectTab(tab) }, text = {
                         Text(stringResource(if (tab == DiaryDetailTab.ORIGINAL) R.string.detail_original else R.string.detail_analysis))
                     })
                 }
             }
-            if (vm.sourceLoading) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
-            if (vm.tab == DiaryDetailTab.ORIGINAL) {
+            if (state.sourceLoading) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+            if (state.tab == DiaryDetailTab.ORIGINAL) {
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    if (vm.sourceReadFailed) item { ErrorText(R.string.detail_source_failed) }
-                    vm.original?.let { snapshot ->
+                    if (state.sourceReadFailed) item { ErrorText(R.string.detail_source_failed) }
+                    state.original?.let { snapshot ->
                         if (!snapshot.file.writable) item { Text(stringResource(R.string.detail_read_only)) }
                         item {
                             if (snapshot.text.isEmpty()) Text(stringResource(R.string.detail_original_empty))
@@ -72,54 +108,54 @@ fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -
                     }
                 }
             } else {
-                AnalysisContent(vm, Modifier.weight(1f), onAiSettings)
+                AnalysisContent(state, actions, Modifier.weight(1f), onAiSettings)
             }
         }
     }
 }
 
 @Composable
-private fun AnalysisContent(vm: DiaryDetailViewModel, modifier: Modifier, onAiSettings: () -> Unit) {
+private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActions, modifier: Modifier, onAiSettings: () -> Unit) {
     LazyColumn(modifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item(key = "status") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = vm::parse, enabled = !vm.parsing && !vm.sourceLoading,
+                    Button(onClick = actions.parse, enabled = !state.parsing && !state.sourceLoading,
                         shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
                         contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight),
                         modifier = Modifier.heightIn(min = ButtonDefaults.MediumContainerHeight)) {
                         Icon(painterResource(R.drawable.auto_awesome_24px), null)
                         Spacer(Modifier.width(8.dp))
-                        Text(stringResource(if (vm.parses.latestCandidate == null) R.string.ai_parse else R.string.ai_reparse),
+                        Text(stringResource(if (state.parses.latestCandidate == null) R.string.ai_parse else R.string.ai_reparse),
                             style = MaterialTheme.typography.titleMediumEmphasized)
                     }
                     OutlinedButton(onClick = onAiSettings) { Text(stringResource(R.string.ai_settings_title)) }
-                    if (vm.parsing) TextButton(onClick = vm::cancelParse) { Text(stringResource(R.string.ai_cancel_request)) }
+                    if (state.parsing) TextButton(onClick = actions.cancelParse) { Text(stringResource(R.string.ai_cancel_request)) }
                 }
-                if (vm.parsing) {
+                if (state.parsing) {
                     LinearWavyProgressIndicator(Modifier.fillMaxWidth())
                     Text(stringResource(R.string.ai_parsing))
                 }
-                vm.parseMessage?.let { Text(stringResource(it)) }
-                if (vm.sourceReadFailed) ErrorText(R.string.detail_source_failed)
-                if (vm.parsesLoading || vm.confirmationLoading) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
-                if (!vm.parsesLoading && !vm.parsesReadFailed) {
-                    FitLogNotice(stringResource(R.string.detail_parse_state, stringResource(parseStatusLabel(vm.parses.latestAttempt?.status))))
+                state.parseMessage?.let { Text(stringResource(it)) }
+                if (state.sourceReadFailed) ErrorText(R.string.detail_source_failed)
+                if (state.parsesLoading || state.confirmationLoading) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+                if (!state.parsesLoading && !state.parsesReadFailed) {
+                    FitLogNotice(stringResource(R.string.detail_parse_state, stringResource(parseStatusLabel(state.parses.latestAttempt?.status))))
                 }
-                if (!vm.confirmationLoading && !vm.confirmationReadFailed) {
-                    Text(stringResource(R.string.detail_confirmation_state, stringResource(confirmationLabel(vm.confirmationStatus))),
+                if (!state.confirmationLoading && !state.confirmationReadFailed) {
+                    Text(stringResource(R.string.detail_confirmation_state, stringResource(confirmationLabel(state.confirmationStatus))),
                         style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (vm.parsesReadFailed || vm.confirmationReadFailed) ErrorText(R.string.detail_analysis_failed)
-                if (vm.parses.candidateReadFailed) ErrorText(R.string.detail_candidate_damaged)
-                if (vm.parsesReadFailed || vm.confirmationReadFailed || vm.parses.candidateReadFailed) {
-                    TextButton(onClick = vm::retryAnalysis, enabled = !vm.parsesLoading && !vm.confirmationLoading) {
+                if (state.parsesReadFailed || state.confirmationReadFailed) ErrorText(R.string.detail_analysis_failed)
+                if (state.parses.candidateReadFailed) ErrorText(R.string.detail_candidate_damaged)
+                if (state.parsesReadFailed || state.confirmationReadFailed || state.parses.candidateReadFailed) {
+                    TextButton(onClick = actions.retryAnalysis, enabled = !state.parsesLoading && !state.confirmationLoading) {
                         Text(stringResource(R.string.detail_retry_analysis))
                     }
                 }
             }
         }
-        vm.parses.latestFailure?.let { failure ->
+        state.parses.latestFailure?.let { failure ->
             item(key = "last-failure") {
                 OutlinedCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,10 +166,10 @@ private fun AnalysisContent(vm: DiaryDetailViewModel, modifier: Modifier, onAiSe
                 }
             }
         }
-        vm.confirmed?.let { confirmedItems(it) }
-        vm.parses.latestCandidate?.let { candidateItems(it, vm.candidateStatus, vm.confirmed?.diary?.parseRunId == it.attempt.id) }
-        if (!vm.parsesLoading && !vm.confirmationLoading && !vm.parsesReadFailed && !vm.confirmationReadFailed &&
-            !vm.parses.candidateReadFailed && vm.parses.latestCandidate == null && vm.confirmed == null) {
+        state.confirmed?.let { confirmedItems(it) }
+        state.parses.latestCandidate?.let { candidateItems(it, state.candidateStatus, state.confirmed?.diary?.parseRunId == it.attempt.id) }
+        if (!state.parsesLoading && !state.confirmationLoading && !state.parsesReadFailed && !state.confirmationReadFailed &&
+            !state.parses.candidateReadFailed && state.parses.latestCandidate == null && state.confirmed == null) {
             item(key = "no-result") { Text(stringResource(R.string.detail_no_saved_result)) }
         }
     }
@@ -369,4 +405,61 @@ private fun validationLabel(code: ValidationCode) = when (code) {
     ValidationCode.MISSING_COUNT -> R.string.detail_issue_count_missing
     ValidationCode.INFERRED_VALUE -> R.string.detail_issue_inferred
     ValidationCode.UNKNOWN_VALUE -> R.string.detail_issue_unknown
+}
+
+private data class DiaryDetailUiState(
+    val route: com.example.fitlog.navigation.FitLogRoute.DiaryDetail,
+    val tab: DiaryDetailTab = DiaryDetailTab.ORIGINAL,
+    val sourceLoading: Boolean = false,
+    val sourceReadFailed: Boolean = false,
+    val original: com.example.fitlog.data.vault.MarkdownSnapshot? = null,
+    val canEdit: Boolean = true,
+    val parses: DiaryParseRecords = DiaryParseRecords(),
+    val parsesLoading: Boolean = false,
+    val confirmationLoading: Boolean = false,
+    val parsesReadFailed: Boolean = false,
+    val confirmationReadFailed: Boolean = false,
+    val confirmed: ConfirmedDiaryRecord? = null,
+    val parsing: Boolean = false,
+    val parseMessage: Int? = null,
+    val confirmationStatus: ConfirmationFreshness = ConfirmationFreshness.UNCONFIRMED,
+    val candidateStatus: DiaryResultFreshness? = null,
+)
+
+private data class DiaryDetailActions(
+    val refresh: () -> Unit = {},
+    val parse: () -> Unit = {},
+    val cancelParse: () -> Unit = {},
+    val retryAnalysis: () -> Unit = {},
+    val selectTab: (DiaryDetailTab) -> Unit = {},
+)
+
+@FitLogPreviews
+@Composable
+private fun DiaryOriginalPreview() {
+    val original = PreviewDiary.snapshot()
+    FitLogPreview {
+        DiaryDetailContent(DiaryDetailUiState(route = PreviewDiary.route,
+            original = original), DiaryDetailActions(), {}, {}, {})
+    }
+}
+
+@FitLogPreviews
+@Composable
+private fun DiaryAnalysisPreview() {
+    val candidate = PreviewDiary.candidate()
+    FitLogPreview {
+        DiaryDetailContent(DiaryDetailUiState(route = PreviewDiary.route,
+            tab = DiaryDetailTab.ANALYSIS, parses = DiaryParseRecords(listOf(candidate.attempt), candidate),
+            candidateStatus = DiaryResultFreshness.CURRENT), DiaryDetailActions(), {}, {}, {})
+    }
+}
+
+@FitLogPreviews
+@Composable
+private fun DiaryAnalysisEmptyPreview() {
+    FitLogPreview {
+        DiaryDetailContent(DiaryDetailUiState(route = PreviewDiary.route,
+            tab = DiaryDetailTab.ANALYSIS), DiaryDetailActions(), {}, {}, {})
+    }
 }

@@ -2,6 +2,9 @@
 
 package com.example.fitlog.editor
 
+import com.example.fitlog.ui.preview.FitLogPreviews
+import com.example.fitlog.ui.preview.FitLogPreview
+import com.example.fitlog.ui.preview.PreviewDiary
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -55,15 +58,6 @@ private fun ToolAction(icon: Int, label: Int, enabled: Boolean = true, onClick: 
 @Composable
 fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val editorFocus = remember { FocusRequester() }
-    val editorScroll = rememberScrollState()
-    val inputTransformation = remember(vm) { MarkdownInputTransformation { vm.text.composition != null } }
-    val editorLabel = stringResource(R.string.editor_content)
-    var formatMenu by remember { mutableStateOf(false) }
-    var linkSelection by remember { mutableStateOf<TextRange?>(null) }
-    var linkSource by remember { mutableStateOf("") }
-    var label by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
     var wrongFolder by remember { mutableStateOf(false) }
     val exporter = remember(context) { RecoveryExporter(context.contentResolver) }
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri ->
@@ -81,16 +75,70 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
     }
     BackHandler { vm.requestExit(onBack) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { if (!vm.loading && vm.recovery == null) vm.onBackground() }
+    EditorContent(
+        state = EditorUiState(
+            text = vm.text,
+            name = vm.name,
+            canEdit = vm.canEdit,
+            canFormat = vm.canFormat,
+            state = vm.state,
+            loading = vm.loading,
+            writable = vm.writable,
+            error = vm.error,
+            notice = vm.notice,
+            requiresManualSave = vm.requiresManualSave,
+            conflict = vm.conflict,
+            recovery = vm.recovery,
+            collision = vm.collision,
+            exitRequested = vm.exitRequested,
+            closing = vm.closing,
+            reloadRequested = vm.reloadRequested,
+        ),
+        actions = EditorActions(
+            saveNow = { vm.saveNow() },
+            retryLoad = { vm.retryLoad() },
+            requestReload = { vm.requestReload() },
+            saveCopy = { vm.saveCopy() },
+            restoreDraft = { vm.restoreDraft() },
+            discardDraft = { vm.discardDraft() },
+            dismissCollision = { vm.dismissCollision() },
+            openCollision = { vm.openCollision() },
+            cancelExit = { vm.cancelExit() },
+            cancelReload = { vm.cancelReload() },
+            reload = { vm.reload() },
+            requestExit = { vm.requestExit(it) },
+            leave = { draft, back -> vm.leave(draft, back) },
+            edit = { vm.edit(it) },
+            prepareExport = { vm.prepareExport(export::launch) },
+            reauthorize = { permission.launch(Uri.parse(vm.route.vaultUri)) },
+        ),
+        onBack = onBack, modifier = modifier, wrongFolder = wrongFolder,
+    )
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun EditorContent(state: EditorUiState, actions: EditorActions, onBack: () -> Unit, modifier: Modifier = Modifier, wrongFolder: Boolean = false) {
+    val editorFocus = remember { FocusRequester() }
+    val editorScroll = rememberScrollState()
+    val text = state.text
+    val inputTransformation = remember(text) { MarkdownInputTransformation { text.composition != null } }
+    val editorLabel = stringResource(R.string.editor_content)
+    var formatMenu by remember { mutableStateOf(false) }
+    var linkSelection by remember { mutableStateOf<TextRange?>(null) }
+    var linkSource by remember { mutableStateOf("") }
+    var label by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
     Box(modifier.fillMaxSize().imePadding(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 840.dp).fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
             TopAppBar(
-                title = { Text(vm.name, style = MaterialTheme.typography.titleLargeEmphasized,
+                title = { Text(state.name, style = MaterialTheme.typography.titleLargeEmphasized,
                     maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = { IconButton(onClick = { vm.requestExit(onBack) }) {
+                navigationIcon = { IconButton(onClick = { actions.requestExit(onBack) }) {
                     Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
                 } },
                 actions = {
-                    Button(onClick = { vm.saveNow() }, enabled = vm.canEdit && vm.state != EditorSaveState.Saving,
+                    Button(onClick = { actions.saveNow() }, enabled = state.canEdit && state.state != EditorSaveState.Saving,
                         shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.editor_save), style = MaterialTheme.typography.labelLargeEmphasized)
                     }
@@ -100,14 +148,14 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
             Column(Modifier.fillMaxWidth().heightIn(max = 200.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(shape = MaterialTheme.shapes.large,
-                    color = if (vm.state == EditorSaveState.Failed) MaterialTheme.colorScheme.errorContainer
+                    color = if (state.state == EditorSaveState.Failed) MaterialTheme.colorScheme.errorContainer
                         else MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = if (vm.state == EditorSaveState.Failed) MaterialTheme.colorScheme.onErrorContainer
+                    contentColor = if (state.state == EditorSaveState.Failed) MaterialTheme.colorScheme.onErrorContainer
                         else MaterialTheme.colorScheme.onSecondaryContainer) {
                     Text(stringResource(when {
-                        vm.loading -> R.string.editor_loading
-                        !vm.writable -> R.string.editor_read_only
-                        else -> when (vm.state) {
+                        state.loading -> R.string.editor_loading
+                        !state.writable -> R.string.editor_read_only
+                        else -> when (state.state) {
                             EditorSaveState.Unsaved -> R.string.editor_unsaved
                             EditorSaveState.Saving -> R.string.editor_saving
                             EditorSaveState.Saved -> R.string.editor_saved
@@ -116,23 +164,23 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
                     }), style = MaterialTheme.typography.labelLargeEmphasized,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
                 }
-                if (vm.loading || vm.state == EditorSaveState.Saving) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
-                vm.error?.let { error ->
+                if (state.loading || state.state == EditorSaveState.Saving) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+                state.error?.let { error ->
                     FitLogNotice(stringResource(error), error = true)
                     Row(Modifier.horizontalScroll(rememberScrollState())) {
-                        Action(R.string.log_retry) { if (!vm.writable) vm.retryLoad() else vm.saveNow() }
-                        Action(R.string.editor_reauthorize) { permission.launch(Uri.parse(vm.route.vaultUri)) }
+                        Action(R.string.log_retry) { if (!state.writable) actions.retryLoad() else actions.saveNow() }
+                        Action(R.string.editor_reauthorize) { actions.reauthorize() }
                     }
                 }
-                vm.notice?.let { FitLogNotice(stringResource(it)) }
-                if (vm.requiresManualSave) FitLogNotice(stringResource(R.string.recovery_manual_save))
+                state.notice?.let { FitLogNotice(stringResource(it)) }
+                if (state.requiresManualSave) FitLogNotice(stringResource(R.string.recovery_manual_save))
                 if (wrongFolder) FitLogNotice(stringResource(R.string.editor_wrong_folder), error = true)
-                if (vm.conflict) Row(Modifier.horizontalScroll(rememberScrollState())) {
-                    Action(R.string.editor_reload) { vm.requestReload() }
-                    Action(R.string.editor_copy) { vm.saveCopy() }
+                if (state.conflict) Row(Modifier.horizontalScroll(rememberScrollState())) {
+                    Action(R.string.editor_reload) { actions.requestReload() }
+                    Action(R.string.editor_copy) { actions.saveCopy() }
                 }
             }
-            BasicTextField(state = vm.text, readOnly = !vm.canEdit,
+            BasicTextField(state = state.text, readOnly = !state.canEdit,
                 inputTransformation = inputTransformation, scrollState = editorScroll,
                 modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp)
                     .background(MaterialTheme.colorScheme.surfaceContainerLowest, MaterialTheme.shapes.large).padding(16.dp)
@@ -142,13 +190,13 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
             HorizontalFloatingToolbar(expanded = true,
                 colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
                 modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                ToolAction(R.drawable.undo_24px, R.string.editor_undo, vm.canFormat && vm.text.undoState.canUndo) { vm.text.undoState.undo() }
-                ToolAction(R.drawable.redo_24px, R.string.editor_redo, vm.canFormat && vm.text.undoState.canRedo) { vm.text.undoState.redo() }
+                ToolAction(R.drawable.undo_24px, R.string.editor_undo, state.canFormat && state.text.undoState.canUndo) { state.text.undoState.undo() }
+                ToolAction(R.drawable.redo_24px, R.string.editor_redo, state.canFormat && state.text.undoState.canRedo) { state.text.undoState.redo() }
                 Box {
-                    ToolAction(R.drawable.format_24px, R.string.editor_format, vm.canFormat) { formatMenu = true }
+                    ToolAction(R.drawable.format_24px, R.string.editor_format, state.canFormat) { formatMenu = true }
                     DropdownMenu(expanded = formatMenu, onDismissRequest = { formatMenu = false }) {
                         fun apply(command: (String, TextRange) -> MarkdownEditCommands.Edit) {
-                            vm.edit(command(vm.text.text.toString(), vm.text.selection)); formatMenu = false
+                            actions.edit(command(state.text.text.toString(), state.text.selection)); formatMenu = false
                             editorFocus.requestFocus()
                         }
                         listOf(R.string.editor_h1, R.string.editor_h2, R.string.editor_h3, R.string.editor_paragraph).forEachIndexed { i, id ->
@@ -162,14 +210,14 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
                         DropdownMenuItem(text = { Text(stringResource(R.string.editor_indent)) }, onClick = { apply { t, s -> MarkdownEditCommands.indent(t, s, false) } })
                         DropdownMenuItem(text = { Text(stringResource(R.string.editor_outdent)) }, onClick = { apply { t, s -> MarkdownEditCommands.indent(t, s, true) } })
                         DropdownMenuItem(text = { Text(stringResource(R.string.editor_link)) }, onClick = {
-                            linkSource = vm.text.text.toString(); linkSelection = vm.text.selection
-                            label = linkSource.substring(vm.text.selection.min, vm.text.selection.max)
+                            linkSource = state.text.text.toString(); linkSelection = state.text.selection
+                            label = linkSource.substring(state.text.selection.min, state.text.selection.max)
                             address = ""; formatMenu = false
                         })
                     }
                 }
-                ToolAction(R.drawable.export_24px, R.string.recovery_export, !vm.loading && vm.recovery == null) {
-                    vm.prepareExport(export::launch)
+                ToolAction(R.drawable.export_24px, R.string.recovery_export, !state.loading && state.recovery == null) {
+                    actions.prepareExport()
                 }
             }
         }
@@ -180,27 +228,87 @@ fun EditorScreen(vm: EditorViewModel, onBack: () -> Unit, modifier: Modifier = M
                 OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text(stringResource(R.string.editor_label)) }, singleLine = true)
                 OutlinedTextField(value = address, onValueChange = { address = it }, label = { Text(stringResource(R.string.editor_address)) }, singleLine = true)
             }
-        }, confirmButton = { Action(R.string.editor_confirm, address.isNotBlank() && vm.text.text.toString() == linkSource) {
-            vm.edit(MarkdownEditCommands.link(selection, label, address.trim())); linkSelection = null
+        }, confirmButton = { Action(R.string.editor_confirm, address.isNotBlank() && state.text.text.toString() == linkSource) {
+            actions.edit(MarkdownEditCommands.link(selection, label, address.trim())); linkSelection = null
         } }, dismissButton = { Action(R.string.editor_cancel) { linkSelection = null } })
     }
-    if (vm.recovery != null) AlertDialog(onDismissRequest = {}, title = { Text(stringResource(R.string.editor_recover)) },
+    if (state.recovery != null) AlertDialog(onDismissRequest = {}, title = { Text(stringResource(R.string.editor_recover)) },
         text = { Text(stringResource(R.string.editor_draft_found)) },
-        confirmButton = { Action(R.string.editor_recover) { vm.restoreDraft() } },
-        dismissButton = { Action(R.string.editor_discard) { vm.discardDraft() } })
-    else if (vm.collision != null) AlertDialog(onDismissRequest = vm::dismissCollision,
+        confirmButton = { Action(R.string.editor_recover) { actions.restoreDraft() } },
+        dismissButton = { Action(R.string.editor_discard) { actions.discardDraft() } })
+    else if (state.collision != null) AlertDialog(onDismissRequest = actions.dismissCollision,
         text = { Text(stringResource(R.string.editor_name_collision)) },
-        confirmButton = { Action(R.string.editor_open_existing) { vm.openCollision() } },
-        dismissButton = { Action(R.string.editor_cancel) { vm.dismissCollision() } })
-    if (vm.exitRequested) AlertDialog(onDismissRequest = vm::cancelExit, title = { Text(stringResource(R.string.editor_leave)) },
+        confirmButton = { Action(R.string.editor_open_existing) { actions.openCollision() } },
+        dismissButton = { Action(R.string.editor_cancel) { actions.dismissCollision() } })
+    if (state.exitRequested) AlertDialog(onDismissRequest = actions.cancelExit, title = { Text(stringResource(R.string.editor_leave)) },
         text = { Text(stringResource(R.string.editor_leave_message)) },
-        confirmButton = { Action(R.string.editor_save_exit, !vm.closing) { vm.leave(false, onBack) } },
+        confirmButton = { Action(R.string.editor_save_exit, !state.closing) { actions.leave(false, onBack) } },
         dismissButton = { Column {
-            Action(R.string.editor_draft_exit, !vm.closing) { vm.leave(true, onBack) }
-            Action(R.string.editor_cancel) { vm.cancelExit() }
+            Action(R.string.editor_draft_exit, !state.closing) { actions.leave(true, onBack) }
+            Action(R.string.editor_cancel) { actions.cancelExit() }
         } })
-    if (vm.reloadRequested) AlertDialog(onDismissRequest = vm::cancelReload,
+    if (state.reloadRequested) AlertDialog(onDismissRequest = actions.cancelReload,
         text = { Text(stringResource(R.string.editor_reload_message)) },
-        confirmButton = { Action(R.string.editor_confirm) { vm.reload() } },
-        dismissButton = { Action(R.string.editor_cancel) { vm.cancelReload() } })
+        confirmButton = { Action(R.string.editor_confirm) { actions.reload() } },
+        dismissButton = { Action(R.string.editor_cancel) { actions.cancelReload() } })
+}
+
+private data class EditorUiState(
+    val text: androidx.compose.foundation.text.input.TextFieldState,
+    val name: String,
+    val canEdit: Boolean = true,
+    val canFormat: Boolean = true,
+    val state: EditorSaveState = EditorSaveState.Unsaved,
+    val loading: Boolean = false,
+    val writable: Boolean = true,
+    val error: Int? = null,
+    val notice: Int? = null,
+    val requiresManualSave: Boolean = false,
+    val conflict: Boolean = false,
+    val recovery: EditorDraft? = null,
+    val collision: com.example.fitlog.data.vault.MarkdownFile? = null,
+    val exitRequested: Boolean = false,
+    val closing: Boolean = false,
+    val reloadRequested: Boolean = false,
+)
+
+private data class EditorActions(
+    val saveNow: () -> Unit = {},
+    val retryLoad: () -> Unit = {},
+    val requestReload: () -> Unit = {},
+    val saveCopy: () -> Unit = {},
+    val restoreDraft: () -> Unit = {},
+    val discardDraft: () -> Unit = {},
+    val dismissCollision: () -> Unit = {},
+    val openCollision: () -> Unit = {},
+    val cancelExit: () -> Unit = {},
+    val cancelReload: () -> Unit = {},
+    val reload: () -> Unit = {},
+    val requestExit: (() -> Unit) -> Unit = { it() },
+    val leave: (Boolean, () -> Unit) -> Unit = { _, back -> back() },
+    val edit: (MarkdownEditCommands.Edit) -> Unit = {},
+    val prepareExport: () -> Unit = {},
+    val reauthorize: () -> Unit = {},
+)
+
+@FitLogPreviews
+@Composable
+private fun EditorPreview() {
+    val initialText = stringResource(R.string.preview_diary_markdown)
+    val text = remember { androidx.compose.foundation.text.input.TextFieldState(initialText = initialText) }
+    FitLogPreview {
+        EditorContent(EditorUiState(text = text, name = PreviewDiary.FILE_NAME),
+            EditorActions(edit = { edit -> text.edit { replace(edit.start, edit.end, edit.replacement); selection = edit.selection } }), {})
+    }
+}
+
+@FitLogPreviews
+@Composable
+private fun EditorSaveFailedPreview() {
+    val initialText = stringResource(R.string.preview_diary_markdown)
+    val text = remember { androidx.compose.foundation.text.input.TextFieldState(initialText = initialText) }
+    FitLogPreview {
+        EditorContent(EditorUiState(text = text, name = PreviewDiary.FILE_NAME,
+            state = EditorSaveState.Failed, error = R.string.editor_failed), EditorActions(), {})
+    }
 }

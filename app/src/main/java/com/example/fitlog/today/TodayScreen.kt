@@ -8,11 +8,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import com.example.fitlog.ui.preview.FitLogPreviews
+import com.example.fitlog.ui.preview.FitLogPreview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.ui.components.FitLogSectionTitle
-import com.example.fitlog.ui.theme.FitLogTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -73,14 +73,8 @@ fun TodayScreen(
     }
 }
 
-@Preview(showBackground = true, locale = "zh")
+@FitLogPreviews
 @Composable
 private fun TodayPreview() {
-    FitLogTheme(dynamicColor = false) { TodayScreen({}, {}, {}, {}) }
-}
-
-@Preview(showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
-@Composable
-private fun TodayDarkPreview() {
-    FitLogTheme(dynamicColor = false) { TodayScreen({}, {}, {}, {}) }
+    FitLogPreview { TodayScreen({}, {}, {}, {}) }
 }

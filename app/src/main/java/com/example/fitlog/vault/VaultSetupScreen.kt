@@ -54,7 +54,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
+import com.example.fitlog.ui.preview.FitLogPreviews
+import com.example.fitlog.ui.preview.FitLogPreview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -65,7 +66,6 @@ import com.example.fitlog.data.vault.VaultFolderInfo
 import com.example.fitlog.data.vault.VaultPreferences
 import com.example.fitlog.data.vault.VaultRepository
 import com.example.fitlog.navigation.FitLogRoute
-import com.example.fitlog.ui.theme.FitLogTheme
 
 /**
  * 页面接入层：负责系统选择器、生命周期感知的状态收集与导航衔接。
@@ -628,10 +628,10 @@ private fun capabilityStringRes(status: VaultAccessStatus): Int = when (status) 
 
 // ======================== Previews ========================
 
-@Preview(name = "Loading", showBackground = true)
+@FitLogPreviews
 @Composable
 private fun VaultSetupLoadingPreview() {
-    FitLogTheme {
+    FitLogPreview {
         VaultSetupScreen(
             uiState = VaultSetupUiState(configState = VaultConfigUiState.Loading),
             onChooseFolderClick = {},
@@ -641,10 +641,10 @@ private fun VaultSetupLoadingPreview() {
     }
 }
 
-@Preview(name = "Not Configured", showBackground = true)
+@FitLogPreviews
 @Composable
 private fun VaultSetupNotConfiguredPreview() {
-    FitLogTheme {
+    FitLogPreview {
         VaultSetupScreen(
             uiState = VaultSetupUiState(
                 configState = VaultConfigUiState.NotConfigured,
@@ -656,10 +656,10 @@ private fun VaultSetupNotConfiguredPreview() {
     }
 }
 
-@Preview(name = "Configured - Can Create", showBackground = true)
+@FitLogPreviews
 @Composable
 private fun VaultSetupConfiguredPreview() {
-    FitLogTheme {
+    FitLogPreview {
         VaultSetupScreen(
             uiState = VaultSetupUiState(
                 configState = VaultConfigUiState.Configured(
@@ -677,10 +677,10 @@ private fun VaultSetupConfiguredPreview() {
     }
 }
 
-@Preview(name = "Candidate Selected - Pending Connect", showBackground = true)
+@FitLogPreviews
 @Composable
 private fun VaultSetupCandidatePreview() {
-    FitLogTheme {
+    FitLogPreview {
         VaultSetupScreen(
             uiState = VaultSetupUiState(
                 configState = VaultConfigUiState.Configured(
@@ -703,10 +703,10 @@ private fun VaultSetupCandidatePreview() {
     }
 }
 
-@Preview(name = "Candidate ReadOnly for Add", showBackground = true)
+@FitLogPreviews
 @Composable
 private fun VaultSetupReadOnlyAddPreview() {
-    FitLogTheme {
+    FitLogPreview {
         VaultSetupScreen(
             uiState = VaultSetupUiState(
                 createAfterSetup = true,
@@ -725,10 +725,10 @@ private fun VaultSetupReadOnlyAddPreview() {
     }
 }
 
-@Preview(name = "Checking Folder", showBackground = true)
+@FitLogPreviews
 @Composable
 private fun VaultSetupCheckingPreview() {
-    FitLogTheme {
+    FitLogPreview {
         VaultSetupScreen(
             uiState = VaultSetupUiState(
                 stage = VaultOperationStage.Checking,
@@ -745,10 +745,10 @@ private fun VaultSetupCheckingPreview() {
     }
 }
 
-@Preview(name = "Saving Folder", showBackground = true)
+@FitLogPreviews
 @Composable
 private fun VaultSetupSavingPreview() {
-    FitLogTheme {
+    FitLogPreview {
         VaultSetupScreen(
             uiState = VaultSetupUiState(
                 stage = VaultOperationStage.Saving,
@@ -765,10 +765,10 @@ private fun VaultSetupSavingPreview() {
     }
 }
 
-@Preview(name = "Save Error - Retry Available", showBackground = true)
+@FitLogPreviews
 @Composable
 private fun VaultSetupErrorPreview() {
-    FitLogTheme {
+    FitLogPreview {
         VaultSetupScreen(
             uiState = VaultSetupUiState(
                 candidateVault = VaultFolderInfo(

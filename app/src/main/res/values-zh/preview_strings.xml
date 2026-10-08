@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="preview_diary_markdown"># 2026-10-08\n\n## 训练\n卧推：总重量 60 kg，3 组 × 8 次。\n\n今天感觉不错，注意控制动作。</string>
+    <string name="preview_exercise_name">卧推</string>
+    <string name="preview_exercise_quote">卧推：总重量 60 kg，3 组 × 8 次。</string>
+    <string name="preview_vault_name">训练日记</string>
+    <string name="preview_directory_name">训练</string>
+</resources>

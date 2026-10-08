@@ -1,5 +1,8 @@
 package com.example.fitlog.log
 
+import com.example.fitlog.ui.preview.FitLogPreviews
+import com.example.fitlog.ui.preview.FitLogPreview
+import com.example.fitlog.ui.preview.PreviewDiary
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -29,9 +32,48 @@ fun LogScreen(
     onManage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+
+    LogContent(
+        state = LogUiState(
+            visibleFiles = vm.visibleFiles,
+            vault = vm.vault,
+            files = vm.files,
+            query = vm.query,
+            sort = vm.sort,
+            sortBusy = vm.sortBusy,
+            sortError = vm.sortError,
+            loading = vm.loading,
+            refreshing = vm.refreshing,
+            partial = vm.partial,
+            error = vm.error,
+            scanStatus = vm.scanStatus,
+            showMissing = vm.showMissing,
+            sources = vm.sources,
+        ),
+        actions = LogActions(
+            refresh = { vm.refresh() },
+            search = { vm.search(it) },
+            changeSort = { vm.changeSort(it) },
+            toggleMissing = { vm.toggleMissing() },
+        ),
+        onOpen = onOpen, onConnect = onConnect, onSettings = onSettings,
+        onRecovery = onRecovery, onManage = onManage, modifier = modifier,
+    )
+}
+
+@Composable
+private fun LogContent(
+    state: LogUiState, actions: LogActions,
+    onOpen: (String, MarkdownFile) -> Unit,
+    onConnect: () -> Unit,
+    onSettings: (String) -> Unit,
+    onRecovery: () -> Unit,
+    onManage: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var menuExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
-    val files = vm.visibleFiles
+    val files = state.visibleFiles
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
             modifier = Modifier.widthIn(max = 840.dp).fillMaxSize(),
@@ -40,7 +82,7 @@ fun LogScreen(
         ) {
             item(key = "header") {
                 FitLogPageHeader(stringResource(R.string.log_title), stringResource(R.string.log_description)) {
-                    FilledTonalIconButton(onClick = vm::refresh, enabled = !vm.refreshing,
+                    FilledTonalIconButton(onClick = actions.refresh, enabled = !state.refreshing,
                         shapes = IconButtonDefaults.shapes()) {
                         Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.log_refresh))
                     }
@@ -53,8 +95,8 @@ fun LogScreen(
                                 onClick = { menuExpanded = false; onConnect() })
                             DropdownMenuItem(text = { Text(stringResource(R.string.vault_management_title)) },
                                 onClick = { menuExpanded = false; onManage() })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.diary_settings_title)) }, enabled = vm.vault != null,
-                                onClick = { menuExpanded = false; vm.vault?.let(onSettings) })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.diary_settings_title)) }, enabled = state.vault != null,
+                                onClick = { menuExpanded = false; state.vault?.let(onSettings) })
                             DropdownMenuItem(text = { Text(stringResource(R.string.recovery_title)) },
                                 onClick = { menuExpanded = false; onRecovery() })
                         }
@@ -62,13 +104,13 @@ fun LogScreen(
                 }
                 Spacer(Modifier.height(24.dp))
                 OutlinedTextField(
-                    value = vm.query, onValueChange = vm::search, singleLine = true,
+                    value = state.query, onValueChange = actions.search, singleLine = true,
                     placeholder = { Text(stringResource(R.string.log_search)) },
                     shape = CircleShape,
                     leadingIcon = { Icon(painterResource(R.drawable.search_24px), null) },
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
-                        if (vm.query.isNotEmpty()) IconButton(onClick = { vm.search("") }) {
+                        if (state.query.isNotEmpty()) IconButton(onClick = { actions.search("") }) {
                             Icon(painterResource(R.drawable.close_24px), stringResource(R.string.log_clear_search))
                         }
                     },
@@ -76,39 +118,39 @@ fun LogScreen(
                 Spacer(Modifier.height(12.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Box {
-                        OutlinedButton(onClick = { sortExpanded = true }, enabled = !vm.sortBusy) {
-                            Text(stringResource(if (vm.sort == LogSortOrder.Ascending) R.string.log_sort_ascending else R.string.log_sort_descending))
+                        OutlinedButton(onClick = { sortExpanded = true }, enabled = !state.sortBusy) {
+                            Text(stringResource(if (state.sort == LogSortOrder.Ascending) R.string.log_sort_ascending else R.string.log_sort_descending))
                         }
                         DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
                             LogSortOrder.entries.forEach { order ->
                                 DropdownMenuItem(
                                     text = { Text(stringResource(if (order == LogSortOrder.Ascending) R.string.log_sort_ascending else R.string.log_sort_descending)) },
-                                    onClick = { sortExpanded = false; vm.changeSort(order) },
+                                    onClick = { sortExpanded = false; actions.changeSort(order) },
                                 )
                             }
                         }
                     }
-                    FilterChip(selected = vm.showMissing, onClick = vm::toggleMissing,
+                    FilterChip(selected = state.showMissing, onClick = actions.toggleMissing,
                         label = { Text(stringResource(R.string.index_show_missing)) })
                 }
-                if (vm.refreshing) LinearWavyProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                if (state.refreshing) LinearWavyProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
                 Text(stringResource(when {
-                    vm.refreshing && vm.vault != null -> R.string.index_scanning
-                    vm.scanStatus == IndexedScan.COMPLETE -> R.string.index_complete
-                    vm.scanStatus == IndexedScan.PARTIAL -> R.string.index_partial
-                    vm.scanStatus == IndexedScan.FAILED -> R.string.index_failed
+                    state.refreshing && state.vault != null -> R.string.index_scanning
+                    state.scanStatus == IndexedScan.COMPLETE -> R.string.index_complete
+                    state.scanStatus == IndexedScan.PARTIAL -> R.string.index_partial
+                    state.scanStatus == IndexedScan.FAILED -> R.string.index_failed
                     else -> R.string.index_not_scanned
                 }), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp))
-                if (vm.files.isNotEmpty() && (vm.refreshing || vm.error != null || vm.scanStatus != IndexedScan.COMPLETE)) {
+                if (state.files.isNotEmpty() && (state.refreshing || state.error != null || state.scanStatus != IndexedScan.COMPLETE)) {
                     Text(stringResource(R.string.index_cached), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            vm.error?.let { item { FitLogNotice(stringResource(it), error = true) } }
-            vm.sortError?.let { item { FitLogNotice(stringResource(it), error = true) } }
-            if (vm.partial) item { FitLogNotice(stringResource(R.string.log_partial)) }
-            if (!vm.loading && vm.error == null && (vm.vault == null || vm.files.isEmpty() || files.isEmpty())) {
+            state.error?.let { item { FitLogNotice(stringResource(it), error = true) } }
+            state.sortError?.let { item { FitLogNotice(stringResource(it), error = true) } }
+            if (state.partial) item { FitLogNotice(stringResource(R.string.log_partial)) }
+            if (!state.loading && state.error == null && (state.vault == null || state.files.isEmpty() || files.isEmpty())) {
                 item(key = "empty") {
                     Surface(shape = MaterialTheme.shapes.extraLarge,
                         color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
@@ -116,11 +158,11 @@ fun LogScreen(
                             Icon(painterResource(R.drawable.folder_open_24px), null, tint = MaterialTheme.colorScheme.secondary,
                                 modifier = Modifier.size(48.dp))
                             Text(stringResource(when {
-                                vm.vault == null -> R.string.log_no_vault
-                                vm.files.isEmpty() -> R.string.log_empty
+                                state.vault == null -> R.string.log_no_vault
+                                state.files.isEmpty() -> R.string.log_empty
                                 else -> R.string.log_no_matches
                             }), style = MaterialTheme.typography.titleMedium)
-                            if (vm.vault == null) FilledTonalButton(onClick = onConnect) {
+                            if (state.vault == null) FilledTonalButton(onClick = onConnect) {
                                 Text(stringResource(R.string.log_connect))
                             }
                         }
@@ -128,9 +170,9 @@ fun LogScreen(
                 }
             }
             itemsIndexed(files, key = { _, file -> file.uri }) { index, file ->
-                val status = vm.sources.firstOrNull { it.uri == file.uri }?.status
+                val status = state.sources.firstOrNull { it.uri == file.uri }?.status
                 SegmentedListItem(
-                    onClick = { vm.vault?.let { onOpen(it, file) } },
+                    onClick = { state.vault?.let { onOpen(it, file) } },
                     enabled = status != IndexedSource.MISSING,
                     shapes = ListItemDefaults.segmentedShapes(index = index, count = files.size),
                     leadingContent = {
@@ -149,4 +191,45 @@ fun LogScreen(
             }
         }
     }
+}
+
+private data class LogUiState(
+    val visibleFiles: List<MarkdownFile> = emptyList(),
+    val vault: String? = null,
+    val files: List<MarkdownFile> = emptyList(),
+    val query: String = "",
+    val sort: LogSortOrder = LogSortOrder.Descending,
+    val sortBusy: Boolean = false,
+    val sortError: Int? = null,
+    val loading: Boolean = false,
+    val refreshing: Boolean = false,
+    val partial: Boolean = false,
+    val error: Int? = null,
+    val scanStatus: String? = null,
+    val showMissing: Boolean = false,
+    val sources: List<IndexedSource> = emptyList(),
+)
+
+private data class LogActions(
+    val refresh: () -> Unit = {},
+    val search: (String) -> Unit = {},
+    val changeSort: (LogSortOrder) -> Unit = {},
+    val toggleMissing: () -> Unit = {},
+)
+
+@FitLogPreviews
+@Composable
+private fun LogPreview() {
+    val files = listOf(PreviewDiary.file)
+    FitLogPreview {
+        LogContent(LogUiState(vault = PreviewDiary.VAULT_URI,
+            files = files, visibleFiles = files, scanStatus = IndexedScan.COMPLETE),
+            LogActions(), { _, _ -> }, {}, {}, {}, {})
+    }
+}
+
+@FitLogPreviews
+@Composable
+private fun LogEmptyPreview() {
+    FitLogPreview { LogContent(LogUiState(), LogActions(), { _, _ -> }, {}, {}, {}, {}) }
 }
