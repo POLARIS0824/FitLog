@@ -81,7 +81,7 @@ private fun LogContent(
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
         ) {
             item(key = "header") {
-                FitLogPageHeader(stringResource(R.string.log_title), stringResource(R.string.log_description)) {
+                FitLogPageHeader(stringResource(R.string.log_title)) {
                     FilledTonalIconButton(onClick = actions.refresh, enabled = !state.refreshing,
                         shapes = IconButtonDefaults.shapes()) {
                         Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.log_refresh))
@@ -182,7 +182,9 @@ private fun LogContent(
                         }
                     },
                     supportingContent = { Column {
-                        Text(file.path, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        file.path.substringBeforeLast('/', "").takeIf { it.isNotBlank() }?.let { parent ->
+                            Text(parent, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
                         if (status == IndexedSource.MISSING || status == IndexedSource.READ_FAILED) Text(stringResource(
                             if (status == IndexedSource.MISSING) R.string.index_source_missing else R.string.index_source_unreadable))
                     } },
