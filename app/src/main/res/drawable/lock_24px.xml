@@ -1,15 +1,10 @@
+<!-- Google Material Symbols Rounded (24px, weight 400, grade 0). Source: https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsrounded/lock/default/24px.xml -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="32"
-    android:viewportHeight="32">
+    android:viewportWidth="960"
+    android:viewportHeight="960">
   <path
-      android:fillColor="#D3D3D3"
-      android:pathData="M16,2a6,6 0,0 0,-6 6v3a6,6 0,0 0,12 0V8a6,6 0,0 0,-6 -6m0,2.5A3.5,3.5 0,0 1,19.5 8v3a3.5,3.5 0,1 1,-7 0V8A3.5,3.5 0,0 1,16 4.5" />
-  <path
-      android:fillColor="#F9C23C"
-      android:pathData="M5,14a3,3 0,0 1,3 -3h16a3,3 0,0 1,3 3v13a3,3 0,0 1,-3 3H8a3,3 0,0 1,-3 -3z" />
-  <path
-      android:fillColor="#433B6B"
-      android:pathData="M17.5,20.5a2.5,2.5 0,1 0,-3 0V24a1.5,1.5 0,0 0,3 0z" />
+      android:fillColor="@android:color/white"
+      android:pathData="M240,880Q207,880 183.5,856.5Q160,833 160,800L160,400Q160,367 183.5,343.5Q207,320 240,320L280,320L280,240Q280,157 338.5,98.5Q397,40 480,40Q563,40 621.5,98.5Q680,157 680,240L680,320L720,320Q753,320 776.5,343.5Q800,367 800,400L800,800Q800,833 776.5,856.5Q753,880 720,880L240,880ZM240,800L720,800Q720,800 720,800Q720,800 720,800L720,400Q720,400 720,400Q720,400 720,400L240,400Q240,400 240,400Q240,400 240,400L240,800Q240,800 240,800Q240,800 240,800ZM536.5,656.5Q560,633 560,600Q560,567 536.5,543.5Q513,520 480,520Q447,520 423.5,543.5Q400,567 400,600Q400,633 423.5,656.5Q447,680 480,680Q513,680 536.5,656.5ZM360,320L600,320L600,240Q600,190 565,155Q530,120 480,120Q430,120 395,155Q360,190 360,240L360,320ZM240,800Q240,800 240,800Q240,800 240,800L240,400Q240,400 240,400Q240,400 240,400L240,400Q240,400 240,400Q240,400 240,400L240,800Q240,800 240,800Q240,800 240,800Z"/>
 </vector>
