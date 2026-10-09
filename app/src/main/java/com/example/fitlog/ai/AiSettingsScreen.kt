@@ -1,5 +1,7 @@
 package com.example.fitlog.ai
 
+import com.example.fitlog.ui.components.FitLogWavyProgressIndicator
+
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.data.ai.AiModelSelection
@@ -97,7 +99,7 @@ private fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActio
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (state.loading || state.saving || state.requestRunning) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+                if (state.loading || state.saving || state.requestRunning) FitLogWavyProgressIndicator(Modifier.fillMaxWidth())
             }
             state.message?.let { message ->
                 item {

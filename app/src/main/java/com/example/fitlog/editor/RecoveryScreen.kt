@@ -1,5 +1,7 @@
 package com.example.fitlog.editor
 
+import com.example.fitlog.ui.components.FitLogWavyProgressIndicator
+
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.ui.preview.PreviewDiary
@@ -62,7 +64,7 @@ private fun RecoveryContent(state: RecoveryUiState, actions: RecoveryActions, cu
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 840.dp).fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             FitLogPageHeader(stringResource(R.string.recovery_title), onBack = back)
-            if (state.busy) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+            if (state.busy) FitLogWavyProgressIndicator(Modifier.fillMaxWidth())
             state.notice?.let { FitLogNotice(stringResource(it)) }
             val selected = state.selected
             if (selected != null) {

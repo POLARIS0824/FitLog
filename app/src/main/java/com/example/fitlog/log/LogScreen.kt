@@ -1,5 +1,7 @@
 package com.example.fitlog.log
 
+import com.example.fitlog.ui.components.FitLogWavyProgressIndicator
+
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.ui.preview.PreviewDiary
@@ -133,7 +135,7 @@ private fun LogContent(
                     FilterChip(selected = state.showMissing, onClick = actions.toggleMissing,
                         label = { Text(stringResource(R.string.index_show_missing)) })
                 }
-                if (state.refreshing) LinearWavyProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                if (state.refreshing) FitLogWavyProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
                 Text(stringResource(when {
                     state.refreshing && state.vault != null -> R.string.index_scanning
                     state.scanStatus == IndexedScan.COMPLETE -> R.string.index_complete

@@ -1,5 +1,7 @@
 package com.example.fitlog.vault
 
+import com.example.fitlog.ui.components.FitLogWavyProgressIndicator
+
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.data.vault.DiaryDirectory
@@ -103,7 +105,7 @@ private fun DiarySettingsContent(state: DiarySettingsUiState, actions: DiarySett
                         Text(stringResource(R.string.diary_up))
                     }
                 }
-                if (state.loading || state.saving) LinearWavyProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 12.dp))
+                if (state.loading || state.saving) FitLogWavyProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 12.dp))
                 state.error?.let {
                     FitLogNotice(stringResource(it), error = true)
                     OutlinedButton(onClick = actions.retry, enabled = !state.loading && !state.saving) {
