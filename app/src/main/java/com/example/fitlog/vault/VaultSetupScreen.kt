@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -66,6 +67,7 @@ import com.example.fitlog.data.vault.VaultFolderInfo
 import com.example.fitlog.data.vault.VaultPreferences
 import com.example.fitlog.data.vault.VaultRepository
 import com.example.fitlog.navigation.FitLogRoute
+import com.example.fitlog.ui.components.FitLogLoadingIndicator
 
 /**
  * 页面接入层：负责系统选择器、生命周期感知的状态收集与导航衔接。
@@ -175,7 +177,7 @@ fun VaultSetupScreen(
                 label = "vaultSetupBody",
             ) { target ->
                 when (target) {
-                    SetupMode.Loading -> LoadingBody()
+                    SetupMode.Loading -> LoadingBody(loading = mode == SetupMode.Loading)
 
                     SetupMode.LoadFailed -> MessageBanner(
                         text = stringResource(R.string.vault_error_load_config_failed),
@@ -269,21 +271,23 @@ private fun SetupHeader(modifier: Modifier = Modifier) {
 // ======================== 内容区 ========================
 
 @Composable
-private fun LoadingBody(modifier: Modifier = Modifier) {
+private fun LoadingBody(loading: Boolean, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 48.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            LoadingIndicator()
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = stringResource(R.string.vault_setup_loading_config),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        FitLogLoadingIndicator(loading) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                LoadingIndicator()
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = stringResource(R.string.vault_setup_loading_config),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -583,7 +587,7 @@ private fun SetupButtonPair(
     }
 }
 
-/** 主按钮：Medium 尺寸，忙碌时在文字前显示 Expressive 的 LoadingIndicator。 */
+/** Loading occupies the existing end padding, keeping the button and its label in place. */
 @Composable
 private fun SetupPrimaryButton(
     text: String,
@@ -602,19 +606,18 @@ private fun SetupPrimaryButton(
         contentPadding = ButtonDefaults.contentPaddingFor(height),
         modifier = modifier.heightIn(min = height),
     ) {
-        if (busy) {
-            LoadingIndicator(
-                modifier = Modifier.size(24.dp),
-                color = LocalContentColor.current,
+        Box(Modifier.fillMaxWidth()) {
+            Text(
+                text = text,
+                modifier = Modifier.align(Alignment.Center),
+                style = ButtonDefaults.textStyleFor(height),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            FitLogLoadingIndicator(busy, Modifier.align(Alignment.CenterEnd).offset(x = 16.dp)) {
+                LoadingIndicator(Modifier.size(16.dp), color = LocalContentColor.current)
+            }
         }
-        Text(
-            text = text,
-            style = ButtonDefaults.textStyleFor(height),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 

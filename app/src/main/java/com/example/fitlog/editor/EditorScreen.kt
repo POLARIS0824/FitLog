@@ -2,7 +2,7 @@
 
 package com.example.fitlog.editor
 
-import com.example.fitlog.ui.components.FitLogWavyProgressIndicator
+import com.example.fitlog.ui.components.FitLogLoadingIndicator
 
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
@@ -166,7 +166,6 @@ private fun EditorContent(state: EditorUiState, actions: EditorActions, onBack: 
                     }), style = MaterialTheme.typography.labelLargeEmphasized,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
                 }
-                if (state.loading || state.state == EditorSaveState.Saving) FitLogWavyProgressIndicator(Modifier.fillMaxWidth())
                 state.error?.let { error ->
                     FitLogNotice(stringResource(error), error = true)
                     Row(Modifier.horizontalScroll(rememberScrollState())) {
@@ -223,6 +222,8 @@ private fun EditorContent(state: EditorUiState, actions: EditorActions, onBack: 
                 }
             }
         }
+        FitLogLoadingIndicator(state.loading || state.state == EditorSaveState.Saving,
+            Modifier.align(Alignment.TopCenter).widthIn(max = 840.dp).fillMaxWidth().padding(horizontal = 16.dp))
     }
     linkSelection?.let { selection ->
         AlertDialog(onDismissRequest = { linkSelection = null }, title = { Text(stringResource(R.string.editor_link)) }, text = {

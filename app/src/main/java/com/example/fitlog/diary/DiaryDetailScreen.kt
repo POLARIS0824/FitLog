@@ -1,6 +1,8 @@
 package com.example.fitlog.diary
 
-import com.example.fitlog.ui.components.FitLogWavyProgressIndicator
+import com.example.fitlog.ui.components.FitLogLoadingIndicator
+import com.example.fitlog.ui.components.FitLogProgressFeedback
+import com.example.fitlog.ui.components.rememberDelayedLoading
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,7 +25,6 @@ import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.preview.*
 import java.text.DateFormat
 import java.util.Date
-import kotlinx.coroutines.delay
 
 @Composable
 fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -> Unit, onAiSettings: () -> Unit) {
@@ -52,9 +53,9 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
     var fileInfo by remember { mutableStateOf(false) }
     var edit by remember { mutableStateOf<DiarySetEdit?>(null) }
     var confirming by remember { mutableStateOf(false) }
-    val showSourceLoading = delayedReadFeedback(state.sourceLoading)
-    val showParsesLoading = delayedReadFeedback(state.parsesLoading)
-    val showConfirmationLoading = delayedReadFeedback(state.confirmationLoading)
+    val showSourceLoading = rememberDelayedLoading(state.sourceLoading)
+    val showParsesLoading = rememberDelayedLoading(state.parsesLoading)
+    val showConfirmationLoading = rememberDelayedLoading(state.confirmationLoading)
     LaunchedEffect(state.review) { if (state.review == null) confirming = false }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 840.dp).fillMaxSize()) {
@@ -107,7 +108,7 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
                 } else AnalysisContent(state, actions, Modifier.fillMaxSize(), showParsesLoading, showConfirmationLoading,
                     onEdit = { edit = it }, onConfirm = { if (actions.beginReview()) confirming = true })
                 // Loading must not change the viewport height during entry or refresh.
-                if (showSourceLoading) FitLogWavyProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
+                FitLogProgressFeedback(showSourceLoading, Modifier.fillMaxWidth().align(Alignment.TopCenter))
             }
         }
     }
@@ -128,19 +129,6 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
         text = { Text(stringResource(R.string.detail_unsaved_message)) },
         confirmButton = { TextButton(onClick = actions.cancelLeave) { Text(stringResource(R.string.detail_continue_review)) } },
         dismissButton = { TextButton(onClick = actions.discardAndLeave) { Text(stringResource(R.string.detail_discard_review)) } })
-}
-
-/** Only delay feedback: completed reads become visible immediately and cancel the pending hint. */
-@Composable
-private fun delayedReadFeedback(loading: Boolean): Boolean {
-    var visible by remember(loading) { mutableStateOf(false) }
-    LaunchedEffect(loading) {
-        if (loading) {
-            delay(300L)
-            visible = true
-        }
-    }
-    return loading && visible
 }
 
 @Composable
@@ -204,6 +192,7 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
 @Composable
 private fun AnalysisStatusCard(state: DiaryDetailUiState, actions: DiaryDetailActions,
     showParsesLoading: Boolean, showConfirmationLoading: Boolean) {
+    val showOperationLoading = rememberDelayedLoading(state.parsing || state.reviewSaving)
     val parseLabel = when {
         state.parsing -> R.string.ai_parsing
         showParsesLoading -> R.string.detail_status_loading
@@ -237,9 +226,8 @@ private fun AnalysisStatusCard(state: DiaryDetailUiState, actions: DiaryDetailAc
                     }
                 }
             }
-            if (state.parsing || showParsesLoading || showConfirmationLoading || state.reviewSaving) {
-                FitLogWavyProgressIndicator(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp))
-            }
+            FitLogProgressFeedback(showOperationLoading || showParsesLoading || showConfirmationLoading,
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp))
         }
     }
 }
@@ -264,19 +252,21 @@ private fun ReviewConfirmationDialog(draft: DiaryReviewDraft, saving: Boolean, m
     var date by remember(draft.parseRunId) { mutableStateOf(draft.date) }
     var partial by remember(draft.parseRunId) { mutableStateOf(draft.acceptedPartial) }
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text(stringResource(R.string.detail_confirm_save)) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.detail_confirm_explanation))
-            if (draft.expectedConfirmedAt != null) Text(stringResource(R.string.detail_confirm_replace))
-            OutlinedTextField(date, { date = it }, singleLine = true, enabled = !saving,
-                label = { Text(stringResource(R.string.detail_review_date)) },
-                supportingText = { Text(stringResource(R.string.detail_review_date_format)) },
-                isError = reviewDate(date) == null)
-            if (draft.partial) Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(partial, { partial = it }, enabled = !saving)
-                Text(stringResource(R.string.detail_accept_partial), style = MaterialTheme.typography.bodyMedium)
+        text = { Box {
+            Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.detail_confirm_explanation))
+                if (draft.expectedConfirmedAt != null) Text(stringResource(R.string.detail_confirm_replace))
+                OutlinedTextField(date, { date = it }, singleLine = true, enabled = !saving,
+                    label = { Text(stringResource(R.string.detail_review_date)) },
+                    supportingText = { Text(stringResource(R.string.detail_review_date_format)) },
+                    isError = reviewDate(date) == null)
+                if (draft.partial) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(partial, { partial = it }, enabled = !saving)
+                    Text(stringResource(R.string.detail_accept_partial), style = MaterialTheme.typography.bodyMedium)
+                }
+                message?.takeIf { it != R.string.detail_review_saved }?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
             }
-            if (saving) FitLogWavyProgressIndicator(Modifier.fillMaxWidth())
-            message?.takeIf { it != R.string.detail_review_saved }?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
+            FitLogLoadingIndicator(saving, Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         } },
         confirmButton = { TextButton(onClick = { onSave(date, partial) }, enabled = !saving && reviewDate(date) != null && (!draft.partial || partial)) {
             Text(stringResource(R.string.detail_confirm_save))

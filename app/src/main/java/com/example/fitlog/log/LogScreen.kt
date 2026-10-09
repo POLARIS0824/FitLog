@@ -1,10 +1,16 @@
 package com.example.fitlog.log
 
-import com.example.fitlog.ui.components.FitLogWavyProgressIndicator
+import com.example.fitlog.ui.components.FitLogProgressFeedback
+import com.example.fitlog.ui.components.rememberDelayedLoading
 
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.ui.preview.PreviewDiary
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -64,7 +70,7 @@ fun LogScreen(
 }
 
 @Composable
-private fun LogContent(
+internal fun LogContent(
     state: LogUiState, actions: LogActions,
     onOpen: (String, MarkdownFile) -> Unit,
     onConnect: () -> Unit,
@@ -75,6 +81,7 @@ private fun LogContent(
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
+    val showLoading = rememberDelayedLoading(state.refreshing || state.loading)
     val files = state.visibleFiles
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
@@ -135,16 +142,26 @@ private fun LogContent(
                     FilterChip(selected = state.showMissing, onClick = actions.toggleMissing,
                         label = { Text(stringResource(R.string.index_show_missing)) })
                 }
-                if (state.refreshing) FitLogWavyProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
                 Text(stringResource(when {
-                    state.refreshing && state.vault != null -> R.string.index_scanning
+                    showLoading && state.vault != null -> R.string.index_scanning
                     state.scanStatus == IndexedScan.COMPLETE -> R.string.index_complete
                     state.scanStatus == IndexedScan.PARTIAL -> R.string.index_partial
                     state.scanStatus == IndexedScan.FAILED -> R.string.index_failed
                     else -> R.string.index_not_scanned
                 }), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp))
-                if (state.files.isNotEmpty() && (state.refreshing || state.error != null || state.scanStatus != IndexedScan.COMPLETE)) {
+                AnimatedVisibility(
+                    visible = state.files.isNotEmpty() &&
+                        (showLoading || state.error != null || state.scanStatus != IndexedScan.COMPLETE),
+                    enter = expandVertically(
+                        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+                        expandFrom = Alignment.Top,
+                    ) + fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()),
+                    exit = shrinkVertically(
+                        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+                        shrinkTowards = Alignment.Top,
+                    ) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
+                ) {
                     Text(stringResource(R.string.index_cached), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -194,10 +211,12 @@ private fun LogContent(
                     maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
         }
+        FitLogProgressFeedback(showLoading,
+            Modifier.align(Alignment.TopCenter).widthIn(max = 840.dp).fillMaxWidth().padding(horizontal = 16.dp))
     }
 }
 
-private data class LogUiState(
+internal data class LogUiState(
     val visibleFiles: List<MarkdownFile> = emptyList(),
     val vault: String? = null,
     val files: List<MarkdownFile> = emptyList(),
@@ -214,7 +233,7 @@ private data class LogUiState(
     val sources: List<IndexedSource> = emptyList(),
 )
 
-private data class LogActions(
+internal data class LogActions(
     val refresh: () -> Unit = {},
     val search: (String) -> Unit = {},
     val changeSort: (LogSortOrder) -> Unit = {},

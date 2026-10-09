@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 
 /** A shared, indeterminate wave with a gentle accelerate / decelerate / rest rhythm. */
 @Composable
-fun FitLogWavyProgressIndicator(modifier: Modifier = Modifier) {
+internal fun FitLogWavyProgressIndicator(modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition(label = "loading wave rhythm")
     val speed by transition.animateFloat(
         initialValue = RestSpeed,

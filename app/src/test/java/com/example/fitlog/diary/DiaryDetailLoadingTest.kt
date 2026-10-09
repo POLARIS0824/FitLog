@@ -101,7 +101,7 @@ class DiaryDetailLoadingTest {
         indicators(0)
     }
 
-    @Test fun slowSourceReadShowsFeedbackWithoutMovingContentAndHidesItImmediatelyOnCompletion() {
+    @Test fun slowSourceReadShowsFeedbackWithoutMovingContentAndFadesOutOnCompletion() {
         val state = renderPaused(DiaryDetailUiState(PreviewDiary.route, original = snapshot(), sourceLoading = true))
         val before = compose.onNode(hasScrollToIndexAction()).fetchSemanticsNode().boundsInRoot.top
         compose.mainClock.advanceTimeBy(250)
@@ -112,6 +112,8 @@ class DiaryDetailLoadingTest {
         assertEquals("Showing delayed feedback moved the original viewport", before.toDouble(), during.toDouble(), 1.0)
         compose.runOnUiThread { state.value = state.value.copy(sourceLoading = false) }
         applyStateChange()
+        indicators(1)
+        compose.mainClock.advanceTimeBy(1000)
         indicators(0)
     }
 
@@ -163,18 +165,28 @@ class DiaryDetailLoadingTest {
         compose.runOnUiThread { state.value = state.value.copy(confirmationLoading = false) }
         applyStateChange()
         compose.onNodeWithText(context.getString(R.string.detail_not_confirmed)).assertIsDisplayed()
+        indicators(1)
+        compose.mainClock.advanceTimeBy(1000)
         indicators(0)
     }
 
-    @Test fun aiParsingStillShowsImmediateFeedback() {
+    @Test fun aiParsingShowsItsStatusImmediatelyAndDelaysItsAnimation() {
         renderPaused(DiaryDetailUiState(PreviewDiary.route, tab = DiaryDetailTab.ANALYSIS, parsing = true))
         compose.onNodeWithText(context.getString(R.string.ai_parsing)).assertIsDisplayed()
+        indicators(0)
+        compose.mainClock.advanceTimeBy(250)
+        indicators(0)
+        compose.mainClock.advanceTimeBy(100)
         indicators(1)
     }
 
-    @Test fun savingAReviewStillShowsImmediateFeedback() {
+    @Test fun savingAReviewShowsItsStatusImmediatelyAndDelaysItsAnimation() {
         renderPaused(DiaryDetailUiState(PreviewDiary.route, tab = DiaryDetailTab.ANALYSIS, reviewSaving = true))
         compose.onNodeWithText(context.getString(R.string.detail_review_saving)).assertIsDisplayed()
+        indicators(0)
+        compose.mainClock.advanceTimeBy(250)
+        indicators(0)
+        compose.mainClock.advanceTimeBy(100)
         indicators(1)
     }
 

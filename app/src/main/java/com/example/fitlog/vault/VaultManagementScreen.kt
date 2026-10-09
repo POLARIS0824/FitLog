@@ -1,6 +1,6 @@
 package com.example.fitlog.vault
 
-import com.example.fitlog.ui.components.FitLogWavyProgressIndicator
+import com.example.fitlog.ui.components.FitLogLoadingIndicator
 
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
@@ -48,7 +48,6 @@ private fun VaultManagementContent(state: VaultManagementUiState, actions: Vault
         ) {
             FitLogPageHeader(stringResource(R.string.vault_management_title),
                 stringResource(R.string.vault_management_description), onBack, backEnabled = !state.busy)
-            if (state.loading || state.busy) FitLogWavyProgressIndicator(Modifier.fillMaxWidth())
             val folder = state.folder
             if (!state.loading) {
                 if (folder != null) VaultCard(folder, pending = false, createAfterSetup = false)
@@ -73,6 +72,8 @@ private fun VaultManagementContent(state: VaultManagementUiState, actions: Vault
                 }
             }
         }
+        FitLogLoadingIndicator(state.loading || state.busy,
+            Modifier.align(Alignment.TopCenter).widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 24.dp))
     }
     if (state.confirmDisconnect) AlertDialog(onDismissRequest = actions.cancelDisconnect,
         title = { Text(stringResource(R.string.vault_disconnect)) },
