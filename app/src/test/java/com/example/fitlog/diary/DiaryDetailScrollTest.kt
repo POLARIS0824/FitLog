@@ -17,6 +17,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /** Exercises the actual picker Done callback and the candidate -> pending-review list update. */
 @RunWith(RobolectricTestRunner::class)
@@ -32,9 +33,12 @@ class DiaryDetailScrollTest {
     @Test fun editingAConfirmedResultKeepsTheExercisePosition() = checkPosition(6, DiarySetField.WEIGHT, confirmedResult = true)
     @Test fun editingAPartialConfirmationKeepsTheFirstExerciseInPlace() =
         checkPosition(0, DiarySetField.REPS, scroll = false, confirmedResult = true, partial = true)
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test fun convertingToPoundsKeepsTheExerciseAndNextExerciseInPlace() =
+        checkPosition(6, DiarySetField.WEIGHT, pounds = true)
 
     private fun checkPosition(exerciseIndex: Int, field: DiarySetField, scroll: Boolean = true, expanded: Boolean = false,
-        confirmedResult: Boolean = false, partial: Boolean = false) {
+        confirmedResult: Boolean = false, partial: Boolean = false, pounds: Boolean = false) {
         val candidate = candidate()
         val confirmed = if (confirmedResult) confirmed(candidate, partial) else null
         val state = mutableStateOf(DiaryDetailUiState(PreviewDiary.route, tab = DiaryDetailTab.ANALYSIS,
@@ -43,9 +47,9 @@ class DiaryDetailScrollTest {
         fun initialDraft() = confirmed?.let { DiaryReviewDraft.fromConfirmed(it, candidate) }
             ?: DiaryReviewDraft.fromCandidate(candidate, null)
         val actions = DiaryDetailActions(
-            updateWeight = { address, weight ->
+            updateWeight = { address, value ->
                 val draft = state.value.review ?: initialDraft()
-                state.value = state.value.copy(review = draft.withWeight(address, weight))
+                state.value = state.value.copy(review = draft.withWeight(address, value.weight, value.unit, value.basis))
             },
             updateReps = { address, reps ->
                 val draft = state.value.review ?: initialDraft()
@@ -64,19 +68,27 @@ class DiaryDetailScrollTest {
                 .performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.onNodeWithText("Exercise $exerciseIndex source").assertExists()
         }
-        val before = compose.onNodeWithText(exerciseName).fetchSemanticsNode().boundsInRoot.top
-        val nextExerciseName = "Exercise ${exerciseIndex + 1}"
-        val nextBefore = compose.onAllNodesWithText(nextExerciseName).fetchSemanticsNodes().singleOrNull()?.boundsInRoot
-            ?.takeIf { !it.isEmpty }?.top
         val number = NumberFormat.getNumberInstance(context.resources.configuration.locales[0])
         val value = if (field == DiarySetField.WEIGHT) context.getString(R.string.detail_weight_short,
             number.format(60 + exerciseIndex), context.getString(R.string.detail_unit_kg_short))
             else context.getString(R.string.detail_reps_short, 8 + exerciseIndex)
         val description = context.getString(R.string.detail_edit_value, context.getString(R.string.detail_set, 1),
             context.getString(if (field == DiarySetField.WEIGHT) R.string.detail_weight else R.string.detail_reps), value)
-        compose.onNodeWithContentDescription(description).performClick()
-        compose.onNodeWithText(context.getString(R.string.detail_exact_input)).performSemanticsAction(SemanticsActions.OnClick) { it() }
-        compose.onNode(hasSetTextAction()).performTextReplacement(if (field == DiarySetField.WEIGHT) "67.5" else "19")
+        val editButton = compose.onNodeWithContentDescription(description)
+        if (pounds) editButton.performScrollTo()
+        editButton.assertIsDisplayed()
+        val before = compose.onNodeWithText(exerciseName).fetchSemanticsNode().boundsInRoot.top
+        val nextExerciseName = "Exercise ${exerciseIndex + 1}"
+        val nextBefore = compose.onAllNodesWithText(nextExerciseName).fetchSemanticsNodes().singleOrNull()?.boundsInRoot
+            ?.takeIf { !it.isEmpty }?.top
+        if (pounds) editButton.performSemanticsAction(SemanticsActions.OnClick) { it() }
+        else editButton.performClick()
+        if (pounds) compose.onNodeWithText(context.getString(R.string.detail_unit_lb_short))
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
+        else {
+            compose.onNodeWithText(context.getString(R.string.detail_exact_input)).performSemanticsAction(SemanticsActions.OnClick) { it() }
+            compose.onNode(hasSetTextAction()).performTextReplacement(if (field == DiarySetField.WEIGHT) "67.5" else "19")
+        }
         compose.onNodeWithText(context.getString(R.string.detail_picker_done)).performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitForIdle()
         val after = compose.onNodeWithText(exerciseName).fetchSemanticsNode().boundsInRoot.top

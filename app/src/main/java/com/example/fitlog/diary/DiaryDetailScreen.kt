@@ -1,5 +1,7 @@
 package com.example.fitlog.diary
 
+import com.example.fitlog.ui.components.FitLogWavyProgressIndicator
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -21,6 +23,7 @@ import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.preview.*
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.delay
 
 @Composable
 fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -> Unit, onAiSettings: () -> Unit) {
@@ -34,7 +37,8 @@ fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -
             showCandidate = vm.showCandidate, review = vm.review, reviewSaving = vm.reviewSaving,
             reviewMessage = vm.reviewMessage, canReview = vm.canReview, leaveRequested = vm.leaveRequested),
         DiaryDetailActions(refresh = vm::refresh, parse = vm::parse, cancelParse = vm::cancelParse, retryAnalysis = vm::retryAnalysis,
-            selectTab = vm::selectTab, selectResult = vm::selectResult, updateWeight = vm::updateWeight, updateReps = vm::updateReps,
+            selectTab = vm::selectTab, selectResult = vm::selectResult,
+            updateWeight = { address, value -> vm.updateWeight(address, value.weight, value.unit, value.converted, value.basis) }, updateReps = vm::updateReps,
             beginReview = vm::beginReview, cancelConfirmation = vm::cancelReviewConfirmation, saveReview = vm::saveReview,
             cancelLeave = vm::cancelLeave, discardAndLeave = vm::discardAndLeave),
         onEdit, onBack, onAiSettings)
@@ -48,6 +52,9 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
     var fileInfo by remember { mutableStateOf(false) }
     var edit by remember { mutableStateOf<DiarySetEdit?>(null) }
     var confirming by remember { mutableStateOf(false) }
+    val showSourceLoading = delayedReadFeedback(state.sourceLoading)
+    val showParsesLoading = delayedReadFeedback(state.parsesLoading)
+    val showConfirmationLoading = delayedReadFeedback(state.confirmationLoading)
     LaunchedEffect(state.review) { if (state.review == null) confirming = false }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 840.dp).fillMaxSize()) {
@@ -58,8 +65,13 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
                     Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
                 } },
                 actions = {
-                    IconButton(onClick = onEdit, enabled = state.canEdit && !state.reviewSaving) {
-                        Icon(painterResource(R.drawable.edit_24px), stringResource(R.string.detail_edit))
+                    if (state.original != null || !state.sourceLoading) {
+                        IconButton(onClick = onEdit, enabled = state.canEdit && !state.reviewSaving) {
+                            Icon(painterResource(R.drawable.edit_24px), stringResource(R.string.detail_edit))
+                        }
+                    } else {
+                        // Reserve the action slot without flashing a disabled icon during the initial read.
+                        Spacer(Modifier.size(48.dp))
                     }
                     Box {
                         IconButton(onClick = { menu = true }, enabled = !state.reviewSaving) {
@@ -81,19 +93,22 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
                     })
                 }
             }
-            if (state.sourceLoading) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
-            if (state.tab == DiaryDetailTab.ORIGINAL) {
-                LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    if (state.sourceReadFailed) item { FitLogNotice(stringResource(R.string.detail_source_failed), error = true) }
-                    state.original?.let { snapshot ->
-                        if (!snapshot.file.writable) item { Text(stringResource(R.string.detail_read_only)) }
-                        item { if (snapshot.text.isEmpty()) Text(stringResource(R.string.detail_original_empty))
-                            else SelectionContainer { Text(snapshot.text, fontFamily = FontFamily.Monospace,
-                                style = MaterialTheme.typography.bodyLarge) } }
+            Box(Modifier.weight(1f)) {
+                if (state.tab == DiaryDetailTab.ORIGINAL) {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        if (state.sourceReadFailed) item { FitLogNotice(stringResource(R.string.detail_source_failed), error = true) }
+                        state.original?.let { snapshot ->
+                            if (!snapshot.file.writable) item { Text(stringResource(R.string.detail_read_only)) }
+                            item { if (snapshot.text.isEmpty()) Text(stringResource(R.string.detail_original_empty))
+                                else SelectionContainer { Text(snapshot.text, fontFamily = FontFamily.Monospace,
+                                    style = MaterialTheme.typography.bodyLarge) } }
+                        }
                     }
-                }
-            } else AnalysisContent(state, actions, Modifier.weight(1f),
-                onEdit = { edit = it }, onConfirm = { if (actions.beginReview()) confirming = true })
+                } else AnalysisContent(state, actions, Modifier.fillMaxSize(), showParsesLoading, showConfirmationLoading,
+                    onEdit = { edit = it }, onConfirm = { if (actions.beginReview()) confirming = true })
+                // Loading must not change the viewport height during entry or refresh.
+                if (showSourceLoading) FitLogWavyProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
+            }
         }
     }
     edit?.let { target ->
@@ -115,14 +130,28 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
         dismissButton = { TextButton(onClick = actions.discardAndLeave) { Text(stringResource(R.string.detail_discard_review)) } })
 }
 
+/** Only delay feedback: completed reads become visible immediately and cancel the pending hint. */
+@Composable
+private fun delayedReadFeedback(loading: Boolean): Boolean {
+    var visible by remember(loading) { mutableStateOf(false) }
+    LaunchedEffect(loading) {
+        if (loading) {
+            delay(300L)
+            visible = true
+        }
+    }
+    return loading && visible
+}
+
 @Composable
 private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActions, modifier: Modifier,
+    showParsesLoading: Boolean, showConfirmationLoading: Boolean,
     onEdit: (DiarySetEdit) -> Unit, onConfirm: () -> Unit) {
     val candidateSelected = state.showCandidate || state.confirmed == null
     LazyColumn(modifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item(key = "status") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                AnalysisStatusCard(state, actions)
+                AnalysisStatusCard(state, actions, showParsesLoading, showConfirmationLoading)
                 if (state.sourceReadFailed) FitLogNotice(stringResource(R.string.detail_source_failed), error = true)
                 if (state.parsesReadFailed || state.confirmationReadFailed || state.parses.candidateReadFailed) {
                     FitLogNotice(stringResource(if (state.parses.candidateReadFailed) R.string.detail_candidate_damaged else R.string.detail_analysis_failed), error = true)
@@ -139,13 +168,6 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
                             enabled = state.review == null && !state.reviewSaving, label = { Text(stringResource(R.string.detail_confirmed_result)) })
                         FilterChip(selected = candidateSelected, onClick = { actions.selectResult(true) },
                             enabled = state.review == null && !state.reviewSaving, label = { Text(stringResource(R.string.detail_candidate_result)) })
-                    }
-                }
-                if (state.canReview || state.reviewSaving) {
-                    FilledTonalButton(onClick = onConfirm, enabled = state.canReview, shapes = ButtonDefaults.shapes()) {
-                        Icon(painterResource(R.drawable.check_24px), null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(if (state.review == null) R.string.detail_confirm_save else R.string.detail_save_corrections))
                     }
                 }
             }
@@ -166,39 +188,13 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
         if (!state.parsesLoading && !state.confirmationLoading && state.parses.latestCandidate == null && state.confirmed == null) {
             item(key = "empty") { Text(stringResource(R.string.detail_no_saved_result)) }
         }
-    }
-}
-
-@Composable
-private fun AnalysisStatusCard(state: DiaryDetailUiState, actions: DiaryDetailActions) {
-    val parseLabel = when {
-        state.parsing -> R.string.ai_parsing
-        state.parsesLoading -> R.string.detail_status_loading
-        state.parsesReadFailed -> R.string.detail_status_unavailable
-        state.parses.latestAttempt?.status == ParseRunStatus.FAILED -> R.string.detail_parse_failed
-        state.candidateStatus == DiaryResultFreshness.NEEDS_UPDATE -> R.string.detail_status_stale
-        else -> parseStatusLabel(state.parses.latestAttempt?.status)
-    }
-    val confirmLabel = when {
-        state.reviewSaving -> R.string.detail_review_saving
-        state.confirmationLoading -> R.string.detail_status_loading
-        state.confirmationReadFailed -> R.string.detail_status_unavailable
-        else -> confirmationLabel(state.confirmationStatus)
-    }
-    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusRow(R.string.detail_status_parse, parseLabel, state.parses.latestAttempt?.status == ParseRunStatus.FAILED || state.parsesReadFailed)
-            StatusRow(R.string.detail_status_confirmation, confirmLabel, state.confirmationReadFailed)
-            if (state.parsing || state.parsesLoading || state.confirmationLoading || state.reviewSaving) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
-            FlowRow(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (state.parsing) TextButton(onClick = actions.cancelParse) { Text(stringResource(R.string.ai_cancel_request)) }
-                FilledTonalButton(onClick = actions.parse,
-                    enabled = !state.parsing && !state.sourceLoading && state.review == null && !state.reviewSaving,
+        if (state.canReview || state.reviewSaving) {
+            item(key = "review-action") {
+                Button(onClick = onConfirm, enabled = state.canReview, modifier = Modifier.fillMaxWidth(),
                     shapes = ButtonDefaults.shapes()) {
-                    Icon(painterResource(R.drawable.auto_awesome_24px), null)
+                    Icon(painterResource(R.drawable.check_24px), null)
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(if (state.parses.latestCandidate == null) R.string.ai_parse else R.string.ai_reparse))
+                    Text(stringResource(if (state.review == null) R.string.detail_confirm_save else R.string.detail_save_corrections))
                 }
             }
         }
@@ -206,7 +202,50 @@ private fun AnalysisStatusCard(state: DiaryDetailUiState, actions: DiaryDetailAc
 }
 
 @Composable
-private fun StatusRow(label: Int, value: Int, error: Boolean) {
+private fun AnalysisStatusCard(state: DiaryDetailUiState, actions: DiaryDetailActions,
+    showParsesLoading: Boolean, showConfirmationLoading: Boolean) {
+    val parseLabel = when {
+        state.parsing -> R.string.ai_parsing
+        showParsesLoading -> R.string.detail_status_loading
+        state.parsesLoading && state.parses.latestAttempt == null -> null
+        state.parsesReadFailed -> R.string.detail_status_unavailable
+        state.parses.latestAttempt?.status == ParseRunStatus.FAILED -> R.string.detail_parse_failed
+        state.candidateStatus == DiaryResultFreshness.NEEDS_UPDATE -> R.string.detail_status_stale
+        else -> parseStatusLabel(state.parses.latestAttempt?.status)
+    }
+    val confirmLabel = when {
+        state.reviewSaving -> R.string.detail_review_saving
+        showConfirmationLoading -> R.string.detail_status_loading
+        state.confirmationLoading && state.confirmed == null -> null
+        state.confirmationReadFailed -> R.string.detail_status_unavailable
+        else -> confirmationLabel(state.confirmationStatus)
+    }
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer) {
+        Box(Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusRow(R.string.detail_status_parse, parseLabel, state.parses.latestAttempt?.status == ParseRunStatus.FAILED || state.parsesReadFailed)
+                StatusRow(R.string.detail_status_confirmation, confirmLabel, state.confirmationReadFailed)
+                FlowRow(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (state.parsing) TextButton(onClick = actions.cancelParse) { Text(stringResource(R.string.ai_cancel_request)) }
+                    FilledTonalButton(onClick = actions.parse,
+                        enabled = !state.parsing && !state.sourceLoading && state.review == null && !state.reviewSaving,
+                        shapes = ButtonDefaults.shapes()) {
+                        Icon(painterResource(R.drawable.auto_awesome_24px), null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(if (state.parses.latestCandidate == null) R.string.ai_parse else R.string.ai_reparse))
+                    }
+                }
+            }
+            if (state.parsing || showParsesLoading || showConfirmationLoading || state.reviewSaving) {
+                FitLogWavyProgressIndicator(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusRow(label: Int, value: Int?, error: Boolean) {
     Surface(color = if (error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
         contentColor = if (error) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
         shape = MaterialTheme.shapes.medium) {
@@ -214,7 +253,7 @@ private fun StatusRow(label: Int, value: Int, error: Boolean) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(label), style = MaterialTheme.typography.labelLarge)
             if (error) Icon(painterResource(R.drawable.warning_24px), null, Modifier.size(20.dp))
-            Text(stringResource(value), style = MaterialTheme.typography.bodyMediumEmphasized, modifier = Modifier.weight(1f))
+            Text(value?.let { stringResource(it) }.orEmpty(), style = MaterialTheme.typography.bodyMediumEmphasized, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -236,7 +275,7 @@ private fun ReviewConfirmationDialog(draft: DiaryReviewDraft, saving: Boolean, m
                 Checkbox(partial, { partial = it }, enabled = !saving)
                 Text(stringResource(R.string.detail_accept_partial), style = MaterialTheme.typography.bodyMedium)
             }
-            if (saving) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+            if (saving) FitLogWavyProgressIndicator(Modifier.fillMaxWidth())
             message?.takeIf { it != R.string.detail_review_saved }?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
         } },
         confirmButton = { TextButton(onClick = { onSave(date, partial) }, enabled = !saving && reviewDate(date) != null && (!draft.partial || partial)) {
@@ -272,7 +311,7 @@ internal data class DiaryDetailUiState(
 internal data class DiaryDetailActions(
     val refresh: () -> Unit = {}, val parse: () -> Unit = {}, val cancelParse: () -> Unit = {}, val retryAnalysis: () -> Unit = {},
     val selectTab: (DiaryDetailTab) -> Unit = {}, val selectResult: (Boolean) -> Unit = {},
-    val updateWeight: (DiarySetAddress, Double?) -> Unit = { _, _ -> }, val updateReps: (DiarySetAddress, Int?) -> Unit = { _, _ -> },
+    val updateWeight: (DiarySetAddress, DiaryWeightValue) -> Unit = { _, _ -> }, val updateReps: (DiarySetAddress, Int?) -> Unit = { _, _ -> },
     val beginReview: () -> Boolean = { false }, val cancelConfirmation: () -> Unit = {},
     val saveReview: (String, Boolean) -> Unit = { _, _ -> },
     val cancelLeave: () -> Unit = {}, val discardAndLeave: () -> Unit = {},
@@ -306,6 +345,18 @@ private fun DiaryAnalysisEmptyPreview() {
 @Composable
 private fun DiaryWeightPickerPreview() {
     FitLogPreview { DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 1), 2, DiarySetField.WEIGHT, 60.0, WeightUnit.KG, 8), {}, {}, {}) }
+}
+
+@FitLogPreviews
+@Composable
+private fun DiaryPoundsPickerPreview() {
+    FitLogPreview { DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 1), 2, DiarySetField.WEIGHT, 100.0, WeightUnit.LB, 8), {}, {}, {}) }
+}
+
+@FitLogPreviews
+@Composable
+private fun DiaryUnspecifiedUnitPickerPreview() {
+    FitLogPreview { DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 1), 2, DiarySetField.WEIGHT, 60.0, null, 8), {}, {}, {}) }
 }
 
 @FitLogPreviews

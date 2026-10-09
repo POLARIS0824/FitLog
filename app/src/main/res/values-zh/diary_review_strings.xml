@@ -50,4 +50,17 @@
     <string name="detail_reps_unit">次</string>
     <string name="detail_review_restore_failed">无法恢复未完成的修正，请返回并重新打开此日记后再核对。</string>
     <string name="detail_file_info">文件信息</string>
+    <string name="detail_weight_unrecorded">未记录</string>
+    <string name="detail_weight_bodyweight">自重</string>
+    <string name="detail_weight_numeric">数值重量</string>
+    <string name="detail_weight_unrecorded_help">日记未提供重量。</string>
+    <string name="detail_weight_bodyweight_help">使用自身重量，暂不换算为数值。</string>
+    <string name="detail_weight_unfilled">未填写</string>
+    <string name="detail_weight_exact_help">请输入重量，或选择“未记录”保存空值。</string>
+    <string name="detail_weight_assumed_kg">原文未注明单位，暂按 kg，请在确认前核对。</string>
+    <string name="detail_weight_step">间隔：%1$s</string>
+    <string name="detail_weight_step_custom">自定义间隔</string>
+    <string name="detail_weight_step_input">间隔</string>
+    <string name="detail_weight_step_help">请输入大于零的间隔，仍可直接输入任意精确重量。</string>
+    <string name="detail_weight_step_apply">应用间隔</string>
 </resources>

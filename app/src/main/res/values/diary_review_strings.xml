@@ -50,4 +50,17 @@
     <string name="detail_reps_unit">reps</string>
     <string name="detail_review_restore_failed">Could not restore unfinished corrections. Return and reopen this diary before reviewing again.</string>
     <string name="detail_file_info">File information</string>
+    <string name="detail_weight_unrecorded">Not logged</string>
+    <string name="detail_weight_bodyweight">Bodyweight</string>
+    <string name="detail_weight_numeric">Numeric</string>
+    <string name="detail_weight_unrecorded_help">No weight was provided in the diary.</string>
+    <string name="detail_weight_bodyweight_help">Uses your own bodyweight; no numeric load is calculated yet.</string>
+    <string name="detail_weight_unfilled">Not entered</string>
+    <string name="detail_weight_exact_help">Enter a weight, or choose Not logged to save without a weight.</string>
+    <string name="detail_weight_assumed_kg">The diary did not specify a unit; kg is assumed until you confirm.</string>
+    <string name="detail_weight_step">Interval: %1$s</string>
+    <string name="detail_weight_step_custom">Custom interval</string>
+    <string name="detail_weight_step_input">Interval</string>
+    <string name="detail_weight_step_help">Enter a positive interval. You can still enter any exact weight.</string>
+    <string name="detail_weight_step_apply">Apply interval</string>
 </resources>

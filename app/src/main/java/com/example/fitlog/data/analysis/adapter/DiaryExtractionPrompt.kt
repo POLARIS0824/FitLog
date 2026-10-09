@@ -2,7 +2,7 @@ package com.example.fitlog.data.analysis.adapter
 
 /** Included in extractorVersion so each attempt records the instructions it used. */
 internal object DiaryExtractionPrompt {
-    const val VERSION = "diary-json-v2"
+    const val VERSION = "diary-json-v3"
 
     // Model instructions are protocol content, not UI strings.
     val instructions = """
@@ -36,6 +36,10 @@ internal object DiaryExtractionPrompt {
         For absent numeric values use null; for absent unit or weight meaning use UNKNOWN.
         Units: UNKNOWN, KG, LB. Weight meanings: UNKNOWN, PER_SIDE, TOTAL, BODYWEIGHT,
         ADDED, ASSISTED. Do not convert pounds, double per-side weights or add body weight.
+        Explicit bodyweight wording (自重 or bodyweight) means basis BODYWEIGHT, with weight
+        null and unit UNKNOWN unless an actual body mass is stated. A missing weight alone
+        does not mean BODYWEIGHT. Never invent a user's body mass. Explicit added load or
+        assistance (负重/辅助) uses ADDED/ASSISTED with the written numeric load instead.
         Convert clearly stated dates to YYYY-MM-DD; otherwise use null. Never use today.
         Interpret Markdown formatting, multiplication signs (x, ×, ✖️) and plus signs normally.
         Each group describes sets with shared values: 40kg 2x7 means weight 40, unit KG,

@@ -4,6 +4,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DiaryCandidateCodecTest {
+    @Test fun explicitBodyweightMissingWeightAddedAndAssistedLoadsRemainDifferent() {
+        val analysis = analyzeFixture(fullInput("自重引体向上 1x8\n俯卧撑 1x8\n负重引体 10kg 1x6\n辅助引体 20kg 1x8"),
+            """{"schemaVersion":1,"sessions":[{"exercises":[
+                {"rawName":"自重引体向上","groups":[{"basis":"BODYWEIGHT","count":1,"reps":8}]},
+                {"rawName":"俯卧撑","groups":[{"count":1,"reps":8}]},
+                {"rawName":"负重引体","groups":[{"basis":"ADDED","weight":10,"unit":"KG","count":1,"reps":6}]},
+                {"rawName":"辅助引体","groups":[{"basis":"ASSISTED","weight":20,"unit":"KG","count":1,"reps":8}]}
+            ]}]}""")
+        val sets = analysis.sessions.single().exercises.map { it.sets.single() }
+        assertNull(sets[0].weight.value); assertNull(sets[0].weightKg)
+        assertEquals(WeightBasis.BODYWEIGHT, sets[0].basis.value)
+        assertNull(sets[1].weight.value); assertTrue(sets[1].basis.value in listOf(null, WeightBasis.UNKNOWN))
+        assertEquals(WeightBasis.ADDED, sets[2].basis.value); assertEquals(10.0, sets[2].weight.value!!, 0.0)
+        assertEquals(WeightBasis.ASSISTED, sets[3].basis.value); assertEquals(20.0, sets[3].weight.value!!, 0.0)
+    }
+
     @Test fun unknownFieldsAreIgnoredAndUnknownValuesStayExplicitlyUnknown() {
         val raw = """{"schemaVersion":1,"futureRoot":true,"sessions":[{"exercises":[{
             "rawName":"exercise","futureExercise":{"value":3},

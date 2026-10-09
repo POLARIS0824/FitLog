@@ -90,7 +90,7 @@ class DiaryReviewViewModelTest {
     @Test fun editingOneSetPreservesOthersAndDoesNotConfirmOrRewriteCandidate() = runTest(dispatcher) {
         val vm = vm(); runCurrent()
         assertFalse(vm.canEdit) // Read-only Markdown does not prevent reviewing derived data.
-        vm.updateWeight(DiarySetAddress(0, 0, 1), 62.3)
+        vm.updateWeight(DiarySetAddress(0, 0, 1), 62.3, WeightUnit.KG)
         vm.updateReps(DiarySetAddress(0, 0, 2), 6)
         val sets = vm.review!!.sessions.single().exercises.single().sets
         assertEquals(listOf(60.0, 62.3, 60.0), sets.map { it.weight })
@@ -102,10 +102,62 @@ class DiaryReviewViewModelTest {
 
     @Test fun unchangedPickerValueDoesNotCreateAnUnsavedReview() = runTest(dispatcher) {
         val vm = vm(); runCurrent()
-        vm.updateWeight(DiarySetAddress(0, 0, 0), 60.0)
+        vm.updateWeight(DiarySetAddress(0, 0, 0), 60.0, WeightUnit.KG)
         vm.updateReps(DiarySetAddress(0, 0, 0), 8)
         assertNull(vm.review)
         var left = false; vm.requestLeave { left = true }; assertTrue(left)
+    }
+
+    @Test fun unitOnlyCorrectionIsSavedWithTheWeightAndDoesNotChangeOtherSetsOrTheCandidate() = runTest(dispatcher) {
+        val vm = vm(); runCurrent()
+        vm.updateWeight(DiarySetAddress(0, 0, 1), 60.0, WeightUnit.LB)
+        val sets = vm.review!!.sessions.single().exercises.single().sets
+        assertEquals(listOf(WeightUnit.KG, WeightUnit.LB, WeightUnit.KG), sets.map { it.unit })
+        assertEquals(listOf(60.0, 60.0, 60.0), sets.map { it.weight })
+        assertTrue(sets[1].userEdited)
+        assertEquals(candidate, parses.value.latestCandidate)
+        assertTrue(submitted.isEmpty())
+        vm.saveReview("2026-10-08", false); runCurrent()
+        val saved = submitted.single().sessions.single().exercises.single().sets[1]
+        assertEquals(60.0, saved.weight!!, 0.0); assertEquals(WeightUnit.LB, saved.unit)
+        assertNull(vm.review)
+    }
+
+    @Test fun revertingBothWeightAndUnitRemovesTheUnsavedReviewAndEditMarker() = runTest(dispatcher) {
+        val vm = vm(); runCurrent()
+        val address = DiarySetAddress(0, 0, 0)
+        vm.updateWeight(address, 132.5, WeightUnit.LB)
+        vm.updateWeight(address, 60.0, WeightUnit.LB)
+        assertTrue(vm.review!!.sessions.single().exercises.single().sets.first().userEdited)
+        vm.updateWeight(address, 60.0, WeightUnit.KG)
+        assertNull(vm.review)
+    }
+
+    @Test fun unfinishedWeightAndUnitCorrectionSurvivesRestorationTogether() = runTest(dispatcher) {
+        val savedState = SavedStateHandle()
+        val original = vm(savedState); runCurrent()
+        val address = DiarySetAddress(0, 0, 1)
+        original.updateWeight(address, 137.5, WeightUnit.LB)
+        val restored = vm(savedState); runCurrent()
+        val set = restored.review!!.sessions.single().exercises.single().sets[1]
+        assertEquals(137.5, set.weight!!, 0.0); assertEquals(WeightUnit.LB, set.unit)
+        assertTrue(set.userEdited)
+        restored.updateWeight(address, 60.0, WeightUnit.KG)
+        assertNull(restored.review)
+    }
+
+    @Test fun conversionAcrossSeparatePickerEditsRestoresTheExactParseWithoutLosingManualPrecision() = runTest(dispatcher) {
+        val vm = vm(); runCurrent()
+        val address = DiarySetAddress(0, 0, 0)
+        val pounds = DiaryWeightValue(60.0, WeightUnit.KG).inUnit(WeightUnit.LB)
+        vm.updateWeight(address, pounds.weight, pounds.unit, pounds.converted)
+        val restored = DiaryWeightValue(pounds.weight, pounds.unit).inUnit(WeightUnit.KG)
+        assertNotEquals(60.0, restored.weight)
+        vm.updateWeight(address, restored.weight, restored.unit, restored.converted)
+        assertNull(vm.review)
+        vm.updateWeight(address, restored.weight, WeightUnit.KG)
+        assertEquals(restored.weight, vm.review!!.sessions.single().exercises.single().sets.first().weight)
+        assertTrue(vm.review!!.sessions.single().exercises.single().sets.first().userEdited)
     }
 
     @Test fun cancellingConfirmationClearsUntouchedReviewButKeepsActualCorrections() = runTest(dispatcher) {
@@ -121,15 +173,15 @@ class DiaryReviewViewModelTest {
     @Test fun revertingAllValuesToTheParseRemovesEditMarkersAndUnsavedReview() = runTest(dispatcher) {
         val state = SavedStateHandle(); val vm = vm(state); runCurrent()
         val address = DiarySetAddress(0, 0, 0)
-        vm.updateWeight(address, 70.0)
+        vm.updateWeight(address, 70.0, WeightUnit.KG)
         assertTrue(vm.review!!.sessions.single().exercises.single().sets.first().userEdited)
         vm.updateReps(address, 9)
-        vm.updateWeight(address, 60.0)
+        vm.updateWeight(address, 60.0, WeightUnit.KG)
         assertTrue(vm.review!!.sessions.single().exercises.single().sets.first().userEdited)
         vm.updateReps(address, 8)
         assertNull(vm.review); assertNull(state.get<String>("reviewDraft"))
-        vm.updateWeight(address, null); assertNotNull(vm.review)
-        vm.updateWeight(address, 60.0); assertNull(vm.review)
+        vm.updateWeight(address, null, WeightUnit.KG); assertNotNull(vm.review)
+        vm.updateWeight(address, 60.0, WeightUnit.KG); assertNull(vm.review)
         var left = false; vm.requestLeave { left = true }; assertTrue(left)
     }
 
@@ -142,7 +194,7 @@ class DiaryReviewViewModelTest {
         val newer = candidate.copy(attempt = candidate.attempt.copy(id = "new-run"))
         parses.value = DiaryParseRecords(listOf(newer.attempt), newer)
         val vm = vm(); runCurrent()
-        vm.updateWeight(DiarySetAddress(0, 0, 0), 60.0)
+        vm.updateWeight(DiarySetAddress(0, 0, 0), 60.0, WeightUnit.KG)
         assertFalse(vm.review!!.sessions.single().exercises.single().sets.first().userEdited)
         assertEquals("original-run", vm.review!!.parseRunId)
         vm.saveReview("2026-10-08", false); runCurrent()
@@ -162,13 +214,64 @@ class DiaryReviewViewModelTest {
 
     @Test fun explicitSavePersistsReviewedValuesAndClearsSavedDraft() = runTest(dispatcher) {
         val state = SavedStateHandle(); val vm = vm(state); runCurrent()
-        vm.updateWeight(DiarySetAddress(0, 0, 1), 62.3)
+        vm.updateWeight(DiarySetAddress(0, 0, 1), 62.3, WeightUnit.KG)
         vm.saveReview("2026-10-08", false); runCurrent()
         assertEquals(62.3, submitted.single().sessions.single().exercises.single().sets[1].weight!!, 0.0)
         assertEquals("original-run", submitted.single().parseRunId)
         assertNull(vm.review); assertNull(state.get<String>("reviewDraft"))
         assertEquals(R.string.detail_review_saved, vm.reviewMessage)
         assertEquals(62.3, vm.confirmed!!.sessions.single().exercises.single().sets[1].weight!!, 0.0)
+    }
+
+    @Test fun bodyweightIsSavedAndReopenedIndependentlyOfNumericWeightAndUnit() = runTest(dispatcher) {
+        val vm = vm(); runCurrent()
+        val address = DiarySetAddress(0, 0, 0)
+        vm.updateWeight(address, null, null, basis = WeightBasis.BODYWEIGHT)
+        val set = vm.review!!.sessions.single().exercises.single().sets.first()
+        assertNull(set.weight); assertNull(set.unit)
+        assertEquals(WeightBasis.BODYWEIGHT, set.basis); assertTrue(set.userEdited)
+        vm.saveReview("2026-10-08", false); runCurrent()
+        val saved = vm.confirmed!!.sessions.single().exercises.single().sets.first()
+        assertNull(saved.weight); assertNull(saved.unit); assertEquals(WeightBasis.BODYWEIGHT, saved.basis)
+        confirmed.value = vm.confirmed
+        val reopened = vm(); runCurrent()
+        assertTrue(reopened.beginReview())
+        val restored = reopened.review!!.sessions.single().exercises.single().sets.first()
+        assertEquals(set, restored)
+        reopened.updateWeight(address, 0.0, WeightUnit.KG, basis = WeightBasis.UNKNOWN)
+        val numeric = reopened.review!!.sessions.single().exercises.single().sets.first()
+        assertEquals(0.0, numeric.weight!!, 0.0); assertEquals(WeightBasis.UNKNOWN, numeric.basis)
+        assertEquals(60.0, candidate.analysis.sessions.single().exercises.single().sets.first().weight.value!!, 0.0)
+    }
+
+    @Test fun restoredDraftRetainsBodyweightAndBasisOnlyChangesCountAsEdits() = runTest(dispatcher) {
+        val state = SavedStateHandle(); val original = vm(state); runCurrent()
+        val address = DiarySetAddress(0, 0, 0)
+        original.updateWeight(address, null, null, basis = WeightBasis.BODYWEIGHT)
+        val restored = vm(SavedStateHandle(mapOf("reviewDraft" to state.get<String>("reviewDraft"))))
+        runCurrent()
+        assertEquals(WeightBasis.BODYWEIGHT, restored.review!!.sessions.single().exercises.single().sets.first().basis)
+        restored.updateWeight(address, null, null, basis = WeightBasis.UNKNOWN)
+        assertEquals(WeightBasis.UNKNOWN, restored.review!!.sessions.single().exercises.single().sets.first().basis)
+        assertTrue(restored.review!!.sessions.single().exercises.single().sets.first().userEdited)
+        restored.updateWeight(address, 60.0, WeightUnit.KG, basis = WeightBasis.TOTAL)
+        assertNull(restored.review)
+    }
+
+    @Test fun defaultKgBelongsOnlyToTheReviewAndIsPersistedOnExplicitConfirmation() = runTest(dispatcher) {
+        val session = candidate.analysis.sessions.single()
+        val exercise = session.exercises.single()
+        val unspecified = exercise.copy(sets = exercise.sets.map { it.copy(unit = CandidateValue(WeightUnit.UNKNOWN, CandidateOrigin.MISSING)) })
+        val unknownCandidate = candidate.copy(analysis = candidate.analysis.copy(sessions = listOf(session.copy(exercises = listOf(unspecified)))))
+        parses.value = DiaryParseRecords(listOf(unknownCandidate.attempt), unknownCandidate)
+        val vm = vm(); runCurrent()
+        assertNull(vm.review); assertTrue(submitted.isEmpty())
+        assertTrue(vm.beginReview())
+        val sets = vm.review!!.sessions.single().exercises.single().sets
+        assertTrue(sets.all { it.unit == WeightUnit.KG && it.userEdited })
+        assertTrue(unknownCandidate.analysis.sessions.single().exercises.single().sets.all { it.unit.value == WeightUnit.UNKNOWN })
+        vm.saveReview("2026-10-08", false); runCurrent()
+        assertTrue(submitted.single().sessions.single().exercises.single().sets.all { it.unit == WeightUnit.KG })
     }
 
     @Test fun failedSaveRetainsInputsAndManualRetryPreventsDuplicateWrites() = runTest(dispatcher) {
@@ -196,7 +299,7 @@ class DiaryReviewViewModelTest {
 
     @Test fun restoredCorrectionsStayBoundToTheirParseWhenANewerCandidateArrives() = runTest(dispatcher) {
         val state = SavedStateHandle(); val original = vm(state); runCurrent()
-        original.updateWeight(DiarySetAddress(0, 0, 1), 62.3)
+        original.updateWeight(DiarySetAddress(0, 0, 1), 62.3, WeightUnit.KG)
         val restoredState = SavedStateHandle(mapOf("reviewDraft" to state.get<String>("reviewDraft")))
         val newer = candidate.copy(attempt = candidate.attempt.copy(id = "new-run"))
         parses.value = DiaryParseRecords(listOf(newer.attempt), newer)
@@ -246,9 +349,9 @@ class DiaryReviewViewModelTest {
 
     @Test fun unknownAndZeroWeightsStayDistinctAndInvalidValuesAreRejected() = runTest(dispatcher) {
         val vm = vm(); runCurrent()
-        vm.updateWeight(DiarySetAddress(0, 0, 0), 0.0)
-        vm.updateWeight(DiarySetAddress(0, 0, 1), null)
-        vm.updateWeight(DiarySetAddress(0, 0, 2), Double.NaN)
+        vm.updateWeight(DiarySetAddress(0, 0, 0), 0.0, WeightUnit.KG)
+        vm.updateWeight(DiarySetAddress(0, 0, 1), null, WeightUnit.KG)
+        vm.updateWeight(DiarySetAddress(0, 0, 2), Double.NaN, WeightUnit.KG)
         vm.updateReps(DiarySetAddress(0, 0, 2), 0)
         val sets = vm.review!!.sessions.single().exercises.single().sets
         assertEquals(0.0, sets.first().weight!!, 0.0); assertNull(sets[1].weight)

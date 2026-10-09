@@ -77,7 +77,7 @@ class DiaryDetailViewModel(
     val candidateStatus get() = parses.latestCandidate?.let {
         resultFreshness(DiaryContentVersion(it.analysis.parseKey.contentHash, it.analysis.parseKey.hashVersion), contentVersion)
     }
-    val canEdit get() = !sourceLoading && original?.file?.writable == true
+    val canEdit get() = original?.file?.writable == true
 
     private var sourceJob: Job? = null
     private var parsesJob: Job? = null
@@ -244,11 +244,19 @@ class DiaryDetailViewModel(
         if (!reviewSaving && review != null && review == selectedReviewDraft()) storeReview(null)
     }
 
-    internal fun updateWeight(address: DiarySetAddress, value: Double?) {
+    internal fun updateWeight(address: DiarySetAddress, value: Double?, unit: WeightUnit?, converted: Boolean = false,
+        basis: WeightBasis? = null) {
         if (value != null && (!value.isFinite() || value < 0)) return
-        val current = draftForReview()?.sessions?.getOrNull(address.session)?.exercises?.getOrNull(address.exercise)?.sets?.getOrNull(address.set)
-        if (current == null || current.weight == value) return
-        if (beginReview()) storeEditedReview(requireNotNull(review).withWeight(address, value))
+        val draft = draftForReview() ?: return
+        val current = draft.sessions.getOrNull(address.session)?.exercises?.getOrNull(address.exercise)?.sets?.getOrNull(address.set) ?: return
+        val selected = selectedReviewDraft()?.sessions?.getOrNull(address.session)?.exercises?.getOrNull(address.exercise)?.sets?.getOrNull(address.set)
+        val original = draft.originalValues.firstOrNull { it.address == address }
+        val updatedBasis = basis ?: current.basis
+        val weight = DiaryWeightValue(value, unit, converted, updatedBasis)
+            .restoringConversionRoundoff(selected?.let { DiaryWeightValue(it.weight, it.unit, basis = it.basis) })
+            .restoringConversionRoundoff(original?.let { DiaryWeightValue(it.weight, it.unit, basis = it.basis) }).weight
+        if (current.weight == weight && current.unit == unit && current.basis == updatedBasis) return
+        if (beginReview()) storeEditedReview(requireNotNull(review).withWeight(address, weight, unit, updatedBasis))
     }
 
     internal fun updateReps(address: DiarySetAddress, value: Int?) {

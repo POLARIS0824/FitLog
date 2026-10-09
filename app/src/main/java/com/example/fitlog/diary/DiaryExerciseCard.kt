@@ -19,20 +19,34 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.data.analysis.*
 import java.text.NumberFormat
+import kotlin.math.floor
+import kotlin.math.log10
 
 internal data class DiarySetUi(val number: Int?, val weight: Double?, val unit: WeightUnit?, val basis: WeightBasis?,
-    val reps: Int?, val address: DiarySetAddress?, val source: ExpandedSet? = null, val userEdited: Boolean = false)
+    val reps: Int?, val address: DiarySetAddress?, val source: ExpandedSet? = null, val userEdited: Boolean = false,
+    val assumedKg: Boolean = false)
 
 @Composable
-internal fun weightLabel(weight: Double?, unit: WeightUnit?): String {
+internal fun weightNumberLabel(weight: Double?, maximumFractionDigits: Int = 340): String {
     val locale = LocalConfiguration.current.locales[0]
-    val numbers = remember(locale) { NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = 340; isGroupingUsed = false } }
-    return if (weight == null) stringResource(R.string.detail_value_unknown)
-    else stringResource(R.string.detail_weight_short, numbers.format(weight), stringResource(when (unit) {
+    val digits = maxOf(maximumFractionDigits,
+        if (weight != null && weight > 0 && weight < 1) (2 - floor(log10(weight)).toInt()).coerceAtMost(340) else 0)
+    val numbers = remember(locale, digits) { NumberFormat.getNumberInstance(locale).apply {
+        this.maximumFractionDigits = digits; isGroupingUsed = false
+    } }
+    return if (weight == null) stringResource(R.string.detail_value_unknown) else numbers.format(weight)
+}
+
+@Composable
+internal fun weightLabel(weight: Double?, unit: WeightUnit?, maximumFractionDigits: Int = 340, basis: WeightBasis? = null): String {
+    return if (basis == WeightBasis.BODYWEIGHT) stringResource(R.string.detail_weight_bodyweight)
+    else if (weight == null) stringResource(R.string.detail_weight_unrecorded)
+    else stringResource(R.string.detail_weight_short, weightNumberLabel(weight, maximumFractionDigits), stringResource(when (unit) {
         WeightUnit.KG -> R.string.detail_unit_kg_short
         WeightUnit.LB -> R.string.detail_unit_lb_short
         else -> R.string.detail_unit_unknown_short
@@ -102,33 +116,36 @@ private fun DiaryExerciseCard(name: String, notes: String?, evidence: EvidenceQu
 
 @Composable
 private fun DiarySetRow(set: DiarySetUi, commonBasis: WeightBasis?, canEdit: Boolean, onEdit: (DiarySetEdit) -> Unit) {
-    val weight = weightLabel(set.weight, set.unit)
+    val displayUnit = if (set.assumedKg) WeightUnit.KG else set.unit
+    val weight = weightLabel(set.weight, displayUnit, maximumFractionDigits = 3, basis = set.basis)
     val reps = set.reps?.let { stringResource(R.string.detail_reps_short, it) } ?: stringResource(R.string.detail_value_unknown)
     val label = stringResource(if (set.number == null) R.string.detail_count_not_provided else R.string.detail_set, set.number ?: 0)
-    val weightDescription = stringResource(R.string.detail_edit_value, label, stringResource(R.string.detail_weight), weight)
+    val weightDescription = stringResource(R.string.detail_edit_value, label, stringResource(R.string.detail_weight), weightLabel(set.weight, displayUnit, basis = set.basis))
     val repsDescription = stringResource(R.string.detail_edit_value, label, stringResource(R.string.detail_reps), reps)
     val enabled = canEdit && set.address != null
     val controls: @Composable RowScope.() -> Unit = {
-        Surface(onClick = { set.address?.let { onEdit(DiarySetEdit(it, requireNotNull(set.number), DiarySetField.WEIGHT, set.weight, set.unit, set.reps)) } },
+        Surface(onClick = { set.address?.let { onEdit(DiarySetEdit(it, requireNotNull(set.number), DiarySetField.WEIGHT, set.weight, set.unit, set.reps, set.basis)) } },
             enabled = enabled, shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = weightDescription }) {
             Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(weight, style = MaterialTheme.typography.titleMediumEmphasized)
+                Text(weight, style = MaterialTheme.typography.titleMediumEmphasized,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        Surface(onClick = { set.address?.let { onEdit(DiarySetEdit(it, requireNotNull(set.number), DiarySetField.REPS, set.weight, set.unit, set.reps)) } },
+        Surface(onClick = { set.address?.let { onEdit(DiarySetEdit(it, requireNotNull(set.number), DiarySetField.REPS, set.weight, set.unit, set.reps, set.basis)) } },
             enabled = enabled, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHighest,
             modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = repsDescription }) {
             Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(reps, style = MaterialTheme.typography.titleLargeEmphasized)
+                Text(reps, style = MaterialTheme.typography.titleLargeEmphasized,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
     Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (LocalDensity.current.fontScale > 1.3f || set.number == null) {
+        if (LocalDensity.current.fontScale > 1.3f || set.number == null || set.weight == null || set.reps == null) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                 EditedSetLabel(set.userEdited)
@@ -143,6 +160,8 @@ private fun DiarySetRow(set: DiarySetUi, commonBasis: WeightBasis?, canEdit: Boo
         }
         if (commonBasis == null) Text(stringResource(basisLabel(set.basis)), style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (set.assumedKg && set.basis != WeightBasis.BODYWEIGHT) Text(stringResource(R.string.detail_weight_assumed_kg),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -192,7 +211,8 @@ internal fun LazyListScope.candidateItems(candidate: StoredDiaryCandidate, fresh
                 analysis.issues.filter { it.path.startsWith(exercise.path) }, canEdit, onEdit) {
                 val expanded = exercise.sets.mapIndexed { index, set ->
                     DiarySetUi(index + 1, set.weight.value, set.unit.value, set.basis.value,
-                        set.reps.value, DiarySetAddress(sessionIndex, exerciseIndex, index), set)
+                        set.reps.value, DiarySetAddress(sessionIndex, exerciseIndex, index), set,
+                        assumedKg = set.weight.value != null && set.unit.value !in listOf(WeightUnit.KG, WeightUnit.LB))
                 }
                 val unknownCounts = exercise.candidate.groups.withIndex().filter { (index, group) ->
                     group.count == null && group.repsList == null && analysis.issues.none {
@@ -231,7 +251,9 @@ internal fun LazyListScope.reviewItems(draft: DiaryReviewDraft, candidate: Store
                 val expanded = exercise.sets.mapIndexed { index, set ->
                     val source = original?.sets?.find { it.groupIndex == set.groupIndex && it.setInGroup == set.setInGroup }
                     DiarySetUi(index + 1, set.weight, set.unit, set.basis, set.reps,
-                        DiarySetAddress(sessionIndex, exerciseIndex, index), source, set.userEdited)
+                        DiarySetAddress(sessionIndex, exerciseIndex, index), source, set.userEdited,
+                        assumedKg = draft.fromCandidate && set.weight != null && set.unit == WeightUnit.KG && source != null &&
+                            source.unit.value !in listOf(WeightUnit.KG, WeightUnit.LB))
                 }
                 val fragments = draft.fragments.filter { it.session == sessionIndex && it.exercise == exerciseIndex }
                 val rows = if (fragments.isEmpty()) expanded else {

@@ -17,7 +17,8 @@ internal data class DiaryReviewDraft(
     val fragments: List<DiaryReviewFragment> = emptyList(),
     val originalValues: List<DiarySetOriginal> = emptyList(),
 ) {
-    fun withWeight(address: DiarySetAddress, value: Double?) = update(address) { it.copy(weight = value) }
+    fun withWeight(address: DiarySetAddress, value: Double?, unit: WeightUnit?, basis: WeightBasis? = null) =
+        update(address) { it.copy(weight = value, unit = unit, basis = basis ?: it.basis) }
     fun withReps(address: DiarySetAddress, value: Int?) = update(address) { it.copy(reps = value) }
 
     private fun update(address: DiarySetAddress, transform: (ReviewedSet) -> ReviewedSet): DiaryReviewDraft {
@@ -68,7 +69,9 @@ internal data class DiaryReviewDraft(
                 analysis.sessions.map { session ->
                     ReviewedSession(session.exercises.map { exercise ->
                         ReviewedExercise(exercise.candidate.rawName, exercise.sets.map { set ->
-                            ReviewedSet(set.weight.value, set.unit.value, set.basis.value, set.reps.value,
+                            ReviewedSet(set.weight.value,
+                                if (set.basis.value == WeightBasis.BODYWEIGHT && set.weight.value == null) null
+                                else reviewWeightUnit(set.weight.value, set.unit.value), set.basis.value, set.reps.value,
                                 set.groupIndex, set.setInGroup)
                         }, exercise.candidate.notes, exercise.evidence.takeIf {
                             it.segmentId == DiaryParseInput.SEGMENT_ID && it.quote.isNotBlank()
