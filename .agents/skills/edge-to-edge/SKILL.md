@@ -7,7 +7,7 @@ description: Use this skill to migrate your Jetpack Compose app to add adaptive 
 license: Complete terms in LICENSE.txt
 metadata:
   author: Google LLC
-  last-updated: '2026-04-01'
+  last-updated: '2026-08-24'
   keywords:
   - android
   - compose
@@ -20,9 +20,7 @@ metadata:
 ## Prerequisites
 
 - Project **MUST** use Android Jetpack Compose.
-- Inspect the current target SDK and inset setup. A local overlap/IME repair does not authorize a target SDK upgrade; change SDK levels only when needed for an authorized migration and validate the resulting behavior changes.
-
-Choose scope first: for a local repair, inspect and modify only the affected Activity, screen, and shared inset owners. The all-Activity inventory and migration steps below apply only to a requested app-wide migration. Preserve existing inset ownership to avoid double padding.
+- Project **MUST** target SDK 35 or later. If the SDK is lower than 35, increase the SDK to 35.
 
 ## Step 1: plan
 
@@ -187,7 +185,7 @@ applied twice, once with innerPadding, which contains IME insets from the passed
 
 ```kotlin
 // WRONG
-Scaffold( contentWindowInsets = WindowInsets.safeDrawing ) { innerPadding ->
+Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { innerPadding ->
     Column(
         modifier = Modifier
             .padding(innerPadding)
@@ -419,8 +417,6 @@ Dialog(
 <br />
 
 ## Checklist
-
-Apply once to affected components; use the full list only for an app-wide migration. Keep necessary IME, system-bar legibility, and content-access checks.
 
 - \[ \] Does every `Activity` call `enableEdgeToEdge()`?
 - \[ \] Is `adjustResize` set in the `AndroidManifest.xml`?

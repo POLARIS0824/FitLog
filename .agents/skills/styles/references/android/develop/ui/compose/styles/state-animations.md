@@ -318,11 +318,11 @@ var MutableStyleState.playerState
     get() = this[playerStateKey]
     set(value) { this[playerStateKey] = value }
 
-fun StyleScope.playerPlaying(value: Style) {
-    state(playerStateKey, value, { key, state -> state[key] == PlayerState.Playing })
+fun StyleScope.playerPlaying(block: () -> Unit) {
+    state(playerStateKey, block, { key, state -> state[key] == PlayerState.Playing })
 }
-fun StyleScope.playerPaused(value: Style) {
-    state(playerStateKey, value, { key, state -> state[key] == PlayerState.Paused })
+fun StyleScope.playerPaused(block: () -> Unit) {
+    state(playerStateKey, block, { key, state -> state[key] == PlayerState.Paused })
 }
 ```
 
@@ -356,7 +356,7 @@ fun MediaPlayer(
 
 <br />
 
-Within the `style` lambda, you can apply state based styling for custom states,
+Within the `style` lambda, you can apply state-based styling for custom states,
 using the previously defined extension functions.
 
 
@@ -403,11 +403,11 @@ var MutableStyleState.playerState
     get() = this[playerStateKey]
     set(value) { this[playerStateKey] = value }
 
-fun StyleScope.playerPlaying(value: Style) {
-    state(playerStateKey, value, { key, state -> state[key] == PlayerState.Playing })
+fun StyleScope.playerPlaying(block: () -> Unit) {
+    state(playerStateKey, block, { key, state -> state[key] == PlayerState.Playing })
 }
-fun StyleScope.playerPaused(value: Style) {
-    state(playerStateKey, value, { key, state -> state[key] == PlayerState.Paused })
+fun StyleScope.playerPaused(block: () -> Unit) {
+    state(playerStateKey, block, { key, state -> state[key] == PlayerState.Paused })
 
 }
 

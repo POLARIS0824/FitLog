@@ -1,10 +1,14 @@
 ---
 name: styles
-description: "Use for an explicitly requested migration or integration of the Jetpack Compose Styles API in custom components. Not for ordinary styling, MaterialTheme edits, or local layout fixes. Limit dependency and opt-in changes to the requested migration."
+description: Use this skill to integrate the Jetpack Compose Styles API into an Android
+  project. This skill guides you through upgrading dependencies, setting up component
+  themes, making custom components styleable, and migrating existing layout properties
+  to use unified styles. Migrate custom design system components, replace hard coded
+  parameters with Style attributes, and use Modifier.styleable for interaction states.
 license: Complete terms in LICENSE.txt
 metadata:
   author: Google LLC
-  last-updated: '2026-05-19'
+  last-updated: '2026-09-08'
   keywords:
   - Jetpack Compose
   - Styles
@@ -15,7 +19,7 @@ metadata:
 
 ## Limitations
 
-- Before a new integration, explain the experimental dependency/opt-in requirement once. Ask only for a material tradeoff not already authorized; do not repeat this for existing Styles usage.
+- Warn the user that this skill is EXPERIMENTAL and requires updating to alpha version of Compose and opting in to the Experimental APIs.
 - This skill only supports custom UI components and custom themes.
 - This skill does not support Material Design component Styles.
 
@@ -31,10 +35,12 @@ metadata:
 
 ### 2. Configure compiler options to enable experimental API
 
-Use the narrowest appropriate opt-in, preserving the project's existing configuration. For a requested module-wide migration, the following compiler option is an example; do not change unrelated JVM settings:
+You must opt-in to the experimental API at the project level. Add the following
+block to your module's `build.gradle.kts`:
 
     kotlin {
         compilerOptions {
+            jvmTarget = JvmTarget.fromTarget("17")
             freeCompilerArgs.add("-opt-in=androidx.compose.foundation.style.ExperimentalFoundationStyleApi")
         }
     }
@@ -124,13 +130,19 @@ Refer to the official documentation to complete specific development tasks:
 For each custom component (for example, `CustomButton`), complete the following
 sequence:
 
-1. Reuse existing tests/previews to capture the affected component before migration. Add a focused regression test when the behavior or migration risk warrants it. Do not introduce a screenshot framework for a small reversible change; if rendering is unavailable, report the limitation and continue source/build validation.
+1. **Establish a visual baseline (If an emulator is available):**
+   - **If you CANNOT run an Android emulator:** Skip this step entirely and proceed to Step 2.
+   - **If you CAN run an Android emulator:** Perform the following to capture a baseline screenshot:
+     - **Option A:** Locate and run an existing screenshot test for the component.
+     - **Option B (If no test exists):** Create a test using the project's existing testing framework, then run it.
+     - **Option C (If no framework exists):** Create a minimal screenshot test using UI Automator or Espresso, then run it.
 2. **Remove individual styling parameters** : Remove styling parameters such as `backgroundColor`, `shape`, `textStyle`, and `contentPadding` from the signature - anything that `StyleScope` supports.
-3. **Add the style parameter** : Add `style: Style = Style` to the function signature.
+3. **Add the style parameter** : Add `style: Style = Style` to the function signature. Always ensure the default value is exactly `Style` (e.g., `style:
+   Style = Style`) and not a specific style default like `ChipStyleDefault` or any other value.
 4. **Declare state tracking** : If the component is interactable, create a `MutableStyleState` using the interaction source. Update state fields (such as `isEnabled`) inside the Composable to track the state correctly.
 5. **Apply styleable modifier** : Replace specific layout modifiers on the root element with `Modifier.styleable()`.
 6. **Move defaults to ComponentStyles** : Move hardcoded values from the component definition to a dedicated `Style` instance in `ComponentStyles.kt`.
-7. **Validate component:** Compare before/after rendering when available and run relevant existing tests after the final edits. Preserve intended layout, styling, semantics, and interaction behavior. Add Compose UI coverage only for meaningful gaps; do not duplicate screenshot coverage with an implementation-mirroring test.
+7. **Validate component:** Compare the baseline screenshot image taken at the start with the rendered Compose Preview of the new composable. Ignore string content; focus on layout and styling. Iterate on the Compose code until visual parity is achieved. Once verified, write a Compose UI test for the new composable.
 
 #### Migration example
 
