@@ -99,6 +99,17 @@ class AnalysisConverters {
 
 @Dao
 interface DiaryAnalysisDao {
+    @Query("""SELECT * FROM parse_run AS p WHERE p.vaultId = :vaultId AND
+        (p.rowid = (SELECT r.rowid FROM parse_run AS r WHERE r.vaultId = p.vaultId AND r.relPath = p.relPath
+            ORDER BY r.startedAt DESC, r.rowid DESC LIMIT 1)
+        OR p.rowid = (SELECT r.rowid FROM parse_run AS r WHERE r.vaultId = p.vaultId AND r.relPath = p.relPath
+            AND r.status = 'SUCCEEDED' ORDER BY r.startedAt DESC, r.rowid DESC LIMIT 1))
+        ORDER BY p.startedAt, p.rowid""")
+    fun observeVaultHeads(vaultId: String): Flow<List<ParseRunRow>>
+    @Query("SELECT * FROM confirmed_diary WHERE vaultId = :vaultId")
+    fun observeConfirmedRows(vaultId: String): Flow<List<ConfirmedDiaryRow>>
+    @Query("SELECT id FROM parse_run WHERE vaultId = :vaultId AND relPath = :relPath AND status = 'SUCCEEDED' ORDER BY startedAt DESC, rowid DESC LIMIT 1")
+    suspend fun latestCandidateId(vaultId: String, relPath: String): String?
     @Insert suspend fun insertRun(row: ParseRunRow)
     @Query("SELECT * FROM parse_run WHERE id = :id") suspend fun run(id: String): ParseRunRow?
     @Query("SELECT * FROM parse_run WHERE vaultId = :vaultId AND relPath = :relPath ORDER BY startedAt, rowid")

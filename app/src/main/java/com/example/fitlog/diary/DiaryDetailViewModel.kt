@@ -25,6 +25,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.StateFlow
+import com.example.fitlog.log.confirmationFailureMessage
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -40,6 +42,8 @@ class DiaryDetailViewModel(
     private val parseDiary: suspend () -> StoredDiaryParse,
     private val hashingDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val confirmDiary: (suspend (DiaryConfirmation) -> DiaryConfirmationResult)? = null,
+    private val analysisState: StateFlow<DiaryAnalysisRun>? = null,
+    private val cancelAnalysis: () -> Unit = {},
 ) : ViewModel() {
     val sourceKey = SourceKey(route.vaultId, route.relPath)
     var tab by mutableStateOf(DiaryDetailTab.entries.firstOrNull {
@@ -56,6 +60,8 @@ class DiaryDetailViewModel(
     var confirmationLoading by mutableStateOf(true); private set
     var confirmationReadFailed by mutableStateOf(false); private set
     var parsing by mutableStateOf(false); private set
+    var analysisBusy by mutableStateOf(false); private set
+    var analysisIndexWarning by mutableStateOf(false); private set
     var parseMessage by mutableStateOf<Int?>(null); private set
     private val restoredReview = runCatching { savedState.get<String>("reviewDraft")?.let {
         Json.decodeFromString<DiaryReviewDraft>(it)
@@ -86,7 +92,16 @@ class DiaryDetailViewModel(
     private var sourceGeneration = 0L
     private var analysisGeneration = 0L
 
-    init { reloadOriginal(); retryAnalysis() }
+    init {
+        reloadOriginal(); retryAnalysis()
+        analysisState?.let { state -> viewModelScope.launch { state.collect { value ->
+            analysisBusy = value.active
+            analysisIndexWarning = value.indexWarning
+            if (value.vaultId == sourceKey.vaultId && !value.active && value.stopped && parsing) {
+                parsing = false; parseMessage = R.string.ai_parse_cancelled
+            }
+        } } }
+    }
 
     fun selectTab(tab: DiaryDetailTab) {
         this.tab = tab
@@ -187,9 +202,9 @@ class DiaryDetailViewModel(
         }
     }
 
-    /** Button guard and cancellation belong to this route, not to a global executor. */
+    /** The route observes its request; the shared controller owns its lifetime across navigation. */
     fun parse() {
-        if (parsing || sourceLoading || reviewSaving || review != null) return
+        if (parsing || analysisBusy || sourceLoading || reviewSaving || review != null) return
         parsing = true; parseMessage = null
         selectTab(DiaryDetailTab.ANALYSIS)
         parseJob = viewModelScope.launch {
@@ -213,6 +228,7 @@ class DiaryDetailViewModel(
                         R.string.detail_source_failed
                     }
                     is DiaryAnalysisStorageException -> R.string.ai_parse_save_failed
+                    is DiaryAnalysisBusyException -> R.string.log_analysis_busy
                     else -> R.string.ai_request_failed
                 }
             } finally { if (currentCoroutineContext().isActive) parsing = false }
@@ -221,6 +237,7 @@ class DiaryDetailViewModel(
 
     fun cancelParse() {
         if (!parsing) return
+        cancelAnalysis()
         parseJob?.cancel(); parsing = false; parseMessage = R.string.ai_parse_cancelled
     }
 
@@ -294,7 +311,8 @@ class DiaryDetailViewModel(
         reviewSaving = true
         viewModelScope.launch {
             try {
-                val request = DiaryConfirmation(sourceKey, draft.parseRunId, date, draft.sessions, acceptPartial)
+                val request = DiaryConfirmation(sourceKey, draft.parseRunId, date, draft.sessions, acceptPartial,
+                    expectedConfirmedAt = draft.expectedConfirmedAt)
                 when (val result = requireNotNull(confirmDiary).invoke(request)) {
                     is DiaryConfirmationResult.Confirmed -> {
                         confirmed = result.diary
@@ -302,7 +320,7 @@ class DiaryDetailViewModel(
                         showCandidate = false; savedState["showCandidate"] = false
                         reviewMessage = R.string.detail_review_saved
                     }
-                    is DiaryConfirmationResult.Invalid -> reviewMessage = R.string.detail_review_save_failed
+                    is DiaryConfirmationResult.Invalid -> reviewMessage = confirmationFailureMessage(result.reason)
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -315,7 +333,7 @@ class DiaryDetailViewModel(
     fun requestLeave(action: () -> Unit) {
         if (reviewSaving) return
         if (review != null) { pendingLeave = action; leaveRequested = true }
-        else { cancelParse(); action() }
+        else action()
     }
 
     fun cancelLeave() { pendingLeave = null; leaveRequested = false }

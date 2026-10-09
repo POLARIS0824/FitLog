@@ -7,6 +7,7 @@ import com.example.fitlog.data.vault.MarkdownDocuments
 import com.example.fitlog.data.vault.MarkdownSnapshot
 import com.example.fitlog.data.vault.VaultPreferences
 import com.example.fitlog.data.vault.requireVaultId
+import com.example.fitlog.data.hash.ContentTextSnapshot
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -82,9 +83,11 @@ class SourceIndexRepository(
                                 readFailed = true
                                 null
                             }
+                            val version = snapshot?.let { contentVersion(it) }
                             IndexedSource(vaultId, file.uri, snapshot?.file?.name ?: file.name,
                                 file.path, file.directory, snapshot?.file?.writable ?: file.writable,
-                                if (snapshot != null) IndexedSource.AVAILABLE else IndexedSource.READ_FAILED)
+                                if (snapshot != null) IndexedSource.AVAILABLE else IndexedSource.READ_FAILED,
+                                version?.hash, version?.hashVersion)
                         }.toMutableList()
                         val complete = !discovered.partial && !readFailed
                         if (complete) {
@@ -118,10 +121,26 @@ class SourceIndexRepository(
 
     suspend fun recordSaved(vaultId: String, snapshot: MarkdownSnapshot, directory: String, path: String?) {
         requireVaultId(vaultId)
+        val version = contentVersion(snapshot)
         gate.withLock {
             val old = store.sources(vaultId).firstOrNull { it.uri == snapshot.file.uri }
             store.commit(listOf(IndexedSource(vaultId, snapshot.file.uri, snapshot.file.name,
-                path ?: old?.path ?: snapshot.file.name, directory, snapshot.file.writable)))
+                path ?: old?.path ?: snapshot.file.name, directory, snapshot.file.writable,
+                contentHash = version.hash, hashVersion = version.hashVersion)))
         }
     }
+
+    /** A read updates an existing source only; it never discovers files or changes scan completeness. */
+    suspend fun recordRead(vaultId: String, path: String, snapshot: MarkdownSnapshot) {
+        requireVaultId(vaultId)
+        val version = contentVersion(snapshot)
+        gate.withLock {
+            val old = store.sources(vaultId).firstOrNull { it.uri == snapshot.file.uri && it.path == path } ?: return@withLock
+            store.commit(listOf(old.copy(status = IndexedSource.AVAILABLE, writable = snapshot.file.writable,
+                contentHash = version.hash, hashVersion = version.hashVersion)))
+        }
+    }
+
+    private fun contentVersion(snapshot: MarkdownSnapshot) =
+        ContentTextSnapshot.fromRawText((if (snapshot.bom) "\uFEFF" else "") + snapshot.text)
 }

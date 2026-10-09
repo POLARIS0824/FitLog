@@ -47,6 +47,23 @@ class SourceIndexRepositoryTest {
         assertEquals(42L, f.store.observe(vault).first().scan?.completedAt)
     }
 
+    @Test fun scanReadAndSaveVersionsNormalizeBomAndLineEndingsWithoutChangingRawFingerprint() = runTest {
+        val f = Fixture(this)
+        f.documents.body = "\uFEFFone\r\ntwo"
+        f.index.refresh(vault).join()
+        val row = f.store.sources(vault).single()
+        val expected = com.example.fitlog.data.hash.ContentTextSnapshot.fromRawText("one\ntwo")
+        assertEquals(expected.hash, row.contentHash); assertEquals(expected.hashVersion, row.hashVersion)
+        val snapshot = MarkdownSnapshot(row.file(), "one\ntwo", "raw-byte-fingerprint", false)
+        f.index.recordRead(vault, row.path, snapshot)
+        assertEquals(row.contentHash, f.store.sources(vault).single().contentHash)
+        assertEquals(42L, f.store.observe(vault).first().scan?.completedAt)
+        f.index.recordSaved(vault, snapshot.copy(text = "edited"), row.directory!!, row.path)
+        assertNotEquals(row.contentHash, f.store.sources(vault).single().contentHash)
+        assertEquals("raw-byte-fingerprint", snapshot.fingerprint)
+        assertEquals(1, f.documents.scanCount)
+    }
+
     @Test fun partialFailedAndUnreadableScansNeverMarkUnseenFilesMissing() = runTest {
         val f = Fixture(this)
         f.documents.files += MarkdownFile("other", "other.md", "other.md", true)

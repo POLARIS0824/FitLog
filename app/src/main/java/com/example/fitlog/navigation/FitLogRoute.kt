@@ -27,6 +27,11 @@ sealed interface FitLogRoute : NavKey {
     data object AiSettings : FitLogRoute
 
     @Serializable
+    data class BatchReview(val vaultId: String, val vaultUri: String) : FitLogRoute {
+        init { requireVaultId(vaultId) }
+    }
+
+    @Serializable
     data class DiaryDetail(
         val vaultUri: String,
         val vaultId: String,

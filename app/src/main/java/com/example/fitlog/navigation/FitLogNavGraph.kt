@@ -27,6 +27,12 @@ import com.example.fitlog.insight.InsightScreen
 import com.example.fitlog.log.LogScreen
 import com.example.fitlog.log.LogSettingsStore
 import com.example.fitlog.log.LogViewModel
+import com.example.fitlog.log.BatchReviewViewModel
+import com.example.fitlog.log.BatchReviewScreen
+import com.example.fitlog.data.analysis.DiaryAnalysisController
+import com.example.fitlog.data.analysis.AnalysisSource
+import com.example.fitlog.data.analysis.confirmCurrentDiary
+import kotlinx.coroutines.CancellationException
 import com.example.fitlog.today.TodayScreen
 import com.example.fitlog.settings.SettingsScreen
 import com.example.fitlog.settings.AppearanceScreen
@@ -50,7 +56,6 @@ import com.example.fitlog.data.ai.AiProviderRepository
 import com.example.fitlog.data.analysis.SourceKey
 import com.example.fitlog.data.analysis.adapter.fetchOpenAiModels
 import com.example.fitlog.data.analysis.adapter.testOpenAiConnection
-import com.example.fitlog.data.analysis.adapter.parseConfiguredDiary
 import io.ktor.client.HttpClient
 
 /**
@@ -64,6 +69,7 @@ internal fun FitLogNavGraph(
     vaultRepository: VaultRepository,
     sourceIndex: SourceIndexRepository,
     analysisRepository: DiaryAnalysisRepository,
+    analysisController: DiaryAnalysisController,
     aiRepository: AiProviderRepository,
     aiClient: HttpClient,
     appearance: AppearanceViewModel,
@@ -157,7 +163,8 @@ internal fun FitLogNavGraph(
 
             entry<FitLogRoute.Log> {
                 val vm = viewModel<LogViewModel> {
-                    LogViewModel(createSavedStateHandle(), vaultPreferences.vaultConfig, sourceIndex, logSettings)
+                    LogViewModel(createSavedStateHandle(), vaultPreferences.vaultConfig, sourceIndex, logSettings,
+                        analysisRepository, analysisController)
                 }
                 LogScreen(vm,
                     onOpen = { vault, file -> vm.vaultId?.let { vaultId ->
@@ -169,7 +176,36 @@ internal fun FitLogNavGraph(
                     onSettings = { vault -> onOpenRoute(FitLogRoute.DiarySettings(vault, requireNotNull(vm.vaultId))) },
                     onConnect = { onOpenRoute(FitLogRoute.VaultSetup()) },
                     onRecovery = { onOpenRoute(FitLogRoute.RecoveryCenter) },
-                    onManage = { onOpenRoute(FitLogRoute.VaultManagement) })
+                    onManage = { onOpenRoute(FitLogRoute.VaultManagement) },
+                    onAiSettings = { if (backStack.lastOrNull() == FitLogRoute.Log) onOpenRoute(FitLogRoute.AiSettings) },
+                    onReview = { val id = vm.vaultId; val uri = vm.vault
+                        if (backStack.lastOrNull() == FitLogRoute.Log && id != null && uri != null)
+                            onOpenRoute(FitLogRoute.BatchReview(id, uri))
+                    })
+            }
+
+            entry<FitLogRoute.BatchReview> { route ->
+                val vm = viewModel<BatchReviewViewModel> {
+                    lateinit var reviewVm: BatchReviewViewModel
+                    reviewVm = BatchReviewViewModel(route, createSavedStateHandle(), sourceIndex.observe(route.vaultId),
+                        analysisRepository, vaultPreferences.vaultConfig,
+                        confirm = { source, request -> confirmCurrentDiary(request, source.uri, documents, analysisRepository) { snapshot ->
+                            try { sourceIndex.recordRead(route.vaultId, source.path, snapshot) } catch (e: Exception) {
+                                if (e is CancellationException) throw e
+                                reviewVm.reportIndexWarning()
+                            }
+                        } }, refreshIndex = { sourceIndex.refresh(route.vaultId) })
+                    reviewVm
+                }
+                DisposableEffect(vm) {
+                    backHandlers[route] = { vm.requestLeave(onBack) }
+                    onDispose { backHandlers.remove(route) }
+                }
+                BatchReviewScreen(vm, onOpen = { source ->
+                    if (backStack.lastOrNull() == route && vm.activeVault)
+                        vm.requestLeave { onOpenRoute(FitLogRoute.DiaryDetail(route.vaultUri, route.vaultId, source.uri,
+                            source.path, source.directory ?: route.vaultUri, source.name)) }
+                }, onBack = { if (backStack.lastOrNull() == route) onBack() })
             }
 
             entry<FitLogRoute.Insight> {
@@ -181,9 +217,13 @@ internal fun FitLogNavGraph(
             entry<FitLogRoute.DiaryDetail> { route ->
                 val vm = viewModel<DiaryDetailViewModel> {
                     DiaryDetailViewModel(route, documents, analysisRepository, createSavedStateHandle(),
-                        parseDiary = { parseConfiguredDiary(SourceKey(route.vaultId, route.relPath), route.document,
-                            aiRepository, documents, analysisRepository, aiClient) },
-                        confirmDiary = analysisRepository::confirm)
+                        parseDiary = { analysisController.runSingle(AnalysisSource(SourceKey(route.vaultId, route.relPath), route.document)) },
+                        confirmDiary = { request -> confirmCurrentDiary(request, route.document, documents, analysisRepository) { snapshot ->
+                            try { sourceIndex.recordRead(route.vaultId, route.relPath, snapshot) } catch (e: Exception) {
+                                if (e is CancellationException) throw e
+                                analysisController.reportIndexWarning()
+                            }
+                        } }, analysisState = analysisController.state, cancelAnalysis = analysisController::cancel)
                 }
                 DisposableEffect(vm) {
                     backHandlers[route] = { vm.requestLeave(onBack) }

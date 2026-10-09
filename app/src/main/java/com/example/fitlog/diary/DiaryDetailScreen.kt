@@ -35,6 +35,7 @@ fun DiaryDetailScreen(vm: DiaryDetailViewModel, onEdit: () -> Unit, onBack: () -
             parsesReadFailed = vm.parsesReadFailed, confirmed = vm.confirmed, confirmationLoading = vm.confirmationLoading,
             confirmationReadFailed = vm.confirmationReadFailed, confirmationStatus = vm.confirmationStatus,
             candidateStatus = vm.candidateStatus, parsing = vm.parsing, parseMessage = vm.parseMessage,
+            analysisBusy = vm.analysisBusy, analysisIndexWarning = vm.analysisIndexWarning,
             showCandidate = vm.showCandidate, review = vm.review, reviewSaving = vm.reviewSaving,
             reviewMessage = vm.reviewMessage, canReview = vm.canReview, leaveRequested = vm.leaveRequested),
         DiaryDetailActions(refresh = vm::refresh, parse = vm::parse, cancelParse = vm::cancelParse, retryAnalysis = vm::retryAnalysis,
@@ -148,6 +149,7 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
                     }
                 }
                 state.parseMessage?.let { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
+                if (state.analysisIndexWarning) FitLogNotice(stringResource(R.string.log_analysis_index_warning), error = true)
                 state.reviewMessage?.let { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium,
                     color = if (it == R.string.detail_review_saved) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error) }
                 if (state.confirmed != null && state.parses.latestCandidate != null) {
@@ -218,7 +220,7 @@ private fun AnalysisStatusCard(state: DiaryDetailUiState, actions: DiaryDetailAc
                 FlowRow(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (state.parsing) TextButton(onClick = actions.cancelParse) { Text(stringResource(R.string.ai_cancel_request)) }
                     FilledTonalButton(onClick = actions.parse,
-                        enabled = !state.parsing && !state.sourceLoading && state.review == null && !state.reviewSaving,
+                        enabled = !state.parsing && !state.analysisBusy && !state.sourceLoading && state.review == null && !state.reviewSaving,
                         shapes = ButtonDefaults.shapes()) {
                         Icon(painterResource(R.drawable.auto_awesome_24px), null)
                         Spacer(Modifier.width(8.dp))
@@ -289,6 +291,8 @@ internal data class DiaryDetailUiState(
     val confirmationStatus: ConfirmationFreshness = ConfirmationFreshness.UNCONFIRMED,
     val candidateStatus: DiaryResultFreshness? = null,
     val parsing: Boolean = false,
+    val analysisBusy: Boolean = false,
+    val analysisIndexWarning: Boolean = false,
     val parseMessage: Int? = null,
     val showCandidate: Boolean = false,
     val review: DiaryReviewDraft? = null,

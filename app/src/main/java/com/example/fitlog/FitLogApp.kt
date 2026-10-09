@@ -1,5 +1,20 @@
 package com.example.fitlog
 
+import android.app.Activity
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.unit.dp
+import com.example.fitlog.log.AnalysisRuntimeViewModel
+
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -74,6 +89,13 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
     val diaryAnalysis = remember { DiaryAnalysisRepository.get(context) }
     val aiProviders = remember { AiProviderRepository(context.applicationContext.aiDataStore) }
     val aiClient = remember { sharedAiHttpClient }
+    val analysisRuntime = viewModel<AnalysisRuntimeViewModel> {
+        AnalysisRuntimeViewModel(aiProviders, documents, diaryAnalysis, sourceIndex, aiClient)
+    }
+    val analysisRun by analysisRuntime.controller.state.collectAsStateWithLifecycle()
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        if ((context as? Activity)?.isChangingConfigurations != true) analysisRuntime.controller.cancel()
+    }
 
     // 当前导航历史
     val backStack = rememberNavBackStack(FitLogRoute.Today)
@@ -106,7 +128,10 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
     val currentVault = (config as? VaultConfigState.Configured)?.vaultId
     LaunchedEffect(config) {
         // Loading is not a disconnect; do not cancel an active scan during collection restart.
-        if (config !is VaultConfigState.Loading) sourceIndex.activate(currentVault)
+        if (config !is VaultConfigState.Loading) {
+            sourceIndex.activate(currentVault)
+            analysisRuntime.controller.activate(currentVault)
+        }
     }
 
     val showNavigationToolbar =
@@ -121,24 +146,39 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         Box(Modifier.fillMaxSize()) {
-            FitLogNavGraph(
-                backStack = backStack,
-                vaultPreferences = vaultPreferences,
-                logSettings = logPreferences,
-                vaultRepository = vaultRepository,
-                sourceIndex = sourceIndex,
-                analysisRepository = diaryAnalysis,
-                aiRepository = aiProviders,
-                aiClient = aiClient,
-                appearance = appearance,
-                onSetupCompleted = vaultFlow::onSetupCompleted,
-                onOpenRoute = vaultFlow::openRoute,
-                onNavigateTo = vaultFlow::navigateTo,
-                onBack = vaultFlow::back,
-                onOpenToday = vaultFlow::openTodayLog,
-                onImportFolder = vaultFlow::importFolder,
-                modifier = Modifier.padding(innerPadding)
-            )
+            Column(Modifier.fillMaxSize().padding(innerPadding)) {
+                if (analysisRun.active && (currentRoute != FitLogRoute.Log || !analysisRun.batch)) {
+                    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(stringResource(R.string.log_batch_running, analysisRun.items.size, analysisRun.total), Modifier.weight(1f))
+                            TextButton(onClick = analysisRuntime.controller::cancel) { Text(stringResource(R.string.ai_cancel_request)) }
+                        }
+                    }
+                }
+                FitLogNavGraph(
+                    backStack = backStack,
+                    vaultPreferences = vaultPreferences,
+                    logSettings = logPreferences,
+                    vaultRepository = vaultRepository,
+                    sourceIndex = sourceIndex,
+                    analysisRepository = diaryAnalysis,
+                    analysisController = analysisRuntime.controller,
+                    aiRepository = aiProviders,
+                    aiClient = aiClient,
+                    appearance = appearance,
+                    onSetupCompleted = vaultFlow::onSetupCompleted,
+                    onOpenRoute = vaultFlow::openRoute,
+                    onNavigateTo = vaultFlow::navigateTo,
+                    onBack = vaultFlow::back,
+                    onOpenToday = vaultFlow::openTodayLog,
+                    onImportFolder = vaultFlow::importFolder,
+                    modifier = Modifier.weight(1f),
+                )
+            }
 
             AnimatedVisibility(
                 visible = showNavigationToolbar && fabMenuExpanded,

@@ -108,7 +108,8 @@ class DiaryAnalysisPersistenceTest {
         val (run, analysis) = parsed(fullInput(fixture("user-sample.md")))
         val review = DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)
         val first = repo.confirm(review).record()
-        val second = repo.confirm(review.copy(sessions = emptyList(), date = date.minusDays(1))).record()
+        val second = repo.confirm(review.copy(sessions = emptyList(), date = date.minusDays(1),
+            expectedConfirmedAt = first.diary.confirmedAt)).record()
         assertEquals(first.diary.id, second.diary.id)
         assertTrue(second.sessions.isEmpty())
         db.openHelper.readableDatabase.query("SELECT name FROM sqlite_master WHERE name = 'confirmation_snapshot'").use {
@@ -131,7 +132,8 @@ class DiaryAnalysisPersistenceTest {
             50.0, WeightUnit.KG, WeightBasis.TOTAL, reps = 8, count = 1)))
         val (newRun, newAnalysis) = parsed(fullInput("bench 50kg 1x8"))
         assertEquals(corrected, repo.confirmed(originalReview.sourceKey))
-        val second = repo.confirm(DiaryConfirmation.fromCandidate(newRun.parseRunId, newAnalysis, date)).record()
+        val second = repo.confirm(DiaryConfirmation.fromCandidate(newRun.parseRunId, newAnalysis, date)
+            .copy(expectedConfirmedAt = corrected.diary.confirmedAt)).record()
         assertEquals(50.0, second.sessions.single().exercises.single().sets.single().weight!!, 0.0)
         assertNotNull(db.analysis().run(oldRun.parseRunId))
         assertNotNull(db.analysis().run(newRun.parseRunId))
@@ -223,7 +225,7 @@ class DiaryAnalysisPersistenceTest {
         val review = DiaryConfirmation.fromCandidate(run.parseRunId, analysis, date)
         val old = repo.confirm(review).record()
         db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fail_exercise BEFORE INSERT ON confirmed_exercise BEGIN SELECT RAISE(ABORT, 'test failure'); END")
-        try { repo.confirm(review); fail() } catch (_: DiaryAnalysisStorageException) { }
+        try { repo.confirm(review.copy(expectedConfirmedAt = old.diary.confirmedAt)); fail() } catch (_: DiaryAnalysisStorageException) { }
         assertEquals(old, repo.confirmed(review.sourceKey))
     }
 
@@ -281,8 +283,8 @@ class DiaryAnalysisPersistenceTest {
         try {
             val run = diskRepo.parse(input, diskParser)
             val review = DiaryConfirmation.fromCandidate(run.parseRunId, (run.result as DiaryParseResult.Success).analysis, date)
-            diskRepo.confirm(review)
-            expected = diskRepo.confirm(review).record()
+            val first = diskRepo.confirm(review).record()
+            expected = diskRepo.confirm(review.copy(expectedConfirmedAt = first.diary.confirmedAt)).record()
         } finally { disk.close() }
         val index = Room.databaseBuilder(context, SourceIndexDatabase::class.java, indexName).build()
         index.openHelper.writableDatabase

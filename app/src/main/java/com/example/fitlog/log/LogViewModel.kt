@@ -10,12 +10,14 @@ import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
 import com.example.fitlog.data.vault.*
 import com.example.fitlog.data.index.*
+import com.example.fitlog.data.analysis.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.util.Locale
+import java.time.LocalDate
 
 internal fun filterAndSortFiles(files: List<MarkdownFile>, query: String, order: LogSortOrder): List<MarkdownFile> {
     val term = query.trim()
@@ -30,6 +32,8 @@ class LogViewModel(
     private val config: Flow<VaultConfigState>,
     private val index: SourceIndexRepository,
     private val settings: LogSettingsStore,
+    private val analysis: DiaryVaultAnalysisReader? = null,
+    private val controller: DiaryAnalysisController? = null,
 ) : ViewModel() {
     var vault by mutableStateOf<String?>(null); private set
     var vaultId by mutableStateOf<String?>(null); private set
@@ -45,13 +49,37 @@ class LogViewModel(
     var scanStatus by mutableStateOf<String?>(null); private set
     var showMissing by mutableStateOf(savedState.get<Boolean>("showMissing") ?: false); private set
     var sources by mutableStateOf<List<IndexedSource>>(emptyList()); private set
+    var summaries by mutableStateOf<Map<String, DiaryAnalysisSummary>>(emptyMap()); private set
+    var summariesLoading by mutableStateOf(analysis != null); private set
+    var summariesReadFailed by mutableStateOf(false); private set
+    var run by mutableStateOf(DiaryAnalysisRun()); private set
+    var analysisBusy by mutableStateOf(false); private set
+    private var dismissedRunItems by mutableStateOf<Set<AnalysisItemResult>>(emptySet())
+    var statusFilter by mutableStateOf(LogStatusFilter.entries.firstOrNull {
+        it.name == savedState.get<String>("statusFilter")
+    } ?: LogStatusFilter.ALL); private set
+    val statuses by derivedStateOf {
+        sources.associate { source -> source.path to diaryWorkStatus(source, summaries[source.path],
+            running = run.active && run.current == SourceKey(source.vaultId, source.path),
+            unavailable = summariesReadFailed || summariesLoading,
+            readFailed = run.items.any { it !in dismissedRunItems && it.source.key.relPath == source.path && it.issue?.problem == AnalysisProblem.SOURCE },
+            operationFailed = run.items.any { it !in dismissedRunItems && it.source.key.relPath == source.path && it.outcome == AnalysisItemOutcome.FAILED },
+            changedDuringAnalysis = run.items.any { it !in dismissedRunItems && it.source.key.relPath == source.path && it.issue?.problem == AnalysisProblem.SOURCE_CHANGED }) }
+    }
+    val pendingCount by derivedStateOf { sources.count { source ->
+        val summary = summaries[source.path]
+        summary != null && (summary.candidateReadFailed ||
+            (summary.candidate != null && summary.confirmed?.parseRunId != summary.candidate.attempt.id))
+    } }
     val visibleFiles by derivedStateOf {
-        filterAndSortFiles(sources.filter { showMissing || it.status != IndexedSource.MISSING }.map { it.file() }, query, sort)
+        filterAndSortFiles(sources.filter { (showMissing || it.status != IndexedSource.MISSING) &&
+            statusFilter.matches(statuses[it.path] ?: LogDiaryStatus.UNPARSED) }.map { it.file() }, query, sort)
     }
     fun toggleMissing() { showMissing = !showMissing; savedState["showMissing"] = showMissing }
     private var currentConfig: VaultConfigState = VaultConfigState.Loading
     private var configJob: Job? = null
     private var indexJob: Job? = null
+    private var summaryJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -60,6 +88,11 @@ class LogViewModel(
             finally { sortBusy = false }
         }
         observeConfig()
+        controller?.let { runner -> viewModelScope.launch { runner.state.collect { value ->
+            if (value.active && !analysisBusy) dismissedRunItems = emptySet()
+            analysisBusy = value.active
+            run = value.takeIf { it.vaultId == vaultId } ?: DiaryAnalysisRun()
+        } } }
     }
 
     private fun observeConfig(refreshAfterRead: Boolean = false) {
@@ -71,6 +104,9 @@ class LogViewModel(
                 val nextId = (value as? VaultConfigState.Configured)?.vaultId
                 if (vaultId != nextId) {
                     indexJob?.cancel()
+                    summaryJob?.cancel(); summaryJob = null
+                    summaries = emptyMap(); summariesLoading = analysis != null && nextId != null; summariesReadFailed = false
+                    run = controller?.state?.value?.takeIf { it.vaultId == nextId } ?: DiaryAnalysisRun()
                     files = emptyList(); sources = emptyList(); partial = false; scanStatus = null; refreshing = false
                 }
                 vault = nextVault
@@ -79,6 +115,7 @@ class LogViewModel(
                 loading = value is VaultConfigState.Loading || nextVault != null
                 nextId?.let {
                     observeIndex(it)
+                    observeSummaries(it)
                     if (refreshAfterRead) index.refresh(it)
                 }
             }
@@ -86,6 +123,28 @@ class LogViewModel(
     }
 
     fun search(value: String) { query = value; savedState["query"] = value }
+    fun filter(value: LogStatusFilter) { statusFilter = value; savedState["statusFilter"] = value.name }
+
+    private fun observeSummaries(id: String) {
+        val reader = analysis ?: return
+        if (summaryJob?.isActive == true) return
+        summariesLoading = true; summariesReadFailed = false
+        summaryJob = viewModelScope.launch {
+            try { reader.observeSummaries(id).collect { value ->
+                if (vaultId == id) { summaries = value.associateBy { it.sourceKey.relPath }; summariesLoading = false }
+            } } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (vaultId == id) { summariesReadFailed = true; summariesLoading = false }
+            }
+        }
+    }
+
+    fun startAnalysis(range: LogAnalysisRange, reanalyze: Boolean) {
+        if (analysisBusy || refreshing || summariesLoading || summariesReadFailed) return
+        val matched = matchAnalysisSources(sources, summaries, range, LocalDate.now())
+        controller?.startBatch(matched.map { AnalysisSource(SourceKey(it.vaultId, it.path), it.uri) }, reanalyze)
+    }
+    fun cancelAnalysis() { controller?.cancel() }
 
     private fun observeIndex(source: String) {
         if (indexJob?.isActive == true) return
@@ -120,7 +179,9 @@ class LogViewModel(
     }
 
     fun refresh() {
+        dismissedRunItems = run.items.toSet()
         vaultId?.let(::observeIndex)
+        vaultId?.let(::observeSummaries)
         if (currentConfig is VaultConfigState.Failed) observeConfig(refreshAfterRead = true)
         else vaultId?.let(index::refresh)
     }

@@ -127,6 +127,24 @@ class ConfiguredDiaryParseTest {
         { Base64.getEncoder().encodeToString(it.toByteArray()) }, { String(Base64.getDecoder().decode(it)) },
     )
 
+    @Test fun preparedBatchKeepsOneModelAndCredentialEvenAfterSettingsChange() = runTest {
+        val settings = repository(backgroundScope)
+        settings.save(connection, "old-key", AiModelSelection("one", "a"))
+        val documents = Documents()
+        val requested = mutableListOf<String>()
+        createAiHttpClient(MockEngine { request ->
+            assertEquals("Bearer old-key", request.headers[HttpHeaders.Authorization])
+            requested += Json.parseToJsonElement(request.body.toByteArray().decodeToString()).jsonObject
+                .getValue("model").jsonPrimitive.content
+            respond(completion(ANSWER))
+        }).use { client ->
+            val session = prepareConfiguredAnalysis(settings, documents, analysis, client) { _, _ -> }
+            settings.save(connection, "new-key", AiModelSelection("one", "b"))
+            repeat(2) { session.execute(session.read(AnalysisSource(source, "content://document"))) }
+        }
+        assertEquals(listOf("a", "a"), requested)
+    }
+
     private class Documents : MarkdownDocuments {
         val text = "卧推 40kg 2x8"; var reads = 0; var fail = false
         var gate: CompletableDeferred<Unit>? = null

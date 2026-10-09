@@ -16,6 +16,8 @@ data class IndexedSource(
     val directory: String?,
     val writable: Boolean,
     val status: String = AVAILABLE,
+    val contentHash: String? = null,
+    val hashVersion: Int? = null,
 ) {
     init { requireVaultId(vaultId) }
     fun file() = MarkdownFile(uri, name, path, writable, directory)
@@ -57,7 +59,7 @@ interface SourceIndexDao {
     @Upsert suspend fun putScan(scan: IndexedScan)
 }
 
-@Database(entities = [IndexedSource::class, IndexedScan::class], version = 4, exportSchema = true)
+@Database(entities = [IndexedSource::class, IndexedScan::class], version = 5, exportSchema = true)
 abstract class SourceIndexDatabase : RoomDatabase() {
     abstract fun index(): SourceIndexDao
     companion object {

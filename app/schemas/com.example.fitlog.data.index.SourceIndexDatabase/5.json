@@ -1,0 +1,106 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 5,
+    "identityHash": "293e3c193dd656e97657361da890ec93",
+    "entities": [
+      {
+        "tableName": "sources",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vaultId` TEXT NOT NULL, `uri` TEXT NOT NULL, `name` TEXT NOT NULL, `path` TEXT NOT NULL, `directory` TEXT, `writable` INTEGER NOT NULL, `status` TEXT NOT NULL, `contentHash` TEXT, `hashVersion` INTEGER, PRIMARY KEY(`vaultId`, `uri`))",
+        "fields": [
+          {
+            "fieldPath": "vaultId",
+            "columnName": "vaultId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uri",
+            "columnName": "uri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "path",
+            "columnName": "path",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "directory",
+            "columnName": "directory",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "writable",
+            "columnName": "writable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contentHash",
+            "columnName": "contentHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "hashVersion",
+            "columnName": "hashVersion",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "vaultId",
+            "uri"
+          ]
+        }
+      },
+      {
+        "tableName": "scans",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`vaultId` TEXT NOT NULL, `status` TEXT NOT NULL, `completedAt` INTEGER, PRIMARY KEY(`vaultId`))",
+        "fields": [
+          {
+            "fieldPath": "vaultId",
+            "columnName": "vaultId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "vaultId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '293e3c193dd656e97657361da890ec93')"
+    ]
+  }
+}

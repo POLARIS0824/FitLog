@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -22,7 +23,7 @@ class DiaryAnalysisRepository internal constructor(
     private val database: DiaryAnalysisDatabase,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) : DiaryAnalysisReader {
+) : DiaryAnalysisReader, DiaryVaultAnalysisReader {
     private val dao = database.analysis()
 
     companion object {
@@ -62,6 +63,22 @@ class DiaryAnalysisRepository internal constructor(
     override fun observeConfirmed(sourceKey: SourceKey) =
         dao.observeConfirmed(sourceKey.vaultId, sourceKey.relPath).map { it?.ordered() }
             .catch { throw readFailure(it) }
+
+    override fun observeSummaries(vaultId: String) = combine(dao.observeVaultHeads(vaultId), dao.observeConfirmedRows(vaultId)) { runs, confirmations ->
+        val byPath = runs.groupBy { it.relPath }
+        val confirmed = confirmations.associateBy { it.relPath }
+        (byPath.keys + confirmed.keys).map { path ->
+            val records = parseRecords(byPath[path].orEmpty())
+            DiaryAnalysisSummary(SourceKey(vaultId, path), records.latestAttempt, records.latestCandidate,
+                confirmed[path], records.candidateReadFailed)
+        }
+    }.flowOn(Dispatchers.IO).catch { throw readFailure(it) }
+
+    suspend fun readSummary(sourceKey: SourceKey): DiaryAnalysisSummary {
+        val records = readParses(sourceKey)
+        return DiaryAnalysisSummary(sourceKey, records.latestAttempt, records.latestCandidate,
+            confirmed(sourceKey)?.diary, records.candidateReadFailed)
+    }
 
     suspend fun readParses(sourceKey: SourceKey): DiaryParseRecords {
         val rows = persist { dao.runs(sourceKey.vaultId, sourceKey.relPath) }
@@ -116,14 +133,19 @@ class DiaryAnalysisRepository internal constructor(
             if (run.parseKey().sourceKey != request.sourceKey)
                 return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.SOURCE_MISMATCH)
             val analysis = decodeCandidate(run)
-            if (analysis.hasErrors && !request.acceptedPartialResult)
+            if (requiresPartialAcceptance(analysis) && !request.acceptedPartialResult)
                 return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.PARTIAL_RESULT_NOT_ACCEPTED)
             val sessions = try { normalizeReview(request, analysis) } catch (_: IllegalArgumentException) {
                 return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_DATA)
             }
             val previous = dao.confirmed(run.vaultId, run.relPath)
+            if (previous?.diary?.confirmedAt != request.expectedConfirmedAt)
+                return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.CONFIRMATION_CHANGED)
+            if (request.requireLatestCandidate && dao.latestCandidateId(run.vaultId, run.relPath) != run.id)
+                return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.CANDIDATE_CHANGED)
             val diary = ConfirmedDiaryRow(previous?.diary?.id ?: newId(), run.vaultId, run.relPath,
-                request.date.toString(), run.contentHash, run.hashVersion, run.id, now(), request.acceptedPartialResult)
+                request.date.toString(), run.contentHash, run.hashVersion, run.id,
+                maxOf(now(), (previous?.diary?.confirmedAt ?: -1L) + 1L), request.acceptedPartialResult)
             if (previous == null) dao.insertDiary(diary) else {
                 check(dao.updateDiary(diary) == 1)
                 dao.deleteSessions(diary.id)

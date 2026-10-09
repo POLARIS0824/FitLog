@@ -27,6 +27,7 @@ import com.example.fitlog.R
 import com.example.fitlog.data.vault.MarkdownFile
 import com.example.fitlog.data.index.IndexedScan
 import com.example.fitlog.data.index.IndexedSource
+import com.example.fitlog.data.analysis.*
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogPageHeader
 
@@ -39,6 +40,8 @@ fun LogScreen(
     onRecovery: () -> Unit,
     onManage: () -> Unit,
     modifier: Modifier = Modifier,
+    onReview: () -> Unit = {},
+    onAiSettings: () -> Unit = {},
 ) {
 
     LogContent(
@@ -57,15 +60,20 @@ fun LogScreen(
             scanStatus = vm.scanStatus,
             showMissing = vm.showMissing,
             sources = vm.sources,
+            summaries = vm.summaries, summariesLoading = vm.summariesLoading, summariesReadFailed = vm.summariesReadFailed,
+            run = vm.run, analysisBusy = vm.analysisBusy, pendingCount = vm.pendingCount,
+            statuses = vm.statuses, statusFilter = vm.statusFilter,
         ),
         actions = LogActions(
             refresh = { vm.refresh() },
             search = { vm.search(it) },
             changeSort = { vm.changeSort(it) },
             toggleMissing = { vm.toggleMissing() },
+            filter = vm::filter, startAnalysis = vm::startAnalysis, cancelAnalysis = vm::cancelAnalysis,
+            openAiSettings = onAiSettings,
         ),
         onOpen = onOpen, onConnect = onConnect, onSettings = onSettings,
-        onRecovery = onRecovery, onManage = onManage, modifier = modifier,
+        onRecovery = onRecovery, onManage = onManage, modifier = modifier, onReview = onReview,
     )
 }
 
@@ -78,6 +86,7 @@ internal fun LogContent(
     onRecovery: () -> Unit,
     onManage: () -> Unit,
     modifier: Modifier = Modifier,
+    onReview: () -> Unit = {},
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
@@ -124,6 +133,8 @@ internal fun LogContent(
                         }
                     },
                 )
+                Spacer(Modifier.height(12.dp))
+                LogAnalysisControls(state, actions, onReview)
                 Spacer(Modifier.height(12.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Box {
@@ -190,6 +201,7 @@ internal fun LogContent(
             }
             itemsIndexed(files, key = { _, file -> file.uri }) { index, file ->
                 val status = state.sources.firstOrNull { it.uri == file.uri }?.status
+                val work = state.statuses[file.path] ?: LogDiaryStatus.UNPARSED
                 SegmentedListItem(
                     onClick = { state.vault?.let { onOpen(it, file) } },
                     enabled = status != IndexedSource.MISSING,
@@ -204,8 +216,16 @@ internal fun LogContent(
                         file.path.substringBeforeLast('/', "").takeIf { it.isNotBlank() }?.let { parent ->
                             Text(parent, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
-                        if (status == IndexedSource.MISSING || status == IndexedSource.READ_FAILED) Text(stringResource(
-                            if (status == IndexedSource.MISSING) R.string.index_source_missing else R.string.index_source_unreadable))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(painterResource(if (work == LogDiaryStatus.CONFIRMED) R.drawable.check_24px else R.drawable.list_alt_24px),
+                                null, modifier = Modifier.size(16.dp))
+                            Text(stringResource(work.label), color = if (work in setOf(LogDiaryStatus.FAILED, LogDiaryStatus.READ_FAILED))
+                                MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        state.summaries[file.path]?.let { summary ->
+                            if (summary.confirmed != null && work != LogDiaryStatus.CONFIRMED)
+                                Text(stringResource(R.string.log_has_confirmation), style = MaterialTheme.typography.labelSmall)
+                        }
                     } },
                 ) { Text(file.name, style = MaterialTheme.typography.titleMediumEmphasized,
                     maxLines = 2, overflow = TextOverflow.Ellipsis) }
@@ -231,6 +251,14 @@ internal data class LogUiState(
     val scanStatus: String? = null,
     val showMissing: Boolean = false,
     val sources: List<IndexedSource> = emptyList(),
+    val summaries: Map<String, DiaryAnalysisSummary> = emptyMap(),
+    val summariesLoading: Boolean = false,
+    val summariesReadFailed: Boolean = false,
+    val run: DiaryAnalysisRun = DiaryAnalysisRun(),
+    val analysisBusy: Boolean = false,
+    val pendingCount: Int = 0,
+    val statuses: Map<String, LogDiaryStatus> = emptyMap(),
+    val statusFilter: LogStatusFilter = LogStatusFilter.ALL,
 )
 
 internal data class LogActions(
@@ -238,6 +266,10 @@ internal data class LogActions(
     val search: (String) -> Unit = {},
     val changeSort: (LogSortOrder) -> Unit = {},
     val toggleMissing: () -> Unit = {},
+    val filter: (LogStatusFilter) -> Unit = {},
+    val startAnalysis: (LogAnalysisRange, Boolean) -> Unit = { _, _ -> },
+    val cancelAnalysis: () -> Unit = {},
+    val openAiSettings: () -> Unit = {},
 )
 
 @FitLogPreviews

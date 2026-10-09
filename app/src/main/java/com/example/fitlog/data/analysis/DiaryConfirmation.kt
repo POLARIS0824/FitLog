@@ -40,6 +40,8 @@ data class DiaryConfirmation(
     val date: LocalDate,
     val sessions: List<ReviewedSession>,
     val acceptedPartialResult: Boolean = false,
+    val expectedConfirmedAt: Long? = null,
+    val requireLatestCandidate: Boolean = false,
 ) {
     companion object {
         fun fromCandidate(
@@ -72,7 +74,10 @@ sealed interface DiaryConfirmationResult {
     data class Invalid(val reason: ConfirmationFailure) : DiaryConfirmationResult
 }
 
-enum class ConfirmationFailure { INVALID_PARSE_RUN, SOURCE_MISMATCH, INVALID_DATA, PARTIAL_RESULT_NOT_ACCEPTED }
+enum class ConfirmationFailure {
+    INVALID_PARSE_RUN, SOURCE_MISMATCH, INVALID_DATA, PARTIAL_RESULT_NOT_ACCEPTED,
+    SOURCE_CHANGED, SOURCE_UNAVAILABLE, CONFIRMATION_CHANGED, CANDIDATE_CHANGED,
+}
 
 /** Suggestions require an explicit final date in the confirmation request. */
 data class DiaryDateSuggestion(val suggested: LocalDate?, val modelDates: List<LocalDate>, val requiresReview: Boolean)
