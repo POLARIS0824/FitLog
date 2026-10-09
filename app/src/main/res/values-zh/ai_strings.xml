@@ -6,12 +6,10 @@
     <string name="ai_active_selection">当前解析：%1$s · %2$s</string>
     <string name="ai_no_active_selection">尚未选择解析模型</string>
     <string name="ai_settings_title">AI 设置</string>
-    <string name="ai_settings_description">配置接入连接，再选择用于提取日记记录的模型。</string>
     <string name="ai_deepseek">DeepSeek</string>
     <string name="ai_custom_connection">自定义连接</string>
     <string name="ai_new_connection">新连接</string>
     <string name="ai_connection_heading">接入连接</string>
-    <string name="ai_connection_picker">已保存的连接</string>
     <string name="ai_add_deepseek">添加 DeepSeek</string>
     <string name="ai_add_custom">添加自定义</string>
     <string name="ai_connection_name">连接名称</string>

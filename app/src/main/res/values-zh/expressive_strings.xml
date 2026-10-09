@@ -10,7 +10,6 @@
     <string name="insight_unavailable_description">训练趋势尚未开放。你可以在「记录」中阅读和解析单篇日记。</string>
     <string name="log_description">每一篇记录，都在这里</string>
     <string name="log_options">日记选项</string>
-    <string name="settings_description">让记录贴合你的训练习惯</string>
     <string name="settings_analysis_heading">日记分析</string>
     <string name="vault_management_description">管理 Markdown 文件夹的连接与访问权限</string>
 </resources>

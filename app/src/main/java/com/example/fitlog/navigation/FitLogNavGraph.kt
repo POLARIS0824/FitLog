@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import com.example.fitlog.editor.EditorViewModel
 import com.example.fitlog.editor.EditorDraftStore
@@ -28,6 +29,8 @@ import com.example.fitlog.log.LogSettingsStore
 import com.example.fitlog.log.LogViewModel
 import com.example.fitlog.today.TodayScreen
 import com.example.fitlog.settings.SettingsScreen
+import com.example.fitlog.settings.AppearanceScreen
+import com.example.fitlog.settings.AppearanceViewModel
 import com.example.fitlog.vault.VaultSetupRoute
 import com.example.fitlog.vault.DiarySettingsScreen
 import com.example.fitlog.vault.DiarySettingsViewModel
@@ -54,7 +57,7 @@ import io.ktor.client.HttpClient
  * Navigation3 的核心路由表，entry<Route> 中决定该 Route 显示哪个 Screen、ViewModel 如何创建、点击后去哪里，同时注册编辑器等页面的返回拦截
  */
 @Composable
-fun FitLogNavGraph(
+internal fun FitLogNavGraph(
     backStack: NavBackStack<NavKey>,
     vaultPreferences: VaultPreferences,
     logSettings: LogSettingsStore,
@@ -63,6 +66,7 @@ fun FitLogNavGraph(
     analysisRepository: DiaryAnalysisRepository,
     aiRepository: AiProviderRepository,
     aiClient: HttpClient,
+    appearance: AppearanceViewModel,
     onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
     onOpenRoute: (FitLogRoute) -> Unit,
     onNavigateTo: (FitLogRoute) -> Unit,
@@ -117,12 +121,38 @@ fun FitLogNavGraph(
             }
 
             entry<FitLogRoute.Settings> {
+                var retry by remember { mutableIntStateOf(0) }
+                val config by key(retry) {
+                    vaultPreferences.vaultConfig.collectAsStateWithLifecycle(initialValue = VaultConfigState.Loading)
+                }
                 SettingsScreen(
+                    appearance = appearance.preferences,
+                    appearanceReady = appearance.initialized,
+                    config = config,
+                    onAppearance = {
+                        if (backStack.lastOrNull() == FitLogRoute.Settings) onOpenRoute(FitLogRoute.Appearance)
+                    },
                     onAiSettings = {
                         if (backStack.lastOrNull() == FitLogRoute.Settings) onOpenRoute(FitLogRoute.AiSettings)
                     },
+                    onVaultManagement = {
+                        if (backStack.lastOrNull() == FitLogRoute.Settings) onOpenRoute(FitLogRoute.VaultManagement)
+                    },
+                    onDiarySettings = {
+                        (config as? VaultConfigState.Configured)?.let {
+                            if (backStack.lastOrNull() == FitLogRoute.Settings)
+                                onOpenRoute(FitLogRoute.DiarySettings(it.uri.toString(), it.vaultId))
+                        }
+                    },
+                    onRetryVault = { retry++ },
                     onBack = { if (backStack.lastOrNull() == FitLogRoute.Settings) onBack() },
                 )
+            }
+
+            entry<FitLogRoute.Appearance> {
+                AppearanceScreen(appearance) {
+                    if (backStack.lastOrNull() == FitLogRoute.Appearance) onBack()
+                }
             }
 
             entry<FitLogRoute.Log> {

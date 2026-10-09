@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_personalization_heading">个性化</string>
+    <string name="settings_vault_heading">资料库</string>
+    <string name="settings_vault_description">连接目录、访问权限与切换资料库</string>
+    <string name="settings_diary_description">新建今日日记的目录与日期格式</string>
+    <string name="settings_diary_requires_vault">请先在资料库管理中连接目录</string>
+    <string name="appearance_title">外观</string>
+    <string name="appearance_theme_heading">主题</string>
+    <string name="appearance_colors_heading">颜色</string>
+    <string name="appearance_system">跟随系统</string>
+    <string name="appearance_light">浅色</string>
+    <string name="appearance_dark">深色</string>
+    <string name="appearance_dynamic_color">动态取色</string>
+    <string name="appearance_dynamic_description">使用壁纸生成的配色</string>
+    <string name="appearance_dynamic_unsupported">壁纸取色需要 Android 12 或更高版本</string>
+    <string name="appearance_dynamic_on">动态取色已开启</string>
+    <string name="appearance_dynamic_off">默认配色</string>
+    <string name="appearance_summary">%1$s · %2$s</string>
+    <string name="appearance_summary_unavailable">主题模式与壁纸取色</string>
+    <string name="appearance_read_failed">无法读取外观设置，请手动重试。</string>
+    <string name="appearance_save_failed">无法保存外观设置，已保留之前的选择，请再次选择重试。</string>
+    <string name="ai_editing_connection">正在编辑此连接，保存后才会生效。</string>
+    <string name="ai_choose_connection">选择连接</string>
+    <string name="ai_unsaved_connection">新连接 · 尚未保存</string>
+    <plurals name="ai_saved_connection_models">
+        <item quantity="other">已保存连接 · %1$d 个模型</item>
+    </plurals>
+    <string name="ai_new_connection_heading">新建连接</string>
+</resources>

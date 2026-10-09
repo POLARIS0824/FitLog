@@ -21,6 +21,9 @@ sealed interface FitLogRoute : NavKey {
     data object Settings : FitLogRoute
 
     @Serializable
+    data object Appearance : FitLogRoute
+
+    @Serializable
     data object AiSettings : FitLogRoute
 
     @Serializable

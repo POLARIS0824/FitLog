@@ -1,66 +1,72 @@
 package com.example.fitlog.settings
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.SegmentedListItem
+import android.os.Build
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import com.example.fitlog.ui.preview.FitLogPreviews
-import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.R
-import com.example.fitlog.ui.components.FitLogPageHeader
-import com.example.fitlog.ui.components.FitLogSectionTitle
+import com.example.fitlog.data.settings.AppearancePreferences
+import com.example.fitlog.data.settings.ThemeMode
+import com.example.fitlog.data.vault.VaultConfigState
+import com.example.fitlog.ui.components.*
+import com.example.fitlog.ui.preview.FitLogPreview
+import com.example.fitlog.ui.preview.FitLogPreviews
 
-/** Keep the settings overview small; AI configuration has its own form and persistence. */
 @Composable
-internal fun SettingsScreen(onAiSettings: () -> Unit, onBack: () -> Unit) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        LazyColumn(
-            modifier = Modifier.widthIn(max = 640.dp).fillMaxSize(),
-            contentPadding = PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            item {
-                FitLogPageHeader(stringResource(R.string.settings_title),
-                    stringResource(R.string.settings_description), onBack)
+internal fun themeModeLabel(mode: ThemeMode): String = stringResource(when (mode) {
+    ThemeMode.SYSTEM -> R.string.appearance_system
+    ThemeMode.LIGHT -> R.string.appearance_light
+    ThemeMode.DARK -> R.string.appearance_dark
+})
+
+@Composable
+internal fun SettingsScreen(
+    appearance: AppearancePreferences,
+    appearanceReady: Boolean,
+    config: VaultConfigState,
+    onAppearance: () -> Unit,
+    onAiSettings: () -> Unit,
+    onVaultManagement: () -> Unit,
+    onDiarySettings: () -> Unit,
+    onRetryVault: () -> Unit,
+    onBack: () -> Unit,
+) {
+    FitLogSettingsPage(stringResource(R.string.settings_title), onBack) {
+        item {
+            SettingsSectionTitle(stringResource(R.string.settings_personalization_heading))
+            SettingsGroup {
+                SettingsEntry(R.drawable.palette_24px, stringResource(R.string.appearance_title),
+                    if (appearanceReady) stringResource(R.string.appearance_summary, themeModeLabel(appearance.themeMode),
+                        stringResource(if (appearance.dynamicColor && Build.VERSION.SDK_INT >= 31)
+                            R.string.appearance_dynamic_on else R.string.appearance_dynamic_off))
+                    else stringResource(R.string.appearance_summary_unavailable), onAppearance, tone = 2)
             }
-            item {
-                FitLogSectionTitle(stringResource(R.string.settings_analysis_heading))
-                SegmentedListItem(
-                    onClick = onAiSettings,
-                    shapes = ListItemDefaults.segmentedShapes(0, 1),
-                    leadingContent = {
-                        Box(
-                            Modifier.size(48.dp).background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.large),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(painterResource(R.drawable.auto_awesome_24px), contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                        }
-                    },
-                    supportingContent = {
-                        Text(stringResource(R.string.settings_ai_description),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    },
-                ) {
-                    Text(stringResource(R.string.ai_settings_title), style = MaterialTheme.typography.titleMediumEmphasized)
+        }
+        item {
+            SettingsSectionTitle(stringResource(R.string.settings_analysis_heading))
+            SettingsGroup {
+                SettingsEntry(R.drawable.auto_awesome_24px, stringResource(R.string.ai_settings_title),
+                    stringResource(R.string.settings_ai_description), onAiSettings)
+            }
+        }
+        item {
+            SettingsSectionTitle(stringResource(R.string.settings_vault_heading))
+            SettingsGroup {
+                SettingsEntry(R.drawable.folder_open_24px, stringResource(R.string.vault_management_title),
+                    stringResource(R.string.settings_vault_description), onVaultManagement, tone = 1)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                SettingsEntry(R.drawable.note_add_24px, stringResource(R.string.diary_settings_title),
+                    stringResource(when (config) {
+                        is VaultConfigState.Configured -> R.string.settings_diary_description
+                        is VaultConfigState.Failed -> R.string.vault_error_load_config_failed
+                        VaultConfigState.Loading -> R.string.vault_setup_loading_config
+                        VaultConfigState.NotConfigured -> R.string.settings_diary_requires_vault
+                    }), onDiarySettings, enabled = config is VaultConfigState.Configured, tone = 2)
+                if (config is VaultConfigState.Failed) TextButton(onClick = onRetryVault) {
+                    Text(stringResource(R.string.log_retry))
                 }
             }
         }
@@ -70,5 +76,6 @@ internal fun SettingsScreen(onAiSettings: () -> Unit, onBack: () -> Unit) {
 @FitLogPreviews
 @Composable
 private fun SettingsPreview() {
-    FitLogPreview { SettingsScreen({}, {}) }
+    FitLogPreview { SettingsScreen(AppearancePreferences(), true, VaultConfigState.NotConfigured,
+        {}, {}, {}, {}, {}, {}) }
 }

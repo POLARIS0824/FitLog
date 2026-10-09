@@ -29,6 +29,31 @@ import com.example.fitlog.data.vault.DiaryCreationUnavailable
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class VaultFlowControllerTest {
+    @Test fun settingsChildrenReturnToSettingsAndRepeatedClicksDoNotDuplicateRoutes() = runTest {
+        val flow = controller(config = { error("Opening preferences must not require SAF") })
+        flow.openRoute(FitLogRoute.Settings)
+        val diary = FitLogRoute.DiarySettings("content://vault", "00000000-0000-4000-8000-000000000001")
+        listOf(FitLogRoute.Appearance, FitLogRoute.VaultManagement, diary).forEach { route ->
+            flow.openRoute(route)
+            flow.openRoute(route)
+            assertEquals(listOf(FitLogRoute.Today, FitLogRoute.Settings, route), stack)
+            flow.back()
+            assertEquals(FitLogRoute.Settings, stack.last())
+        }
+        assertEquals(FitLogRoute.Appearance,
+            Json.decodeFromString<FitLogRoute>(Json.encodeToString<FitLogRoute>(FitLogRoute.Appearance)))
+    }
+
+    @Test fun settingsVaultConnectionCompletesInLog() = runTest {
+        val flow = controller()
+        flow.openRoute(FitLogRoute.Settings)
+        flow.openRoute(FitLogRoute.VaultManagement)
+        val setup = FitLogRoute.VaultSetup()
+        flow.openRoute(setup)
+        flow.onSetupCompleted(setup)
+        assertEquals(listOf(FitLogRoute.Log), stack)
+    }
+
     @Test fun todaySettingsOpensAiWithoutVaultAccessAndBackPreservesBothParents() = runTest {
         val flow = controller(config = { error("AI settings must not request a vault") },
             access = { error("AI settings must not request SAF access") })

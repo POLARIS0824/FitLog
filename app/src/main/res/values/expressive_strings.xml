@@ -10,7 +10,6 @@
     <string name="insight_unavailable_description">Training trends are not available yet. You can read and analyze individual diaries in Log.</string>
     <string name="log_description">Your notes, always within reach</string>
     <string name="log_options">Diary options</string>
-    <string name="settings_description">Make room for the way you train</string>
     <string name="settings_analysis_heading">Diary analysis</string>
     <string name="vault_management_description">Access and connection for your Markdown folder</string>
 </resources>

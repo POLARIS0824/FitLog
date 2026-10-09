@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_personalization_heading">Personalization</string>
+    <string name="settings_vault_heading">Vault</string>
+    <string name="settings_vault_description">Connected folder, access and switching vaults</string>
+    <string name="settings_diary_description">Folder and date format for new daily notes</string>
+    <string name="settings_diary_requires_vault">Connect a folder in Vault management first</string>
+    <string name="appearance_title">Appearance</string>
+    <string name="appearance_theme_heading">Theme</string>
+    <string name="appearance_colors_heading">Colors</string>
+    <string name="appearance_system">Follow system</string>
+    <string name="appearance_light">Light</string>
+    <string name="appearance_dark">Dark</string>
+    <string name="appearance_dynamic_color">Dynamic color</string>
+    <string name="appearance_dynamic_description">Use colors from your wallpaper</string>
+    <string name="appearance_dynamic_unsupported">Wallpaper colors require Android 12 or later</string>
+    <string name="appearance_dynamic_on">Wallpaper colors on</string>
+    <string name="appearance_dynamic_off">Default colors</string>
+    <string name="appearance_summary">%1$s · %2$s</string>
+    <string name="appearance_summary_unavailable">Theme mode and wallpaper colors</string>
+    <string name="appearance_read_failed">Cannot read appearance settings. Retry manually.</string>
+    <string name="appearance_save_failed">Cannot save appearance settings. Your previous choice is kept. Try selecting again.</string>
+    <string name="ai_editing_connection">Editing this connection. Changes take effect after saving.</string>
+    <string name="ai_choose_connection">Choose a connection</string>
+    <string name="ai_unsaved_connection">New connection · not saved</string>
+    <plurals name="ai_saved_connection_models">
+        <item quantity="one">Saved connection · %1$d model</item>
+        <item quantity="other">Saved connection · %1$d models</item>
+    </plurals>
+    <string name="ai_new_connection_heading">New connection</string>
+</resources>

@@ -57,8 +57,10 @@ internal class VaultFlowController(
             current.vaultUri == route.vaultUri && current.vaultId == route.vaultId && current.document == route.document
         val aiSettings = route == FitLogRoute.AiSettings &&
             (current is FitLogRoute.DiaryDetail || current == FitLogRoute.Settings)
+        val settingsChild = current == FitLogRoute.Settings &&
+            (route == FitLogRoute.Appearance || route == FitLogRoute.VaultManagement || route is FitLogRoute.DiarySettings)
         val nested = detailEditor || (current == FitLogRoute.RecoveryCenter && route is FitLogRoute.Editor) ||
-            (current == FitLogRoute.VaultManagement && route is FitLogRoute.VaultSetup) || aiSettings
+            (current == FitLogRoute.VaultManagement && route is FitLogRoute.VaultSetup) || aiSettings || settingsChild
         if (!isTopLevel() && !nested) return
         invalidate()
         backStack.add(route)

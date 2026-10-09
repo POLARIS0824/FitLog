@@ -6,12 +6,10 @@
     <string name="ai_active_selection">Current extraction: %1$s · %2$s</string>
     <string name="ai_no_active_selection">No extraction model selected yet</string>
     <string name="ai_settings_title">AI settings</string>
-    <string name="ai_settings_description">Configure a connection, then choose the model used to extract diary records.</string>
     <string name="ai_deepseek">DeepSeek</string>
     <string name="ai_custom_connection">Custom connection</string>
     <string name="ai_new_connection">New connection</string>
     <string name="ai_connection_heading">Connection</string>
-    <string name="ai_connection_picker">Saved connections</string>
     <string name="ai_add_deepseek">Add DeepSeek</string>
     <string name="ai_add_custom">Add custom</string>
     <string name="ai_connection_name">Connection name</string>

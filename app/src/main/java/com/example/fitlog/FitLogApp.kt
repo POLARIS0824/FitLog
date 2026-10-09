@@ -43,6 +43,7 @@ import com.example.fitlog.navigation.FitLogNavGraph
 import com.example.fitlog.navigation.FitLogRoute
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
 import com.example.fitlog.vault.VaultFlowController
+import com.example.fitlog.settings.AppearanceViewModel
 import kotlinx.coroutines.launch
 
 /**
@@ -54,11 +55,14 @@ import kotlinx.coroutines.launch
  */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
-fun FitLogApp() {
+internal fun FitLogApp(appearance: AppearanceViewModel) {
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(appearance.message) {
+        appearance.message?.let { snackbarHostState.showSnackbar(context.getString(it)) }
+    }
 
     val preferencesStore = remember { context.applicationContext.vaultDataStore }
     val vaultPreferences = remember { VaultPreferences(preferencesStore) }
@@ -126,6 +130,7 @@ fun FitLogApp() {
                 analysisRepository = diaryAnalysis,
                 aiRepository = aiProviders,
                 aiClient = aiClient,
+                appearance = appearance,
                 onSetupCompleted = vaultFlow::onSetupCompleted,
                 onOpenRoute = vaultFlow::openRoute,
                 onNavigateTo = vaultFlow::navigateTo,
