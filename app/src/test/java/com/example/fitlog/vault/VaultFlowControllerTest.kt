@@ -29,6 +29,24 @@ import com.example.fitlog.data.vault.DiaryCreationUnavailable
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class VaultFlowControllerTest {
+    @Test fun exerciseHistoryOpensItsDiaryAndBackPreservesInsightAndTheExercise() = runTest {
+        val flow = controller(config = { error("Insight navigation must not scan or request SAF") })
+        flow.navigateTo(FitLogRoute.Insight)
+        val exercise = FitLogRoute.ExerciseHistory("00000000-0000-4000-8000-000000000001", "bench")
+        val diary = FitLogRoute.DiaryDetail("content://vault", exercise.vaultId,
+            "content://document", "daily/note.md", "content://daily", "note.md", openAnalysis = true)
+        flow.openRoute(exercise)
+        flow.openRoute(diary.copy(vaultId = "00000000-0000-4000-8000-000000000002"))
+        assertEquals(listOf(FitLogRoute.Insight, exercise), stack)
+        flow.openRoute(diary)
+        flow.openRoute(diary)
+        assertEquals(listOf(FitLogRoute.Insight, exercise, diary), stack)
+        assertEquals(diary, Json.decodeFromString<FitLogRoute>(Json.encodeToString<FitLogRoute>(diary)))
+        assertEquals(exercise, Json.decodeFromString<FitLogRoute>(Json.encodeToString<FitLogRoute>(exercise)))
+        flow.back(); assertEquals(exercise, stack.last())
+        flow.back(); assertEquals(listOf(FitLogRoute.Insight), stack)
+    }
+
     @Test fun settingsChildrenReturnToSettingsAndRepeatedClicksDoNotDuplicateRoutes() = runTest {
         val flow = controller(config = { error("Opening preferences must not require SAF") })
         flow.openRoute(FitLogRoute.Settings)

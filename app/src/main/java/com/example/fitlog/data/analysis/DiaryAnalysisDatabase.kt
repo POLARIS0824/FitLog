@@ -108,6 +108,9 @@ interface DiaryAnalysisDao {
     fun observeVaultHeads(vaultId: String): Flow<List<ParseRunRow>>
     @Query("SELECT * FROM confirmed_diary WHERE vaultId = :vaultId")
     fun observeConfirmedRows(vaultId: String): Flow<List<ConfirmedDiaryRow>>
+    @Transaction
+    @Query("SELECT * FROM confirmed_diary WHERE vaultId = :vaultId ORDER BY date, relPath")
+    fun observeConfirmedDiaries(vaultId: String): Flow<List<ConfirmedDiaryRecord>>
     @Query("SELECT id FROM parse_run WHERE vaultId = :vaultId AND relPath = :relPath AND status = 'SUCCEEDED' ORDER BY startedAt DESC, rowid DESC LIMIT 1")
     suspend fun latestCandidateId(vaultId: String, relPath: String): String?
     @Insert suspend fun insertRun(row: ParseRunRow)

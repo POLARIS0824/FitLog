@@ -15,6 +15,11 @@ interface DiaryAnalysisReader {
     suspend fun readCandidate(sourceKey: SourceKey, parseRunId: String): StoredDiaryCandidate?
 }
 
+/** Vault-wide confirmed facts; reading statistics never requests a model. */
+interface ConfirmedDiaryReader {
+    fun observeConfirmedDiaries(vaultId: String): Flow<List<ConfirmedDiaryRecord>>
+}
+
 /** Storage JSON and raw model responses deliberately stay behind the repository. */
 data class DiaryParseAttempt(
     val id: String,

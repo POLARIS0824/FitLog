@@ -48,7 +48,7 @@ class DiaryDetailViewModel(
     val sourceKey = SourceKey(route.vaultId, route.relPath)
     var tab by mutableStateOf(DiaryDetailTab.entries.firstOrNull {
         it.name == savedState.get<String>("detailTab")
-    } ?: DiaryDetailTab.ORIGINAL); private set
+    } ?: if (route.openAnalysis) DiaryDetailTab.ANALYSIS else DiaryDetailTab.ORIGINAL); private set
     var original by mutableStateOf<MarkdownSnapshot?>(null); private set
     var sourceLoading by mutableStateOf(false); private set
     var sourceReadFailed by mutableStateOf(false); private set

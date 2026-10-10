@@ -23,7 +23,7 @@ class DiaryAnalysisRepository internal constructor(
     private val database: DiaryAnalysisDatabase,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) : DiaryAnalysisReader, DiaryVaultAnalysisReader {
+) : DiaryAnalysisReader, DiaryVaultAnalysisReader, ConfirmedDiaryReader {
     private val dao = database.analysis()
 
     companion object {
@@ -63,6 +63,11 @@ class DiaryAnalysisRepository internal constructor(
     override fun observeConfirmed(sourceKey: SourceKey) =
         dao.observeConfirmed(sourceKey.vaultId, sourceKey.relPath).map { it?.ordered() }
             .catch { throw readFailure(it) }
+
+    override fun observeConfirmedDiaries(vaultId: String) =
+        dao.observeConfirmedDiaries(com.example.fitlog.data.vault.requireVaultId(vaultId))
+            .map { records -> records.map { it.ordered() } }
+            .flowOn(Dispatchers.IO).catch { throw readFailure(it) }
 
     override fun observeSummaries(vaultId: String) = combine(dao.observeVaultHeads(vaultId), dao.observeConfirmedRows(vaultId)) { runs, confirmations ->
         val byPath = runs.groupBy { it.relPath }

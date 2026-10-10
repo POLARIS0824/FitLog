@@ -51,11 +51,23 @@ class DiaryReviewViewModelTest {
     @Before fun before() { Dispatchers.setMain(dispatcher) }
     @After fun after() { store.clear(); Dispatchers.resetMain() }
 
-    private fun vm(saved: SavedStateHandle = SavedStateHandle(), save: suspend (DiaryConfirmation) -> DiaryConfirmationResult = {
+    private fun vm(saved: SavedStateHandle = SavedStateHandle(), detailRoute: FitLogRoute.DiaryDetail = route,
+        save: suspend (DiaryConfirmation) -> DiaryConfirmationResult = {
         DiaryConfirmationResult.Confirmed(record(it))
-    }) = DiaryDetailViewModel(route, documents, reader, saved, {
+    }) = DiaryDetailViewModel(detailRoute, documents, reader, saved, {
         modelCalls++; StoredDiaryParse("unused", DiaryParseResult.Success(candidate.analysis))
     }, dispatcher, confirmDiary = { submitted += it; save(it) }).also { store.put("review-${modelId++}", it) }
+
+    @Test fun insightInitiallyOpensAnalysisButRestoredTabWinsOverTheRouteDefault() = runTest(dispatcher) {
+        val state = SavedStateHandle()
+        val opened = vm(state, route.copy(openAnalysis = true)); runCurrent()
+        assertEquals(DiaryDetailTab.ANALYSIS, opened.tab)
+        opened.selectTab(DiaryDetailTab.ORIGINAL)
+        val restored = vm(state, route.copy(openAnalysis = true)); runCurrent()
+        assertEquals(DiaryDetailTab.ORIGINAL, restored.tab)
+        assertEquals(DiaryDetailTab.ORIGINAL, vm().tab)
+        assertEquals(0, modelCalls)
+    }
 
     private fun candidate(): StoredDiaryCandidate {
         val key = DiaryParseInput.fromSnapshot(SourceKey(route.vaultId, route.relPath), "bench", "test").parseKey

@@ -24,6 +24,9 @@ import com.example.fitlog.data.vault.VaultPreferences
 import com.example.fitlog.data.vault.VaultRepository
 import com.example.fitlog.editor.EditorScreen
 import com.example.fitlog.insight.InsightScreen
+import com.example.fitlog.insight.InsightViewModel
+import com.example.fitlog.insight.ExerciseHistoryScreen
+import com.example.fitlog.data.insight.DataStoreExerciseAliasStore
 import com.example.fitlog.log.LogScreen
 import com.example.fitlog.log.LogSettingsStore
 import com.example.fitlog.log.LogViewModel
@@ -85,6 +88,7 @@ internal fun FitLogNavGraph(
     val context = LocalContext.current.applicationContext
     val documents = remember(context) { MarkdownDocumentRepository(context) }
     val drafts = remember(context) { EditorDraftStore(File(context.filesDir, "editor-drafts")) }
+    val exerciseAliases = remember(context) { DataStoreExerciseAliasStore(context) }
     val backHandlers = remember { mutableStateMapOf<NavKey, () -> Unit>() }
 
     NavDisplay(
@@ -209,9 +213,35 @@ internal fun FitLogNavGraph(
             }
 
             entry<FitLogRoute.Insight> {
-                InsightScreen(onOpenLog = {
+                val vm = viewModel<InsightViewModel> {
+                    InsightViewModel(vaultPreferences.vaultConfig, sourceIndex::observe, analysisRepository,
+                        exerciseAliases, createSavedStateHandle(), refreshIndex = { sourceIndex.refresh(it) })
+                }
+                InsightScreen(vm, onOpenLog = {
                     if (backStack.lastOrNull() == FitLogRoute.Insight) onNavigateTo(FitLogRoute.Log)
+                }, onOpen = { key ->
+                    if (backStack.lastOrNull() == FitLogRoute.Insight) vm.diaryRoute(key)?.let(onOpenRoute)
+                }, onExercise = { name ->
+                    val id = vm.data?.vaultId
+                    if (backStack.lastOrNull() == FitLogRoute.Insight && vm.activeVault && id != null)
+                        onOpenRoute(FitLogRoute.ExerciseHistory(id, name, vm.range.name))
                 })
+            }
+
+            entry<FitLogRoute.ExerciseHistory> { route ->
+                val vm = viewModel<InsightViewModel> {
+                    InsightViewModel(vaultPreferences.vaultConfig, sourceIndex::observe, analysisRepository,
+                        exerciseAliases, createSavedStateHandle(), refreshIndex = { sourceIndex.refresh(it) },
+                        targetVaultId = route.vaultId, initialRange = route.range)
+                }
+                DisposableEffect(vm) {
+                    backHandlers[route] = { if (!vm.aliasSaving) onBack() }
+                    onDispose { backHandlers.remove(route) }
+                }
+                ExerciseHistoryScreen(vm, route.nameKey, onOpen = { key ->
+                    if (backStack.lastOrNull() == route) vm.diaryRoute(key)?.let(onOpenRoute)
+                }, onOpenLog = { if (backStack.lastOrNull() == route) onNavigateTo(FitLogRoute.Log) },
+                    onBack = { if (backStack.lastOrNull() == route && !vm.aliasSaving) onBack() })
             }
 
             entry<FitLogRoute.DiaryDetail> { route ->

@@ -18,6 +18,11 @@ sealed interface FitLogRoute : NavKey {
     data object Insight : FitLogRoute
 
     @Serializable
+    data class ExerciseHistory(val vaultId: String, val nameKey: String, val range: String = "NINETY") : FitLogRoute {
+        init { requireVaultId(vaultId); require(nameKey.isNotBlank()) }
+    }
+
+    @Serializable
     data object Settings : FitLogRoute
 
     @Serializable
@@ -39,6 +44,7 @@ sealed interface FitLogRoute : NavKey {
         val relPath: String,
         val directory: String,
         val fileName: String,
+        val openAnalysis: Boolean = false,
     ) : FitLogRoute {
         init { requireVaultId(vaultId) }
     }

@@ -54,6 +54,46 @@ class DiaryAnalysisReadTest {
         assertEquals(1, calls)
     }
 
+    @Test fun vaultReaderEmitsCompleteLatestConfirmationsAndIgnoresCandidatesAndOtherVaults() = runBlocking {
+        val input = fullInput("note")
+        val key = input.parseKey.sourceKey
+        assertTrue(repo.observeConfirmedDiaries(key.vaultId).first().isEmpty())
+        assertEquals(0, calls)
+        val run = repo.parse(input, parser)
+        val bench = ReviewedExercise("Bench", listOf(
+            ReviewedSet(60.0, WeightUnit.KG, WeightBasis.TOTAL, 8),
+            ReviewedSet(reps = 12, basis = WeightBasis.BODYWEIGHT)))
+        val sessions = listOf(ReviewedSession(listOf(bench)), ReviewedSession(listOf(ReviewedExercise("Abs"))))
+        val request = DiaryConfirmation(key, run.parseRunId, LocalDate.of(2026, 10, 2), sessions)
+        val first = (repo.confirm(request) as DiaryConfirmationResult.Confirmed).diary
+        val observed = repo.observeConfirmedDiaries(key.vaultId).first().single()
+        assertEquals(first, observed)
+        assertEquals(2, observed.sessions.size)
+        assertEquals(2, observed.sessions.first().exercises.single().sets.size)
+        assertTrue(observed.sessions.last().exercises.single().sets.isEmpty())
+
+        val otherKey = key.copy(vaultId = UUID.randomUUID().toString())
+        val otherRun = repo.parse(DiaryParseInput.fromSnapshot(otherKey, "other", "fixture-v1"), parser)
+        repo.confirm(request.copy(sourceKey = otherKey, parseRunId = otherRun.parseRunId))
+        assertEquals(listOf(first), repo.observeConfirmedDiaries(key.vaultId).first())
+
+        val updatedRead = async(start = CoroutineStart.UNDISPATCHED) {
+            withTimeout(10_000) { repo.observeConfirmedDiaries(key.vaultId).first {
+                it.singleOrNull()?.sessions?.singleOrNull()?.exercises?.singleOrNull()?.sets?.singleOrNull()?.weight == 70.0
+            } }
+        }
+        val edited = request.copy(sessions = listOf(ReviewedSession(listOf(ReviewedExercise("Bench",
+            listOf(ReviewedSet(70.0, WeightUnit.KG, WeightBasis.TOTAL, 6, userEdited = true)))))),
+            expectedConfirmedAt = first.diary.confirmedAt)
+        val final = (repo.confirm(edited) as DiaryConfirmationResult.Confirmed).diary
+        assertEquals(listOf(final), updatedRead.await())
+        repo.parse(input, parser) // A newer candidate must not replace the confirmation.
+        response = DiaryModelResponse.Failure(DiaryParseFailure.NETWORK_ERROR)
+        repo.parse(input, parser)
+        assertEquals(listOf(final), repo.observeConfirmedDiaries(key.vaultId).first())
+        assertEquals(4, calls)
+    }
+
     @Test fun recentFailurePreservesPreviousCandidateAndConfirmation() = runBlocking {
         val oldInput = fullInput("first")
         val old = repo.parse(oldInput, parser)
