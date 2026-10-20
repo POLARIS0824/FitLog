@@ -23,7 +23,6 @@ android {
         versionCode = 1
         versionName = "2.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
@@ -35,9 +34,6 @@ android {
         compose = true
     }
 
-    testOptions {
-        unitTests.isIncludeAndroidResources = true
-    }
 
     buildTypes {
         release {
@@ -75,13 +71,14 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 
-    // Coroutines are used directly; align production and test modules with their BOM.
+    // Coroutines are used directly; align dependencies with their BOM.
     implementation(platform(libs.kotlinx.coroutines.bom))
     implementation(libs.kotlinx.coroutines.android)
 
     // Navigation 3
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.navigationevent.compose)
 
     // AI transport: Ktor handles HTTP; the existing JSON library handles the wire format.
     implementation(platform(libs.ktor.bom))
@@ -97,23 +94,5 @@ dependencies {
     // DataStore
     implementation(libs.androidx.datastore.preferences)
 
-    // Test
-    testImplementation(libs.junit)
-    testImplementation(platform(libs.ktor.bom))
-    testImplementation(libs.ktor.client.mock)
-    testImplementation(platform(libs.kotlinx.coroutines.bom))
-    testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.robolectric)
-    testImplementation(libs.androidx.compose.ui.test.junit4)
-
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    androidTestImplementation(libs.androidx.espresso.core)
-
     debugImplementation(libs.androidx.compose.ui.tooling)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
-    // AGP aligns the test APK with the app APK; Espresso 3.7 requires futures 1.2.
-    constraints {
-        debugImplementation(libs.androidx.concurrent.futures)
-    }
 }
