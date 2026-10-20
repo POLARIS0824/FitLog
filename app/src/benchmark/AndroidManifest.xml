@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <profileable android:shell="true" />
+        <activity android:name="com.example.fitlog.benchmark.BenchmarkActivity" android:exported="false" />
+    </application>
+    <instrumentation
+        android:name="com.example.fitlog.benchmark.BenchmarkInstrumentation"
+        android:targetPackage="com.example.fitlog.benchmark"
+        android:functionalTest="true" />
+</manifest>

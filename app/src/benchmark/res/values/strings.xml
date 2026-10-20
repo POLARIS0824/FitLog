@@ -1,0 +1,5 @@
+<resources>
+    <string name="benchmark_running">Analysis benchmark running</string>
+    <string name="benchmark_keep_foreground">Keep this screen open and leave the phone idle until the measurement finishes.</string>
+    <string name="benchmark_cancel">Cancel measurement</string>
+</resources>

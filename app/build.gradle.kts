@@ -50,10 +50,49 @@ android {
             // 核心技巧：本地实测时直接复用 debug 签名，无需新建私钥
             signingConfig = signingConfigs.getByName("debug")
         }
+        create("benchmark") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".benchmark"
+            matchingFallbacks += "release"
+            // The production file has a legacy blanket ADK keep. This variant uses a scoped rule set.
+            setProguardFiles(listOf(getDefaultProguardFile("proguard-android-optimize.txt"), "benchmark-rules.pro"))
+        }
+    }
+}
+
+// Explicit harness invocation only; regular unit tests never read credentials or call a model.
+tasks.withType<Test>().configureEach {
+    if (name == "testBenchmarkUnitTest") {
+        System.getenv("FITLOG_BENCH_SPEC")?.let { systemProperty("fitlog.benchmark.spec", it) }
+        if (System.getenv("FITLOG_BENCH_SPEC") != null) outputs.upToDateWhen { false }
+        System.getenv("FITLOG_BENCH_PROXY_HOST")?.let {
+            systemProperty("https.proxyHost", it)
+            systemProperty("http.proxyHost", it)
+            val port = requireNotNull(System.getenv("FITLOG_BENCH_PROXY_PORT"))
+            systemProperty("https.proxyPort", port)
+            systemProperty("http.proxyPort", port)
+        }
+    }
+}
+
+androidComponents {
+    beforeVariants(selector().withBuildType("benchmark")) {
+        it.hostTests[com.android.build.api.variant.HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
+    }
+    onVariants(selector().withBuildType("benchmark")) {
+        it.packaging.resources.excludes.add("META-INF/INDEX.LIST")
+        it.packaging.resources.merges.addAll("META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/DEPENDENCIES")
     }
 }
 
 dependencies {
+    "benchmarkImplementation"("com.google.adk:google-adk-kotlin-core-android:1.3.1") {
+        // Android already provides XmlPullParser; the transitive desktop parser conflicts with R8.
+        exclude(group = "net.sf.kxml", module = "kxml2")
+        exclude(group = "xmlpull", module = "xmlpull")
+    }
+    "benchmarkImplementation"(libs.ktor.client.mock)
+    "benchmarkImplementation"(libs.androidx.compose.ui.test.manifest)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
@@ -115,5 +154,6 @@ dependencies {
     // AGP aligns the test APK with the app APK; Espresso 3.7 requires futures 1.2.
     constraints {
         debugImplementation(libs.androidx.concurrent.futures)
+        "benchmarkImplementation"(libs.androidx.concurrent.futures)
     }
 }

@@ -1,0 +1,5 @@
+<resources>
+    <string name="benchmark_running">正在运行解析基准测试</string>
+    <string name="benchmark_keep_foreground">请保持此页面开启，测量结束前暂时不要使用手机。</string>
+    <string name="benchmark_cancel">取消测量</string>
+</resources>
