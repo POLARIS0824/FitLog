@@ -29,14 +29,12 @@ sealed interface VaultConfigUiState {
  */
 data class VaultSetupCompletion(
     val requestId: String,
-    val createAfterSetup: Boolean,
 )
 
 /**
  * VaultSetup 页面不可变状态模型
  */
 data class VaultSetupUiState(
-    val createAfterSetup: Boolean = false,
     val configState: VaultConfigUiState = VaultConfigUiState.Loading,
     val candidateVault: VaultFolderInfo? = null,
     val stage: VaultOperationStage = VaultOperationStage.Idle,

@@ -1,8 +1,6 @@
 package com.example.fitlog.settings
 
 import android.os.Build
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,7 +28,6 @@ internal fun SettingsScreen(
     onAppearance: () -> Unit,
     onAiSettings: () -> Unit,
     onVaultManagement: () -> Unit,
-    onDiarySettings: () -> Unit,
     onRetryVault: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -56,15 +53,12 @@ internal fun SettingsScreen(
             SettingsSectionTitle(stringResource(R.string.settings_vault_heading))
             SettingsGroup {
                 SettingsEntry(R.drawable.folder_open_24px, stringResource(R.string.vault_management_title),
-                    stringResource(R.string.settings_vault_description), onVaultManagement, tone = 1)
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                SettingsEntry(R.drawable.note_add_24px, stringResource(R.string.diary_settings_title),
                     stringResource(when (config) {
-                        is VaultConfigState.Configured -> R.string.settings_diary_description
-                        is VaultConfigState.Failed -> R.string.vault_error_load_config_failed
                         VaultConfigState.Loading -> R.string.vault_setup_loading_config
-                        VaultConfigState.NotConfigured -> R.string.settings_diary_requires_vault
-                    }), onDiarySettings, enabled = config is VaultConfigState.Configured, tone = 2)
+                        VaultConfigState.NotConfigured -> R.string.log_no_vault
+                        is VaultConfigState.Configured -> R.string.settings_ui_vault_connected
+                        is VaultConfigState.Failed -> R.string.vault_error_load_config_failed
+                    }), onVaultManagement, tone = 1)
                 if (config is VaultConfigState.Failed) TextButton(onClick = onRetryVault) {
                     Text(stringResource(R.string.log_retry))
                 }
@@ -77,5 +71,5 @@ internal fun SettingsScreen(
 @Composable
 private fun SettingsPreview() {
     FitLogPreview { SettingsScreen(AppearancePreferences(), true, VaultConfigState.NotConfigured,
-        {}, {}, {}, {}, {}, {}) }
+        {}, {}, {}, {}, {}) }
 }

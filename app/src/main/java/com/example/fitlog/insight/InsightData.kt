@@ -15,9 +15,15 @@ enum class InsightRange(val days: Long?) { THIRTY(30), NINETY(90), YEAR(365), AL
 enum class InsightSourceStatus { CURRENT, UNCONFIRMED, STALE, MISSING, UNVERIFIABLE, FUTURE }
 
 data class InsightSource(val key: SourceKey, val source: IndexedSource?, val status: InsightSourceStatus)
-data class InsightDiary(val record: ConfirmedDiaryRecord, val source: IndexedSource, val date: LocalDate) {
-    val key get() = SourceKey(record.diary.vaultId, record.diary.relPath)
-    val sessions get() = record.sessions.filter { it.exercises.isNotEmpty() }
+data class InsightDiary(val record: TrainingRecordDetails, val source: IndexedSource?, val date: LocalDate) {
+    val key get() = record.diary.id
+    val title get() = record.diary.relPath ?: record.diary.date
+    val sourceKey get() = record.diary.let { if (it.vaultId != null && it.relPath != null) SourceKey(it.vaultId, it.relPath) else null }
+    val sessions get() = record.sessions.map { session ->
+        session.copy(exercises = session.exercises.filter { it.exercise.rawName.isNotBlank() }.map { exercise ->
+            exercise.copy(sets = exercise.sets.filter { (it.reps ?: 0) > 0 })
+        }.filter { it.sets.isNotEmpty() })
+    }.filter { it.exercises.isNotEmpty() }
     val setCount get() = sessions.sumOf { session -> session.exercises.sumOf { it.sets.size } }
 }
 
@@ -25,13 +31,13 @@ data class ExerciseOccurrence(val diary: InsightDiary, val sessionId: String, va
 data class InsightExercise(val nameKey: String, val name: String, val memberKeys: Set<String>,
     val occurrences: List<ExerciseOccurrence>)
 data class InsightTotals(val sessions: Int, val days: Int, val sets: Int, val unknownGroups: Int)
-data class InsightPoint(val date: LocalDate, val value: Double, val sourceKeys: List<SourceKey>)
+data class InsightPoint(val date: LocalDate, val value: Double, val recordIds: List<String>)
 data class InsightSeries(val basis: WeightBasis, val points: List<InsightPoint>) {
     val record: InsightPoint? get() = if (basis == WeightBasis.ASSISTED) points.minByOrNull { it.value }
         else points.maxByOrNull { it.value }
 }
 
-data class InsightData(val vaultId: String, val today: LocalDate, val sources: List<InsightSource>,
+data class InsightData(val vaultId: String?, val today: LocalDate, val sources: List<InsightSource>,
     val diaries: List<InsightDiary>, val names: Map<String, String>, val aliases: ExerciseAliases) {
     fun diaries(range: InsightRange) = diaries.filter { range.includes(it.date, today) }
     fun totals(range: InsightRange): InsightTotals {
@@ -53,7 +59,7 @@ data class InsightData(val vaultId: String, val today: LocalDate, val sources: L
             val group = aliases.groupFor(key)
             InsightExercise(key, group?.primaryName ?: names.getValue(key), group?.members?.toSet() ?: setOf(key),
                 entries.sortedWith(compareByDescending<ExerciseOccurrence> { it.diary.date }
-                    .thenBy { it.diary.key.relPath }.thenBy { it.exercise.exercise.position }))
+                    .thenBy { it.diary.key }.thenBy { it.exercise.exercise.position }))
         }.sortedWith(compareByDescending<InsightExercise> { it.occurrences.first().diary.date }.thenBy { it.name })
     }
 
@@ -68,12 +74,15 @@ data class InsightData(val vaultId: String, val today: LocalDate, val sources: L
 }
 
 /** Uses the last indexed semantic version, not SAF metadata or a raw-byte fingerprint. */
-fun buildInsightData(vaultId: String, index: SourceIndexSnapshot, confirmed: List<ConfirmedDiaryRecord>,
+fun buildInsightData(vaultId: String?, index: SourceIndexSnapshot?, confirmed: List<TrainingRecordDetails>,
     aliases: ExerciseAliases, today: LocalDate): InsightData {
-    val indexed = index.sources.filter { it.vaultId == vaultId }.groupBy { it.path }
-    val records = confirmed.filter { it.diary.vaultId == vaultId }.groupBy { it.diary.relPath }
+    val indexed = index?.sources.orEmpty().filter { it.vaultId == vaultId }.groupBy { it.path }
+    val records = confirmed.filter { it.diary.origin == RecordOrigin.MARKDOWN && it.diary.vaultId == vaultId && it.diary.relPath != null }.groupBy { requireNotNull(it.diary.relPath) }
         .mapValues { (_, records) -> records.maxBy { it.diary.confirmedAt } }
-    val diaries = mutableListOf<InsightDiary>()
+    val diaries = confirmed.filter { it.diary.origin == RecordOrigin.NATIVE }.mapNotNull { record ->
+        val date = runCatching { LocalDate.parse(record.diary.date) }.getOrNull()
+        date?.takeUnless { it.isAfter(today) }?.let { InsightDiary(record, null, it) }
+    }.toMutableList()
     val sources = (indexed.keys + records.keys).sorted().map { path ->
         val candidates = indexed[path].orEmpty()
         val available = candidates.filter { it.status == IndexedSource.AVAILABLE }
@@ -95,16 +104,16 @@ fun buildInsightData(vaultId: String, index: SourceIndexSnapshot, confirmed: Lis
             else -> InsightSourceStatus.CURRENT
         }
         if (status == InsightSourceStatus.CURRENT) diaries += InsightDiary(requireNotNull(record), requireNotNull(source), requireNotNull(date))
-        InsightSource(SourceKey(vaultId, path), source, status)
+        InsightSource(SourceKey(requireNotNull(vaultId), path), source, status)
     }
     val names = linkedMapOf<String, String>()
-    records.toSortedMap().values.flatMap { it.sessions }.flatMap { it.exercises }.forEach { exercise ->
+    (records.toSortedMap().values + confirmed.filter { it.diary.origin == RecordOrigin.NATIVE }).flatMap { it.sessions }.flatMap { it.exercises }.forEach { exercise ->
         val name = exercise.exercise.rawName.trim()
         if (name.isNotEmpty()) names.putIfAbsent(exerciseNameKey(name), name)
     }
     aliases.groups.forEach { group -> group.members.forEach { names.putIfAbsent(it, it) }
         names[group.primaryKey] = group.primaryName }
-    return InsightData(vaultId, today, sources, diaries.sortedWith(compareByDescending<InsightDiary> { it.date }.thenBy { it.key.relPath }), names, aliases)
+    return InsightData(vaultId, today, sources, diaries.sortedWith(compareByDescending<InsightDiary> { it.date }.thenBy { it.key }), names, aliases)
 }
 
 /** One point per local date and weight basis; its provenance lists only the sets attaining that value. */

@@ -11,7 +11,6 @@ import java.io.FileNotFoundException
  */
 data class DirectoryInfo(
     val isDirectory: Boolean,
-    val supportsCreate: Boolean,
     val displayName: String? = null,
 )
 
@@ -20,7 +19,6 @@ data class DirectoryInfo(
  */
 interface SafDirectoryAccessor {
     fun hasPersistedReadPermission(uri: Uri): Boolean
-    fun hasPersistedWritePermission(uri: Uri): Boolean
     fun queryDirectoryInfo(uri: Uri): DirectoryInfo?
     fun takePersistablePermission(uri: Uri): Result<Unit> = Result.success(Unit)
 }
@@ -28,7 +26,7 @@ interface SafDirectoryAccessor {
 /**
  * 基于 Android DocumentsContract 和 ContentResolver 的标准实现
  *
- * 负责解析目录、枚举子目录以及与 Document URI 交互，是 DiarySettings 等上层逻辑访问目录树时使用的低层适配器
+ * 负责解析目录、枚举子目录以及与 Document URI 交互，供只读资料库连接检查使用
  */
 class AndroidSafDirectoryAccessor(
     private val context: Context,
@@ -42,22 +40,8 @@ class AndroidSafDirectoryAccessor(
         }
     }
 
-    override fun hasPersistedWritePermission(uri: Uri): Boolean {
-        return contentResolver.persistedUriPermissions.any {
-            it.uri == uri && it.isWritePermission
-        }
-    }
-
     override fun takePersistablePermission(uri: Uri): Result<Unit> {
-        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        return runCatching {
-            try {
-                contentResolver.takePersistableUriPermission(uri, flags)
-            } catch (_: SecurityException) {
-                // Read-only providers can still be connected for browsing.
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-        }
+        return runCatching { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
     }
 
     override fun queryDirectoryInfo(uri: Uri): DirectoryInfo? {
@@ -85,18 +69,14 @@ class AndroidSafDirectoryAccessor(
 
                 val nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
                 val mimeTypeIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
-                val flagsIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
 
                 val displayName = if (nameIndex >= 0) cursor.getString(nameIndex) else null
                 val mimeType = if (mimeTypeIndex >= 0) cursor.getString(mimeTypeIndex) else null
-                val flags = if (flagsIndex >= 0) cursor.getInt(flagsIndex) else 0
 
                 val isDirectory = mimeType == DocumentsContract.Document.MIME_TYPE_DIR
-                val supportsCreate = (flags and DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE) != 0
 
                 DirectoryInfo(
                     isDirectory = isDirectory,
-                    supportsCreate = supportsCreate,
                     displayName = displayName,
                 )
             }

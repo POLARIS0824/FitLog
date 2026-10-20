@@ -1,0 +1,10 @@
+<resources>
+    <string name="record_ui_list_subtitle">Your training, one record at a time</string>
+    <string name="record_ui_date">Training date</string>
+    <string name="record_ui_edit_set">%1$s, %2$s: %3$s</string>
+    <string name="record_ui_empty_title">Start with one exercise</string>
+    <plurals name="record_ui_completed_sets">
+        <item quantity="one">%1$d completed set</item>
+        <item quantity="other">%1$d completed sets</item>
+    </plurals>
+</resources>

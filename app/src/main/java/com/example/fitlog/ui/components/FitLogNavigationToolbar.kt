@@ -1,6 +1,6 @@
 package com.example.fitlog.ui.components
 
-import androidx.activity.compose.BackHandler
+import com.example.fitlog.navigation.FitLogBackGuard
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -54,7 +54,7 @@ fun FitLogNavigationToolbar(
     onImportFolderClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BackHandler(fabMenuExpanded) {
+    FitLogBackGuard(enabled = fabMenuExpanded) {
         onFabMenuExpandedChange(false)
     }
 
@@ -95,7 +95,7 @@ fun FitLogNavigationToolbar(
                     contentDescription = null,
                 )
             },
-            text = { Text(stringResource(R.string.nav_action_open_today)) },
+            text = { Text(stringResource(R.string.record_new)) },
         )
         FloatingActionButtonMenuItem(
             onClick = {

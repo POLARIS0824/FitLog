@@ -28,7 +28,7 @@
     <string name="insight_status_future">日期在未来 · 请检查日期</string>
     <string name="insight_activity">训练活动 · 最近 365 天</string>
     <string name="insight_date_span">%1$s 至 %2$s</string>
-    <string name="insight_heatmap_description">最近 365 天的训练活动，共 %1$d 天有已确认训练。使用按日查看可访问对应记录。</string>
+    <string name="insight_heatmap_description">最近 365 天的训练活动，共 %1$d 天有已记录训练。使用按日查看可访问对应记录。</string>
     <string name="insight_heatmap_legend">从上到下为周一至周日 · 各色分别表示已记录 0、1、2、3 或至少 4 场训练</string>
     <string name="insight_view_days">按日查看</string>
     <string name="insight_exercises">动作历史</string>

@@ -28,7 +28,7 @@
     <string name="insight_status_future">Date is in the future · Review date</string>
     <string name="insight_activity">Activity · Last 365 days</string>
     <string name="insight_date_span">%1$s – %2$s</string>
-    <string name="insight_heatmap_description">Training activity over the last 365 days. %1$d days with confirmed training. Use View by day for the records.</string>
+    <string name="insight_heatmap_description">Training activity over the last 365 days. %1$d days with recorded training. Use View by day for the records.</string>
     <string name="insight_heatmap_legend">Monday to Sunday, top to bottom · Each shade represents 0, 1, 2, 3 or 4+ recorded sessions</string>
     <string name="insight_heatmap_count">%1$d</string>
     <string name="insight_heatmap_four_plus">%1$d+</string>

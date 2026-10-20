@@ -3,7 +3,7 @@
 package com.example.fitlog.vault
 
 import android.net.Uri
-import androidx.activity.compose.BackHandler
+import com.example.fitlog.navigation.FitLogBackGuard
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -11,9 +11,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,15 +22,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -39,26 +38,26 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.rememberTextMeasurer
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitlog.R
@@ -84,7 +83,6 @@ fun VaultSetupRoute(
 ) {
     val viewModel: VaultSetupViewModel = viewModel(
         factory = VaultSetupViewModel.Factory(
-            createAfterSetup = route.createAfterSetup,
             requestId = route.requestId,
             vaultPreferences = vaultPreferences,
             vaultRepository = vaultRepository,
@@ -108,7 +106,7 @@ fun VaultSetupRoute(
         }
     }
 
-    BackHandler {
+    FitLogBackGuard(enabled = uiState.configState is VaultConfigUiState.Loading || uiState.stage != VaultOperationStage.Idle) {
         if (viewModel.onBack()) {
             onBack()
         }
@@ -152,78 +150,79 @@ fun VaultSetupScreen(
         else -> SetupMode.Empty
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp, vertical = 24.dp),
-    ) {
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+                .widthIn(max = 640.dp)
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 24.dp),
         ) {
-            SetupHeader()
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                SetupHeader()
 
-            Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-            AnimatedContent(
-                targetState = mode,
-                transitionSpec = {
-                    (fadeIn(motion.defaultEffectsSpec()) +
-                            scaleIn(initialScale = 0.92f, animationSpec = motion.defaultSpatialSpec())) togetherWith
-                            fadeOut(motion.fastEffectsSpec())
-                },
-                label = "vaultSetupBody",
-            ) { target ->
-                when (target) {
-                    SetupMode.Loading -> LoadingBody(loading = mode == SetupMode.Loading)
+                AnimatedContent(
+                    targetState = mode,
+                    transitionSpec = {
+                        (fadeIn(motion.defaultEffectsSpec()) +
+                                scaleIn(initialScale = 0.92f, animationSpec = motion.defaultSpatialSpec())) togetherWith
+                                fadeOut(motion.fastEffectsSpec())
+                    },
+                    label = "vaultSetupBody",
+                ) { target ->
+                    when (target) {
+                        SetupMode.Loading -> LoadingBody(loading = mode == SetupMode.Loading)
 
-                    SetupMode.LoadFailed -> MessageBanner(
-                        text = stringResource(R.string.vault_error_load_config_failed),
+                        SetupMode.LoadFailed -> MessageBanner(
+                            text = stringResource(R.string.vault_error_load_config_failed),
+                        )
+
+                        SetupMode.Candidate -> uiState.candidateVault?.let { candidate ->
+                            VaultCard(
+                                folder = candidate,
+                                pending = true,
+                                previous = uiState.currentVault,
+                            )
+                        }
+
+                        SetupMode.Current -> uiState.currentVault?.let { current ->
+                            VaultCard(
+                                folder = current,
+                                pending = false,
+                            )
+                        }
+
+                        SetupMode.Empty -> Unit
+                    }
+                }
+
+                uiState.errorResId?.let { resId ->
+                    Spacer(modifier = Modifier.height(16.dp))
+                    MessageBanner(
+                        text = stringResource(resId),
+                        showRetry = uiState.stage == VaultOperationStage.Idle &&
+                                (uiState.hasCandidate || uiState.currentVault != null),
+                        onRetryClick = onRetryClick,
                     )
-
-                    SetupMode.Candidate -> uiState.candidateVault?.let { candidate ->
-                        VaultCard(
-                            folder = candidate,
-                            pending = true,
-                            createAfterSetup = uiState.createAfterSetup,
-                            previous = uiState.currentVault,
-                        )
-                    }
-
-                    SetupMode.Current -> uiState.currentVault?.let { current ->
-                        VaultCard(
-                            folder = current,
-                            pending = false,
-                            createAfterSetup = uiState.createAfterSetup,
-                        )
-                    }
-
-                    SetupMode.Empty -> Unit
                 }
             }
 
-            uiState.errorResId?.let { resId ->
+            if (mode != SetupMode.Loading) {
                 Spacer(modifier = Modifier.height(16.dp))
-                MessageBanner(
-                    text = stringResource(resId),
-                    showRetry = uiState.stage == VaultOperationStage.Idle &&
-                            (uiState.hasCandidate || uiState.currentVault != null),
+                SetupActions(
+                    mode = mode,
+                    uiState = uiState,
+                    onChooseFolderClick = onChooseFolderClick,
+                    onConfirmClick = onConfirmClick,
                     onRetryClick = onRetryClick,
                 )
             }
-        }
-
-        if (mode != SetupMode.Loading) {
-            Spacer(modifier = Modifier.height(16.dp))
-            SetupActions(
-                mode = mode,
-                uiState = uiState,
-                onChooseFolderClick = onChooseFolderClick,
-                onConfirmClick = onConfirmClick,
-                onRetryClick = onRetryClick,
-            )
         }
     }
 }
@@ -232,30 +231,12 @@ fun VaultSetupScreen(
 
 @Composable
 private fun SetupHeader(modifier: Modifier = Modifier) {
-    // Expressive 形状：9 瓣 Cookie，作为页面的视觉锚点
-    val cookieShape = MaterialShapes.Cookie9Sided.toShape()
-
     Column(modifier = modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .size(88.dp)
-                .background(MaterialTheme.colorScheme.primaryContainer, cookieShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.folder_open_24px),
-                contentDescription = null,
-                tint = Color.Unspecified,
-                modifier = Modifier.size(44.dp),
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
         Text(
             text = stringResource(R.string.vault_setup_title),
             style = MaterialTheme.typography.headlineLargeEmphasized,
             color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.semantics { heading() },
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -297,15 +278,14 @@ private fun LoadingBody(loading: Boolean, modifier: Modifier = Modifier) {
 internal fun VaultCard(
     folder: VaultFolderInfo,
     pending: Boolean,
-    createAfterSetup: Boolean,
     modifier: Modifier = Modifier,
     previous: VaultFolderInfo? = null,
-    style: VaultCardStyle = ActiveVaultCardStyle,
+    style: VaultCardStyle = VaultCardStyle.StateAware,
 ) {
     val palette = vaultCardPalette(pending = pending, style = style)
 
     Card(
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = palette.container,
             contentColor = palette.content,
@@ -336,8 +316,6 @@ internal fun VaultCard(
                     ?: stringResource(R.string.vault_folder_unnamed),
                 style = MaterialTheme.typography.headlineSmall,
                 color = palette.content,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
             )
 
             StatusChip(
@@ -346,30 +324,13 @@ internal fun VaultCard(
                 okContent = palette.chipContent,
             )
 
-            if (createAfterSetup && folder.accessStatus == VaultAccessStatus.ReadOnly) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    shape = MaterialTheme.shapes.medium,
-                ) {
-                    Text(
-                        text = stringResource(R.string.vault_setup_read_only_add_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(12.dp),
-                    )
-                }
-            }
-
             if (previous != null) {
-                HorizontalDivider(color = palette.content.copy(alpha = 0.16f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Text(
-                    text = stringResource(R.string.vault_label_current) + ": " +
-                            (previous.displayName?.ifBlank { null }
-                                ?: stringResource(R.string.vault_folder_unnamed)),
+                    text = stringResource(R.string.settings_ui_previous_folder,
+                        previous.displayName?.ifBlank { null } ?: stringResource(R.string.vault_folder_unnamed)),
                     style = MaterialTheme.typography.labelLarge,
-                    color = palette.content.copy(alpha = 0.72f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    color = palette.content,
                 )
             }
         }
@@ -387,12 +348,7 @@ internal fun StatusChip(
     val container: Color
     val content: Color
     val iconRes: Int = when (status) {
-        VaultAccessStatus.CanCreateFiles -> {
-            container = okContainer
-            content = okContent
-            R.drawable.check_24px
-        }
-        VaultAccessStatus.ReadOnly -> {
+        VaultAccessStatus.Readable -> {
             container = okContainer
             content = okContent
             R.drawable.lock_24px
@@ -407,7 +363,7 @@ internal fun StatusChip(
     Surface(
         color = container,
         contentColor = content,
-        shape = CircleShape,
+        shape = MaterialTheme.shapes.medium,
         modifier = modifier,
     ) {
         Row(
@@ -417,7 +373,6 @@ internal fun StatusChip(
             Icon(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                tint = Color.Unspecified,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(modifier = Modifier.width(6.dp))
@@ -440,7 +395,7 @@ private fun MessageBanner(
     Surface(
         color = MaterialTheme.colorScheme.errorContainer,
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.large,
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
@@ -448,7 +403,6 @@ private fun MessageBanner(
                 Icon(
                     painter = painterResource(R.drawable.warning_24px),
                     contentDescription = null,
-                    tint = Color.Unspecified,
                     modifier = Modifier.size(24.dp),
                 )
                 Spacer(modifier = Modifier.width(12.dp))
@@ -540,7 +494,7 @@ private fun SetupActions(
     }
 }
 
-/** Expressive 连接式按钮组：主操作略宽，次操作为 Tonal。 */
+/** Keep action labels on one line; stack when both measured labels cannot fit. */
 @Composable
 private fun SetupButtonPair(
     primaryText: String,
@@ -553,41 +507,52 @@ private fun SetupButtonPair(
     modifier: Modifier = Modifier,
 ) {
     val height = ButtonDefaults.MediumContainerHeight
-
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    val style = ButtonDefaults.textStyleFor(height)
+    val padding = ButtonDefaults.contentPaddingFor(height)
+    val layoutDirection = LocalLayoutDirection.current
+    val horizontalPadding = padding.calculateLeftPadding(layoutDirection) + padding.calculateRightPadding(layoutDirection)
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val primaryMinimum = with(density) { measurer.measure(primaryText, style, maxLines = 1).size.width.toDp() } +
+        horizontalPadding + 24.dp
+    val secondaryMinimum = with(density) { measurer.measure(secondaryText, style, maxLines = 1).size.width.toDp() } +
+        horizontalPadding
+    val secondary: @Composable (Modifier) -> Unit = { buttonModifier ->
+        FilledTonalButton(
+            onClick = onSecondaryClick,
+            enabled = secondaryEnabled,
+            shapes = ButtonDefaults.shapesFor(height),
+            contentPadding = padding,
+            modifier = buttonModifier.heightIn(min = height),
+        ) {
+            Text(secondaryText, style = style, maxLines = 1, softWrap = false)
+        }
+    }
+    val primary: @Composable (Modifier) -> Unit = { buttonModifier ->
         SetupPrimaryButton(
             text = primaryText,
             onClick = onPrimaryClick,
             enabled = primaryEnabled,
             busy = primaryBusy,
-            shape = ButtonGroupDefaults.connectedLeadingButtonShape,
-            modifier = Modifier.weight(1.4f),
+            modifier = buttonModifier,
         )
-
-        FilledTonalButton(
-            onClick = onSecondaryClick,
-            enabled = secondaryEnabled,
-            shape = ButtonGroupDefaults.connectedTrailingButtonShape,
-            contentPadding = ButtonDefaults.contentPaddingFor(height),
-            modifier = Modifier
-                .weight(1f)
-                .heightIn(min = height),
-        ) {
-            Text(
-                text = secondaryText,
-                style = ButtonDefaults.textStyleFor(height),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+    }
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        if (maxWidth < primaryMinimum + secondaryMinimum + 8.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                primary(Modifier.fillMaxWidth())
+                secondary(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                secondary(Modifier.width(secondaryMinimum))
+                primary(Modifier.weight(1f))
+            }
         }
     }
 }
 
-/** Loading occupies the existing end padding, keeping the button and its label in place. */
+/** Keep space for progress feedback so the label remains readable while saving. */
 @Composable
 private fun SetupPrimaryButton(
     text: String,
@@ -595,35 +560,36 @@ private fun SetupPrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     busy: Boolean = false,
-    shape: androidx.compose.ui.graphics.Shape = ButtonDefaults.shape,
 ) {
     val height = ButtonDefaults.MediumContainerHeight
 
     Button(
         onClick = onClick,
         enabled = enabled,
-        shape = shape,
+        shapes = ButtonDefaults.shapesFor(height),
         contentPadding = ButtonDefaults.contentPaddingFor(height),
         modifier = modifier.heightIn(min = height),
     ) {
-        Box(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center) {
             Text(
                 text = text,
-                modifier = Modifier.align(Alignment.Center),
                 style = ButtonDefaults.textStyleFor(height),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                softWrap = false,
             )
-            FitLogLoadingIndicator(busy, Modifier.align(Alignment.CenterEnd).offset(x = 16.dp)) {
-                LoadingIndicator(Modifier.size(16.dp), color = LocalContentColor.current)
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+                FitLogLoadingIndicator(busy) {
+                    LoadingIndicator(Modifier.size(16.dp), color = LocalContentColor.current)
+                }
             }
         }
     }
 }
 
 private fun capabilityStringRes(status: VaultAccessStatus): Int = when (status) {
-    VaultAccessStatus.CanCreateFiles -> R.string.vault_capability_can_create
-    VaultAccessStatus.ReadOnly -> R.string.vault_capability_read_only
+    VaultAccessStatus.Readable -> R.string.vault_capability_readable
     VaultAccessStatus.NeedsReauthorization -> R.string.vault_capability_needs_reauthorization
     VaultAccessStatus.DirectoryUnavailable -> R.string.vault_capability_unavailable
     else -> R.string.vault_setup_error_access_failed
@@ -669,7 +635,7 @@ private fun VaultSetupConfiguredPreview() {
                     VaultFolderInfo(
                         uri = Uri.EMPTY,
                         displayName = "My Workouts",
-                        accessStatus = VaultAccessStatus.CanCreateFiles,
+                        accessStatus = VaultAccessStatus.Readable,
                     )
                 ),
             ),
@@ -690,13 +656,13 @@ private fun VaultSetupCandidatePreview() {
                     VaultFolderInfo(
                         uri = Uri.EMPTY,
                         displayName = "Old Vault",
-                        accessStatus = VaultAccessStatus.CanCreateFiles,
+                        accessStatus = VaultAccessStatus.Readable,
                     )
                 ),
                 candidateVault = VaultFolderInfo(
                     uri = Uri.EMPTY,
                     displayName = "New Obsidian Notes",
-                    accessStatus = VaultAccessStatus.CanCreateFiles,
+                    accessStatus = VaultAccessStatus.Readable,
                 ),
             ),
             onChooseFolderClick = {},
@@ -712,12 +678,11 @@ private fun VaultSetupReadOnlyAddPreview() {
     FitLogPreview {
         VaultSetupScreen(
             uiState = VaultSetupUiState(
-                createAfterSetup = true,
                 configState = VaultConfigUiState.NotConfigured,
                 candidateVault = VaultFolderInfo(
                     uri = Uri.EMPTY,
                     displayName = "Read-Only Archive",
-                    accessStatus = VaultAccessStatus.ReadOnly,
+                    accessStatus = VaultAccessStatus.Readable,
                 ),
                 errorResId = R.string.vault_error_read_only,
             ),
@@ -738,7 +703,7 @@ private fun VaultSetupCheckingPreview() {
                 candidateVault = VaultFolderInfo(
                     uri = Uri.EMPTY,
                     displayName = "Fitness Logs",
-                    accessStatus = VaultAccessStatus.CanCreateFiles,
+                    accessStatus = VaultAccessStatus.Readable,
                 ),
             ),
             onChooseFolderClick = {},
@@ -758,7 +723,7 @@ private fun VaultSetupSavingPreview() {
                 candidateVault = VaultFolderInfo(
                     uri = Uri.EMPTY,
                     displayName = "Fitness Logs",
-                    accessStatus = VaultAccessStatus.CanCreateFiles,
+                    accessStatus = VaultAccessStatus.Readable,
                 ),
             ),
             onChooseFolderClick = {},
@@ -777,7 +742,7 @@ private fun VaultSetupErrorPreview() {
                 candidateVault = VaultFolderInfo(
                     uri = Uri.EMPTY,
                     displayName = "Fitness Logs",
-                    accessStatus = VaultAccessStatus.CanCreateFiles,
+                    accessStatus = VaultAccessStatus.Readable,
                 ),
                 errorResId = R.string.vault_error_save_config_failed,
             ),

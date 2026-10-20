@@ -2,7 +2,7 @@
 <resources>
     <string name="settings_personalization_heading">Personalization</string>
     <string name="settings_vault_heading">Vault</string>
-    <string name="settings_vault_description">Connected folder, access and switching vaults</string>
+    <string name="settings_vault_description">Manage a read-only Markdown source</string>
     <string name="settings_diary_description">Folder and date format for new daily notes</string>
     <string name="settings_diary_requires_vault">Connect a folder in Vault management first</string>
     <string name="appearance_title">Appearance</string>

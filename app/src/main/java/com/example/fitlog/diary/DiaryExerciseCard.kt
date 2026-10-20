@@ -5,6 +5,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,10 +21,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.data.analysis.*
+import com.example.fitlog.ui.preview.FitLogPreview
 import java.text.NumberFormat
 import kotlin.math.floor
 import kotlin.math.log10
@@ -55,18 +58,27 @@ internal fun weightLabel(weight: Double?, unit: WeightUnit?, maximumFractionDigi
 
 /** Keep the card at one composition call site across candidate, pending and confirmed views. */
 private fun LazyListScope.exerciseCardItem(key: String, name: String, notes: String?, evidence: EvidenceQuote?,
-    issues: List<ValidationIssue>, canEdit: Boolean, onEdit: (DiarySetEdit) -> Unit, sets: () -> List<DiarySetUi>) {
-    item(key = key) { DiaryExerciseCard(name, notes, evidence, sets(), issues, canEdit, onEdit) }
+    issues: List<ValidationIssue>, canEdit: Boolean, onEdit: (DiarySetEdit) -> Unit,
+    onEditExercise: () -> Unit, onDeleteExercise: (() -> Unit)? = null, sets: () -> List<DiarySetUi>) {
+    item(key = key) { DiaryExerciseCard(name, notes, evidence, sets(), issues, canEdit, onEdit, onEditExercise, onDeleteExercise) }
 }
 
 @Composable
 private fun DiaryExerciseCard(name: String, notes: String?, evidence: EvidenceQuote?, sets: List<DiarySetUi>,
-    issues: List<ValidationIssue>, canEdit: Boolean, onEdit: (DiarySetEdit) -> Unit) {
+    issues: List<ValidationIssue>, canEdit: Boolean, onEdit: (DiarySetEdit) -> Unit, onEditExercise: () -> Unit,
+    onDeleteExercise: (() -> Unit)?) {
     var expanded by remember { mutableStateOf(false) }
     val knownSets = sets.count { it.number != null }
     val commonBasis = sets.map { it.basis ?: WeightBasis.UNKNOWN }.distinct().singleOrNull()
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(name, style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.semantics { heading() })
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = onEditExercise, enabled = canEdit) { Text(stringResource(R.string.detail_edit_exercise)) }
+            if (onDeleteExercise != null) TextButton(onClick = onDeleteExercise, enabled = canEdit,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                Text(stringResource(R.string.detail_delete_exercise))
+            }
+        }
         Text(stringResource(if (sets.any { it.number == null }) R.string.detail_set_summary_partial else R.string.detail_set_summary,
             knownSets, stringResource(if (commonBasis == null && sets.isNotEmpty()) R.string.detail_basis_varies else basisLabel(commonBasis))), style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -94,6 +106,7 @@ private fun DiaryExerciseCard(name: String, notes: String?, evidence: EvidenceQu
                             Text(stringResource(R.string.detail_model_excerpt), style = MaterialTheme.typography.labelLarge)
                             SelectionContainer { Text(quote, style = MaterialTheme.typography.bodyMedium) }
                         }
+                        if (issues.isNotEmpty()) Text(stringResource(R.string.detail_original_issues_help), style = MaterialTheme.typography.bodySmall)
                         issues.forEach { issue -> Text(stringResource(validationLabel(issue.code)),
                             style = MaterialTheme.typography.bodySmall,
                             color = if (issue.severity == IssueSeverity.ERROR) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -125,13 +138,13 @@ private fun DiarySetRow(set: DiarySetUi, commonBasis: WeightBasis?, canEdit: Boo
     val enabled = canEdit && set.address != null
     val controls: @Composable RowScope.() -> Unit = {
         Surface(onClick = { set.address?.let { onEdit(DiarySetEdit(it, requireNotNull(set.number), DiarySetField.WEIGHT, set.weight, set.unit, set.reps, set.basis)) } },
-            enabled = enabled, shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            enabled = enabled, shape = CircleShape,
+            color = if (enabled) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = if (enabled) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = weightDescription }) {
             Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(weight, style = MaterialTheme.typography.titleMediumEmphasized,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(weight, style = MaterialTheme.typography.titleMediumEmphasized)
             }
         }
         Surface(onClick = { set.address?.let { onEdit(DiarySetEdit(it, requireNotNull(set.number), DiarySetField.REPS, set.weight, set.unit, set.reps, set.basis)) } },
@@ -139,8 +152,7 @@ private fun DiarySetRow(set: DiarySetUi, commonBasis: WeightBasis?, canEdit: Boo
             modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = repsDescription }) {
             Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(reps, style = MaterialTheme.typography.titleLargeEmphasized,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(reps, style = MaterialTheme.typography.titleLargeEmphasized)
             }
         }
     }
@@ -158,7 +170,10 @@ private fun DiarySetRow(set: DiarySetUi, commonBasis: WeightBasis?, canEdit: Boo
             }
             controls()
         }
-        if (commonBasis == null) Text(stringResource(basisLabel(set.basis)), style = MaterialTheme.typography.labelMedium,
+        if (set.address != null) TextButton(onClick = { onEdit(DiarySetEdit(set.address, requireNotNull(set.number),
+            DiarySetField.BASIS, set.weight, set.unit, set.reps, set.basis)) }, enabled = enabled) {
+            Text(stringResource(R.string.detail_field, stringResource(R.string.detail_basis), stringResource(basisLabel(set.basis))))
+        } else if (commonBasis == null) Text(stringResource(basisLabel(set.basis)), style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (set.assumedKg && set.basis != WeightBasis.BODYWEIGHT) Text(stringResource(R.string.detail_weight_assumed_kg),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -174,12 +189,14 @@ private fun EditedSetLabel(edited: Boolean) {
             .then(if (edited) Modifier.semantics { contentDescription = description } else Modifier.clearAndSetSemantics {}))
 }
 
-private fun LazyListScope.candidateContextItems(candidate: StoredDiaryCandidate, freshness: DiaryResultFreshness?, usedForConfirmation: Boolean) {
+private fun LazyListScope.candidateContextItems(candidate: StoredDiaryCandidate, freshness: DiaryResultFreshness?, usedForConfirmation: Boolean,
+    draft: DiaryReviewDraft? = null, canEdit: Boolean = false, onEdit: (DiarySetEdit) -> Unit = {},
+    onEditExercise: (DiaryExerciseAddress) -> Unit = {}, checkingSource: Boolean = false) {
     val analysis = candidate.analysis
     item(key = "result-heading:${candidate.attempt.id}") {
         Text(stringResource(R.string.detail_candidate_result), style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (freshness != DiaryResultFreshness.CURRENT) Text(stringResource(if (freshness == DiaryResultFreshness.NEEDS_UPDATE)
+        if (!checkingSource && freshness != DiaryResultFreshness.CURRENT) Text(stringResource(if (freshness == DiaryResultFreshness.NEEDS_UPDATE)
             R.string.detail_needs_update else R.string.detail_unverifiable), style = MaterialTheme.typography.bodySmall)
         if (usedForConfirmation) Text(stringResource(R.string.detail_candidate_used), style = MaterialTheme.typography.bodySmall)
         if (analysis.sessions.all { it.exercises.isEmpty() }) Text(stringResource(if (analysis.hasErrors)
@@ -192,14 +209,16 @@ private fun LazyListScope.candidateContextItems(candidate: StoredDiaryCandidate,
             color = if (issue.severity == IssueSeverity.ERROR) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) }
     }
     analysis.modelIssues.forEachIndexed { index, issue ->
-        item(key = "question:$index") { Text(stringResource(R.string.detail_model_question, issue.question)) }
+        item(key = "question:$index") { DiaryReviewQuestion(issue, candidate, draft, canEdit, onEdit, onEditExercise) }
     }
 }
 
 internal fun LazyListScope.candidateItems(candidate: StoredDiaryCandidate, freshness: DiaryResultFreshness?, usedForConfirmation: Boolean,
-    canEdit: Boolean = false, onEdit: (DiarySetEdit) -> Unit = {}) {
+    canEdit: Boolean = false, onEdit: (DiarySetEdit) -> Unit = {}, onEditExercise: (DiaryExerciseAddress) -> Unit = {},
+    checkingSource: Boolean = false, onDeleteExercise: ((DiaryExerciseAddress) -> Unit)? = null) {
     val analysis = candidate.analysis
-    candidateContextItems(candidate, freshness, usedForConfirmation)
+    candidateContextItems(candidate, freshness, usedForConfirmation, canEdit = canEdit, onEdit = onEdit,
+        onEditExercise = onEditExercise, checkingSource = checkingSource)
     analysis.sessions.forEachIndexed { sessionIndex, session ->
         if (analysis.sessions.size > 1) item(key = "session:${candidate.attempt.id}:$sessionIndex") {
             Text(stringResource(R.string.detail_session, sessionIndex + 1, session.date?.toString() ?: stringResource(R.string.detail_date_unknown)),
@@ -208,7 +227,9 @@ internal fun LazyListScope.candidateItems(candidate: StoredDiaryCandidate, fresh
         session.exercises.forEachIndexed { exerciseIndex, exercise ->
             exerciseCardItem("exercise:${candidate.attempt.id}:$sessionIndex:$exerciseIndex",
                 exercise.candidate.rawName, exercise.candidate.notes, exercise.evidence,
-                analysis.issues.filter { it.path.startsWith(exercise.path) }, canEdit, onEdit) {
+                analysis.issues.filter { it.path.startsWith(exercise.path) }, canEdit, onEdit,
+                onEditExercise = { onEditExercise(DiaryExerciseAddress(sessionIndex, exerciseIndex)) },
+                onDeleteExercise = onDeleteExercise?.let { remove -> { remove(DiaryExerciseAddress(sessionIndex, exerciseIndex)) } }) {
                 val expanded = exercise.sets.mapIndexed { index, set ->
                     DiarySetUi(index + 1, set.weight.value, set.unit.value, set.basis.value,
                         set.reps.value, DiarySetAddress(sessionIndex, exerciseIndex, index), set,
@@ -231,13 +252,18 @@ internal fun LazyListScope.candidateItems(candidate: StoredDiaryCandidate, fresh
 
 /** Drafts render from their own snapshot, even if a newer parse arrives after process restoration. */
 internal fun LazyListScope.reviewItems(draft: DiaryReviewDraft, candidate: StoredDiaryCandidate?, canEdit: Boolean, onEdit: (DiarySetEdit) -> Unit,
-    freshness: DiaryResultFreshness? = null, usedForConfirmation: Boolean = false) {
-    if (draft.fromCandidate && candidate != null) candidateContextItems(candidate, freshness, usedForConfirmation)
-    else if (!draft.fromCandidate) confirmedContextItems(draft.parseRunId, draft.partial, draft.sessions.isEmpty())
+    freshness: DiaryResultFreshness? = null, usedForConfirmation: Boolean = false, onEditExercise: (DiaryExerciseAddress) -> Unit = {},
+    checkingSource: Boolean = false, onDeleteExercise: ((DiaryExerciseAddress) -> Unit)? = null) {
+    if (draft.fromCandidate && candidate != null) candidateContextItems(candidate, freshness, usedForConfirmation, draft, canEdit, onEdit,
+        onEditExercise, checkingSource)
+    else if (!draft.fromCandidate) confirmedContextItems(draft.parseRunId, draft.partial, false)
     else item(key = "result-heading:${draft.parseRunId}") {
         Text(stringResource(if (draft.fromCandidate) R.string.detail_candidate_result else R.string.detail_confirmed_result),
             style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (draft.partial) Text(stringResource(R.string.detail_partial_confirmation), style = MaterialTheme.typography.bodySmall)
+    }
+    if (draft.sessions.all { it.exercises.isEmpty() }) item(key = "review-rest-day") {
+        Text(stringResource(R.string.detail_review_rest_day), style = MaterialTheme.typography.bodyMedium)
     }
     draft.sessions.forEachIndexed { sessionIndex, session ->
         if (draft.sessions.size > 1) item(key = "session:${draft.parseRunId}:$sessionIndex") {
@@ -246,7 +272,9 @@ internal fun LazyListScope.reviewItems(draft: DiaryReviewDraft, candidate: Store
         session.exercises.forEachIndexed { exerciseIndex, exercise ->
             exerciseCardItem("exercise:${draft.parseRunId}:$sessionIndex:$exerciseIndex", exercise.rawName,
                 exercise.notes, exercise.evidence,
-                candidate?.analysis?.issues?.filter { it.path.startsWith(exercise.sourcePath.orEmpty()) }.orEmpty(), canEdit, onEdit) {
+                candidate?.analysis?.issues?.filter { issue -> exercise.sourcePath?.let { issue.path.startsWith(it) } == true }.orEmpty(),
+                canEdit, onEdit, onEditExercise = { onEditExercise(DiaryExerciseAddress(sessionIndex, exerciseIndex)) },
+                onDeleteExercise = onDeleteExercise?.let { remove -> { remove(DiaryExerciseAddress(sessionIndex, exerciseIndex)) } }) {
                 val original = candidate?.analysis?.sessions?.flatMap { it.exercises }?.find { it.path == exercise.sourcePath }
                 val expanded = exercise.sets.mapIndexed { index, set ->
                     val source = original?.sets?.find { it.groupIndex == set.groupIndex && it.setInGroup == set.setInGroup }
@@ -259,7 +287,8 @@ internal fun LazyListScope.reviewItems(draft: DiaryReviewDraft, candidate: Store
                 val rows = if (fragments.isEmpty()) expanded else {
                     val groups = (exercise.sets.mapNotNull { it.groupIndex } + fragments.map { it.group }).distinct().sorted()
                     groups.flatMap { group -> expanded.filterIndexed { index, _ -> exercise.sets[index].groupIndex == group } +
-                        fragments.filter { it.group == group }.map { DiarySetUi(null, it.weight, it.unit, it.basis, it.reps, null) } }
+                        fragments.filter { it.group == group }.map { DiarySetUi(null, it.weight, it.unit, it.basis, it.reps, null) } } +
+                        expanded.filterIndexed { index, _ -> exercise.sets[index].groupIndex == null }
                 }
                 rows
             }
@@ -276,16 +305,19 @@ private fun LazyListScope.confirmedContextItems(parseRunId: String, partial: Boo
     }
 }
 
-internal fun LazyListScope.confirmedItems(record: ConfirmedDiaryRecord,
-    canEdit: Boolean = false, onEdit: (DiarySetEdit) -> Unit = {}) {
-    confirmedContextItems(record.diary.parseRunId, record.diary.acceptedPartialResult, record.sessions.isEmpty())
+internal fun LazyListScope.confirmedItems(record: TrainingRecordDetails,
+    canEdit: Boolean = false, onEdit: (DiarySetEdit) -> Unit = {}, onEditExercise: (DiaryExerciseAddress) -> Unit = {},
+    onDeleteExercise: ((DiaryExerciseAddress) -> Unit)? = null) {
+    confirmedContextItems(record.diary.parseRunId ?: record.diary.id, record.diary.acceptedPartialResult, record.sessions.all { it.exercises.isEmpty() })
     record.sessions.forEachIndexed { sessionIndex, session ->
         if (record.sessions.size > 1) item(key = "session:${record.diary.parseRunId}:$sessionIndex") {
             Text(stringResource(R.string.detail_session, sessionIndex + 1, record.diary.date), style = MaterialTheme.typography.titleMediumEmphasized)
         }
         session.exercises.forEachIndexed { exerciseIndex, exercise ->
             exerciseCardItem("exercise:${record.diary.parseRunId}:$sessionIndex:$exerciseIndex", exercise.exercise.rawName,
-                exercise.exercise.notes, exercise.exercise.evidence, emptyList(), canEdit, onEdit) {
+                exercise.exercise.notes, exercise.exercise.evidence, emptyList(), canEdit, onEdit,
+                onEditExercise = { onEditExercise(DiaryExerciseAddress(sessionIndex, exerciseIndex)) },
+                onDeleteExercise = onDeleteExercise?.let { remove -> { remove(DiaryExerciseAddress(sessionIndex, exerciseIndex)) } }) {
                 val rows = exercise.sets.mapIndexed { index, set ->
                     DiarySetUi(index + 1, set.weight, set.unit, set.basis, set.reps,
                         DiarySetAddress(sessionIndex, exerciseIndex, index), userEdited = set.userEdited)
@@ -294,4 +326,26 @@ internal fun LazyListScope.confirmedItems(record: ConfirmedDiaryRecord,
             }
         }
     }
+}
+
+@Preview(name = "Exercise card", widthDp = 412, heightDp = 800, locale = "en")
+@Composable
+private fun DiaryExerciseCardReviewPreview() {
+    FitLogPreview {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            DiaryExerciseCard(name = stringResource(R.string.preview_exercise_name), notes = null,
+                evidence = null, issues = emptyList(), canEdit = true,
+                onEdit = {}, onEditExercise = {}, onDeleteExercise = {},
+                sets = listOf(
+                    DiarySetUi(1, 60.0, WeightUnit.KG, WeightBasis.TOTAL, 8, DiarySetAddress(0, 0, 0)),
+                    DiarySetUi(2, null, null, WeightBasis.UNKNOWN, null, DiarySetAddress(0, 0, 1), userEdited = true),
+                ))
+        }
+    }
+}
+
+@Preview(name = "Exercise card · Large text", widthDp = 320, heightDp = 1300, fontScale = 2f, locale = "zh")
+@Composable
+private fun DiaryExerciseCardLargeTextReviewPreview() {
+    DiaryExerciseCardReviewPreview()
 }

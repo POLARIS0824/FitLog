@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -48,18 +49,26 @@ internal fun AppearanceContent(
         } }
         item {
             SettingsSectionTitle(stringResource(R.string.appearance_theme_heading))
-            SettingsGroup {
-                Column(Modifier.selectableGroup()) {
-                    ThemeMode.entries.forEachIndexed { index, mode ->
-                        Row(Modifier.fillMaxWidth().selectable(selected = preferences.themeMode == mode,
+            Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                ThemeMode.entries.forEach { mode ->
+                    val selected = preferences.themeMode == mode
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerLowest,
+                        contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                            else MaterialTheme.colorScheme.onSurface,
+                    ) {
+                        Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).selectable(selected = selected,
                             enabled = canEdit, role = Role.RadioButton, onClick = { onMode(mode) })
                             .padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            RadioButton(selected = preferences.themeMode == mode, onClick = null, enabled = canEdit)
-                            Text(themeModeLabel(mode), style = MaterialTheme.typography.titleMedium,
+                            RadioButton(selected = selected, onClick = null, enabled = canEdit,
+                                colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.secondary))
+                            Text(themeModeLabel(mode), style = if (selected) MaterialTheme.typography.titleMediumEmphasized
+                                else MaterialTheme.typography.titleMedium,
                                 modifier = Modifier.weight(1f))
                         }
-                        if (index < ThemeMode.entries.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
             }

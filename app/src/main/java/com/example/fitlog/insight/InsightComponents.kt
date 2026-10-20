@@ -3,7 +3,6 @@
 package com.example.fitlog.insight
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
@@ -47,7 +47,14 @@ internal fun insightDate(value: LocalDate): String = value.format(DateTimeFormat
 internal fun InsightRangePicker(range: InsightRange, onSelect: (InsightRange) -> Unit) {
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
         InsightRange.entries.forEachIndexed { index, value ->
-            ToggleButton(checked = range == value, onCheckedChange = { onSelect(value) }, modifier = Modifier.semantics { role = Role.RadioButton },
+            ToggleButton(checked = range == value, onCheckedChange = { onSelect(value) },
+                modifier = Modifier.heightIn(min = 48.dp).semantics { role = Role.RadioButton },
+                colors = ToggleButtonDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    checkedContainerColor = MaterialTheme.colorScheme.secondary,
+                    checkedContentColor = MaterialTheme.colorScheme.onSecondary,
+                ),
                 shapes = when (index) {
                     0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
                     InsightRange.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
@@ -58,7 +65,8 @@ internal fun InsightRangePicker(range: InsightRange, onSelect: (InsightRange) ->
                     InsightRange.NINETY -> R.string.insight_range_ninety
                     InsightRange.YEAR -> R.string.insight_range_year
                     InsightRange.ALL -> R.string.insight_range_all
-                }))
+                }), style = if (range == value) MaterialTheme.typography.labelLargeEmphasized
+                    else MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -70,8 +78,6 @@ internal fun InsightReadState(vm: InsightViewModel, onOpenLog: () -> Unit): Bool
         vm.loading -> { LoadingIndicator(); return false }
         vm.error != null -> { FitLogNotice(stringResource(requireNotNull(vm.error)), error = true)
             Button(onClick = vm::refresh) { Text(stringResource(R.string.insight_retry)) }; return false }
-        !vm.activeVault -> { FitLogNotice(stringResource(R.string.insight_no_vault))
-            FilledTonalButton(onClick = onOpenLog) { Text(stringResource(R.string.insight_open_log)) }; return false }
     }
     return vm.data != null
 }
@@ -82,13 +88,15 @@ internal fun InsightCoverage(vm: InsightViewModel) {
     val timestamp = index.scan?.completedAt?.let {
         DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()))
     }
-    Text(if (timestamp == null) stringResource(R.string.insight_scan_unknown)
-        else stringResource(R.string.insight_scan_time, timestamp), style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant)
-    if (index.refreshing) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
-    if (index.scan?.status == IndexedScan.PARTIAL) FitLogNotice(stringResource(R.string.insight_scan_partial))
-    if (index.refreshFailed || index.scan?.status == IndexedScan.FAILED) FitLogNotice(stringResource(R.string.insight_scan_failed), error = true)
-    vm.message?.let { FitLogNotice(stringResource(it), error = true) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(if (timestamp == null) stringResource(R.string.insight_scan_unknown)
+            else stringResource(R.string.insight_scan_time, timestamp), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (index.refreshing) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+        if (index.scan?.status == IndexedScan.PARTIAL) FitLogNotice(stringResource(R.string.insight_scan_partial))
+        if (index.refreshFailed || index.scan?.status == IndexedScan.FAILED) FitLogNotice(stringResource(R.string.insight_scan_failed), error = true)
+        vm.message?.let { FitLogNotice(stringResource(it), error = true) }
+    }
 }
 
 @Composable
@@ -108,8 +116,8 @@ internal fun InsightHeatmap(data: InsightData) {
     val first = data.today.minusDays(364)
     val gridStart = first.minusDays(first.dayOfWeek.value.toLong() - 1)
     val weeks = ((data.today.toEpochDay() - gridStart.toEpochDay()) / 7 + 1).toInt()
-    val colors = listOf(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.secondary,
-        MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.onSurface)
+    val emptyColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    val activityColor = MaterialTheme.colorScheme.primary
     val description = stringResource(R.string.insight_heatmap_description, activity.size)
     val scroll = rememberScrollState()
     var positioned by rememberSaveable(data.vaultId) { mutableStateOf(false) }
@@ -128,23 +136,31 @@ internal fun InsightHeatmap(data: InsightData) {
                 repeat(weeks) { week -> repeat(7) { day ->
                     val date = gridStart.plusDays((week * 7 + day).toLong())
                     if (date in first..data.today) {
-                        val count = activity[date].orEmpty().sumOf { it.sessions.size }
-                        drawRoundRect(colors[count.coerceAtMost(4)], Offset(week * cell, day * cell), Size(cell - 3.dp.toPx(), cell - 3.dp.toPx()))
+                        val count = activity[date].orEmpty().sumOf { it.sessions.size }.coerceAtMost(4)
+                        val markerSize = cell - 3.dp.toPx()
+                        val origin = Offset(week * cell, day * cell)
+                        drawRoundRect(emptyColor, origin, Size(markerSize, markerSize), CornerRadius(2.dp.toPx()))
+                        if (count > 0) drawCircle(activityColor, (count + 2).dp.toPx(),
+                            center = origin + Offset(markerSize / 2, markerSize / 2))
                     }
                 } }
             }
         }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            colors.forEachIndexed { count, color ->
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            (0..4).forEach { count ->
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(12.dp).background(color, MaterialTheme.shapes.extraSmall))
+                    Canvas(Modifier.size(13.dp)) {
+                        drawRoundRect(emptyColor, cornerRadius = CornerRadius(2.dp.toPx()))
+                        if (count > 0) drawCircle(activityColor, (count + 2).dp.toPx())
+                    }
                     Text(stringResource(if (count == 4) R.string.insight_heatmap_four_plus else R.string.insight_heatmap_count, count),
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
-        Text(stringResource(R.string.insight_heatmap_legend), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.insight_heatmap_size_legend), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

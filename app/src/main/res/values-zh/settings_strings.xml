@@ -2,7 +2,7 @@
 <resources>
     <string name="settings_personalization_heading">个性化</string>
     <string name="settings_vault_heading">资料库</string>
-    <string name="settings_vault_description">连接目录、访问权限与切换资料库</string>
+    <string name="settings_vault_description">管理只读 Markdown 数据源</string>
     <string name="settings_diary_description">新建今日日记的目录与日期格式</string>
     <string name="settings_diary_requires_vault">请先在资料库管理中连接目录</string>
     <string name="appearance_title">外观</string>

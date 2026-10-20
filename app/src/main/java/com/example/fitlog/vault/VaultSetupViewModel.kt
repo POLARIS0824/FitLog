@@ -27,14 +27,13 @@ import kotlinx.coroutines.launch
  */
 class VaultSetupViewModel(
     private val savedStateHandle: SavedStateHandle,
-    private val createAfterSetup: Boolean,
     private val requestId: String,
     private val vaultPreferences: VaultPreferences,
     private val vaultRepository: VaultRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        VaultSetupUiState(createAfterSetup = createAfterSetup)
+        VaultSetupUiState()
     )
     val uiState: StateFlow<VaultSetupUiState> = _uiState.asStateFlow()
 
@@ -216,7 +215,6 @@ class VaultSetupViewModel(
                                 stage = VaultOperationStage.Completed,
                                 completedResult = VaultSetupCompletion(
                                     requestId = requestId,
-                                    createAfterSetup = createAfterSetup,
                                 ),
                             )
                         }
@@ -257,7 +255,6 @@ class VaultSetupViewModel(
                                 stage = VaultOperationStage.Completed,
                                 completedResult = VaultSetupCompletion(
                                     requestId = requestId,
-                                    createAfterSetup = createAfterSetup,
                                 ),
                             )
                         }
@@ -334,7 +331,7 @@ class VaultSetupViewModel(
     private fun accessError(access: VaultAccessStatus): Int = when (access) {
         VaultAccessStatus.NeedsReauthorization -> R.string.vault_error_needs_reauthorization
         VaultAccessStatus.DirectoryUnavailable -> R.string.vault_error_directory_unavailable
-        VaultAccessStatus.ReadOnly -> R.string.vault_error_read_only
+        VaultAccessStatus.Readable -> R.string.vault_error_read_only
         else -> R.string.vault_setup_error_access_failed
     }
 
@@ -343,7 +340,6 @@ class VaultSetupViewModel(
     }
 
     class Factory(
-        private val createAfterSetup: Boolean,
         private val requestId: String,
         private val vaultPreferences: VaultPreferences,
         private val vaultRepository: VaultRepository,
@@ -353,7 +349,6 @@ class VaultSetupViewModel(
             val savedStateHandle = extras.createSavedStateHandle()
             return VaultSetupViewModel(
                 savedStateHandle = savedStateHandle,
-                createAfterSetup = createAfterSetup,
                 requestId = requestId,
                 vaultPreferences = vaultPreferences,
                 vaultRepository = vaultRepository,

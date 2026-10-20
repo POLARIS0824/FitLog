@@ -16,7 +16,7 @@
     <string name="detail_confirmed_result">用户确认记录</string>
     <string name="detail_confirmed_date">确认日期：%1$s</string>
     <string name="detail_partial_confirmation">此记录接受了部分解析结果，仍可能遗漏其他训练。</string>
-    <string name="detail_confirmed_no_sessions">此确认记录不包含训练场次，不代表这天是休息日。</string>
+    <string name="detail_confirmed_no_sessions">休息日：确认记录中没有训练。</string>
     <string name="detail_candidate_result">AI 提取候选</string>
     <string name="detail_candidate_used">此候选已用于上方确认记录，用户修正保存在确认记录中。</string>
     <string name="detail_candidate_unconfirmed">此候选等待核对，尚未替换用户确认记录。</string>
@@ -24,7 +24,7 @@
     <string name="detail_needs_update">待更新：原文已变化，已保存结果仍保留。</string>
     <string name="detail_unverifiable">无法与当前原文核验。</string>
     <string name="detail_partial_no_sessions">此部分结果未保留有效训练场次，不代表原文没有训练。</string>
-    <string name="detail_candidate_no_sessions">未提取出训练场次，不代表这天是休息日。</string>
+    <string name="detail_candidate_no_sessions">未提取出训练场次，确认后默认按休息日记录。</string>
     <string name="detail_issue">%1$s：%2$s</string>
     <string name="detail_issue_error">结果错误</string>
     <string name="detail_issue_review">需要核对</string>
@@ -44,7 +44,7 @@
     <string name="detail_reps">次数</string>
     <string name="detail_kg">千克</string>
     <string name="detail_lb">磅</string>
-    <string name="detail_basis_per_side">单边</string>
+    <string name="detail_basis_per_side">每侧／每只</string>
     <string name="detail_basis_total">总重量</string>
     <string name="detail_basis_bodyweight">自重</string>
     <string name="detail_basis_added">额外负重</string>
@@ -80,7 +80,7 @@
     <string name="detail_issue_date_missing">训练日期需要确认。</string>
     <string name="detail_issue_weight_missing">重量未记录。</string>
     <string name="detail_issue_unit_missing">重量单位未记录。</string>
-    <string name="detail_issue_basis_missing">重量口径需要澄清。</string>
+    <string name="detail_issue_basis_missing">请在日记核对页明确重量口径，也可以保持未知。</string>
     <string name="detail_issue_reps_missing">次数未记录。</string>
     <string name="detail_issue_count_missing">组数未记录。</string>
     <string name="detail_issue_inferred">推断值需要核对。</string>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="insight_heatmap_size_legend">Monday to Sunday, top to bottom · Larger dots mean more recorded sessions; an empty cell does not mean a rest day</string>
+</resources>

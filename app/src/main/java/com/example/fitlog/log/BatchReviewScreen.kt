@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -52,9 +53,9 @@ internal fun BatchReviewContent(items: List<BatchReviewItem>, selected: Set<Stri
     val readyState = when { checked == 0 -> ToggleableState.Off; checked == ready.size -> ToggleableState.On; else -> ToggleableState.Indeterminate }
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         TopAppBar(title = { Text(stringResource(R.string.batch_review_title)) },
-            navigationIcon = { IconButton(onClick = onBack, enabled = !saving) {
+            navigationIcon = { IconButton(onClick = onBack, enabled = !saving, shapes = IconButtonDefaults.shapes()) {
                 Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
-            } }, actions = { IconButton(onClick = onRefresh, enabled = !saving) {
+            } }, actions = { IconButton(onClick = onRefresh, enabled = !saving, shapes = IconButtonDefaults.shapes()) {
                 Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.log_refresh))
             } })
         Box(Modifier.weight(1f).widthIn(max = 840.dp).fillMaxWidth()) {
@@ -62,12 +63,19 @@ internal fun BatchReviewContent(items: List<BatchReviewItem>, selected: Set<Stri
                 item(key = "selection") {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.batch_review_explanation), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        val canSelectReady = !saving && !readFailed && activeVault && ready.isNotEmpty()
-                        Row(Modifier.fillMaxWidth().triStateToggleable(state = readyState,
-                            enabled = canSelectReady, role = Role.Checkbox, onClick = onToggleReady),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            TriStateCheckbox(state = readyState, onClick = null, enabled = canSelectReady)
-                            Text(stringResource(R.string.batch_review_select_ready), Modifier.weight(1f))
+                        if (ready.isNotEmpty()) {
+                            val canSelectReady = !saving && !readFailed && activeVault
+                            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).triStateToggleable(state = readyState,
+                                enabled = canSelectReady, role = Role.Checkbox, onClick = onToggleReady),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                TriStateCheckbox(state = readyState, onClick = null, enabled = canSelectReady)
+                                Text(stringResource(R.string.batch_review_select_ready), Modifier.weight(1f))
+                            }
+                            Text(pluralStringResource(R.plurals.batch_review_ready_count, ready.size, ready.size),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else if (!loading && !readFailed && activeVault && items.isNotEmpty()) {
+                            Text(stringResource(R.string.batch_review_no_ready), style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         if (readFailed) FitLogNotice(stringResource(R.string.detail_analysis_failed), error = true)
                         if (!activeVault && !loading) FitLogNotice(stringResource(R.string.batch_review_vault_changed), error = true)
@@ -116,10 +124,12 @@ private fun BatchReviewRow(item: BatchReviewItem, selected: Boolean, enabled: Bo
     var expanded by rememberSaveable(item.id) { mutableStateOf(false) }
     val candidate = item.summary.candidate?.analysis
     val exercises = candidate?.sessions?.flatMap { it.exercises }.orEmpty()
+    val supportingColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
     Surface(shape = MaterialTheme.shapes.large,
-        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow) {
+        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val selectionModifier = if (item.selectable) Modifier.fillMaxWidth().toggleable(value = selected,
+            val selectionModifier = if (item.selectable) Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = selected,
                 enabled = enabled, role = Role.Checkbox, onValueChange = { onToggle() }) else Modifier.fillMaxWidth()
             Row(selectionModifier, verticalAlignment = Alignment.Top) {
                 if (item.selectable) Checkbox(checked = selected, onCheckedChange = null, enabled = enabled)
@@ -127,12 +137,14 @@ private fun BatchReviewRow(item: BatchReviewItem, selected: Boolean, enabled: Bo
                     Text(item.source?.name ?: item.summary.sourceKey.relPath.substringAfterLast('/'),
                         style = MaterialTheme.typography.titleMediumEmphasized)
                     Text(item.summary.sourceKey.relPath, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        color = supportingColor)
                     Text(stringResource(R.string.batch_review_summary, item.assessment.date?.toString()
                         ?: stringResource(R.string.detail_value_unknown), exercises.size, exercises.sumOf { it.sets.size }))
                 }
             }
-            if (!item.selectable) Text(stringResource(blockMessage(item.assessment)), color = MaterialTheme.colorScheme.error)
+            if (!item.selectable) Text(stringResource(blockMessage(item.assessment)),
+                color = if (item.assessment.eligibility == BatchReviewEligibility.ALREADY_CONFIRMED) supportingColor
+                    else MaterialTheme.colorScheme.error)
             if (candidate != null) {
                 if (exercises.isEmpty()) Text(stringResource(R.string.batch_review_no_training))
                 batchReviewNotices(candidate).forEach { Text(stringResource(validationLabel(it)), style = MaterialTheme.typography.bodySmall) }

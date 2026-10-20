@@ -61,6 +61,11 @@ class BatchReviewViewModel internal constructor(
                         activeVault = (value as? VaultConfigState.Configured)?.vaultId == route.vaultId
                         if (!activeVault) cancelSubmission()
                     }
+                    // An empty initial index is still loading, not proof that every source is missing.
+                    if (snapshot.sources.isEmpty() && snapshot.refreshing && snapshot.scan == null) {
+                        loading = true
+                        return@collect
+                    }
                     val sources = snapshot.sources.associateBy { it.path }
                     items = summaries.filter { summary -> summary.candidateReadFailed ||
                         (summary.candidate != null && summary.confirmed?.parseRunId != summary.candidate.attempt.id)

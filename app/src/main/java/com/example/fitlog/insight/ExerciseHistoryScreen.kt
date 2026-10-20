@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -20,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.fitlog.R
-import com.example.fitlog.data.analysis.SourceKey
 import com.example.fitlog.data.analysis.WeightBasis
 import com.example.fitlog.data.insight.ExerciseAliasGroup
 import com.example.fitlog.ui.components.FitLogNotice
@@ -28,11 +28,11 @@ import com.example.fitlog.ui.components.FitLogPageHeader
 import com.example.fitlog.ui.components.FitLogSectionTitle
 
 @Composable
-fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (SourceKey) -> Unit,
+fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String) -> Unit,
     onOpenLog: () -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.resumed() }
     var editingAliases by rememberSaveable { mutableStateOf(false) }
-    val data = vm.data.takeIf { vm.error == null && vm.activeVault }
+    val data = vm.data.takeIf { vm.error == null }
     val exercise = data?.exercise(nameKey, vm.range)
     val title = exercise?.name ?: data?.aliases?.groupFor(nameKey)?.primaryName ?: data?.names?.get(nameKey)
         ?: stringResource(R.string.insight_exercise_history)
@@ -41,17 +41,15 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (Source
             contentPadding = PaddingValues(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item { FitLogPageHeader(title, onBack = onBack, actions = {
-                FilledTonalButton(onClick = vm::refresh, enabled = vm.index?.refreshing != true && !vm.aliasSaving) {
-                    Text(stringResource(R.string.insight_refresh))
+                FilledTonalIconButton(onClick = vm::refresh, enabled = vm.index?.refreshing != true && !vm.aliasSaving,
+                    shapes = IconButtonDefaults.shapes()) {
+                    Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.insight_refresh))
                 }
             }) }
-            item { InsightReadState(vm, onOpenLog) }
+            if (vm.loading || vm.error != null) item { InsightReadState(vm, onOpenLog) }
             if (data != null) {
                 item { InsightCoverage(vm) }
                 item { InsightRangePicker(vm.range, vm::selectRange) }
-                item { FilledTonalButton(onClick = { vm.clearAliasError(); editingAliases = true }) {
-                    Text(stringResource(R.string.insight_manage_aliases))
-                } }
                 if (exercise == null) item { FitLogNotice(stringResource(R.string.insight_no_exercise_records)) }
                 else {
                     item { Text(stringResource(R.string.insight_exercise_summary,
@@ -64,11 +62,13 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (Source
                     if (series.isEmpty()) item { FitLogNotice(stringResource(R.string.insight_no_numeric_data)) }
                     series.forEach { curve ->
                         item(key = "curve-${curve.basis}") {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FitLogSectionTitle(basisLabel(curve.basis))
-                                Text(stringResource(if (curve.basis == WeightBasis.BODYWEIGHT) R.string.insight_metric_reps else R.string.insight_metric_kg),
-                                    style = MaterialTheme.typography.bodySmall)
-                                InsightChart(curve)
+                            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(basisLabel(curve.basis), style = MaterialTheme.typography.titleMediumEmphasized)
+                                    Text(stringResource(if (curve.basis == WeightBasis.BODYWEIGHT) R.string.insight_metric_reps else R.string.insight_metric_kg),
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    InsightChart(curve)
+                                }
                             }
                         }
                         val record = requireNotNull(curve.record)
@@ -76,8 +76,8 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (Source
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(stringResource(if (curve.basis == WeightBasis.ASSISTED) R.string.insight_record_lowest else R.string.insight_record_highest,
                                     insightNumber(record.value), insightDate(record.date)), style = MaterialTheme.typography.titleMedium)
-                                record.sourceKeys.forEach { key ->
-                                    InsightRow(key.relPath, stringResource(R.string.insight_view_source), { onOpen(key) })
+                                record.recordIds.forEach { key ->
+                                    InsightRow(vm.recordTitle(key), stringResource(R.string.insight_view_source), { onOpen(key) })
                                 }
                             }
                         }
@@ -85,8 +85,8 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (Source
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(stringResource(R.string.insight_point_value, insightDate(point.date), insightNumber(point.value)),
                                     style = MaterialTheme.typography.bodyMedium)
-                                point.sourceKeys.forEach { key ->
-                                    InsightRow(key.relPath, stringResource(R.string.insight_view_source), { onOpen(key) })
+                                point.recordIds.forEach { key ->
+                                    InsightRow(vm.recordTitle(key), stringResource(R.string.insight_view_source), { onOpen(key) })
                                 }
                             }
                         }
@@ -94,7 +94,7 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (Source
                     item { FitLogSectionTitle(stringResource(R.string.insight_recorded_sets)) }
                     items(exercise.occurrences, key = { it.exercise.exercise.id }) { occurrence ->
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            InsightRow(insightDate(occurrence.diary.date), occurrence.diary.key.relPath, { onOpen(occurrence.diary.key) })
+                            InsightRow(insightDate(occurrence.diary.date), occurrence.diary.title, { onOpen(occurrence.diary.key) })
                             Text(occurrence.exercise.exercise.rawName, style = MaterialTheme.typography.titleSmall)
                             if (occurrence.exercise.sets.isEmpty()) Text(stringResource(R.string.insight_sets_unknown))
                             occurrence.exercise.sets.forEachIndexed { index, set ->
@@ -104,6 +104,9 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (Source
                         }
                     }
                 }
+                item { OutlinedButton(onClick = { vm.clearAliasError(); editingAliases = true }) {
+                    Text(stringResource(R.string.insight_manage_aliases))
+                } }
             }
         }
     }

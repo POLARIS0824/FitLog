@@ -7,6 +7,11 @@ import kotlinx.serialization.Serializable
 
 // Terminal parse attempts and current user confirmations are stored independently.
 
+@Serializable
+enum class RecordOrigin { NATIVE, MARKDOWN }
+@Serializable
+enum class RecordKind { TRAINING, REST }
+
 enum class ParseRunStatus { SUCCEEDED, FAILED }
 
 @Entity(tableName = "parse_run", indices = [Index(value = ["vaultId", "relPath", "contentHash", "hashVersion", "extractorVersion", "status"])])
@@ -29,23 +34,34 @@ data class ParseRunRow(
 }
 
 @Entity(tableName = "confirmed_diary",
-    indices = [Index(value = ["vaultId", "relPath"], unique = true), Index("parseRunId"), Index(value = ["vaultId", "date"])],
-    foreignKeys = [ForeignKey(entity = ParseRunRow::class, parentColumns = ["id"], childColumns = ["parseRunId"], onDelete = ForeignKey.RESTRICT)])
+    indices = [Index(value = ["vaultId", "relPath"], unique = true), Index("parseRunId"), Index(value = ["vaultId", "date"])])
 @Serializable
-data class ConfirmedDiaryRow(
+data class TrainingRecord(
     @PrimaryKey val id: String,
-    val vaultId: String,
-    val relPath: String,
+    val vaultId: String?,
+    val relPath: String?,
     val date: String,
-    val contentHash: String,
-    val hashVersion: Int,
-    val parseRunId: String,
+    val contentHash: String?,
+    val hashVersion: Int?,
+    val parseRunId: String?,
     val confirmedAt: Long,
     val acceptedPartialResult: Boolean,
-)
+    val origin: RecordOrigin = RecordOrigin.MARKDOWN,
+    val kind: RecordKind = RecordKind.TRAINING,
+) {
+    init {
+        require(java.util.UUID.fromString(id).toString() == id)
+        if (origin == RecordOrigin.NATIVE) {
+            require(vaultId == null && relPath == null && contentHash == null && hashVersion == null && parseRunId == null)
+        } else {
+            SourceKey(requireNotNull(vaultId), requireNotNull(relPath))
+            DiaryContentVersion(requireNotNull(contentHash), requireNotNull(hashVersion))
+        }
+    }
+}
 
 @Entity(tableName = "confirmed_session", indices = [Index(value = ["diaryId", "position"], unique = true)],
-    foreignKeys = [ForeignKey(entity = ConfirmedDiaryRow::class, parentColumns = ["id"], childColumns = ["diaryId"], onDelete = ForeignKey.CASCADE)])
+    foreignKeys = [ForeignKey(entity = TrainingRecord::class, parentColumns = ["id"], childColumns = ["diaryId"], onDelete = ForeignKey.CASCADE)])
 @Serializable
 data class ConfirmedSessionRow(@PrimaryKey val id: String, val diaryId: String, val position: Int,
     val notes: String?, val sourcePath: String?)
@@ -78,7 +94,7 @@ data class ConfirmedSessionRecord(@Embedded val session: ConfirmedSessionRow,
     val exercises: List<ConfirmedExerciseRecord>)
 
 @Serializable
-data class ConfirmedDiaryRecord(@Embedded val diary: ConfirmedDiaryRow,
+data class TrainingRecordDetails(@Embedded val diary: TrainingRecord,
     @Relation(parentColumn = "id", entityColumn = "diaryId", entity = ConfirmedSessionRow::class)
     val sessions: List<ConfirmedSessionRecord>) {
     internal fun ordered() = copy(sessions = sessions.sortedBy { it.session.position }.map { session ->
@@ -89,6 +105,10 @@ data class ConfirmedDiaryRecord(@Embedded val diary: ConfirmedDiaryRow,
 }
 
 class AnalysisConverters {
+    @TypeConverter fun origin(value: String): RecordOrigin = RecordOrigin.valueOf(value)
+    @TypeConverter fun origin(value: RecordOrigin): String = value.name
+    @TypeConverter fun kind(value: String): RecordKind = RecordKind.valueOf(value)
+    @TypeConverter fun kind(value: RecordKind): String = value.name
     @TypeConverter fun status(value: String): ParseRunStatus = ParseRunStatus.valueOf(value)
     @TypeConverter fun status(value: ParseRunStatus): String = value.name
     @TypeConverter fun unit(value: String?): WeightUnit? = value?.let(WeightUnit::valueOf)
@@ -107,10 +127,7 @@ interface DiaryAnalysisDao {
         ORDER BY p.startedAt, p.rowid""")
     fun observeVaultHeads(vaultId: String): Flow<List<ParseRunRow>>
     @Query("SELECT * FROM confirmed_diary WHERE vaultId = :vaultId")
-    fun observeConfirmedRows(vaultId: String): Flow<List<ConfirmedDiaryRow>>
-    @Transaction
-    @Query("SELECT * FROM confirmed_diary WHERE vaultId = :vaultId ORDER BY date, relPath")
-    fun observeConfirmedDiaries(vaultId: String): Flow<List<ConfirmedDiaryRecord>>
+    fun observeConfirmedRows(vaultId: String): Flow<List<TrainingRecord>>
     @Query("SELECT id FROM parse_run WHERE vaultId = :vaultId AND relPath = :relPath AND status = 'SUCCEEDED' ORDER BY startedAt DESC, rowid DESC LIMIT 1")
     suspend fun latestCandidateId(vaultId: String, relPath: String): String?
     @Insert suspend fun insertRun(row: ParseRunRow)
@@ -122,20 +139,27 @@ interface DiaryAnalysisDao {
 
     @Transaction
     @Query("SELECT * FROM confirmed_diary WHERE vaultId = :vaultId AND relPath = :relPath")
-    suspend fun confirmed(vaultId: String, relPath: String): ConfirmedDiaryRecord?
+    suspend fun confirmed(vaultId: String, relPath: String): TrainingRecordDetails?
     @Transaction
     @Query("SELECT * FROM confirmed_diary WHERE vaultId = :vaultId AND relPath = :relPath")
-    fun observeConfirmed(vaultId: String, relPath: String): Flow<ConfirmedDiaryRecord?>
-    @Insert suspend fun insertDiary(row: ConfirmedDiaryRow)
-    @Update suspend fun updateDiary(row: ConfirmedDiaryRow): Int
+    fun observeConfirmed(vaultId: String, relPath: String): Flow<TrainingRecordDetails?>
+    @Transaction
+    @Query("SELECT * FROM confirmed_diary ORDER BY date DESC, confirmedAt DESC")
+    fun observeRecords(): Flow<List<TrainingRecordDetails>>
+    @Transaction
+    @Query("SELECT * FROM confirmed_diary WHERE id = :id")
+    suspend fun record(id: String): TrainingRecordDetails?
+    @Query("DELETE FROM confirmed_diary WHERE id = :id") suspend fun deleteRecord(id: String)
+    @Insert suspend fun insertDiary(row: TrainingRecord)
+    @Update suspend fun updateDiary(row: TrainingRecord): Int
     @Insert suspend fun insertSession(row: ConfirmedSessionRow)
     @Insert suspend fun insertExercise(row: ConfirmedExerciseRow)
     @Insert suspend fun insertSets(rows: List<ConfirmedSetRow>)
     @Query("DELETE FROM confirmed_session WHERE diaryId = :diaryId") suspend fun deleteSessions(diaryId: String)
 }
 
-@Database(entities = [ParseRunRow::class, ConfirmedDiaryRow::class, ConfirmedSessionRow::class,
-    ConfirmedExerciseRow::class, ConfirmedSetRow::class], version = 2, exportSchema = true)
+@Database(entities = [ParseRunRow::class, TrainingRecord::class, ConfirmedSessionRow::class,
+    ConfirmedExerciseRow::class, ConfirmedSetRow::class], version = 3, exportSchema = true)
 @TypeConverters(AnalysisConverters::class)
 abstract class DiaryAnalysisDatabase : RoomDatabase() {
     abstract fun analysis(): DiaryAnalysisDao
@@ -143,7 +167,7 @@ abstract class DiaryAnalysisDatabase : RoomDatabase() {
         @Volatile private var instance: DiaryAnalysisDatabase? = null
         fun get(context: Context): DiaryAnalysisDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, DiaryAnalysisDatabase::class.java,
-                "diary-analysis.db").build().also { instance = it }
+                "training-records.db").build().also { instance = it }
         }
     }
 }

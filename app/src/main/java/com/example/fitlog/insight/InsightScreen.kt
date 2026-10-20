@@ -10,12 +10,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import com.example.fitlog.data.analysis.SourceKey
-import com.example.fitlog.data.index.IndexedSource
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogSectionTitle
 import java.time.LocalDate
@@ -23,21 +22,22 @@ import com.example.fitlog.R
 import com.example.fitlog.ui.components.FitLogPageHeader
 
 @Composable
-fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (SourceKey) -> Unit,
+fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (String) -> Unit,
     onExercise: (String) -> Unit, modifier: Modifier = Modifier) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.resumed() }
     var sheet by rememberSaveable(vm.data?.vaultId) { mutableStateOf<String?>(null) }
-    val data = vm.data.takeIf { vm.error == null && vm.activeVault }
+    val data = vm.data.takeIf { vm.error == null }
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxSize(),
             contentPadding = PaddingValues(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item { FitLogPageHeader(stringResource(R.string.insight_title), actions = {
-                FilledTonalButton(onClick = vm::refresh, enabled = vm.index?.refreshing != true && !vm.aliasSaving) {
-                    Text(stringResource(R.string.insight_refresh))
+                FilledTonalIconButton(onClick = vm::refresh, enabled = vm.index?.refreshing != true && !vm.aliasSaving,
+                    shapes = IconButtonDefaults.shapes()) {
+                    Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.insight_refresh))
                 }
             }) }
-            item { InsightReadState(vm, onOpenLog) }
+            if (vm.loading || vm.error != null) item { InsightReadState(vm, onOpenLog) }
             if (data != null) {
                 item { InsightCoverage(vm) }
                 item { InsightRangePicker(vm.range, vm::selectRange) }
@@ -49,13 +49,9 @@ fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (SourceKe
                             Text(stringResource(R.string.insight_totals, totals.days, totals.sets), style = MaterialTheme.typography.titleMedium)
                             if (totals.unknownGroups > 0) Text(stringResource(R.string.insight_unknown_groups, totals.unknownGroups),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(stringResource(R.string.insight_confirmed_only), style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.record_coverage), style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                }
-                item { FitLogSectionTitle(stringResource(R.string.insight_coverage)) }
-                items(InsightSourceStatus.entries.filter { status -> data.sources.any { it.status == status } }, key = { "coverage-${it.name}" }) { status ->
-                    InsightRow(sourceStatusLabel(status), stringResource(R.string.insight_source_count, data.sources.count { it.status == status }), { sheet = status.name })
                 }
                 item { FitLogSectionTitle(stringResource(R.string.insight_activity)) }
                 item { InsightHeatmap(data) }
@@ -72,9 +68,13 @@ fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (SourceKe
                         exercise.occurrences.sumOf { it.exercise.sets.size }), { onExercise(exercise.nameKey) })
                 }
                 item { FitLogSectionTitle(stringResource(R.string.insight_recent)) }
-                items(data.diaries(vm.range).filter { it.sessions.isNotEmpty() }.take(6), key = { "recent-${it.key.relPath}" }) { diary ->
+                items(data.diaries(vm.range).filter { it.sessions.isNotEmpty() }.take(6), key = { "recent-${it.key}" }) { diary ->
                     InsightRow(insightDate(diary.date), stringResource(R.string.insight_diary_summary,
-                        diary.key.relPath, diary.sessions.size, diary.setCount), { onOpen(diary.key) })
+                        diary.title, diary.sessions.size, diary.setCount), { onOpen(diary.key) })
+                }
+                if (data.sources.isNotEmpty()) item { FitLogSectionTitle(stringResource(R.string.insight_coverage)) }
+                items(InsightSourceStatus.entries.filter { status -> data.sources.any { it.status == status } }, key = { "coverage-${it.name}" }) { status ->
+                    InsightRow(sourceStatusLabel(status), stringResource(R.string.insight_source_count, data.sources.count { it.status == status }), { sheet = status.name })
                 }
             }
         }
@@ -90,7 +90,7 @@ fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (SourceKe
 
 @Composable
 private fun InsightSourceSheet(data: InsightData, selection: String, onDismiss: () -> Unit,
-    onOpen: (SourceKey) -> Unit, onOpenLog: () -> Unit, onDay: (LocalDate) -> Unit) {
+    onOpen: (String) -> Unit, onOpenLog: () -> Unit, onDay: (LocalDate) -> Unit) {
     val status = InsightSourceStatus.entries.firstOrNull { it.name == selection }
     val day = runCatching { LocalDate.parse(selection) }.getOrNull()
     ModalBottomSheet(onDismissRequest = onDismiss,
@@ -101,12 +101,12 @@ private fun InsightSourceSheet(data: InsightData, selection: String, onDismiss: 
             item { Text(when { status != null -> sourceStatusLabel(status); day != null -> insightDate(day)
                 else -> stringResource(R.string.insight_view_days) }, style = MaterialTheme.typography.headlineSmall) }
             when {
-                status != null -> items(data.sources.filter { it.status == status }, key = { it.key.relPath }) { source ->
+                status != null -> items(data.sources.filter { it.status == status }, key = { it.key }) { source ->
                     InsightRow(source.key.relPath, sourceStatusLabel(source.status),
-                        if (source.source?.status == IndexedSource.AVAILABLE) ({ onOpen(source.key) }) else onOpenLog)
+                        data.diaries.firstOrNull { it.sourceKey == source.key }?.let { diary -> ({ onOpen(diary.key) }) } ?: onOpenLog)
                 }
-                day != null -> items(data.activity()[day].orEmpty(), key = { it.key.relPath }) { diary ->
-                    InsightRow(diary.key.relPath, stringResource(R.string.insight_exercise_summary, diary.sessions.size, diary.setCount), { onOpen(diary.key) })
+                day != null -> items(data.activity()[day].orEmpty(), key = { it.key }) { diary ->
+                    InsightRow(diary.title, stringResource(R.string.insight_exercise_summary, diary.sessions.size, diary.setCount), { onOpen(diary.key) })
                 }
                 else -> {
                     val activity = data.activity().toSortedMap(compareByDescending { it })

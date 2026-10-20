@@ -10,14 +10,9 @@ import kotlinx.coroutines.flow.Flow
  */
 interface DiaryAnalysisReader {
     fun observeParses(sourceKey: SourceKey): Flow<DiaryParseRecords>
-    fun observeConfirmed(sourceKey: SourceKey): Flow<ConfirmedDiaryRecord?>
+    fun observeConfirmed(sourceKey: SourceKey): Flow<TrainingRecordDetails?>
     /** Reads the exact parse behind a confirmation or unfinished review; never starts extraction. */
     suspend fun readCandidate(sourceKey: SourceKey, parseRunId: String): StoredDiaryCandidate?
-}
-
-/** Vault-wide confirmed facts; reading statistics never requests a model. */
-interface ConfirmedDiaryReader {
-    fun observeConfirmedDiaries(vaultId: String): Flow<List<ConfirmedDiaryRecord>>
 }
 
 /** Storage JSON and raw model responses deliberately stay behind the repository. */

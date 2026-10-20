@@ -16,17 +16,106 @@ internal data class DiaryReviewDraft(
     val fromCandidate: Boolean = true,
     val fragments: List<DiaryReviewFragment> = emptyList(),
     val originalValues: List<DiarySetOriginal> = emptyList(),
+    val sourceVersion: DiaryContentVersion? = null,
 ) {
     fun withWeight(address: DiarySetAddress, value: Double?, unit: WeightUnit?, basis: WeightBasis? = null) =
         update(address) { it.copy(weight = value, unit = unit, basis = basis ?: it.basis) }
     fun withReps(address: DiarySetAddress, value: Int?) = update(address) { it.copy(reps = value) }
+
+    fun withBasis(address: DiarySetAddress, basis: WeightBasis, applyToExercise: Boolean): DiaryReviewDraft {
+        val exercise = sessions.getOrNull(address.session)?.exercises?.getOrNull(address.exercise) ?: return this
+        if (exercise.sets.getOrNull(address.set) == null) return this
+        val addresses = if (applyToExercise) exercise.sets.indices.map { address.copy(set = it) } else listOf(address)
+        val updated = addresses.fold(this) { draft, target -> draft.update(target) { set ->
+            if (basis == WeightBasis.BODYWEIGHT) set.copy(weight = null, unit = null, basis = basis)
+            else set.copy(basis = basis)
+        } }
+        return if (!applyToExercise) updated else updated.copy(fragments = updated.fragments.map { fragment ->
+            if (fragment.session != address.session || fragment.exercise != address.exercise) fragment
+            else if (basis == WeightBasis.BODYWEIGHT) fragment.copy(weight = null, unit = null, basis = basis)
+            else fragment.copy(basis = basis)
+        })
+    }
+
+    fun withExercise(sessionIndex: Int, exerciseIndex: Int, name: String, setCount: Int,
+        fragmentCounts: Map<Int, Int>): DiaryReviewDraft {
+        if (name.isBlank() || setCount !in 0..1000 || fragmentCounts.values.any { it !in 0..1000 }) return this
+        val session = sessions.getOrNull(sessionIndex) ?: return this
+        val exercise = session.exercises.getOrNull(exerciseIndex) ?: return this
+        val expanded = fragments.filter { it.session == sessionIndex && it.exercise == exerciseIndex && it.group in fragmentCounts }
+        if (setCount + expanded.sumOf { fragmentCounts.getValue(it.group) } > 1000) return this
+        val sets = exercise.sets.take(setCount) + List((setCount - exercise.sets.size).coerceAtLeast(0)) { ReviewedSet(userEdited = true) } +
+            expanded.flatMap { fragment -> List(fragmentCounts.getValue(fragment.group)) {
+                ReviewedSet(fragment.weight, fragment.unit, fragment.basis, fragment.reps, userEdited = true)
+            } }
+        if (sets.size > 1000) return this
+        val remaining = fragments - expanded.toSet()
+        return copy(sessions = sessions.toMutableList().also { all ->
+            all[sessionIndex] = session.copy(exercises = session.exercises.toMutableList().also {
+                it[exerciseIndex] = exercise.copy(rawName = name, sets = sets)
+            })
+        }, fragments = remaining)
+    }
+
+    fun addExercise(sessionIndex: Int, name: String, setCount: Int): DiaryReviewDraft {
+        if (sessionIndex !in 0..sessions.size || name.isBlank() || setCount !in 0..1000) return this
+        val exercise = ReviewedExercise(name, List(setCount) { ReviewedSet(userEdited = true) })
+        return copy(sessions = sessions.toMutableList().also { all ->
+            if (sessionIndex == all.size) all.add(ReviewedSession(listOf(exercise)))
+            else all[sessionIndex] = all[sessionIndex].copy(exercises = all[sessionIndex].exercises + exercise)
+        })
+    }
+
+    fun removeExercise(sessionIndex: Int, exerciseIndex: Int): DiaryReviewDraft {
+        val session = sessions.getOrNull(sessionIndex) ?: return this
+        if (exerciseIndex !in session.exercises.indices) return this
+        if (session.exercises.size == 1) return removeSession(sessionIndex)
+        return copy(sessions = sessions.mapIndexed { index, value ->
+            if (index != sessionIndex) value else value.copy(exercises = value.exercises.filterIndexed { exercise, _ -> exercise != exerciseIndex })
+        }, fragments = fragments.mapNotNull { fragment ->
+            when {
+                fragment.session != sessionIndex || fragment.exercise < exerciseIndex -> fragment
+                fragment.exercise == exerciseIndex -> null
+                else -> fragment.copy(exercise = fragment.exercise - 1)
+            }
+        }, originalValues = originalValues.mapNotNull { original ->
+            val address = original.address
+            when {
+                address.session != sessionIndex || address.exercise < exerciseIndex -> original
+                address.exercise == exerciseIndex -> null
+                else -> original.copy(address = address.copy(exercise = address.exercise - 1))
+            }
+        })
+    }
+
+    fun removeSession(sessionIndex: Int): DiaryReviewDraft {
+        if (sessionIndex !in sessions.indices) return this
+        return copy(sessions = sessions.filterIndexed { index, _ -> index != sessionIndex },
+            fragments = fragments.mapNotNull { fragment ->
+                when {
+                    fragment.session < sessionIndex -> fragment
+                    fragment.session == sessionIndex -> null
+                    else -> fragment.copy(session = fragment.session - 1)
+                }
+            }, originalValues = originalValues.mapNotNull { original ->
+                val address = original.address
+                when {
+                    address.session < sessionIndex -> original
+                    address.session == sessionIndex -> null
+                    else -> original.copy(address = address.copy(session = address.session - 1))
+                }
+            })
+    }
+
+    fun clearTraining() = copy(sessions = emptyList(), fragments = emptyList(), originalValues = emptyList())
 
     private fun update(address: DiarySetAddress, transform: (ReviewedSet) -> ReviewedSet): DiaryReviewDraft {
         val session = sessions.getOrNull(address.session) ?: return this
         val exercise = session.exercises.getOrNull(address.exercise) ?: return this
         val set = exercise.sets.getOrNull(address.set) ?: return this
         val updated = transform(set)
-        val baseline = originalValues.firstOrNull { it.address == address }
+        val baseline = if (set.groupIndex != null && set.setInGroup != null)
+            originalValues.firstOrNull { it.address == address } else null
         return copy(sessions = sessions.toMutableList().also { all ->
             all[address.session] = session.copy(exercises = session.exercises.toMutableList().also { exercises ->
                 exercises[address.exercise] = exercise.copy(sets = exercise.sets.toMutableList().also { sets ->
@@ -63,7 +152,7 @@ internal data class DiaryReviewDraft(
     }
 
     companion object {
-        fun fromCandidate(candidate: StoredDiaryCandidate, confirmed: ConfirmedDiaryRecord?): DiaryReviewDraft {
+        fun fromCandidate(candidate: StoredDiaryCandidate, confirmed: TrainingRecordDetails?): DiaryReviewDraft {
             val analysis = candidate.analysis
             return DiaryReviewDraft(candidate.attempt.id, suggestDiaryDate(analysis.parseKey.sourceKey, analysis).suggested?.toString().orEmpty(),
                 analysis.sessions.map { session ->
@@ -90,15 +179,16 @@ internal data class DiaryReviewDraft(
                 }).withOriginalValues(candidate)
         }
 
-        fun fromConfirmed(record: ConfirmedDiaryRecord, original: StoredDiaryCandidate) = DiaryReviewDraft(record.diary.parseRunId, record.diary.date,
+        fun fromConfirmed(record: TrainingRecordDetails, original: StoredDiaryCandidate? = null) = DiaryReviewDraft(record.diary.parseRunId.orEmpty(), record.diary.date,
             record.sessions.map { session ->
                 ReviewedSession(session.exercises.map { exercise ->
                     ReviewedExercise(exercise.exercise.rawName, exercise.sets.map { set ->
                         ReviewedSet(set.weight, set.unit, set.basis, set.reps, set.groupIndex, set.setInGroup, set.userEdited)
                     }, exercise.exercise.notes, exercise.exercise.evidence, exercise.exercise.sourcePath)
                 }, session.session.notes, session.session.sourcePath)
-            }, record.diary.acceptedPartialResult, record.diary.confirmedAt, record.diary.acceptedPartialResult, fromCandidate = false)
-            .withOriginalValues(original)
+            }, record.diary.acceptedPartialResult, record.diary.confirmedAt, record.diary.acceptedPartialResult, fromCandidate = false,
+                sourceVersion = DiaryContentVersion(requireNotNull(record.diary.contentHash), requireNotNull(record.diary.hashVersion)))
+            .let { draft -> if (original == null) draft else draft.withOriginalValues(original) }
     }
 }
 

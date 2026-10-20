@@ -4,6 +4,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -40,7 +41,9 @@ internal fun LogAnalysisControls(state: LogUiState, actions: LogActions, onRevie
                 Text(stringResource(R.string.log_analyze), style = MaterialTheme.typography.labelLargeEmphasized)
             }
             FilledTonalButton(onClick = onReview, enabled = state.vault != null && !state.summariesLoading &&
-                !state.summariesReadFailed && state.pendingCount > 0) {
+                !state.summariesReadFailed && state.pendingCount > 0,
+                shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
+                modifier = Modifier.heightIn(min = ButtonDefaults.MediumContainerHeight)) {
                 Text(stringResource(R.string.log_review_count, state.pendingCount))
             }
         }
@@ -103,14 +106,17 @@ private fun AnalysisRangeSheet(state: LogUiState, actions: LogActions, onDismiss
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.log_analyze), style = MaterialTheme.typography.headlineSmallEmphasized)
                 Text(stringResource(R.string.log_analysis_scope), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                LogAnalysisRange.entries.forEach { choice ->
-                    Row(Modifier.fillMaxWidth().selectable(selected = range == choice, role = Role.RadioButton,
-                        onClick = { range = choice }).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = range == choice, onClick = null)
-                        Text(stringResource(choice.label), Modifier.padding(start = 12.dp))
+                Column(Modifier.selectableGroup()) {
+                    LogAnalysisRange.entries.forEach { choice ->
+                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            .selectable(selected = range == choice, role = Role.RadioButton,
+                                onClick = { range = choice }).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = range == choice, onClick = null)
+                            Text(stringResource(choice.label), Modifier.padding(start = 12.dp))
+                        }
                     }
                 }
-                Row(Modifier.fillMaxWidth().toggleable(value = reanalyze, role = Role.Checkbox,
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = reanalyze, role = Role.Checkbox,
                     onValueChange = { reanalyze = it }), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = reanalyze, onCheckedChange = null)
                     Text(stringResource(R.string.log_reanalyze), Modifier.weight(1f))
@@ -121,7 +127,10 @@ private fun AnalysisRangeSheet(state: LogUiState, actions: LogActions, onDismiss
             }
             Button(onClick = { actions.startAnalysis(range, reanalyze); onDismiss() }, enabled = matched.isNotEmpty() &&
                 !state.analysisBusy && !state.refreshing && !state.summariesLoading && !state.summariesReadFailed,
-                modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.log_analysis_start)) }
+                shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
+                modifier = Modifier.fillMaxWidth().heightIn(min = ButtonDefaults.MediumContainerHeight)) {
+                Text(stringResource(R.string.log_analysis_start), style = MaterialTheme.typography.labelLargeEmphasized)
+            }
             Spacer(Modifier.height(8.dp))
         }
     }

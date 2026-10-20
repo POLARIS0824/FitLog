@@ -46,7 +46,6 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import com.example.fitlog.data.vault.VaultPreferences
 import com.example.fitlog.data.vault.VaultRepository
 import com.example.fitlog.data.vault.MarkdownDocumentRepository
-import com.example.fitlog.data.vault.TodayLogResolver
 import com.example.fitlog.data.vault.vaultDataStore
 import com.example.fitlog.data.index.SourceIndexRepository
 import com.example.fitlog.data.analysis.DiaryAnalysisRepository
@@ -84,7 +83,6 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
     val logPreferences = remember { LogPreferences(preferencesStore) }
     val vaultRepository = remember { VaultRepository(context) }
     val documents = remember { MarkdownDocumentRepository(context) }
-    val todayLog = remember { TodayLogResolver(vaultPreferences.diary, documents, documents) }
     val sourceIndex = remember { SourceIndexRepository.get(context) }
     val diaryAnalysis = remember { DiaryAnalysisRepository.get(context) }
     val aiProviders = remember { AiProviderRepository(context.applicationContext.aiDataStore) }
@@ -100,29 +98,7 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
     // 当前导航历史
     val backStack = rememberNavBackStack(FitLogRoute.Today)
 
-    val vaultFlow = remember(backStack, coroutineScope) {
-        VaultFlowController(
-            backStack = backStack,
-            scope = coroutineScope,
-            getConfig = vaultPreferences::getVaultConfig,
-            checkAccess = vaultRepository::checkAccess,
-            resolveToday = { config, date ->
-                val resolved = todayLog.resolve(config.uri.toString(), date, config.vaultId)
-                FitLogRoute.Editor(
-                    vaultUri = resolved.vaultUri,
-                    document = resolved.document,
-                    date = resolved.date.toString(),
-                    directory = resolved.directory,
-                    fileName = resolved.fileName,
-                    displayPath = resolved.displayPath,
-                    vaultId = resolved.vaultId,
-                )
-            },
-            showError = { message ->
-                coroutineScope.launch { snackbarHostState.showSnackbar(context.getString(message)) }
-            },
-        )
-    }
+    val vaultFlow = remember(backStack) { VaultFlowController(backStack) }
     val currentRoute = backStack.lastOrNull()
     val config by vaultPreferences.vaultConfig.collectAsState(initial = VaultConfigState.Loading)
     val currentVault = (config as? VaultConfigState.Configured)?.vaultId
@@ -146,7 +122,7 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         Box(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().padding(innerPadding)) {
+            FitLogInsetContent(innerPadding) {
                 if (analysisRun.active && (currentRoute != FitLogRoute.Log || !analysisRun.batch)) {
                     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Row(

@@ -47,8 +47,8 @@ data class ExerciseAliases(val schemaVersion: Int = 1, val groups: List<Exercise
 }
 
 interface ExerciseAliasStore {
-    fun observe(vaultId: String): Flow<ExerciseAliases>
-    suspend fun save(vaultId: String, previousPrimaryKey: String?, replacement: ExerciseAliasGroup?)
+    fun observe(): Flow<ExerciseAliases>
+    suspend fun save( previousPrimaryKey: String?, replacement: ExerciseAliasGroup?)
 }
 
 // User corrections: deliberately separate from resettable vault/settings/index storage.
@@ -58,15 +58,14 @@ private val Context.exerciseAliasDataStore: DataStore<Preferences> by preference
 class DataStoreExerciseAliasStore(private val store: DataStore<Preferences>) : ExerciseAliasStore {
     constructor(context: Context) : this(context.applicationContext.exerciseAliasDataStore)
 
-    private fun key(vaultId: String) = stringPreferencesKey(requireVaultId(vaultId))
+    private val key = stringPreferencesKey("aliases")
     private fun decode(value: String?) = if (value == null) ExerciseAliases()
         else Json.decodeFromString<ExerciseAliases>(value).validate()
 
-    override fun observe(vaultId: String): Flow<ExerciseAliases> =
-        store.data.map { decode(it[key(vaultId)]) }
+    override fun observe(): Flow<ExerciseAliases> =
+        store.data.map { decode(it[key]) }
 
-    override suspend fun save(vaultId: String, previousPrimaryKey: String?, replacement: ExerciseAliasGroup?) {
-        val key = key(vaultId)
+    override suspend fun save( previousPrimaryKey: String?, replacement: ExerciseAliasGroup?) {
         store.edit { preferences ->
             val updated = decode(preferences[key]).replacing(previousPrimaryKey, replacement)
             preferences[key] = Json.encodeToString(updated)
