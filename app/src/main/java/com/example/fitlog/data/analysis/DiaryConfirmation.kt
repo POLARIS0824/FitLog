@@ -42,6 +42,8 @@ data class DiaryConfirmation(
     val acceptedPartialResult: Boolean = false,
     val expectedConfirmedAt: Long? = null,
     val requireLatestCandidate: Boolean = false,
+    val editConfirmed: Boolean = false,
+    val expectedContentVersion: DiaryContentVersion? = null,
 ) {
     companion object {
         fun fromCandidate(
@@ -70,7 +72,7 @@ data class DiaryConfirmation(
 }
 
 sealed interface DiaryConfirmationResult {
-    data class Confirmed(val diary: ConfirmedDiaryRecord) : DiaryConfirmationResult
+    data class Confirmed(val diary: TrainingRecordDetails) : DiaryConfirmationResult
     data class Invalid(val reason: ConfirmationFailure) : DiaryConfirmationResult
 }
 
@@ -108,6 +110,7 @@ fun diaryDateFromFileName(fileName: String): LocalDate? {
     } catch (_: java.time.format.DateTimeParseException) { null }
 }
 
+@Serializable
 data class DiaryContentVersion(val contentHash: String, val hashVersion: Int) {
     init {
         require(contentHash.matches(Regex("[0-9a-f]{64}")))
@@ -121,7 +124,7 @@ data class DiaryContentVersion(val contentHash: String, val hashVersion: Int) {
 enum class ConfirmationFreshness { UNCONFIRMED, CONFIRMED, NEEDS_UPDATE, UNVERIFIABLE }
 
 /** Caller must supply a normalized content version, never an index byte fingerprint. */
-fun confirmationFreshness(confirmed: ConfirmedDiaryRow?, current: DiaryContentVersion?): ConfirmationFreshness = when {
+fun confirmationFreshness(confirmed: TrainingRecord?, current: DiaryContentVersion?): ConfirmationFreshness = when {
     confirmed == null -> ConfirmationFreshness.UNCONFIRMED
     current == null || current.hashVersion != confirmed.hashVersion -> ConfirmationFreshness.UNVERIFIABLE
     current.contentHash == confirmed.contentHash -> ConfirmationFreshness.CONFIRMED

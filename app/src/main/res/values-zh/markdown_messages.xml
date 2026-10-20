@@ -1,0 +1,9 @@
+<resources>
+    <string name="log_refresh">刷新</string>
+    <string name="log_empty">此目录中没有 Markdown 文件。</string>
+    <string name="log_partial">部分目录无法读取，已显示可访问的文件。</string>
+    <string name="log_failed">无法扫描此目录，请重试或重新连接。</string>
+    <string name="log_connect">连接目录</string>
+    <string name="log_no_vault">连接目录后即可浏览 Markdown 文件。</string>
+    <string name="log_retry">重试</string>
+</resources>

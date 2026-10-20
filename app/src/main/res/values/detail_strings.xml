@@ -16,7 +16,7 @@
     <string name="detail_confirmed_result">User-confirmed record</string>
     <string name="detail_confirmed_date">Confirmed date: %1$s</string>
     <string name="detail_partial_confirmation">A partial extraction was accepted. Other training may be missing.</string>
-    <string name="detail_confirmed_no_sessions">This confirmation contains no sessions. It does not classify the day as a rest day.</string>
+    <string name="detail_confirmed_no_sessions">Rest day: no training in the confirmed record.</string>
     <string name="detail_candidate_result">AI extraction candidate</string>
     <string name="detail_candidate_used">This candidate was used for the confirmation above. User corrections are stored in the confirmed record.</string>
     <string name="detail_candidate_unconfirmed">Candidate awaiting review; it has not replaced the confirmed record.</string>
@@ -24,7 +24,7 @@
     <string name="detail_needs_update">Needs update: the original has changed. The saved result is retained.</string>
     <string name="detail_unverifiable">Cannot verify against the current original.</string>
     <string name="detail_partial_no_sessions">No valid sessions were retained from this partial result. This does not mean there was no training.</string>
-    <string name="detail_candidate_no_sessions">No training sessions were extracted. This does not mean it was a rest day.</string>
+    <string name="detail_candidate_no_sessions">No training sessions were extracted. Confirming this records a rest day by default.</string>
     <string name="detail_issue">%1$s: %2$s</string>
     <string name="detail_issue_error">Invalid result</string>
     <string name="detail_issue_review">Needs review</string>
@@ -40,11 +40,11 @@
     <string name="detail_count_source">Set count source: %1$s</string>
     <string name="detail_weight">Weight</string>
     <string name="detail_unit">Unit</string>
-    <string name="detail_basis">Weight meaning</string>
+    <string name="detail_basis">Weight basis</string>
     <string name="detail_reps">Repetitions</string>
     <string name="detail_kg">kg</string>
     <string name="detail_lb">lb</string>
-    <string name="detail_basis_per_side">Per side</string>
+    <string name="detail_basis_per_side">Per side / dumbbell</string>
     <string name="detail_basis_total">Total</string>
     <string name="detail_basis_bodyweight">Bodyweight</string>
     <string name="detail_basis_added">Added weight</string>
@@ -80,7 +80,7 @@
     <string name="detail_issue_date_missing">The training date needs confirmation.</string>
     <string name="detail_issue_weight_missing">Weight was not recorded.</string>
     <string name="detail_issue_unit_missing">The weight unit was not recorded.</string>
-    <string name="detail_issue_basis_missing">The weight meaning needs clarification.</string>
+    <string name="detail_issue_basis_missing">Confirm the weight basis in the diary review, or keep it unknown.</string>
     <string name="detail_issue_reps_missing">Repetitions were not recorded.</string>
     <string name="detail_issue_count_missing">Set count was not recorded.</string>
     <string name="detail_issue_inferred">An inferred value needs review.</string>

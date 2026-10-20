@@ -44,11 +44,13 @@ class DiaryDetailViewModel(
     private val confirmDiary: (suspend (DiaryConfirmation) -> DiaryConfirmationResult)? = null,
     private val analysisState: StateFlow<DiaryAnalysisRun>? = null,
     private val cancelAnalysis: () -> Unit = {},
+    private val deleteConfirmation: suspend () -> Unit = {},
+    private val onSourceRead: suspend (MarkdownSnapshot) -> Unit = {},
 ) : ViewModel() {
     val sourceKey = SourceKey(route.vaultId, route.relPath)
     var tab by mutableStateOf(DiaryDetailTab.entries.firstOrNull {
         it.name == savedState.get<String>("detailTab")
-    } ?: DiaryDetailTab.ORIGINAL); private set
+    } ?: if (route.openAnalysis || route.openCandidate) DiaryDetailTab.ANALYSIS else DiaryDetailTab.ORIGINAL); private set
     var original by mutableStateOf<MarkdownSnapshot?>(null); private set
     var sourceLoading by mutableStateOf(false); private set
     var sourceReadFailed by mutableStateOf(false); private set
@@ -56,7 +58,7 @@ class DiaryDetailViewModel(
     var parses by mutableStateOf(DiaryParseRecords()); private set
     var parsesLoading by mutableStateOf(true); private set
     var parsesReadFailed by mutableStateOf(false); private set
-    var confirmed by mutableStateOf<ConfirmedDiaryRecord?>(null); private set
+    var confirmed by mutableStateOf<TrainingRecordDetails?>(null); private set
     var confirmationLoading by mutableStateOf(true); private set
     var confirmationReadFailed by mutableStateOf(false); private set
     var parsing by mutableStateOf(false); private set
@@ -70,7 +72,7 @@ class DiaryDetailViewModel(
     var reviewSaving by mutableStateOf(false); private set
     var reviewMessage by mutableStateOf<Int?>(if (restoredReview.isFailure) R.string.detail_review_restore_failed else null); private set
     var leaveRequested by mutableStateOf(false); private set
-    var showCandidate by mutableStateOf(savedState.get<Boolean>("showCandidate") ?: false); private set
+    var showCandidate by mutableStateOf(savedState.get<Boolean>("showCandidate") ?: route.openCandidate); private set
     private var pendingLeave: (() -> Unit)? = null
     private var confirmationOriginal: StoredDiaryCandidate? = null
     private val selectedConfirmedOriginal get() = confirmationOriginal?.takeIf { it.attempt.id == confirmed?.diary?.parseRunId }
@@ -78,12 +80,11 @@ class DiaryDetailViewModel(
     val canReview get() = confirmDiary != null && restoredReview.isSuccess && !reviewSaving && !parsing &&
         !confirmationLoading && !parsesLoading && !confirmationReadFailed && (review != null ||
         ((showCandidate || confirmed == null) && parses.latestCandidate != null) ||
-        (!showCandidate && confirmed != null && selectedConfirmedOriginal != null))
+        (!showCandidate && confirmed != null))
     val confirmationStatus get() = confirmationFreshness(confirmed?.diary, contentVersion)
     val candidateStatus get() = parses.latestCandidate?.let {
         resultFreshness(DiaryContentVersion(it.analysis.parseKey.contentHash, it.analysis.parseKey.hashVersion), contentVersion)
     }
-    val canEdit get() = original?.file?.writable == true
 
     private var sourceJob: Job? = null
     private var parsesJob: Job? = null
@@ -91,6 +92,7 @@ class DiaryDetailViewModel(
     private var parseJob: Job? = null
     private var sourceGeneration = 0L
     private var analysisGeneration = 0L
+    private var started = false
 
     init {
         reloadOriginal(); retryAnalysis()
@@ -108,7 +110,12 @@ class DiaryDetailViewModel(
         savedState["detailTab"] = tab.name
     }
 
-    /** Called on resume, after returning from Editor, and by the refresh action. */
+    /** Start checks external edits; predictive-back STARTED/RESUMED changes must not refresh. */
+    fun onStart() {
+        if (started) refresh() else started = true
+    }
+
+    /** Re-read the external source on return or explicit refresh. */
     fun refresh() {
         reloadOriginal()
         if (parsesReadFailed || confirmationReadFailed || parses.candidateReadFailed) retryAnalysis()
@@ -119,7 +126,6 @@ class DiaryDetailViewModel(
         val generation = ++sourceGeneration
         sourceLoading = true
         sourceReadFailed = false
-        contentVersion = null
         sourceJob = viewModelScope.launch {
             try {
                 val snapshot = documents.read(route.document)
@@ -131,6 +137,8 @@ class DiaryDetailViewModel(
                 if (generation != sourceGeneration) return@launch
                 original = snapshot
                 contentVersion = version
+                try { onSourceRead(snapshot) }
+                catch (e: Exception) { if (e is CancellationException) throw e; analysisIndexWarning = true }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 currentCoroutineContext().ensureActive()
@@ -171,7 +179,8 @@ class DiaryDetailViewModel(
                 analysis.observeConfirmed(sourceKey).collect { record ->
                     val targetRun = if (confirmDiary != null) review?.parseRunId ?: record?.diary?.parseRunId else null
                     try {
-                        val original = targetRun?.let { requireNotNull(analysis.readCandidate(sourceKey, it)) }
+                        val original = try { targetRun?.let { analysis.readCandidate(sourceKey, it) } }
+                        catch (e: Exception) { if (e is CancellationException) throw e; null }
                         currentCoroutineContext().ensureActive()
                         if (generation == analysisGeneration) {
                             confirmed = record
@@ -190,7 +199,7 @@ class DiaryDetailViewModel(
                         if (generation == analysisGeneration) {
                             // A damaged parse must not hide the independently stored confirmation.
                             confirmed = record; confirmationOriginal = null
-                            confirmationReadFailed = true; confirmationLoading = false
+                            confirmationReadFailed = false; confirmationLoading = false
                         }
                     }
                 }
@@ -266,11 +275,9 @@ class DiaryDetailViewModel(
         if (value != null && (!value.isFinite() || value < 0)) return
         val draft = draftForReview() ?: return
         val current = draft.sessions.getOrNull(address.session)?.exercises?.getOrNull(address.exercise)?.sets?.getOrNull(address.set) ?: return
-        val selected = selectedReviewDraft()?.sessions?.getOrNull(address.session)?.exercises?.getOrNull(address.exercise)?.sets?.getOrNull(address.set)
         val original = draft.originalValues.firstOrNull { it.address == address }
         val updatedBasis = basis ?: current.basis
         val weight = DiaryWeightValue(value, unit, converted, updatedBasis)
-            .restoringConversionRoundoff(selected?.let { DiaryWeightValue(it.weight, it.unit, basis = it.basis) })
             .restoringConversionRoundoff(original?.let { DiaryWeightValue(it.weight, it.unit, basis = it.basis) }).weight
         if (current.weight == weight && current.unit == unit && current.basis == updatedBasis) return
         if (beginReview()) storeEditedReview(requireNotNull(review).withWeight(address, weight, unit, updatedBasis))
@@ -283,10 +290,49 @@ class DiaryDetailViewModel(
         if (beginReview()) storeEditedReview(requireNotNull(review).withReps(address, value))
     }
 
-    private fun draftForReview(): DiaryReviewDraft? = review ?: selectedReviewDraft()
+    internal fun updateBasis(address: DiarySetAddress, basis: WeightBasis, applyToExercise: Boolean) {
+        val draft = draftForReview() ?: return
+        val updated = draft.withBasis(address, basis, applyToExercise)
+        if (updated != draft && beginReview()) storeEditedReview(updated)
+    }
+
+    internal fun updateExercise(session: Int, exercise: Int, name: String, setCount: Int, fragmentCounts: Map<Int, Int>) {
+        if (name.isBlank() || setCount !in 0..1000 || fragmentCounts.values.any { it !in 0..1000 }) return
+        val draft = draftForReview() ?: return
+        val updated = draft.withExercise(session, exercise, name.trim(), setCount, fragmentCounts)
+        if (updated != draft && beginReview()) storeEditedReview(updated)
+    }
+
+    internal fun addExercise(session: Int, name: String, setCount: Int) {
+        if (name.isBlank() || setCount !in 0..1000) return
+        val draft = draftForReview() ?: return
+        val updated = draft.addExercise(session, name.trim(), setCount)
+        if (updated != draft && beginReview()) storeEditedReview(updated)
+    }
+
+    internal fun removeExercise(session: Int, exercise: Int) {
+        val draft = draftForReview() ?: return
+        val updated = draft.removeExercise(session, exercise)
+        if (updated != draft && beginReview()) storeEditedReview(updated)
+    }
+
+    internal fun removeSession(session: Int) {
+        val draft = draftForReview() ?: return
+        val updated = draft.removeSession(session)
+        if (updated != draft && beginReview()) storeEditedReview(updated)
+    }
+
+    internal fun clearTraining() {
+        val draft = draftForReview() ?: return
+        val updated = draft.clearTraining()
+        if (updated != draft && beginReview()) storeEditedReview(updated)
+    }
+
+    /** Read-only snapshot for editors; opening a sheet must not create pending corrections. */
+    internal fun draftForReview(): DiaryReviewDraft? = review ?: selectedReviewDraft()
 
     private fun selectedReviewDraft(): DiaryReviewDraft? = if (!showCandidate && confirmed != null)
-        selectedConfirmedOriginal?.let { DiaryReviewDraft.fromConfirmed(requireNotNull(confirmed), it) }
+        DiaryReviewDraft.fromConfirmed(requireNotNull(confirmed), selectedConfirmedOriginal)
         else parses.latestCandidate?.let { DiaryReviewDraft.fromCandidate(it, confirmed) }
 
     private fun storeEditedReview(draft: DiaryReviewDraft) = storeReview(draft.takeUnless { it == selectedReviewDraft() })
@@ -312,7 +358,8 @@ class DiaryDetailViewModel(
         viewModelScope.launch {
             try {
                 val request = DiaryConfirmation(sourceKey, draft.parseRunId, date, draft.sessions, acceptPartial,
-                    expectedConfirmedAt = draft.expectedConfirmedAt)
+                    expectedConfirmedAt = draft.expectedConfirmedAt, editConfirmed = !draft.fromCandidate,
+                    expectedContentVersion = draft.sourceVersion)
                 when (val result = requireNotNull(confirmDiary).invoke(request)) {
                     is DiaryConfirmationResult.Confirmed -> {
                         confirmed = result.diary
@@ -320,7 +367,10 @@ class DiaryDetailViewModel(
                         showCandidate = false; savedState["showCandidate"] = false
                         reviewMessage = R.string.detail_review_saved
                     }
-                    is DiaryConfirmationResult.Invalid -> reviewMessage = confirmationFailureMessage(result.reason)
+                    is DiaryConfirmationResult.Invalid -> {
+                        reviewMessage = confirmationFailureMessage(result.reason)
+                        if (result.reason == ConfirmationFailure.SOURCE_CHANGED) reloadOriginal()
+                    }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -343,14 +393,15 @@ class DiaryDetailViewModel(
         storeReview(null); cancelLeave(); cancelParse(); action?.invoke()
     }
 
-    fun editorRoute(): FitLogRoute.Editor? = if (!canEdit) null else FitLogRoute.Editor(
-        vaultUri = route.vaultUri,
-        document = route.document,
-        directory = original?.file?.directory ?: route.directory,
-        fileName = original?.file?.name ?: route.fileName,
-        displayPath = route.relPath,
-        vaultId = route.vaultId,
-    )
+    fun revokeConfirmation() {
+        if (reviewSaving || confirmed == null || review != null) return
+        reviewSaving = true
+        viewModelScope.launch {
+            try { deleteConfirmation(); confirmed = null; confirmationOriginal = null; showCandidate = true }
+            catch (e: Exception) { if (e is CancellationException) throw e; reviewMessage = R.string.record_delete_failed }
+            finally { reviewSaving = false }
+        }
+    }
 
     override fun onCleared() {
         sourceGeneration++

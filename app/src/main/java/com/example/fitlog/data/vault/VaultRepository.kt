@@ -50,14 +50,7 @@ class VaultRepository(
                 return@withContext VaultFolderInfo(uri, directoryInfo.displayName, VaultAccessStatus.DirectoryUnavailable)
             }
 
-            // 4. 结合写权限与 FLAG_DIR_SUPPORTS_CREATE 判定是否可创建文件
-            val hasWritePermission = safAccessor.hasPersistedWritePermission(uri)
-            val status = if (hasWritePermission && directoryInfo.supportsCreate) {
-                VaultAccessStatus.CanCreateFiles
-            } else {
-                VaultAccessStatus.ReadOnly
-            }
-            VaultFolderInfo(uri, directoryInfo.displayName, status)
+            VaultFolderInfo(uri, directoryInfo.displayName, VaultAccessStatus.Readable)
         } catch (e: CancellationException) {
             // 严格保留协程取消语义，不将取消转为普通失败
             throw e

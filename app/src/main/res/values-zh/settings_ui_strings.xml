@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_ui_vault_connected">已连接 Markdown 文件夹 · 只读数据源</string>
+    <string name="settings_ui_previous_folder">当前文件夹：%1$s</string>
+</resources>

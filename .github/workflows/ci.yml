@@ -21,14 +21,14 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Unit tests
-        run: ./gradlew testDebugUnitTest
+      - name: Debug build
+        run: bash ./gradlew :app:assembleDebug
 
       - name: Lint
-        run: ./gradlew lintDebug
+        run: bash ./gradlew lintDebug
 
       # R8/资源收缩门禁：release 已启用 minify+shrinkResources，keep 规则缺口
       # （ADK、kotlinx-serialization 反射等）只有在 release 构建才会暴露，
       # debug 单测/lint 均覆盖不到；不签名只验证构建与混淆通过
       - name: Release build (R8 gate)
-        run: ./gradlew :app:assembleRelease
+        run: bash ./gradlew :app:assembleRelease

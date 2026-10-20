@@ -4,12 +4,14 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,17 +28,19 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.example.fitlog.R
 import com.example.fitlog.data.analysis.WeightUnit
 import com.example.fitlog.data.analysis.WeightBasis
+import com.example.fitlog.ui.preview.FitLogPreview
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import kotlin.math.abs
 
-internal enum class DiarySetField { WEIGHT, REPS }
+internal enum class DiarySetField { WEIGHT, REPS, BASIS }
 internal data class DiarySetEdit(val address: DiarySetAddress, val number: Int, val field: DiarySetField,
     val weight: Double?, val unit: WeightUnit?, val reps: Int?, val basis: WeightBasis? = null)
 
@@ -46,16 +50,21 @@ internal fun enteredReps(text: String): Int? = text.trim().toIntOrNull()?.takeIf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun DiarySetPicker(edit: DiarySetEdit, onDismiss: () -> Unit, onWeight: (DiaryWeightValue) -> Unit, onReps: (Int?) -> Unit) {
+internal fun DiarySetPicker(edit: DiarySetEdit, onDismiss: () -> Unit, onWeight: (DiaryWeightValue) -> Unit, onReps: (Int?) -> Unit,
+    onBasis: (WeightBasis, Boolean) -> Unit = { _, _ -> }) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberBottomSheetState(
         initialValue = SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))) {
-        DiarySetPickerContent(edit, onDismiss, onWeight, onReps)
+        DiarySetPickerContent(edit, onDismiss, onWeight, onReps, onBasis)
     }
 }
 
 @Composable
 internal fun DiarySetPickerContent(edit: DiarySetEdit, onDismiss: () -> Unit,
-    onWeight: (DiaryWeightValue) -> Unit, onReps: (Int?) -> Unit) {
+    onWeight: (DiaryWeightValue) -> Unit, onReps: (Int?) -> Unit, onBasis: (WeightBasis, Boolean) -> Unit = { _, _ -> }) {
+    if (edit.field == DiarySetField.BASIS) {
+        DiaryBasisPickerContent(edit, onDismiss, onBasis)
+        return
+    }
     var exactInput by remember(edit) { mutableStateOf(false) }
     // Keep the entered value in its own unit. Switching units twice cannot accumulate rounding.
     val initialUnit = edit.unit.takeIf { it == WeightUnit.KG || it == WeightUnit.LB } ?: WeightUnit.KG
@@ -72,7 +81,7 @@ internal fun DiarySetPickerContent(edit: DiarySetEdit, onDismiss: () -> Unit,
     fun acceptEnteredWeight(value: Double?) {
         if (value != weight) entered = DiaryWeightValue(value, unit, basis = numericWeightBasis(edit.basis))
     }
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding()
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().navigationBarsPadding()
         .padding(horizontal = 24.dp).padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.detail_picker_title, edit.number, fieldLabel),
@@ -99,8 +108,9 @@ internal fun DiarySetPickerContent(edit: DiarySetEdit, onDismiss: () -> Unit,
                 }
                 Text(stringResource(R.string.detail_unit), style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                ConnectedWeightButtons(listOf(WeightUnit.KG, WeightUnit.LB), unit,
-                    label = { weightUnitLabel(it) }, enabled = !exactInput || validInput,
+                ConnectedWeightButtons(listOf(WeightUnit.KG, WeightUnit.LB, WeightUnit.UNKNOWN), unit,
+                    label = { if (it == WeightUnit.UNKNOWN) stringResource(R.string.detail_keep_unknown) else weightUnitLabel(it) },
+                    enabled = !exactInput || validInput,
                     canSelect = { target ->
                         val value = if (exactInput) DiaryWeightValue(enteredWeight(input), unit) else entered.inUnit(unit)
                         value.inUnit(target).weight?.isFinite() != false
@@ -148,9 +158,11 @@ internal fun DiarySetPickerContent(edit: DiarySetEdit, onDismiss: () -> Unit,
                 exactInput = !exactInput
             }, enabled = !exactInput || validInput) { Text(stringResource(if (exactInput) R.string.detail_use_picker else R.string.detail_exact_input)) }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.editor_cancel)) }
-            Button(onClick = {
+        PickerActions(onDismiss,
+            enabled = if (edit.field == DiarySetField.WEIGHT) type != DiaryWeightType.NUMERIC ||
+                (if (exactInput) enteredWeight(input) != null else weight != null)
+                else !exactInput || validInput,
+            onConfirm = {
                 if (edit.field == DiarySetField.WEIGHT) {
                     val value = if (exactInput) enteredWeight(input) else weight
                     onWeight(when (type) {
@@ -161,12 +173,71 @@ internal fun DiarySetPickerContent(edit: DiarySetEdit, onDismiss: () -> Unit,
                     })
                 }
                 else onReps(if (exactInput) enteredReps(input) else reps)
-            }, enabled = if (edit.field == DiarySetField.WEIGHT) type != DiaryWeightType.NUMERIC ||
-                (if (exactInput) enteredWeight(input) != null else weight != null)
-                else !exactInput || validInput,
-                modifier = Modifier.weight(1f), shapes = ButtonDefaults.shapes()) {
-                Text(stringResource(R.string.detail_picker_done))
-            }
+            })
+    }
+}
+
+@Composable
+private fun DiaryBasisPickerContent(edit: DiarySetEdit, onDismiss: () -> Unit, onBasis: (WeightBasis, Boolean) -> Unit) {
+    var basis by remember(edit) { mutableStateOf(edit.basis ?: WeightBasis.UNKNOWN) }
+    var applyToExercise by remember(edit) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
+        .padding(horizontal = 24.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(stringResource(R.string.detail_picker_title, edit.number, stringResource(R.string.detail_basis)),
+            style = MaterialTheme.typography.titleLargeEmphasized)
+        Text(stringResource(R.string.detail_basis_question, weightLabel(edit.weight, edit.unit, basis = edit.basis)))
+        FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WeightBasis.entries.forEach { choice -> FilterChip(selected = basis == choice, onClick = { basis = choice },
+                modifier = Modifier.semantics { role = Role.RadioButton },
+                label = { Text(stringResource(if (choice == WeightBasis.UNKNOWN) R.string.detail_keep_unknown else basisLabel(choice))) }) }
+        }
+        Text(stringResource(when (basis) {
+            WeightBasis.PER_SIDE -> R.string.detail_basis_per_side_help
+            WeightBasis.TOTAL -> R.string.detail_basis_total_help
+            WeightBasis.BODYWEIGHT -> R.string.detail_basis_bodyweight_help
+            WeightBasis.ADDED -> R.string.detail_basis_added_help
+            WeightBasis.ASSISTED -> R.string.detail_basis_assisted_help
+            WeightBasis.UNKNOWN -> R.string.detail_basis_unknown_help
+        }), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+        Row(Modifier.fillMaxWidth().toggleable(applyToExercise, role = Role.Checkbox,
+            onValueChange = { applyToExercise = it }), verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(applyToExercise, onCheckedChange = null)
+            Text(stringResource(R.string.detail_basis_apply_exercise), Modifier.weight(1f))
+        }
+        PickerActions(onDismiss, onConfirm = { onBasis(basis, applyToExercise) })
+    }
+}
+
+@Composable
+private fun PickerActions(onDismiss: () -> Unit, enabled: Boolean = true, onConfirm: () -> Unit) {
+    val cancelLabel = stringResource(R.string.record_cancel)
+    val doneLabel = stringResource(R.string.detail_picker_done)
+    val style = MaterialTheme.typography.labelLargeEmphasized
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val minimumWidth = with(density) {
+        (measurer.measure(cancelLabel, style, maxLines = 1).size.width +
+            measurer.measure(doneLabel, style, maxLines = 1).size.width).toDp()
+    } + 76.dp
+    val cancel: @Composable (Modifier) -> Unit = { modifier ->
+        OutlinedButton(onClick = onDismiss, modifier = modifier.heightIn(min = 48.dp), shapes = ButtonDefaults.shapes(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(cancelLabel, style = style, maxLines = 1, softWrap = false)
+        }
+    }
+    val done: @Composable (Modifier) -> Unit = { modifier ->
+        Button(onClick = onConfirm, enabled = enabled,
+            modifier = modifier.heightIn(min = ButtonDefaults.MediumContainerHeight),
+            shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(doneLabel, style = style, maxLines = 1, softWrap = false)
+        }
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth < minimumWidth) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            done(Modifier.fillMaxWidth()); cancel(Modifier.fillMaxWidth())
+        } else Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            cancel(Modifier); done(Modifier.weight(1f))
         }
     }
 }
@@ -179,26 +250,31 @@ private fun <T> ConnectedWeightButtons(choices: List<T>, selected: T, label: @Co
     val textStyle = MaterialTheme.typography.labelLargeEmphasized
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val minimumWidth = with(density) { labels.maxOf { measurer.measure(it, textStyle, maxLines = 1).size.width }.toDp() } + 24.dp
+    val minimumWidths = labels.map { label ->
+        maxOf(48.dp, with(density) { measurer.measure(label, textStyle, maxLines = 1).size.width.toDp() } + 32.dp)
+    }
+    val colors = FilledTonalToggleButtonDefaults.colors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        checkedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+        checkedContentColor = MaterialTheme.colorScheme.onSecondaryContainer)
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val spacing = ButtonGroupDefaults.ConnectedSpaceBetween
-        val stacked = (maxWidth - spacing * (choices.size - 1)) / choices.size < minimumWidth
-        val buttons: @Composable (Modifier) -> Unit = { buttonModifier ->
+        val requiredWidth = minimumWidths.fold(0.dp) { sum, width -> sum + width } + spacing * (choices.size - 1)
+        val extraWidth = (maxWidth - requiredWidth).coerceAtLeast(0.dp) / choices.size
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(spacing)) {
             choices.forEachIndexed { index, choice ->
                 FilledTonalToggleButton(checked = selected == choice, onCheckedChange = { onSelect(choice) },
-                    enabled = enabled && canSelect(choice), modifier = buttonModifier.heightIn(min = 48.dp).semantics { role = Role.RadioButton },
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-                    shapes = if (stacked) FilledTonalToggleButtonDefaults.shapesFor(48.dp) else when (index) {
+                    enabled = enabled && canSelect(choice),
+                    modifier = Modifier.width(minimumWidths[index] + extraWidth).heightIn(min = 48.dp).semantics { role = Role.RadioButton },
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp), colors = colors,
+                    shapes = when (index) {
                         0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
                         choices.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                         else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                     }) { Text(labels[index], style = textStyle, maxLines = 1, softWrap = false) }
             }
-        }
-        if (stacked) Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(spacing)) {
-            buttons(Modifier.fillMaxWidth())
-        } else Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(spacing)) {
-            buttons(Modifier.weight(1f))
         }
     }
 }
@@ -244,7 +320,7 @@ private fun WeightStepControl(step: Double, unit: WeightUnit?, onSelect: (Double
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), isError = value == null,
                     supportingText = { Text(stringResource(R.string.detail_weight_step_help)) })
                 Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { custom = false }) { Text(stringResource(R.string.editor_cancel)) }
+                    TextButton(onClick = { custom = false }) { Text(stringResource(R.string.record_cancel)) }
                     TextButton(onClick = { value?.let(onSelect); custom = false }, enabled = value != null) {
                         Text(stringResource(R.string.detail_weight_step_apply))
                     }
@@ -285,15 +361,13 @@ private fun <T> NumberSnapPicker(values: List<T>, initial: Int, horizontal: Bool
                 val scale by animateFloatAsState(if (chosen) 1f else .88f,
                     MaterialTheme.motionScheme.fastSpatialSpec(), label = "pickerScale")
                 val color by animateColorAsState(when {
-                    horizontal && chosen -> MaterialTheme.colorScheme.primary
-                    horizontal -> MaterialTheme.colorScheme.surfaceContainerHigh
                     chosen -> MaterialTheme.colorScheme.secondaryContainer
+                    horizontal -> MaterialTheme.colorScheme.surfaceContainerHigh
                     else -> MaterialTheme.colorScheme.surfaceContainerLow
                 },
                     MaterialTheme.motionScheme.fastEffectsSpec(), label = "pickerColor")
                 Surface(shape = CircleShape, color = color,
                     contentColor = when {
-                        chosen && horizontal -> MaterialTheme.colorScheme.onPrimary
                         chosen -> MaterialTheme.colorScheme.onSecondaryContainer
                         else -> MaterialTheme.colorScheme.onSurfaceVariant
                     },
@@ -319,4 +393,36 @@ private fun <T> NumberSnapPicker(values: List<T>, initial: Int, horizontal: Bool
         else LazyColumn(state = list, contentPadding = padding, flingBehavior = fling,
             modifier = Modifier.fillMaxWidth().height(itemHeight * 5), content = content)
     }
+}
+
+@Preview(name = "Weight picker", widthDp = 412, heightDp = 800, locale = "en")
+@Composable
+private fun DiaryWeightPickerReviewPreview() {
+    FitLogPreview {
+        DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 0), 1, DiarySetField.WEIGHT,
+            weight = 60.0, unit = WeightUnit.KG, reps = 8, basis = WeightBasis.TOTAL),
+            onDismiss = {}, onWeight = {}, onReps = {})
+    }
+}
+
+@Preview(name = "Weight picker · Large text", widthDp = 320, heightDp = 1400, fontScale = 2f, locale = "zh")
+@Composable
+private fun DiaryWeightPickerLargeTextReviewPreview() {
+    DiaryWeightPickerReviewPreview()
+}
+
+@Preview(name = "Reps picker", widthDp = 412, heightDp = 800, locale = "en")
+@Composable
+private fun DiaryRepsPickerReviewPreview() {
+    FitLogPreview {
+        DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 0), 1, DiarySetField.REPS,
+            weight = 60.0, unit = WeightUnit.KG, reps = 8, basis = WeightBasis.TOTAL),
+            onDismiss = {}, onWeight = {}, onReps = {})
+    }
+}
+
+@Preview(name = "Reps picker · Large text", widthDp = 320, heightDp = 1400, fontScale = 2f, locale = "zh")
+@Composable
+private fun DiaryRepsPickerLargeTextReviewPreview() {
+    DiaryRepsPickerReviewPreview()
 }

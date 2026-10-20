@@ -16,7 +16,7 @@ python -X utf8 benchmarks/analysis/benchmark.py report benchmarks/analysis/out/r
 
 `inventory` 只读所有可见 Markdown（含子目录和空文），冻结相对路径、原始字节 SHA256、FitLog 语义哈希、正文和长度统计。`pilot.json` 固定选择八个不同来源；训练关键词只用于分层选样，不用于过滤完整工作量。重新冻结会创建新资料库 UUID；原始清单和试跑清单应保留在不同目录。一次试跑前后都会校验原文指纹。UTF-8 无法解码、链接越界或文件变化会明确失败。
 
-`replay` 使用仓库已有的三组夹具扩展为八个独立来源，调用真实 `OpenAiDiaryModelSource → JsonDiaryParser → DiaryCandidateValidator → DiaryAnalysisRepository`，HTTP 由 Ktor MockEngine 提供固定回答。它比较当前 `DiaryAnalysisController` 串行链路、轻量 Kotlin 并发 1/2/4/8，以及 ADK 1.3.1 并发 4，共 48 次离线发送。安全测试另外覆盖 429/503、超时/网络失败、拒绝、截断、损坏 JSON、乱序完成、取消、来源变化、实际 Room 写入失败和预算耗尽。
+`replay` 使用 `benchmarks/analysis/fixtures/` 自带的三组固定夹具扩展为八个独立来源，调用真实 `OpenAiDiaryModelSource → JsonDiaryParser → DiaryCandidateValidator → DiaryAnalysisRepository`，HTTP 由 Ktor MockEngine 提供固定回答。它比较当前 `DiaryAnalysisController` 串行链路、轻量 Kotlin 并发 1/2/4/8，以及 ADK 1.3.1 并发 4，共 48 次离线发送。安全测试另外覆盖 429/503、超时/网络失败、拒绝、截断、损坏 JSON、乱序完成、取消、来源变化、实际 Room 写入失败和预算耗尽。
 
 每篇独立 ADK agent/session；`RunConfig(maxLlmCalls=1)`，无工具和记忆服务。自定义 `Model` 桥接到同一个 FitLog 传输，使用规范提示词而非 ADK 加入的路由文本；回放测试要求三个 runtime 的请求正文哈希完全一致。成绩应标为“ADK canonical-model bridge”，不代表框架默认 provider 配置。
 

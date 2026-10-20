@@ -89,7 +89,7 @@ def verify_frozen(dataset):
 
 
 def replay_dataset(repo):
-    resource = repo / "app/src/test/resources/analysis"
+    resource = repo / "benchmarks/analysis/fixtures"
     pairs = [("user-sample", "expected"), ("constructed-boundaries", "expected"), ("device-2026-09-29", "response")]
     cases = []
     for index in range(8):

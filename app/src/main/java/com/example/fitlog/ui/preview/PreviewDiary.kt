@@ -6,8 +6,6 @@ import com.example.fitlog.R
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.data.vault.MarkdownFile
 import com.example.fitlog.data.vault.MarkdownSnapshot
-import com.example.fitlog.editor.EditorDraft
-import com.example.fitlog.editor.RecoveryEntry
 import com.example.fitlog.navigation.FitLogRoute
 import java.time.LocalDate
 
@@ -22,7 +20,7 @@ internal object PreviewDiary {
     const val TIMESTAMP = 1791417600000L
 
     val route = FitLogRoute.DiaryDetail(VAULT_URI, VAULT_ID, DOCUMENT, PATH, VAULT_URI, FILE_NAME)
-    val file = MarkdownFile(DOCUMENT, FILE_NAME, PATH, writable = true, directory = VAULT_URI)
+    val file = MarkdownFile(DOCUMENT, FILE_NAME, PATH, writable = false, directory = VAULT_URI)
 
     @Composable
     fun snapshot() = MarkdownSnapshot(file, stringResource(R.string.preview_diary_markdown), "preview", false)
@@ -49,11 +47,4 @@ internal object PreviewDiary {
         return StoredDiaryCandidate(attempt, analysis)
     }
 
-    @Composable
-    fun recoveryEntry(): RecoveryEntry {
-        val draft = EditorDraft(VAULT_URI, DOCUMENT, DOCUMENT, FILE_NAME,
-            stringResource(R.string.preview_diary_markdown), 0, 0, 1, null, false,
-            directory = VAULT_URI, displayPath = PATH, updatedAt = TIMESTAMP, vaultId = VAULT_ID)
-        return RecoveryEntry("preview-draft", draft)
-    }
 }

@@ -116,14 +116,14 @@ fun vaultCardPalette(
 private val mockSampleFolder = VaultFolderInfo(
     uri = Uri.EMPTY,
     displayName = "FitLog Obsidian Vault",
-    accessStatus = VaultAccessStatus.CanCreateFiles,
+    accessStatus = VaultAccessStatus.Readable,
 )
 
 @Preview(name = "1. Primary Tonal", showBackground = true)
 @Composable
 private fun PreviewPrimaryTonal() {
     FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = true, createAfterSetup = false, style = VaultCardStyle.PrimaryTonal)
+        VaultCard(folder = mockSampleFolder, pending = true, style = VaultCardStyle.PrimaryTonal)
     }
 }
 
@@ -131,7 +131,7 @@ private fun PreviewPrimaryTonal() {
 @Composable
 private fun PreviewSecondaryTonal() {
     FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = true, createAfterSetup = false, style = VaultCardStyle.SecondaryTonal)
+        VaultCard(folder = mockSampleFolder, pending = true, style = VaultCardStyle.SecondaryTonal)
     }
 }
 
@@ -139,7 +139,7 @@ private fun PreviewSecondaryTonal() {
 @Composable
 private fun PreviewTertiaryTonal() {
     FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = true, createAfterSetup = false, style = VaultCardStyle.TertiaryTonal)
+        VaultCard(folder = mockSampleFolder, pending = true, style = VaultCardStyle.TertiaryTonal)
     }
 }
 
@@ -147,7 +147,7 @@ private fun PreviewTertiaryTonal() {
 @Composable
 private fun PreviewStateAwarePending() {
     FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = true, createAfterSetup = false, style = VaultCardStyle.StateAware)
+        VaultCard(folder = mockSampleFolder, pending = true, style = VaultCardStyle.StateAware)
     }
 }
 
@@ -155,7 +155,7 @@ private fun PreviewStateAwarePending() {
 @Composable
 private fun PreviewStateAwareCurrent() {
     FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = false, createAfterSetup = false, style = VaultCardStyle.StateAware)
+        VaultCard(folder = mockSampleFolder, pending = false, style = VaultCardStyle.StateAware)
     }
 }
 
@@ -163,7 +163,7 @@ private fun PreviewStateAwareCurrent() {
 @Composable
 private fun PreviewOutlinedPending() {
     FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = true, createAfterSetup = false, style = VaultCardStyle.Outlined)
+        VaultCard(folder = mockSampleFolder, pending = true, style = VaultCardStyle.Outlined)
     }
 }
 
@@ -171,7 +171,7 @@ private fun PreviewOutlinedPending() {
 @Composable
 private fun PreviewOutlinedCurrent() {
     FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = false, createAfterSetup = false, style = VaultCardStyle.Outlined)
+        VaultCard(folder = mockSampleFolder, pending = false, style = VaultCardStyle.Outlined)
     }
 }
 
@@ -194,7 +194,6 @@ private fun PreviewAllStylesGallery() {
                 VaultCard(
                     folder = mockSampleFolder,
                     pending = true,
-                    createAfterSetup = false,
                     style = style,
                 )
             }

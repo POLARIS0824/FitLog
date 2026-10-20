@@ -18,6 +18,11 @@ sealed interface FitLogRoute : NavKey {
     data object Insight : FitLogRoute
 
     @Serializable
+    data class ExerciseHistory(val nameKey: String, val range: String = "NINETY") : FitLogRoute {
+        init { require(nameKey.isNotBlank()) }
+    }
+
+    @Serializable
     data object Settings : FitLogRoute
 
     @Serializable
@@ -39,39 +44,20 @@ sealed interface FitLogRoute : NavKey {
         val relPath: String,
         val directory: String,
         val fileName: String,
+        val openAnalysis: Boolean = false,
+        val openCandidate: Boolean = false,
     ) : FitLogRoute {
         init { requireVaultId(vaultId) }
     }
 
     @Serializable
-    data class Editor(
-        val vaultUri: String,
-        val document: String? = null,
-        val date: String = java.time.LocalDate.now().toString(),
-        val sessionId: String = java.util.UUID.randomUUID().toString(),
-        val directory: String = vaultUri,
-        val fileName: String = date + ".md",
-        val recoveryId: String? = null,
-        val displayPath: String? = null,
-        val vaultId: String,
-    ) : FitLogRoute {
-        init { requireVaultId(vaultId) }
-    }
+    data class NativeRecord(val recordId: String? = null,
+        val sessionId: String = java.util.UUID.randomUUID().toString()) : FitLogRoute
 
     @Serializable
     data class VaultSetup(
-        val createAfterSetup: Boolean = false,
         val requestId: String = java.util.UUID.randomUUID().toString(),
-        val todayDate: String = java.time.LocalDate.now().toString(),
     ) : FitLogRoute
-
-    @Serializable
-    data class DiarySettings(val vaultUri: String, val vaultId: String) : FitLogRoute {
-        init { requireVaultId(vaultId) }
-    }
-
-    @Serializable
-    data object RecoveryCenter : FitLogRoute
 
     @Serializable
     data object VaultManagement : FitLogRoute

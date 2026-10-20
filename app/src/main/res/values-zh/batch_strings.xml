@@ -32,11 +32,15 @@
     <string name="batch_review_title">批量复核</string>
     <string name="batch_review_explanation">确认前请检查候选摘要，缺失信息保持未知。已有确认修正只能在日记详情中明确替换</string>
     <string name="batch_review_select_ready">全选无问题项</string>
+    <string name="batch_review_no_ready">当前没有无提示的候选。请进入日记阐明问题，或检查提示后逐篇勾选候选。</string>
+    <plurals name="batch_review_ready_count">
+        <item quantity="other">%1$d 篇候选没有复核提示</item>
+    </plurals>
     <string name="batch_review_ready">可直接确认（%1$d）</string>
     <string name="batch_review_notices">有复核提示（%1$d）</string>
     <string name="batch_review_blocked">需单篇处理（%1$d）</string>
     <string name="batch_review_summary">日期 %1$s · 动作 %2$d · 组数 %3$d</string>
-    <string name="batch_review_no_training">未提取到训练记录，不能据此判断为休息日</string>
+    <string name="batch_review_no_training">未提取到训练记录，确认后默认按休息日记录</string>
     <string name="batch_review_set">第 %1$d 组 · %2$s · %3$s · 次数 %4$s</string>
     <string name="batch_review_expand">展开候选与来源</string>
     <string name="batch_review_collapse">收起候选与来源</string>

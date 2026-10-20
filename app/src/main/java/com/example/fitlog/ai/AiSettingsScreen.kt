@@ -4,7 +4,7 @@ import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.data.ai.AiModelSelection
 import com.example.fitlog.data.ai.AiProviderConnection
-import androidx.activity.compose.BackHandler
+import com.example.fitlog.navigation.FitLogBackGuard
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.painterResource
@@ -39,7 +40,7 @@ import com.example.fitlog.ui.components.SettingsFormCard
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AiSettingsScreen(vm: AiSettingsViewModel, onBack: () -> Unit) {
-    BackHandler { if (!vm.saving) { vm.cancelRequest(); onBack() } }
+    FitLogBackGuard(enabled = vm.saving) { }
     AiSettingsContent(
         state = AiSettingsUiState(
             saving = vm.saving,
@@ -227,12 +228,12 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
 
 @Composable
 private fun ConnectionIcon(baseUrl: String) {
-    Box(Modifier.size(48.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+    Box(Modifier.size(48.dp).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
         contentAlignment = Alignment.Center) {
         if (baseUrl.trim().trimEnd('/') == AiSettingsViewModel.DEEPSEEK_URL)
             Image(painterResource(R.drawable.deepseek), null, Modifier.size(32.dp))
         else Icon(painterResource(R.drawable.auto_awesome_24px), null,
-            tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(24.dp))
+            tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(24.dp))
     }
 }
 
@@ -254,17 +255,30 @@ internal fun ConnectionPicker(
             Text(stringResource(R.string.ai_unsaved_connection), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         items(connections, key = { it.id }) { connection ->
-            Row(Modifier.fillMaxWidth().selectable(selected = connection.id == editingId,
-                enabled = enabled, role = Role.RadioButton, onClick = { onChoose(connection.id) })
-                .padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                ConnectionIcon(connection.baseUrl)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(connection.name, style = MaterialTheme.typography.titleMediumEmphasized)
-                    Text(pluralStringResource(R.plurals.ai_saved_connection_models, connection.modelIds.size, connection.modelIds.size),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val selected = connection.id == editingId
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+                    else MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                    else MaterialTheme.colorScheme.onSurface,
+            ) {
+                Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).selectable(selected = selected,
+                    enabled = enabled, role = Role.RadioButton, onClick = { onChoose(connection.id) })
+                    .padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    ConnectionIcon(connection.baseUrl)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(connection.name, style = if (selected) MaterialTheme.typography.titleMediumEmphasized
+                            else MaterialTheme.typography.titleMedium)
+                        Text(pluralStringResource(R.plurals.ai_saved_connection_models, connection.modelIds.size, connection.modelIds.size),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                                else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    RadioButton(selected = selected, onClick = null, enabled = enabled,
+                        colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.secondary))
                 }
-                RadioButton(selected = connection.id == editingId, onClick = null, enabled = enabled)
             }
         }
         item {

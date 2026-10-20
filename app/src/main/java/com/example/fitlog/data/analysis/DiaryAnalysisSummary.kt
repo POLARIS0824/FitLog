@@ -10,7 +10,7 @@ data class DiaryAnalysisSummary(
     val sourceKey: SourceKey,
     val latestAttempt: DiaryParseAttempt? = null,
     val candidate: StoredDiaryCandidate? = null,
-    val confirmed: ConfirmedDiaryRow? = null,
+    val confirmed: TrainingRecord? = null,
     val candidateReadFailed: Boolean = false,
 )
 

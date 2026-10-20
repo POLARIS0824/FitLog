@@ -57,7 +57,7 @@ class DiaryAnalysisRepository internal constructor(
         StoredDiaryParse(id, result)
     }
 
-    suspend fun confirmed(sourceKey: SourceKey): ConfirmedDiaryRecord? =
+    suspend fun confirmed(sourceKey: SourceKey): TrainingRecordDetails? =
         persist { dao.confirmed(sourceKey.vaultId, sourceKey.relPath)?.ordered() }
 
     override fun observeConfirmed(sourceKey: SourceKey) =
@@ -66,7 +66,7 @@ class DiaryAnalysisRepository internal constructor(
 
     override fun observeSummaries(vaultId: String) = combine(dao.observeVaultHeads(vaultId), dao.observeConfirmedRows(vaultId)) { runs, confirmations ->
         val byPath = runs.groupBy { it.relPath }
-        val confirmed = confirmations.associateBy { it.relPath }
+        val confirmed = confirmations.associateBy { requireNotNull(it.relPath) }
         (byPath.keys + confirmed.keys).map { path ->
             val records = parseRecords(byPath[path].orEmpty())
             DiaryAnalysisSummary(SourceKey(vaultId, path), records.latestAttempt, records.latestCandidate,
@@ -127,6 +127,23 @@ class DiaryAnalysisRepository internal constructor(
 
     suspend fun confirm(request: DiaryConfirmation): DiaryConfirmationResult = persist {
         database.withTransaction {
+            if (request.editConfirmed) {
+                val previous = dao.confirmed(request.sourceKey.vaultId, request.sourceKey.relPath)
+                    ?: return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.CONFIRMATION_CHANGED)
+                if (previous.diary.confirmedAt != request.expectedConfirmedAt)
+                    return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.CONFIRMATION_CHANGED)
+                val expected = request.expectedContentVersion
+                if (expected == null || previous.diary.contentHash != expected.contentHash || previous.diary.hashVersion != expected.hashVersion)
+                    return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.SOURCE_CHANGED)
+                try { require(request.date.year in 1..9999); validateRecordValues(request.sessions) } catch (_: IllegalArgumentException) {
+                    return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_DATA)
+                }
+                val updated = previous.diary.copy(date = request.date.toString(),
+                    confirmedAt = maxOf(now(), previous.diary.confirmedAt + 1), acceptedPartialResult = request.acceptedPartialResult,
+                    kind = if (request.sessions.all { it.exercises.isEmpty() }) RecordKind.REST else RecordKind.TRAINING)
+                replaceRecord(dao, updated, request.sessions, true)
+                return@withTransaction DiaryConfirmationResult.Confirmed(checkNotNull(dao.record(updated.id)).ordered())
+            }
             val run = dao.run(request.parseRunId)
             if (run == null || run.status != ParseRunStatus.SUCCEEDED)
                 return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_PARSE_RUN)
@@ -143,31 +160,11 @@ class DiaryAnalysisRepository internal constructor(
                 return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.CONFIRMATION_CHANGED)
             if (request.requireLatestCandidate && dao.latestCandidateId(run.vaultId, run.relPath) != run.id)
                 return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.CANDIDATE_CHANGED)
-            val diary = ConfirmedDiaryRow(previous?.diary?.id ?: newId(), run.vaultId, run.relPath,
+            val diary = TrainingRecord(previous?.diary?.id ?: newId(), run.vaultId, run.relPath,
                 request.date.toString(), run.contentHash, run.hashVersion, run.id,
-                maxOf(now(), (previous?.diary?.confirmedAt ?: -1L) + 1L), request.acceptedPartialResult)
-            if (previous == null) dao.insertDiary(diary) else {
-                check(dao.updateDiary(diary) == 1)
-                dao.deleteSessions(diary.id)
-            }
-            sessions.forEachIndexed { sessionIndex, session ->
-                val storedSession = ConfirmedSessionRow(newId(), diary.id, sessionIndex, session.notes, session.sourcePath)
-                dao.insertSession(storedSession)
-                session.exercises.forEachIndexed { exerciseIndex, exercise ->
-                    val storedExercise = ConfirmedExerciseRow(newId(), storedSession.id, exerciseIndex,
-                        exercise.rawName, exercise.notes, exercise.sourcePath, exercise.evidence)
-                    dao.insertExercise(storedExercise)
-                    dao.insertSets(exercise.sets.mapIndexed { setIndex, set ->
-                        val kg = when (set.unit) {
-                            WeightUnit.KG -> set.weight
-                            WeightUnit.LB -> set.weight?.times(0.45359237)
-                            else -> null
-                        }
-                        ConfirmedSetRow(newId(), storedExercise.id, setIndex, set.weight,
-                            set.unit, set.basis, set.reps, kg, set.groupIndex, set.setInGroup, set.userEdited)
-                    })
-                }
-            }
+                maxOf(now(), (previous?.diary?.confirmedAt ?: -1L) + 1L), request.acceptedPartialResult,
+                kind = if (sessions.all { it.exercises.isEmpty() }) RecordKind.REST else RecordKind.TRAINING)
+            replaceRecord(dao, diary, sessions, previous != null)
             DiaryConfirmationResult.Confirmed(checkNotNull(dao.confirmed(run.vaultId, run.relPath)).ordered())
         }
     }

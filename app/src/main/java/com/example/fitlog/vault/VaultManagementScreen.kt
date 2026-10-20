@@ -5,7 +5,7 @@ import com.example.fitlog.ui.components.FitLogLoadingIndicator
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.data.vault.VaultFolderInfo
-import androidx.activity.compose.BackHandler
+import com.example.fitlog.navigation.FitLogBackGuard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -21,7 +21,7 @@ import com.example.fitlog.ui.components.FitLogPageHeader
 
 @Composable
 fun VaultManagementScreen(vm: VaultManagementViewModel, onConnect: () -> Unit, onBack: () -> Unit) {
-    BackHandler(enabled = vm.busy) { }
+    FitLogBackGuard(enabled = vm.busy) { }
     VaultManagementContent(
         state = VaultManagementUiState(
             busy = vm.busy,
@@ -50,7 +50,7 @@ private fun VaultManagementContent(state: VaultManagementUiState, actions: Vault
                 stringResource(R.string.vault_management_description), onBack, backEnabled = !state.busy)
             val folder = state.folder
             if (!state.loading) {
-                if (folder != null) VaultCard(folder, pending = false, createAfterSetup = false)
+                if (folder != null) VaultCard(folder, pending = false)
                 else FitLogNotice(stringResource(R.string.log_no_vault))
             }
             state.error?.let { FitLogNotice(stringResource(it), error = true) }
@@ -79,7 +79,7 @@ private fun VaultManagementContent(state: VaultManagementUiState, actions: Vault
         title = { Text(stringResource(R.string.vault_disconnect)) },
         text = { Text(stringResource(R.string.vault_disconnect_message)) },
         confirmButton = { TextButton(onClick = { actions.disconnect() }, enabled = !state.busy) { Text(stringResource(R.string.vault_disconnect)) } },
-        dismissButton = { TextButton(onClick = actions.cancelDisconnect, enabled = !state.busy) { Text(stringResource(R.string.editor_cancel)) } })
+        dismissButton = { TextButton(onClick = actions.cancelDisconnect, enabled = !state.busy) { Text(stringResource(R.string.record_cancel)) } })
 }
 
 private data class VaultManagementUiState(
@@ -100,6 +100,6 @@ private data class VaultManagementActions(
 @Composable
 private fun VaultManagementPreview() {
     val folder = VaultFolderInfo(android.net.Uri.EMPTY, stringResource(R.string.preview_vault_name),
-        com.example.fitlog.data.vault.VaultAccessStatus.CanCreateFiles)
+        com.example.fitlog.data.vault.VaultAccessStatus.Readable)
     FitLogPreview { VaultManagementContent(VaultManagementUiState(folder = folder), VaultManagementActions(), {}, {}) }
 }

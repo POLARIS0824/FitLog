@@ -32,11 +32,16 @@
     <string name="batch_review_title">Review candidates</string>
     <string name="batch_review_explanation">Review each summary before confirming. Missing information stays unknown. Saved corrections can only be replaced in the diary details.</string>
     <string name="batch_review_select_ready">Select all candidates without notices</string>
+    <string name="batch_review_no_ready">No candidates without notices. Review each diary to resolve notices, or select individual candidates after checking them.</string>
+    <plurals name="batch_review_ready_count">
+        <item quantity="one">%1$d candidate without notices</item>
+        <item quantity="other">%1$d candidates without notices</item>
+    </plurals>
     <string name="batch_review_ready">Ready to confirm (%1$d)</string>
     <string name="batch_review_notices">Review notices (%1$d)</string>
     <string name="batch_review_blocked">Needs individual review (%1$d)</string>
     <string name="batch_review_summary">Date: %1$s · Exercises: %2$d · Sets: %3$d</string>
-    <string name="batch_review_no_training">No training extracted. This does not establish a rest day.</string>
+    <string name="batch_review_no_training">No training extracted. Confirming this records a rest day by default.</string>
     <string name="batch_review_set">Set %1$d · %2$s · %3$s · Reps: %4$s</string>
     <string name="batch_review_expand">Show candidate and sources</string>
     <string name="batch_review_collapse">Hide candidate and sources</string>

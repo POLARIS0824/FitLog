@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
  */
 interface DiaryAnalysisReader {
     fun observeParses(sourceKey: SourceKey): Flow<DiaryParseRecords>
-    fun observeConfirmed(sourceKey: SourceKey): Flow<ConfirmedDiaryRecord?>
+    fun observeConfirmed(sourceKey: SourceKey): Flow<TrainingRecordDetails?>
     /** Reads the exact parse behind a confirmation or unfinished review; never starts extraction. */
     suspend fun readCandidate(sourceKey: SourceKey, parseRunId: String): StoredDiaryCandidate?
 }

@@ -47,7 +47,6 @@ sealed interface VaultConfigState {
 class VaultPreferences(
     private val dataStore: DataStore<Preferences>,
 ) {
-    val diary = DiaryPreferences(dataStore)
     /**
      * 供生产环境调用的便捷构造函数，复用 Context 单例 DataStore
      */

@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** One app-owned scan; editor index updates wait until its snapshot has been committed. */
+/** One app-owned scan; explicit source reads share its commit gate. */
 class SourceIndexRepository(
     private val documents: MarkdownDocuments,
     private val store: SourceIndexStore,
@@ -119,18 +119,6 @@ class SourceIndexRepository(
         return task
     }
 
-    suspend fun recordSaved(vaultId: String, snapshot: MarkdownSnapshot, directory: String, path: String?) {
-        requireVaultId(vaultId)
-        val version = contentVersion(snapshot)
-        gate.withLock {
-            val old = store.sources(vaultId).firstOrNull { it.uri == snapshot.file.uri }
-            store.commit(listOf(IndexedSource(vaultId, snapshot.file.uri, snapshot.file.name,
-                path ?: old?.path ?: snapshot.file.name, directory, snapshot.file.writable,
-                contentHash = version.hash, hashVersion = version.hashVersion)))
-        }
-    }
-
-    /** A read updates an existing source only; it never discovers files or changes scan completeness. */
     suspend fun recordRead(vaultId: String, path: String, snapshot: MarkdownSnapshot) {
         requireVaultId(vaultId)
         val version = contentVersion(snapshot)

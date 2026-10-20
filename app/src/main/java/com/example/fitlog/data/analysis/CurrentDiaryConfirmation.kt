@@ -15,8 +15,13 @@ internal suspend fun confirmCurrentDiary(
     repository: DiaryAnalysisRepository,
     recordRead: suspend (MarkdownSnapshot) -> Unit = {},
 ): DiaryConfirmationResult {
-    val candidate = repository.readCandidate(request.sourceKey, request.parseRunId)
-        ?: return DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_PARSE_RUN)
+    val expected = if (request.editConfirmed) request.expectedContentVersion else {
+        val candidate = repository.readCandidate(request.sourceKey, request.parseRunId)
+            ?: return DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_PARSE_RUN)
+        val key = candidate.analysis.parseKey
+        DiaryContentVersion(key.contentHash, key.hashVersion)
+    }
+    if (expected == null) return DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_DATA)
     val snapshot = try { documents.read(documentUri) } catch (e: Exception) {
         if (e is CancellationException) throw e
         return DiaryConfirmationResult.Invalid(ConfirmationFailure.SOURCE_UNAVAILABLE)
@@ -25,8 +30,7 @@ internal suspend fun confirmCurrentDiary(
         val value = ContentTextSnapshot.fromRawText((if (snapshot.bom) "\uFEFF" else "") + snapshot.text)
         DiaryContentVersion(value.hash, value.hashVersion)
     }
-    val key = candidate.analysis.parseKey
-    if (resultFreshness(DiaryContentVersion(key.contentHash, key.hashVersion), version) != DiaryResultFreshness.CURRENT) {
+    if (resultFreshness(expected, version) != DiaryResultFreshness.CURRENT) {
         recordRead(snapshot)
         return DiaryConfirmationResult.Invalid(ConfirmationFailure.SOURCE_CHANGED)
     }

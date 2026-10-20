@@ -32,7 +32,7 @@ class BenchmarkUiReplayTest {
         lateinit var candidate: StoredDiaryCandidate
         compose.setContent { FitLogTheme(dynamicColor = false) { Surface {
             candidate = PreviewDiary.candidate()
-            DiaryDetailContent(state.value, DiaryDetailActions(cancelParse = { cancels++ }, beginReview = { reviews++; false }), {}, {}, {})
+            DiaryDetailContent(state.value, DiaryDetailActions(cancelParse = { cancels++ }, beginReview = { reviews++; false }), {}, {})
         } } }
         compose.onNodeWithText(app.getString(R.string.ai_parsing)).assertExists()
         compose.onNodeWithText(app.getString(R.string.ai_cancel_request)).performClick()
