@@ -141,6 +141,9 @@ private fun NavToolbarWithScrim(
         HorizontalFloatingToolbar(
             expanded = true,
             colors = toolbarColors,
+            // Match the adjacent toggle FAB's built-in shadow elevation.
+            expandedShadowElevation = 6.dp,
+            collapsedShadowElevation = 6.dp,
         ) {
             topLevelDestinations.forEach { destination ->
                 NavTabButton(
