@@ -26,3 +26,20 @@
 
 # 构建产物与临时日志
 *.log
+
+# Coding agent local configuration
+.opencode/
+.codex/
+.continue/
+.cline/
+.roo/
+.trae/
+.kilocode/
+.junie/
+.amazonq/
+.tabnine/
+.copilot/
+opencode.json
+opencode.jsonc
+.mcp.json
+.mcp.local.json
