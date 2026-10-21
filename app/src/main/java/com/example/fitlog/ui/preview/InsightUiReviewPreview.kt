@@ -30,12 +30,17 @@ import com.example.fitlog.data.index.IndexedScan
 import com.example.fitlog.data.insight.ExerciseAliases
 import com.example.fitlog.insight.InsightChart
 import com.example.fitlog.insight.InsightData
+import com.example.fitlog.insight.InsightDashboardContent
+import com.example.fitlog.insight.InsightProgressCard
+import com.example.fitlog.insight.InsightWeeklyTrends
 import com.example.fitlog.insight.InsightHeatmap
 import com.example.fitlog.insight.InsightPoint
 import com.example.fitlog.insight.InsightRange
 import com.example.fitlog.insight.InsightRangePicker
 import com.example.fitlog.insight.InsightSeries
 import com.example.fitlog.insight.buildInsightData
+import com.example.fitlog.insight.overview
+import com.example.fitlog.insight.focused
 import com.example.fitlog.log.LogActions
 import com.example.fitlog.log.LogContent
 import com.example.fitlog.log.LogDiaryStatus
@@ -46,6 +51,70 @@ import java.time.LocalDate
 import java.util.UUID
 
 /** Component review only. Fixtures stay in memory and never create a ViewModel or open storage. */
+@FitLogPreviews
+@Composable
+internal fun InsightDashboardReviewPreview() {
+    FitLogPreview { InsightDashboardContent(previewInsightData(), InsightRange.THIRTY) }
+}
+
+@Preview(name = "Insights · Empty", widthDp = 412, heightDp = 892, locale = "zh")
+@Composable
+internal fun InsightDashboardEmptyReviewPreview() {
+    FitLogPreview { InsightDashboardContent(previewInsightData(empty = true), InsightRange.THIRTY) }
+}
+
+@Preview(name = "Insights · 320dp · 200%", widthDp = 320, heightDp = 1100, fontScale = 2f, locale = "zh")
+@Composable
+internal fun InsightDashboardLargeTextReviewPreview() {
+    FitLogPreview { InsightDashboardContent(previewInsightData(), InsightRange.THIRTY) }
+}
+
+@Preview(name = "Insights · First day", widthDp = 412, heightDp = 1100, locale = "en")
+@Composable
+internal fun InsightBaselineReviewPreview() {
+    FitLogPreview { InsightDashboardContent(previewInsightData(singleDay = true), InsightRange.THIRTY) }
+}
+
+@FitLogPreviews
+@Composable
+internal fun InsightBodyweightReviewPreview() {
+    FitLogPreview {
+        val progress = previewInsightData(basis = WeightBasis.BODYWEIGHT).overview(InsightRange.THIRTY).focused(null)
+        Column(Modifier.padding(24.dp)) { progress.forEach { InsightProgressCard(it) {} } }
+    }
+}
+
+@FitLogPreviews
+@Composable
+internal fun InsightAssistedReviewPreview() {
+    FitLogPreview {
+        val progress = previewInsightData(basis = WeightBasis.ASSISTED).overview(InsightRange.THIRTY).focused(null)
+        Column(Modifier.padding(24.dp)) { progress.forEach { InsightProgressCard(it) {} } }
+    }
+}
+
+@FitLogPreviews
+@Preview(name = "Progress · 320dp · 200%", widthDp = 320, heightDp = 1100, fontScale = 2f, locale = "zh")
+@Composable
+internal fun InsightProgressReviewPreview() {
+    FitLogPreview {
+        val progress = previewInsightData().overview(InsightRange.THIRTY).focused(null)
+        LazyColumn(contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            progress.forEach { item { InsightProgressCard(it) {} } }
+        }
+    }
+}
+
+@FitLogPreviews
+@Preview(name = "Weekly · 320dp · 200%", widthDp = 320, heightDp = 1100, fontScale = 2f, locale = "zh")
+@Composable
+internal fun InsightWeeklyReviewPreview() {
+    FitLogPreview {
+        val overview = previewInsightData().overview(InsightRange.THIRTY)
+        LazyColumn(contentPadding = PaddingValues(24.dp)) { item { InsightWeeklyTrends(overview.weeks) } }
+    }
+}
+
 @Preview(name = "Activity · Populated", widthDp = 412, heightDp = 892, locale = "en")
 @Composable
 internal fun InsightActivityReviewPreview() {
@@ -117,10 +186,11 @@ internal fun LogLargeTextReviewPreview() {
 }
 
 @Composable
-private fun previewInsightData(empty: Boolean = false): InsightData {
+private fun previewInsightData(empty: Boolean = false, singleDay: Boolean = false,
+    basis: WeightBasis = WeightBasis.TOTAL): InsightData {
     val today = LocalDate.parse(PreviewDiary.DATE)
-    val name = stringResource(R.string.preview_exercise_name)
-    val records = if (empty) emptyList() else (0..72).map { day ->
+    val name = stringResource(if (basis == WeightBasis.TOTAL) R.string.preview_exercise_name else R.string.preview_pullup_name)
+    val records = if (empty) emptyList() else (0..if (singleDay) 0 else 72).map { day ->
         val id = UUID.nameUUIDFromBytes("insight-ui-preview-$day".toByteArray()).toString()
         TrainingRecordDetails(
             TrainingRecord(id, null, null, today.minusDays(day * 5L).toString(), null, null, null,
@@ -128,10 +198,18 @@ private fun previewInsightData(empty: Boolean = false): InsightData {
             (0..(day % 4)).map { session ->
                 val sessionId = "$id-session-$session"
                 val exerciseId = "$sessionId-exercise"
+                val weight = when (basis) {
+                    WeightBasis.BODYWEIGHT -> null
+                    WeightBasis.ASSISTED -> 20.0 + day % 6 * 2
+                    else -> if (day < 6) 60.0 else 55.0
+                }
                 ConfirmedSessionRecord(ConfirmedSessionRow(sessionId, id, session, null, null),
                     listOf(ConfirmedExerciseRecord(ConfirmedExerciseRow(exerciseId, sessionId, 0, name, null, null, null),
-                        listOf(ConfirmedSetRow("$exerciseId-set", exerciseId, 0, 60.0, WeightUnit.KG,
-                            WeightBasis.TOTAL, 8, 60.0, null, null, false)))))
+                        listOf(ConfirmedSetRow("$exerciseId-set", exerciseId, 0, weight,
+                            if (weight == null) null else WeightUnit.KG,
+                            basis, 10 - day % 6, weight, null, null, false)) +
+                            if (basis == WeightBasis.TOTAL) listOf(ConfirmedSetRow("$exerciseId-heavy-single", exerciseId,
+                                1, 70.0, WeightUnit.KG, basis, 1, 70.0, null, null, false)) else emptyList())))
             },
         )
     }

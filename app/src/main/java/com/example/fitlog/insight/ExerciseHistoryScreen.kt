@@ -34,6 +34,9 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
     var editingAliases by rememberSaveable { mutableStateOf(false) }
     val data = vm.data.takeIf { vm.error == null }
     val exercise = data?.exercise(nameKey, vm.range)
+    val progress = remember(data, nameKey, vm.range) {
+        data?.exercise(nameKey, InsightRange.ALL)?.progress(vm.range, data.today)
+    }
     val title = exercise?.name ?: data?.aliases?.groupFor(nameKey)?.primaryName ?: data?.names?.get(nameKey)
         ?: stringResource(R.string.insight_exercise_history)
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -58,7 +61,30 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
                         val unknown = exercise.occurrences.count { it.exercise.sets.isEmpty() }
                         if (unknown > 0) Text(stringResource(R.string.insight_unknown_groups, unknown))
                     }
+                    if (!progress?.comparisons.isNullOrEmpty()) {
+                        item { FitLogSectionTitle(stringResource(R.string.insight_performance_title)) }
+                        progress.comparisons.forEach { comparison ->
+                            item(key = "performance-${comparison.latest.basis}") {
+                                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                        InsightComparisonContent(comparison)
+                                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            TextButton(onClick = { onOpen(comparison.latest.recordId) }) {
+                                                Text(stringResource(R.string.insight_latest_source))
+                                            }
+                                            comparison.previous?.let { previous ->
+                                                TextButton(onClick = { onOpen(previous.recordId) }) {
+                                                    Text(stringResource(R.string.insight_previous_source))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     val series = exerciseSeries(exercise)
+                    if (series.isNotEmpty()) item { FitLogSectionTitle(stringResource(R.string.insight_load_history)) }
                     if (series.isEmpty()) item { FitLogNotice(stringResource(R.string.insight_no_numeric_data)) }
                     series.forEach { curve ->
                         item(key = "curve-${curve.basis}") {

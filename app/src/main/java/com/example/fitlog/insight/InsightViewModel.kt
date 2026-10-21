@@ -26,6 +26,7 @@ class InsightViewModel(
     private val refreshIndex: (String) -> Unit,
     initialRange: String = InsightRange.NINETY.name,
     private val localDate: () -> LocalDate = LocalDate::now,
+    private val preferences: InsightPreferencesStore? = null,
 ) : ViewModel() {
     var config by mutableStateOf<VaultConfigState>(VaultConfigState.Loading); private set
     var data by mutableStateOf<InsightData?>(null); private set
@@ -35,6 +36,9 @@ class InsightViewModel(
     var message by mutableStateOf<Int?>(null); private set
     var aliasSaving by mutableStateOf(false); private set
     var aliasError by mutableStateOf<Int?>(null); private set
+    var focusedKeys by mutableStateOf<Set<String>?>(null); private set
+    var focusSaving by mutableStateOf(false); private set
+    var focusError by mutableStateOf<Int?>(null); private set
     var range by mutableStateOf(InsightRange.entries.firstOrNull {
         it.name == (savedState.get<String>("insightRange") ?: initialRange)
     } ?: InsightRange.NINETY); private set
@@ -52,15 +56,19 @@ class InsightViewModel(
                 configFlow.distinctUntilChanged().collectLatest { value ->
                     config = value; loading = true; error = null
                     val vault = value as? VaultConfigState.Configured
+                    focusError = null
+                    focusedKeys = null
                     if (shouldRefresh && vault != null) { shouldRefresh = false; refreshIndex(vault.vaultId) }
                     val snapshots = vault?.let {
                         observeIndex(it.vaultId).map<SourceIndexSnapshot, SourceIndexSnapshot?> { snapshot -> snapshot }
                             .catch { e -> if (e is CancellationException) throw e
                                 message = R.string.insight_read_failed; emit(null) }
                     } ?: flowOf(null)
-                    combine(snapshots, reader.observeRecords(), aliasStore.observe()) { snapshot, records, aliases ->
-                        Input(vault?.vaultId, snapshot, records, aliases)
-                    }.collect { next ->
+                    combine(snapshots, reader.observeRecords(), aliasStore.observe(),
+                        preferences?.observe(vault?.vaultId) ?: flowOf(null)) { snapshot, records, aliases, focused ->
+                        Input(vault?.vaultId, snapshot, records, aliases) to focused
+                    }.collect { (next, focused) ->
+                        focusedKeys = focused
                         input = next; index = next.index
                         data = buildInsightData(next.vaultId, next.index, next.records, next.aliases, localDate())
                         loading = false
@@ -102,4 +110,20 @@ class InsightViewModel(
         }
     }
     fun clearAliasError() { if (!aliasSaving) aliasError = null }
+    fun saveFocus(keys: Set<String>, onSaved: () -> Unit) {
+        val store = preferences ?: return
+        val scope = data?.vaultId
+        if (focusSaving || loading || error != null) return
+        focusSaving = true; focusError = null
+        viewModelScope.launch {
+            try {
+                store.save(scope, keys)
+                if (data?.vaultId == scope) onSaved()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (data?.vaultId == scope) focusError = R.string.insight_focus_save_failed
+            } finally { focusSaving = false }
+        }
+    }
+    fun clearFocusError() { if (!focusSaving) focusError = null }
 }

@@ -83,18 +83,18 @@ internal fun InsightReadState(vm: InsightViewModel, onOpenLog: () -> Unit): Bool
 }
 
 @Composable
-internal fun InsightCoverage(vm: InsightViewModel) {
-    val index = vm.index ?: return
-    val timestamp = index.scan?.completedAt?.let {
+internal fun InsightCoverage(vm: InsightViewModel, showScanTime: Boolean = true) {
+    val index = vm.index
+    val timestamp = index?.scan?.completedAt?.let {
         DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()))
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(if (timestamp == null) stringResource(R.string.insight_scan_unknown)
+        if (showScanTime && index != null) Text(if (timestamp == null) stringResource(R.string.insight_scan_unknown)
             else stringResource(R.string.insight_scan_time, timestamp), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (index.refreshing) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
-        if (index.scan?.status == IndexedScan.PARTIAL) FitLogNotice(stringResource(R.string.insight_scan_partial))
-        if (index.refreshFailed || index.scan?.status == IndexedScan.FAILED) FitLogNotice(stringResource(R.string.insight_scan_failed), error = true)
+        if (index?.refreshing == true) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+        if (index?.scan?.status == IndexedScan.PARTIAL) FitLogNotice(stringResource(R.string.insight_scan_partial))
+        if (index?.refreshFailed == true || index?.scan?.status == IndexedScan.FAILED) FitLogNotice(stringResource(R.string.insight_scan_failed), error = true)
         vm.message?.let { FitLogNotice(stringResource(it), error = true) }
     }
 }

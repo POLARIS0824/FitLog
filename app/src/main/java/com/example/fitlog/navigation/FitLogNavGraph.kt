@@ -17,6 +17,7 @@ import com.example.fitlog.insight.InsightScreen
 import com.example.fitlog.insight.InsightViewModel
 import com.example.fitlog.insight.ExerciseHistoryScreen
 import com.example.fitlog.data.insight.DataStoreExerciseAliasStore
+import com.example.fitlog.data.insight.InsightPreferencesStore
 import com.example.fitlog.log.LogScreen
 import com.example.fitlog.log.LogSettingsStore
 import com.example.fitlog.log.LogViewModel
@@ -77,6 +78,7 @@ internal fun FitLogNavGraph(
     val documents = remember(context) { MarkdownDocumentRepository(context) }
     val records = remember(context) { TrainingRecordRepository(DiaryAnalysisDatabase.get(context)) }
     val exerciseAliases = remember(context) { DataStoreExerciseAliasStore(context) }
+    val insightPreferences = remember(context) { InsightPreferencesStore(context) }
     var showMarkdown by rememberSaveable { mutableStateOf(false) }
     val backHandlers = remember { mutableStateMapOf<NavKey, () -> Unit>() }
 
@@ -172,7 +174,8 @@ internal fun FitLogNavGraph(
             entry<FitLogRoute.Insight> {
                 val vm = viewModel<InsightViewModel> {
                     InsightViewModel(vaultPreferences.vaultConfig, sourceIndex::observe, records,
-                        exerciseAliases, createSavedStateHandle(), refreshIndex = { sourceIndex.refresh(it) })
+                        exerciseAliases, createSavedStateHandle(), refreshIndex = { sourceIndex.refresh(it) },
+                        preferences = insightPreferences)
                 }
                 InsightScreen(vm, onOpenLog = {
                     if (backStack.lastOrNull() == FitLogRoute.Insight) onNavigateTo(FitLogRoute.Log)
@@ -188,7 +191,7 @@ internal fun FitLogNavGraph(
                 val vm = viewModel<InsightViewModel> {
                     InsightViewModel(vaultPreferences.vaultConfig, sourceIndex::observe, records,
                         exerciseAliases, createSavedStateHandle(), refreshIndex = { sourceIndex.refresh(it) },
-                        initialRange = route.range)
+                        initialRange = route.range, preferences = insightPreferences)
                 }
                 DisposableEffect(vm) {
                     backHandlers[route] = { if (!vm.aliasSaving) onBack() }
