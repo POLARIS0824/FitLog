@@ -80,7 +80,15 @@ internal class NativeRecordViewModel(recordId: String?, private val repository: 
     fun name(index: Int, value: String) = exercise(index) { it.copy(rawName = value) }
     fun exerciseNotes(index: Int, value: String) = exercise(index) { it.copy(notes = value.takeIf(String::isNotBlank)) }
     fun addSet(index: Int) = exercise(index) {
-        if (it.sets.size >= 1000) it else it.copy(sets = it.sets + ReviewedSet(unit = WeightUnit.KG, basis = WeightBasis.TOTAL))
+        if (it.sets.size >= 1000) it else {
+            val previous = it.sets.lastOrNull()
+            it.copy(sets = it.sets + ReviewedSet(
+                unit = if (previous == null) WeightUnit.KG else previous.unit,
+                basis = previous?.basis ?: WeightBasis.TOTAL))
+        }
+    }
+    fun copySet(exerciseIndex: Int, index: Int) = exercise(exerciseIndex) { item ->
+        if (item.sets.size >= 1000) item else item.copy(sets = item.sets + item.sets[index].copy(userEdited = true))
     }
     fun removeSet(exerciseIndex: Int, set: Int) = exercise(exerciseIndex) { it.copy(sets = it.sets.filterIndexed { i, _ -> i != set }) }
     fun set(exerciseIndex: Int, index: Int, transform: (ReviewedSet) -> ReviewedSet) = exercise(exerciseIndex) { item ->

@@ -7,4 +7,12 @@
         <item quantity="one">%1$d completed set</item>
         <item quantity="other">%1$d completed sets</item>
     </plurals>
+    <string name="record_set_options">Set %1$d options</string>
+    <string name="record_exercise_options">Exercise options</string>
+    <string name="record_weight_options">Weight settings</string>
+    <string name="record_copy_set">Copy this set</string>
+    <string name="record_copy_last_set">Copy last set</string>
+    <string name="record_weight_placeholder">Optional</string>
+    <string name="record_bodyweight_change_help">Bodyweight needs no external load. Applying this clears the weight and unit for the selected sets.</string>
+    <string name="record_weight_options_help">Enter weight directly in the set. Changing kg or lb converts an existing numeric weight; the basis describes what that number means.</string>
 </resources>

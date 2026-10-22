@@ -3,17 +3,17 @@ package com.example.fitlog.records
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
@@ -31,10 +31,12 @@ import java.time.ZoneOffset
 internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
     var datePicker by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
-    var setEdit by remember { mutableStateOf<DiarySetEdit?>(null) }
+    var setEdit by remember { mutableStateOf<NativeSetOptions?>(null) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     FitLogBackGuard(enabled = vm.hasChanges || vm.deleting) { vm.requestLeave(onBack) }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        Column(Modifier.widthIn(max = 840.dp).fillMaxSize()) {
+        Column(Modifier.widthIn(max = 840.dp).fillMaxSize().imePadding()) {
             TopAppBar(title = { Text(stringResource(R.string.record_title), style = MaterialTheme.typography.titleLargeEmphasized) }, windowInsets = WindowInsets(0),
                 navigationIcon = { IconButton(onClick = { vm.requestLeave(onBack) }, enabled = !vm.deleting,
                     shapes = IconButtonDefaults.shapes()) {
@@ -45,7 +47,7 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
                         Text(stringResource(R.string.record_delete))
                     }
                 })
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp),
+            LazyColumn(Modifier.weight(1f), state = listState, contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -91,60 +93,44 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
                     }
                 }
                 itemsIndexed(vm.input.exercises) { exerciseIndex, exercise ->
-                    Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TextField(value = exercise.rawName, onValueChange = { vm.name(exerciseIndex, it) },
-                                enabled = vm.canEdit, label = { Text(stringResource(R.string.record_exercise)) },
-                                singleLine = true, modifier = Modifier.fillMaxWidth())
-                            exercise.sets.forEachIndexed { setIndex, set ->
-                                NativeSetEditor(set, setIndex + 1, vm.canEdit,
-                                    onRemove = { vm.removeSet(exerciseIndex, setIndex) }, onEdit = { field ->
-                                        setEdit = DiarySetEdit(DiarySetAddress(0, exerciseIndex, setIndex), setIndex + 1,
-                                            field, set.weight, set.unit, set.reps, set.basis)
-                                    })
-                            }
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilledTonalButton(onClick = { vm.addSet(exerciseIndex) }, enabled = vm.canEdit && exercise.sets.size < 1000,
-                                    shapes = ButtonDefaults.shapes()) {
-                                    Text(stringResource(R.string.record_add_set))
-                                }
-                                TextButton(onClick = { vm.removeExercise(exerciseIndex) }, enabled = vm.canEdit,
-                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                                    Text(stringResource(R.string.record_remove_exercise))
-                                }
-                            }
-                            TextField(value = exercise.notes.orEmpty(), onValueChange = { vm.exerciseNotes(exerciseIndex, it) },
-                                enabled = vm.canEdit, label = { Text(stringResource(R.string.record_exercise_notes)) },
-                                modifier = Modifier.fillMaxWidth())
-                        }
-                    }
+                    NativeExerciseEntry(exercise, vm.canEdit,
+                        onName = { vm.name(exerciseIndex, it) },
+                        onNotes = { vm.exerciseNotes(exerciseIndex, it) },
+                        onAddSet = { vm.addSet(exerciseIndex) },
+                        onCopy = { index -> vm.copySet(exerciseIndex, index) },
+                        onRemove = { vm.removeExercise(exerciseIndex) },
+                        onSet = { index, value -> vm.set(exerciseIndex, index) { value } },
+                        onOptions = { index -> setEdit = NativeSetOptions(exerciseIndex, index, exercise.sets[index]) },
+                        onRemoveSet = { vm.removeSet(exerciseIndex, it) })
                 }
-                item { Button(onClick = vm::addExercise, enabled = vm.canEdit,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = ButtonDefaults.MediumContainerHeight),
-                    shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
-                    contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)) {
-                    Icon(painterResource(R.drawable.add_24px), null, Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MediumContainerHeight)))
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(stringResource(R.string.record_add_exercise), style = MaterialTheme.typography.labelLargeEmphasized)
-                } }
-                item { TextField(value = vm.input.notes, onValueChange = vm::notes, enabled = vm.canEdit,
-                    label = { Text(stringResource(R.string.record_notes)) }, modifier = Modifier.fillMaxWidth()) }
+                item { OptionalRecordNotes(vm.input.notes, vm.canEdit, R.string.record_notes, vm::notes) }
                 item { Text(stringResource(R.string.record_statistics_help), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
+            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+                FilledTonalButton(onClick = {
+                    vm.addExercise()
+                    scope.launch { listState.animateScrollToItem(vm.input.exercises.size + if (vm.message == null) 0 else 1) }
+                }, enabled = vm.canEdit, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    shapes = ButtonDefaults.shapes()) {
+                    Icon(painterResource(R.drawable.add_24px), null)
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(stringResource(R.string.record_add_exercise), style = MaterialTheme.typography.labelLargeEmphasized)
+                }
+            }
         }
     }
-    setEdit?.let { edit -> DiarySetPicker(edit, { setEdit = null }, onWeight = { value ->
-        vm.set(edit.address.exercise, edit.address.set) { it.copy(weight = value.weight, unit = value.unit, basis = value.basis) }
+    setEdit?.let { edit -> NativeSetOptionsSheet(edit, { setEdit = null }) { unit, basis, all ->
+        val indices = if (all) vm.input.exercises[edit.exercise].sets.indices else listOf(edit.set)
+        indices.forEach { index -> vm.set(edit.exercise, index) { value ->
+            if (basis == WeightBasis.BODYWEIGHT) value.copy(weight = null, unit = null, basis = basis)
+            else if (index == edit.set) {
+                val converted = DiaryWeightValue(value.weight, value.unit, basis = basis).inUnit(unit)
+                value.copy(weight = converted.weight, unit = converted.unit, basis = basis)
+            } else value.copy(basis = basis)
+        } }
         setEdit = null
-    }, onReps = { value ->
-        vm.set(edit.address.exercise, edit.address.set) { it.copy(reps = value) }; setEdit = null
-    }, onBasis = { basis, all ->
-        val indices = if (all) vm.input.exercises[edit.address.exercise].sets.indices else listOf(edit.address.set)
-        indices.forEach { index -> vm.set(edit.address.exercise, index) {
-            if (basis == WeightBasis.BODYWEIGHT) it.copy(weight = null, unit = null, basis = basis) else it.copy(basis = basis)
-        } }; setEdit = null
-    }) }
+    } }
     if (datePicker) {
         val state = rememberDatePickerState(initialSelectedDateMillis = LocalDate.parse(vm.input.date).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli())
         DatePickerDialog(onDismissRequest = { datePicker = false }, confirmButton = {
@@ -169,51 +155,60 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun NativeSetEditor(set: ReviewedSet, number: Int, enabled: Boolean,
-    onRemove: () -> Unit, onEdit: (DiarySetField) -> Unit) {
-    val label = stringResource(R.string.record_set_number, number)
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmallEmphasized)
-            IconButton(onClick = onRemove, enabled = enabled, shapes = IconButtonDefaults.shapes()) {
-                Icon(painterResource(R.drawable.remove_24px), stringResource(R.string.record_remove_set))
+private fun NativeExerciseEntry(exercise: ReviewedExercise, enabled: Boolean,
+    onName: (String) -> Unit, onNotes: (String) -> Unit, onAddSet: () -> Unit,
+    onCopy: (Int) -> Unit, onRemove: () -> Unit, onSet: (Int, ReviewedSet) -> Unit,
+    onOptions: (Int) -> Unit, onRemoveSet: (Int) -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(exercise.rawName, onName, enabled = enabled, singleLine = true,
+                textStyle = MaterialTheme.typography.titleLargeEmphasized,
+                label = { Text(stringResource(R.string.record_exercise)) }, modifier = Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FilledTonalButton(onClick = onAddSet, enabled = enabled && exercise.sets.size < 1000,
+                    shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_add_set)) }
+                Spacer(Modifier.weight(1f))
+                Box {
+                    IconButton(onClick = { menu = true }, enabled = enabled, shapes = IconButtonDefaults.shapes()) {
+                        Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.record_exercise_options))
+                    }
+                    DropdownMenu(menu, { menu = false }) {
+                        if (exercise.sets.isNotEmpty()) DropdownMenuItem(
+                            text = { Text(stringResource(R.string.record_copy_last_set)) },
+                            enabled = exercise.sets.size < 1000,
+                            onClick = { menu = false; onCopy(exercise.sets.lastIndex) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.record_remove_exercise), color = MaterialTheme.colorScheme.error) },
+                            onClick = { menu = false; onRemove() })
+                    }
+                }
             }
+            exercise.sets.forEachIndexed { index, set ->
+                // A positional editor must not carry its local text into a different row after deletion.
+                key(index, exercise.sets.size) {
+                    NativeSetEntry(set, index + 1, enabled, exercise.sets.size < 1000, { onSet(index, it) }, { onOptions(index) },
+                        { onCopy(index) }, { onRemoveSet(index) })
+                }
+            }
+            if (exercise.sets.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onAddSet, enabled = enabled && exercise.sets.size < 1000) {
+                    Text(stringResource(R.string.record_add_set))
+                }
+                TextButton(onClick = { onCopy(exercise.sets.lastIndex) }, enabled = enabled && exercise.sets.size < 1000) {
+                    Text(stringResource(R.string.record_copy_last_set))
+                }
+            }
+            OptionalRecordNotes(exercise.notes.orEmpty(), enabled, R.string.record_exercise_notes, onNotes)
         }
-        val fields: @Composable (Boolean) -> Unit = { stacked ->
-            val weight: @Composable (Modifier) -> Unit = { modifier ->
-                NativeSetValue(stringResource(R.string.detail_weight), weightLabel(set.weight, set.unit, basis = set.basis),
-                    label, enabled, modifier, emphasized = true, onClick = { onEdit(DiarySetField.WEIGHT) })
-            }
-            val reps: @Composable (Modifier) -> Unit = { modifier ->
-                NativeSetValue(stringResource(R.string.detail_reps), set.reps?.toString() ?: stringResource(R.string.detail_value_unknown),
-                    label, enabled, modifier, onClick = { onEdit(DiarySetField.REPS) })
-            }
-            if (stacked) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                weight(Modifier.fillMaxWidth()); reps(Modifier.fillMaxWidth())
-            } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                weight(Modifier.weight(1f)); reps(Modifier.weight(1f))
-            }
-        }
-        val fontScale = LocalDensity.current.fontScale
-        BoxWithConstraints(Modifier.fillMaxWidth()) { fields(fontScale > 1.3f || maxWidth < 280.dp) }
-        NativeSetValue(stringResource(R.string.detail_basis), stringResource(basisLabel(set.basis)), label, enabled,
-            Modifier.fillMaxWidth(), compact = true, onClick = { onEdit(DiarySetField.BASIS) })
     }
 }
 
 @Composable
-private fun NativeSetValue(label: String, value: String, setLabel: String, enabled: Boolean, modifier: Modifier,
-    emphasized: Boolean = false, compact: Boolean = false, onClick: () -> Unit) {
-    val description = stringResource(R.string.record_ui_edit_set, setLabel, label, value)
-    Surface(onClick = onClick, enabled = enabled, shape = MaterialTheme.shapes.medium,
-        color = if (emphasized) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
-        contentColor = if (emphasized) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
-        modifier = modifier.heightIn(min = 56.dp).semantics { contentDescription = description }) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(label, style = MaterialTheme.typography.labelMedium)
-            Text(value, style = if (compact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineSmallEmphasized)
-        }
-    }
+private fun OptionalRecordNotes(value: String, enabled: Boolean, label: Int, onValue: (String) -> Unit) {
+    var expanded by rememberSaveable { mutableStateOf(value.isNotBlank()) }
+    if (expanded) OutlinedTextField(value, onValue, enabled = enabled,
+        label = { Text(stringResource(label)) }, modifier = Modifier.fillMaxWidth())
+    else TextButton(onClick = { expanded = true }, enabled = enabled) { Text(stringResource(label)) }
 }
 
 @Preview(name = "Native record sets", widthDp = 412, heightDp = 700, locale = "en")
@@ -222,17 +217,14 @@ private fun NativeRecordSetsReviewPreview() {
     FitLogPreview {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(stringResource(R.string.preview_exercise_name), style = MaterialTheme.typography.headlineSmallEmphasized)
-            NativeSetEditor(ReviewedSet(weight = 60.0, unit = WeightUnit.KG, basis = WeightBasis.TOTAL, reps = 8),
-                number = 1, enabled = true, onRemove = {}, onEdit = {})
-            NativeSetEditor(ReviewedSet(unit = WeightUnit.KG, basis = WeightBasis.TOTAL),
-                number = 2, enabled = true, onRemove = {}, onEdit = {})
+            NativeExerciseEntry(ReviewedExercise(stringResource(R.string.preview_exercise_name), listOf(
+                ReviewedSet(weight = 60.0, unit = WeightUnit.KG, basis = WeightBasis.TOTAL, reps = 8),
+                ReviewedSet(unit = WeightUnit.KG, basis = WeightBasis.TOTAL))), true,
+                {}, {}, {}, {}, {}, { _, _ -> }, {}, {})
         }
     }
 }
 
 @Preview(name = "Native record sets · Large text", widthDp = 320, heightDp = 1200, fontScale = 2f, locale = "zh")
 @Composable
-private fun NativeRecordSetsLargeTextReviewPreview() {
-    NativeRecordSetsReviewPreview()
-}
+private fun NativeRecordSetsLargeTextReviewPreview() { NativeRecordSetsReviewPreview() }
