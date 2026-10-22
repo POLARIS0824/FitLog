@@ -14,6 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
@@ -47,6 +50,7 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
                         Text(stringResource(R.string.record_delete))
                     }
                 })
+            NativeRecordSaveFeedback(vm, onBack)
             LazyColumn(Modifier.weight(1f), state = listState, contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item {
@@ -57,29 +61,8 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
                           shapes = ButtonDefaults.shapes()) {
                           Text(vm.input.date, style = MaterialTheme.typography.titleMediumEmphasized)
                       }
-                      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (vm.state == RecordSaveState.SAVED || vm.state == RecordSaveState.FAILED) Icon(
-                            painterResource(if (vm.state == RecordSaveState.FAILED) R.drawable.warning_24px else R.drawable.check_24px),
-                            null, Modifier.size(20.dp),
-                            tint = if (vm.state == RecordSaveState.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(stringResource(when {
-                            vm.loading -> R.string.record_loading
-                            else -> when (vm.state) {
-                                RecordSaveState.EMPTY -> R.string.record_autosave_help
-                                RecordSaveState.SAVING -> R.string.record_saving
-                                RecordSaveState.SAVED -> R.string.record_saved
-                                RecordSaveState.FAILED -> R.string.record_failed
-                            }
-                        }), style = MaterialTheme.typography.labelLarge,
-                            color = if (vm.state == RecordSaveState.FAILED) MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.onSurfaceVariant)
-                      }
                     }
                 }
-                vm.message?.let { message -> item {
-                    FitLogNotice(stringResource(message), error = true)
-                    if (vm.canEdit) TextButton(onClick = vm::retry) { Text(stringResource(R.string.record_retry)) }
-                } }
                 if (vm.input.kind == RecordKind.REST) item { FitLogNotice(stringResource(R.string.record_rest)) }
                 if (vm.input.exercises.isEmpty() && vm.input.kind != RecordKind.REST) item {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -107,10 +90,20 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
                 item { Text(stringResource(R.string.record_statistics_help), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
+            if (vm.canUndoRemoval) Snackbar(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                action = { TextButton(onClick = vm::undoRemoval, enabled = vm.canEdit,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inversePrimary)) {
+                    Text(stringResource(R.string.record_undo))
+                } },
+                dismissAction = { TextButton(onClick = vm::dismissUndo,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inverseOnSurface)) { Text(stringResource(R.string.record_dismiss)) } }) {
+                Text(stringResource(R.string.record_removed))
+            }
             Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
                 FilledTonalButton(onClick = {
                     vm.addExercise()
-                    scope.launch { listState.animateScrollToItem(vm.input.exercises.size + if (vm.message == null) 0 else 1) }
+                    scope.launch { listState.animateScrollToItem(vm.input.exercises.size) }
                 }, enabled = vm.canEdit, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     shapes = ButtonDefaults.shapes()) {
                     Icon(painterResource(R.drawable.add_24px), null)
@@ -152,6 +145,35 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
             TextButton(onClick = vm::cancelLeave) { Text(stringResource(R.string.record_keep_editing)) }
             TextButton(onClick = vm::discardAndLeave) { Text(stringResource(R.string.record_discard_changes)) }
         } })
+}
+
+@Composable
+private fun NativeRecordSaveFeedback(vm: NativeRecordViewModel, onBack: () -> Unit) {
+    val failed = vm.state == RecordSaveState.FAILED || vm.message != null
+    val label = when {
+        vm.deleting -> R.string.record_deleting
+        vm.loading -> R.string.record_loading
+        vm.message != null -> requireNotNull(vm.message)
+        else -> when (vm.state) {
+            RecordSaveState.EMPTY -> R.string.record_autosave_help
+            RecordSaveState.SAVING -> R.string.record_saving
+            RecordSaveState.SAVED -> R.string.record_saved
+            RecordSaveState.FAILED -> R.string.record_failed
+        }
+    }
+    Surface(color = if (failed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
+        contentColor = if (failed) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            .semantics { if (failed) liveRegion = LiveRegionMode.Polite },
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (failed || vm.state == RecordSaveState.SAVED) Icon(
+                painterResource(if (failed) R.drawable.warning_24px else R.drawable.check_24px), null, Modifier.size(20.dp))
+            Text(stringResource(label), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+            if (failed && vm.canEdit) TextButton(onClick = {
+                if (vm.message == R.string.record_delete_failed) vm.delete(onBack) else vm.retry()
+            }) { Text(stringResource(R.string.record_retry)) }
+        }
+    }
 }
 
 @Composable

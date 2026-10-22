@@ -36,6 +36,8 @@ internal class NativeRecordViewModel(recordId: String?, private val repository: 
     var message by mutableStateOf<Int?>(null); private set
     var leaveRequested by mutableStateOf(false); private set
     var deleting by mutableStateOf(false); private set
+    var canUndoRemoval by mutableStateOf(false); private set
+    private var undoRemovalAction: (() -> Unit)? = null
     private var persisted: NativeRecordInput? = null
     private var writer: Job? = null
     private var pendingLeave: (() -> Unit)? = null
@@ -76,7 +78,17 @@ internal class NativeRecordViewModel(recordId: String?, private val repository: 
     fun notes(value: String) = change(input.copy(notes = value))
     fun addExercise() = change(input.copy(kind = RecordKind.TRAINING,
         exercises = input.exercises + ReviewedExercise("", listOf(ReviewedSet(unit = WeightUnit.KG, basis = WeightBasis.TOTAL)))))
-    fun removeExercise(index: Int) = change(input.copy(exercises = input.exercises.filterIndexed { i, _ -> i != index }))
+    fun removeExercise(index: Int) {
+        if (!canEdit) return
+        val removed = input.exercises.getOrNull(index) ?: return
+        change(input.copy(exercises = input.exercises.filterIndexed { i, _ -> i != index }))
+        undoRemovalAction = {
+            change(input.copy(kind = RecordKind.TRAINING, exercises = input.exercises.toMutableList().apply {
+                add(index.coerceAtMost(size), removed)
+            }))
+        }
+        canUndoRemoval = true
+    }
     fun name(index: Int, value: String) = exercise(index) { it.copy(rawName = value) }
     fun exerciseNotes(index: Int, value: String) = exercise(index) { it.copy(notes = value.takeIf(String::isNotBlank)) }
     fun addSet(index: Int) = exercise(index) {
@@ -90,13 +102,29 @@ internal class NativeRecordViewModel(recordId: String?, private val repository: 
     fun copySet(exerciseIndex: Int, index: Int) = exercise(exerciseIndex) { item ->
         if (item.sets.size >= 1000) item else item.copy(sets = item.sets + item.sets[index].copy(userEdited = true))
     }
-    fun removeSet(exerciseIndex: Int, set: Int) = exercise(exerciseIndex) { it.copy(sets = it.sets.filterIndexed { i, _ -> i != set }) }
+    fun removeSet(exerciseIndex: Int, set: Int) {
+        if (!canEdit) return
+        val removed = input.exercises.getOrNull(exerciseIndex)?.sets?.getOrNull(set) ?: return
+        exercise(exerciseIndex) { it.copy(sets = it.sets.filterIndexed { i, _ -> i != set }) }
+        undoRemovalAction = {
+            exercise(exerciseIndex) { item -> item.copy(sets = item.sets.toMutableList().apply {
+                add(set.coerceAtMost(size), removed)
+            }) }
+        }
+        canUndoRemoval = true
+    }
+    fun undoRemoval() {
+        if (!canEdit) return
+        val action = undoRemovalAction ?: return
+        dismissUndo(); action()
+    }
+    fun dismissUndo() { undoRemovalAction = null; canUndoRemoval = false }
     fun set(exerciseIndex: Int, index: Int, transform: (ReviewedSet) -> ReviewedSet) = exercise(exerciseIndex) { item ->
         item.copy(sets = item.sets.mapIndexed { i, value -> if (i == index) transform(value) else value })
     }
     private fun exercise(index: Int, transform: (ReviewedExercise) -> ReviewedExercise) =
         change(input.copy(exercises = input.exercises.mapIndexed { i, value -> if (i == index) transform(value) else value }))
-    fun rest() { if (input.exercises.isEmpty()) change(input.copy(kind = RecordKind.REST)) }
+    fun rest() { if (canEdit && input.exercises.isEmpty()) { dismissUndo(); change(input.copy(kind = RecordKind.REST)) } }
 
     private fun saveLatest() {
         if (!canEdit || !hasChanges || writer?.isActive == true) return

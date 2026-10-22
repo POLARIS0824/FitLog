@@ -15,4 +15,8 @@
     <string name="record_weight_placeholder">Optional</string>
     <string name="record_bodyweight_change_help">Bodyweight needs no external load. Applying this clears the weight and unit for the selected sets.</string>
     <string name="record_weight_options_help">Enter weight directly in the set. Changing kg or lb converts an existing numeric weight; the basis describes what that number means.</string>
+    <string name="record_undo">Undo</string>
+    <string name="record_removed">Removed from this record</string>
+    <string name="record_dismiss">Dismiss</string>
+    <string name="record_deleting">Deleting…</string>
 </resources>
