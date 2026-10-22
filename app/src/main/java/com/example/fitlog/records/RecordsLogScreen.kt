@@ -45,6 +45,16 @@ internal fun RecordsLogScreen(vm: LogViewModel, repository: TrainingRecordReposi
     }
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         RecordsLogHeader(markdown, vm.refreshing, onMarkdown, { vm.refresh() }, onConnect, onManage)
+        if (vm.run.active && !vm.run.batch) Surface(
+            modifier = Modifier.widthIn(max = 840.dp).fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.log_batch_running, vm.run.items.size, vm.run.total), Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelLarge)
+                TextButton(onClick = vm::cancelAnalysis) { Text(stringResource(R.string.ai_cancel_request)) }
+            }
+        }
         if (markdown) LogScreen(vm, onOpenMarkdown, onConnect, onManage,
             modifier = Modifier.weight(1f), onReview = onReview, onAiSettings = onAiSettings, showAppBar = false)
         else LazyColumn(Modifier.widthIn(max = 840.dp).fillMaxWidth().weight(1f),

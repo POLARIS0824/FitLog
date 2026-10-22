@@ -123,7 +123,7 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
     ) { innerPadding ->
         Box(Modifier.fillMaxSize()) {
             FitLogInsetContent(innerPadding) {
-                if (analysisRun.active && (currentRoute != FitLogRoute.Log || !analysisRun.batch)) {
+                if (analysisRun.active && currentRoute != FitLogRoute.Log) {
                     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Row(
                             Modifier.fillMaxWidth().padding(horizontal = 16.dp),

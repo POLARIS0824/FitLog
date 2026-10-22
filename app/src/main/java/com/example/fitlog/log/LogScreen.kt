@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -86,6 +87,7 @@ internal fun LogContent(
     showAppBar: Boolean = true,
 ) {
     var sortExpanded by remember { mutableStateOf(false) }
+    var toolsExpanded by rememberSaveable { mutableStateOf(false) }
     val showLoading = rememberDelayedLoading(state.refreshing || state.loading)
     val files = state.visibleFiles
     Column(modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -99,7 +101,7 @@ internal fun LogContent(
                 item(key = "header") {
                     OutlinedTextField(
                         value = state.query, onValueChange = actions.search, singleLine = true,
-                        placeholder = { Text(stringResource(R.string.log_search)) },
+                        label = { Text(stringResource(R.string.log_search)) },
                         shape = CircleShape,
                         leadingIcon = { Icon(painterResource(R.drawable.search_24px), null) },
                         modifier = Modifier.fillMaxWidth(),
@@ -109,7 +111,11 @@ internal fun LogContent(
                             }
                         },
                     )
-                    Spacer(Modifier.height(12.dp))
+                    TextButton(onClick = { toolsExpanded = !toolsExpanded }) {
+                        Text(stringResource(if (toolsExpanded) R.string.log_hide_tools else R.string.log_show_tools,
+                            stringResource(state.statusFilter.label)))
+                    }
+                    if (toolsExpanded) {
                     LogAnalysisControls(state, actions, onReview)
                     Spacer(Modifier.height(12.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -128,6 +134,7 @@ internal fun LogContent(
                         }
                         FilterChip(selected = state.showMissing, onClick = actions.toggleMissing,
                             label = { Text(stringResource(R.string.index_show_missing)) })
+                    }
                     }
                     Text(stringResource(when {
                         showLoading && state.vault != null -> R.string.index_scanning
@@ -152,6 +159,13 @@ internal fun LogContent(
                         Text(stringResource(R.string.index_cached), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                }
+                if (state.summariesReadFailed) item(key = "analysis-error") {
+                    FitLogNotice(stringResource(R.string.detail_analysis_failed), error = true)
+                }
+                if (state.run.batch && state.run.total > 0) item(key = "analysis-run") {
+                    AnalysisRunFeedback(state.run, actions.cancelAnalysis,
+                        { actions.filter(LogStatusFilter.FAILED) }, actions.openAiSettings)
                 }
                 state.error?.let { item { FitLogNotice(stringResource(it), error = true) } }
                 state.sortError?.let { item { FitLogNotice(stringResource(it), error = true) } }

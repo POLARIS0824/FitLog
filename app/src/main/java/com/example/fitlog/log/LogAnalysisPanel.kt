@@ -34,16 +34,14 @@ internal fun LogAnalysisControls(state: LogUiState, actions: LogActions, onRevie
     var showSheet by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { showSheet = true }, enabled = state.vault != null && !state.analysisBusy &&
+            OutlinedButton(onClick = { showSheet = true }, enabled = state.vault != null && !state.analysisBusy &&
                 !state.refreshing && !state.summariesLoading && !state.summariesReadFailed,
-                shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
-                modifier = Modifier.heightIn(min = ButtonDefaults.MediumContainerHeight)) {
-                Text(stringResource(R.string.log_analyze), style = MaterialTheme.typography.labelLargeEmphasized)
+                shapes = ButtonDefaults.shapes()) {
+                Text(stringResource(R.string.log_analyze))
             }
             FilledTonalButton(onClick = onReview, enabled = state.vault != null && !state.summariesLoading &&
                 !state.summariesReadFailed && state.pendingCount > 0,
-                shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
-                modifier = Modifier.heightIn(min = ButtonDefaults.MediumContainerHeight)) {
+                shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.log_review_count, state.pendingCount))
             }
         }
@@ -53,9 +51,6 @@ internal fun LogAnalysisControls(state: LogUiState, actions: LogActions, onRevie
                     label = { Text(stringResource(filter.label)) })
             }
         }
-        if (state.summariesReadFailed) Text(stringResource(R.string.detail_analysis_failed), color = MaterialTheme.colorScheme.error)
-        if (state.run.batch && state.run.total > 0) AnalysisRunFeedback(state.run,
-            onCancel = actions.cancelAnalysis, onFailures = { actions.filter(LogStatusFilter.FAILED) }, onAiSettings = actions.openAiSettings)
     }
     if (showSheet) AnalysisRangeSheet(state, actions, onDismiss = { showSheet = false })
 }
