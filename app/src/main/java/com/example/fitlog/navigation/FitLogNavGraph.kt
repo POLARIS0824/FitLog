@@ -47,9 +47,7 @@ import com.example.fitlog.data.analysis.DiaryAnalysisDatabase
 import com.example.fitlog.R
 import com.example.fitlog.data.ai.AiProviderRepository
 import com.example.fitlog.data.analysis.SourceKey
-import com.example.fitlog.data.analysis.adapter.fetchOpenAiModels
-import com.example.fitlog.data.analysis.adapter.testOpenAiConnection
-import io.ktor.client.HttpClient
+import com.example.fitlog.data.llm.OpenAiChatClientFactory
 
 /**
  * Navigation3 的核心路由表，entry<Route> 中决定该 Route 显示哪个 Screen、ViewModel 如何创建、点击后去哪里，同时注册录入与校对页面的返回拦截
@@ -64,7 +62,7 @@ internal fun FitLogNavGraph(
     analysisRepository: DiaryAnalysisRepository,
     analysisController: DiaryAnalysisController,
     aiRepository: AiProviderRepository,
-    aiClient: HttpClient,
+    aiChats: OpenAiChatClientFactory,
     appearance: AppearanceViewModel,
     onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
     onOpenRoute: (FitLogRoute) -> Unit,
@@ -230,8 +228,8 @@ internal fun FitLogNavGraph(
             entry<FitLogRoute.AiSettings> {
                 val vm = viewModel<AiSettingsViewModel> {
                     AiSettingsViewModel(aiRepository, context.getString(R.string.ai_deepseek),
-                        fetchModels = { url, key -> fetchOpenAiModels(aiClient, url, key) },
-                        testConnection = { url, model, key -> testOpenAiConnection(aiClient, url, model, key) })
+                        fetchModels = { url, key -> aiChats.bind(url, key).models() },
+                        testConnection = { url, model, key -> aiChats.bind(url, key).ping(model) })
                 }
                 DisposableEffect(vm) {
                     backHandlers[FitLogRoute.AiSettings] = { if (!vm.saving) { vm.cancelRequest(); onBack() } }

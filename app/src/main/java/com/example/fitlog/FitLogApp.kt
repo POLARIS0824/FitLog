@@ -51,7 +51,8 @@ import com.example.fitlog.data.index.SourceIndexRepository
 import com.example.fitlog.data.analysis.DiaryAnalysisRepository
 import com.example.fitlog.data.ai.AiProviderRepository
 import com.example.fitlog.data.ai.aiDataStore
-import com.example.fitlog.data.analysis.adapter.sharedAiHttpClient
+import com.example.fitlog.data.llm.openAiChatClientFactory
+import com.example.fitlog.data.llm.sharedAiHttpClient
 import com.example.fitlog.log.LogPreferences
 import com.example.fitlog.navigation.FitLogNavGraph
 import com.example.fitlog.navigation.FitLogRoute
@@ -87,8 +88,9 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
     val diaryAnalysis = remember { DiaryAnalysisRepository.get(context) }
     val aiProviders = remember { AiProviderRepository(context.applicationContext.aiDataStore) }
     val aiClient = remember { sharedAiHttpClient }
+    val aiChats = remember(aiClient) { openAiChatClientFactory(aiClient) }
     val analysisRuntime = viewModel<AnalysisRuntimeViewModel> {
-        AnalysisRuntimeViewModel(aiProviders, documents, diaryAnalysis, sourceIndex, aiClient)
+        AnalysisRuntimeViewModel(aiProviders, documents, diaryAnalysis, sourceIndex, aiChats)
     }
     val analysisRun by analysisRuntime.controller.state.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
@@ -144,7 +146,7 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
                     analysisRepository = diaryAnalysis,
                     analysisController = analysisRuntime.controller,
                     aiRepository = aiProviders,
-                    aiClient = aiClient,
+                    aiChats = aiChats,
                     appearance = appearance,
                     onSetupCompleted = vaultFlow::onSetupCompleted,
                     onOpenRoute = vaultFlow::openRoute,

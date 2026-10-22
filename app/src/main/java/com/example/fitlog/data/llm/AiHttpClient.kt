@@ -1,4 +1,4 @@
-package com.example.fitlog.data.analysis.adapter
+package com.example.fitlog.data.llm
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
@@ -52,4 +52,7 @@ internal fun createAiHttpClient(
         socketTimeoutMillis = 120_000
     }
     // Do not install HTTP logging: both credentials and diary text are private.
+    // Streaming is parsed from the response channel by OpenAiHttpChatClient, so the SSE plugin
+    // is not installed: a transport failure must reach the caller as an explicit status, not as a
+    // plugin-level reconnection.
 }

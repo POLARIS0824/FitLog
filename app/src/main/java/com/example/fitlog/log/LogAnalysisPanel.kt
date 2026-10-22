@@ -21,7 +21,7 @@ import com.example.fitlog.data.analysis.*
 import java.time.LocalDate
 
 internal fun analysisIssueMessage(issue: AnalysisIssue): Int = issue.configurationFailure?.let(::aiConfigurationMessage)
-    ?: issue.modelFailure?.let(::aiRequestMessage) ?: when (issue.problem) {
+    ?: issue.modelFailure?.toAiRequestFailure()?.let(::aiRequestMessage) ?: when (issue.problem) {
         AnalysisProblem.SOURCE -> R.string.detail_source_failed
         AnalysisProblem.SOURCE_CHANGED -> R.string.detail_needs_update
         AnalysisProblem.STORAGE -> R.string.ai_parse_save_failed

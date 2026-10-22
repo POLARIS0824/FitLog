@@ -7,9 +7,9 @@ import com.example.fitlog.data.analysis.SourceKey
 import com.example.fitlog.data.analysis.StoredDiaryParse
 import com.example.fitlog.data.analysis.AnalysisSource
 import com.example.fitlog.data.analysis.DiaryAnalysisSession
+import com.example.fitlog.data.llm.OpenAiChatClientFactory
 import com.example.fitlog.data.vault.MarkdownSnapshot
 import com.example.fitlog.data.vault.MarkdownDocuments
-import io.ktor.client.HttpClient
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -22,12 +22,14 @@ internal suspend fun prepareConfiguredAnalysis(
     providers: AiProviderRepository,
     documents: MarkdownDocuments,
     analysis: DiaryAnalysisRepository,
-    client: HttpClient,
+    chats: OpenAiChatClientFactory,
     recordRead: suspend (AnalysisSource, MarkdownSnapshot) -> Unit,
 ): DiaryAnalysisSession {
     val selection = providers.readActive()
-    val config = OpenAiModelConfig(selection.provider.baseUrl, selection.modelId)
-    val parser = JsonDiaryParser(OpenAiDiaryModelSource(client, config, selection.apiKey))
+    val modelId = selection.modelId
+    val parser = JsonDiaryParser(
+        OpenAiDiaryModelSource(chats.bind(selection.provider.baseUrl, selection.apiKey), modelId)
+    )
     return object : DiaryAnalysisSession {
         override suspend fun read(source: AnalysisSource): DiaryParseInput {
             val snapshot = try { documents.read(source.documentUri) } catch (e: Exception) {
@@ -36,7 +38,11 @@ internal suspend fun prepareConfiguredAnalysis(
             }
             recordRead(source, snapshot)
             return withContext(Dispatchers.Default) {
-                DiaryParseInput.fromSnapshot(source.key, snapshot, config.extractorVersion())
+                DiaryParseInput.fromSnapshot(
+                    source.key,
+                    snapshot,
+                    diaryExtractorVersion(selection.provider.baseUrl, modelId),
+                )
             }
         }
         override suspend fun execute(input: DiaryParseInput) = analysis.parse(input, parser)
@@ -50,17 +56,23 @@ internal suspend fun parseConfiguredDiary(
     providers: AiProviderRepository,
     documents: MarkdownDocuments,
     analysis: DiaryAnalysisRepository,
-    client: HttpClient,
+    chats: OpenAiChatClientFactory,
 ): StoredDiaryParse {
     val selection = providers.readActive()
-    val config = OpenAiModelConfig(selection.provider.baseUrl, selection.modelId)
-    val parser = JsonDiaryParser(OpenAiDiaryModelSource(client, config, selection.apiKey))
+    val modelId = selection.modelId
+    val parser = JsonDiaryParser(
+        OpenAiDiaryModelSource(chats.bind(selection.provider.baseUrl, selection.apiKey), modelId)
+    )
     val snapshot = try { documents.read(documentUri) } catch (e: Exception) {
         if (e is CancellationException) throw e
         throw DiaryOriginalReadException(e)
     }
     val input = withContext(Dispatchers.Default) {
-        DiaryParseInput.fromSnapshot(sourceKey, snapshot, config.extractorVersion())
+        DiaryParseInput.fromSnapshot(
+            sourceKey,
+            snapshot,
+            diaryExtractorVersion(selection.provider.baseUrl, modelId),
+        )
     }
     return analysis.parse(input, parser)
 }

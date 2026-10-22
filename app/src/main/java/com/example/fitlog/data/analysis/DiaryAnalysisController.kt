@@ -160,11 +160,8 @@ class DiaryAnalysisController internal constructor(
     }
 }
 
-internal fun stopsBatch(reason: DiaryParseFailure) = reason in setOf(
-    DiaryParseFailure.TIMEOUT, DiaryParseFailure.NETWORK_ERROR, DiaryParseFailure.AUTHENTICATION_ERROR,
-    DiaryParseFailure.PERMISSION_DENIED, DiaryParseFailure.RATE_LIMITED, DiaryParseFailure.REQUEST_REJECTED,
-    DiaryParseFailure.SERVICE_UNAVAILABLE,
-)
+/** Stop the batch when the provider itself cannot continue; one unparsable answer must not. */
+internal fun stopsBatch(reason: DiaryParseFailure) = reason.toAiRequestFailure()?.isFatal == true
 
 private fun issueFor(error: Exception) = when (error) {
     is DiaryOriginalReadException -> AnalysisIssue(AnalysisProblem.SOURCE)

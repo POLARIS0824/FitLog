@@ -6,8 +6,11 @@ import com.example.fitlog.data.analysis.DiaryParseResult
 import com.example.fitlog.data.analysis.DiaryParser
 
 /** Expected request failures are reported explicitly; cancellation and programming errors propagate. */
-internal fun interface DiaryModelSource {
-    suspend fun request(text: String): DiaryModelResponse
+internal interface DiaryModelSource {
+    suspend fun request(
+        text: String,
+        onTextDelta: suspend (String) -> Unit = {},
+    ): DiaryModelResponse
 }
 
 internal sealed interface DiaryModelResponse {

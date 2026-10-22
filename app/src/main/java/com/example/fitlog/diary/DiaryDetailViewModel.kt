@@ -222,7 +222,9 @@ class DiaryDetailViewModel(
                 currentCoroutineContext().ensureActive()
                 parseMessage = when (val result = stored.result) {
                     is DiaryParseResult.Success -> R.string.ai_parse_saved
-                    is DiaryParseResult.Failure -> aiRequestMessage(result.reason)
+                    is DiaryParseResult.Failure ->
+                        result.reason.toAiRequestFailure()?.let(::aiRequestMessage)
+                            ?: R.string.ai_request_failed
                 }
                 // The file may have changed during inference. Compare against a fresh read.
                 reloadOriginal()
