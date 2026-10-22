@@ -32,6 +32,8 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
     onOpenLog: () -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.resumed() }
     var editingAliases by rememberSaveable { mutableStateOf(false) }
+    var showRecordedSets by rememberSaveable(nameKey) { mutableStateOf(false) }
+    var expandedCurves by rememberSaveable(nameKey) { mutableStateOf(arrayListOf<String>()) }
     val data = vm.data.takeIf { vm.error == null }
     val exercise = data?.exercise(nameKey, vm.range)
     val progress = remember(data, nameKey, vm.range) {
@@ -44,6 +46,10 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
             contentPadding = PaddingValues(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item { FitLogPageHeader(title, onBack = onBack, actions = {
+                if (data != null) IconButton(onClick = { vm.clearAliasError(); editingAliases = true },
+                    enabled = !vm.aliasSaving, shapes = IconButtonDefaults.shapes()) {
+                    Icon(painterResource(R.drawable.edit_24px), stringResource(R.string.insight_manage_aliases))
+                }
                 FilledTonalIconButton(onClick = vm::refresh, enabled = vm.index?.refreshing != true && !vm.aliasSaving,
                     shapes = IconButtonDefaults.shapes()) {
                     Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.insight_refresh))
@@ -93,7 +99,7 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
                                     Text(basisLabel(curve.basis), style = MaterialTheme.typography.titleMediumEmphasized)
                                     Text(stringResource(if (curve.basis == WeightBasis.BODYWEIGHT) R.string.insight_metric_reps else R.string.insight_metric_kg),
                                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    InsightChart(curve)
+                                    InsightChart(curve, onOpen)
                                 }
                             }
                         }
@@ -107,7 +113,13 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
                                 }
                             }
                         }
-                        items(curve.points.reversed(), key = { "${curve.basis}-${it.date}" }) { point ->
+                        item(key = "toggle-points-${curve.basis}") {
+                            TextButton(onClick = {
+                                expandedCurves = ArrayList(if (curve.basis.name in expandedCurves)
+                                    expandedCurves - curve.basis.name else expandedCurves + curve.basis.name)
+                            }) { Text(stringResource(if (curve.basis.name in expandedCurves) R.string.insight_hide_points else R.string.insight_show_points)) }
+                        }
+                        if (curve.basis.name in expandedCurves) items(curve.points.reversed(), key = { "${curve.basis}-${it.date}" }) { point ->
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(stringResource(R.string.insight_point_value, insightDate(point.date), insightNumber(point.value)),
                                     style = MaterialTheme.typography.bodyMedium)
@@ -117,8 +129,12 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
                             }
                         }
                     }
-                    item { FitLogSectionTitle(stringResource(R.string.insight_recorded_sets)) }
-                    items(exercise.occurrences, key = { it.exercise.exercise.id }) { occurrence ->
+                    item {
+                        OutlinedButton(onClick = { showRecordedSets = !showRecordedSets }, shapes = ButtonDefaults.shapes()) {
+                            Text(stringResource(if (showRecordedSets) R.string.insight_hide_sets else R.string.insight_show_sets))
+                        }
+                    }
+                    if (showRecordedSets) items(exercise.occurrences, key = { it.exercise.exercise.id }) { occurrence ->
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             InsightRow(insightDate(occurrence.diary.date), occurrence.diary.title, { onOpen(occurrence.diary.key) })
                             Text(occurrence.exercise.exercise.rawName, style = MaterialTheme.typography.titleSmall)
@@ -130,9 +146,6 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
                         }
                     }
                 }
-                item { OutlinedButton(onClick = { vm.clearAliasError(); editingAliases = true }) {
-                    Text(stringResource(R.string.insight_manage_aliases))
-                } }
             }
         }
     }
@@ -150,40 +163,46 @@ private fun AliasEditor(vm: InsightViewModel, data: InsightData, nameKey: String
     ModalBottomSheet(onDismissRequest = dismiss, sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
         enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
         confirmValueChange = { !vm.aliasSaving || it != SheetValue.Hidden })) {
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 640.dp), contentPadding = PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Text(stringResource(R.string.insight_manage_aliases), style = MaterialTheme.typography.headlineSmall)
-                Text(stringResource(R.string.insight_alias_help), style = MaterialTheme.typography.bodyMedium) }
-            itemsIndexed(options, key = { _, entry -> "member-${entry.key}" }) { index, (key, name) ->
-                val owner = data.aliases.groupFor(key)
-                val occupied = owner != null && owner.primaryKey != existing?.primaryKey
-                SegmentedListItem(checked = key in chosen, shapes = ListItemDefaults.segmentedShapes(index, options.size), onCheckedChange = { checked ->
-                    val changed = if (checked) chosen + key else chosen - key
-                    chosen = ArrayList(changed)
-                    if (primary !in changed) primary = changed.first()
-                }, enabled = !vm.aliasSaving && !occupied && !(chosen.size == 1 && key in chosen),
-                    colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                    content = { Text(name) }, supportingContent = {
-                        if (occupied) Text(stringResource(R.string.insight_alias_owned, requireNotNull(owner).primaryName))
-                    }, trailingContent = { Checkbox(key in chosen, onCheckedChange = null, enabled = !occupied && !vm.aliasSaving) })
+        Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).navigationBarsPadding()) {
+            LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), contentPadding = PaddingValues(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { Text(stringResource(R.string.insight_manage_aliases), style = MaterialTheme.typography.headlineSmall)
+                    Text(stringResource(R.string.insight_alias_help), style = MaterialTheme.typography.bodyMedium) }
+                itemsIndexed(options, key = { _, entry -> "member-${entry.key}" }) { index, (key, name) ->
+                    val owner = data.aliases.groupFor(key)
+                    val occupied = owner != null && owner.primaryKey != existing?.primaryKey
+                    SegmentedListItem(checked = key in chosen, shapes = ListItemDefaults.segmentedShapes(index, options.size), onCheckedChange = { checked ->
+                        val changed = if (checked) chosen + key else chosen - key
+                        chosen = ArrayList(changed)
+                        if (primary !in changed) primary = changed.first()
+                    }, enabled = !vm.aliasSaving && !occupied && !(chosen.size == 1 && key in chosen),
+                        colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                        content = { Text(name) }, supportingContent = {
+                            if (occupied) Text(stringResource(R.string.insight_alias_owned, requireNotNull(owner).primaryName))
+                        }, trailingContent = { Checkbox(key in chosen, onCheckedChange = null, enabled = !occupied && !vm.aliasSaving) })
+                }
+                item { FitLogSectionTitle(stringResource(R.string.insight_alias_primary)) }
+                itemsIndexed(chosen.toList(), key = { _, key -> "primary-$key" }) { index, key ->
+                    SegmentedListItem(onClick = { primary = key }, enabled = !vm.aliasSaving,
+                        shapes = ListItemDefaults.segmentedShapes(index, chosen.size),
+                        modifier = Modifier.semantics { role = Role.RadioButton; selected = primary == key },
+                        colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                        content = { Text(names[key] ?: key) },
+                        trailingContent = { RadioButton(primary == key, onClick = null, enabled = !vm.aliasSaving) })
+                }
             }
-            item { FitLogSectionTitle(stringResource(R.string.insight_alias_primary)) }
-            itemsIndexed(chosen.toList(), key = { _, key -> "primary-$key" }) { index, key ->
-                SegmentedListItem(onClick = { primary = key }, enabled = !vm.aliasSaving,
-                    shapes = ListItemDefaults.segmentedShapes(index, chosen.size),
-                    modifier = Modifier.semantics { role = Role.RadioButton; selected = primary == key },
-                    colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                    content = { Text(names[key] ?: key) },
-                    trailingContent = { RadioButton(primary == key, onClick = null, enabled = !vm.aliasSaving) })
-            }
-            item {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 vm.aliasError?.let { FitLogNotice(stringResource(it), error = true) }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = dismiss, enabled = !vm.aliasSaving, shapes = ButtonDefaults.shapes()) {
+                        Text(stringResource(R.string.insight_alias_cancel))
+                    }
                     Button(onClick = { vm.saveAliases(existing?.primaryKey,
-                        ExerciseAliasGroup(names[primary] ?: primary, chosen.sorted()), onDismiss) }, enabled = !vm.aliasSaving) {
+                        ExerciseAliasGroup(names[primary] ?: primary, chosen.sorted()), onDismiss) },
+                        enabled = !vm.aliasSaving, shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.insight_alias_save))
                     }
-                    OutlinedButton(onClick = dismiss, enabled = !vm.aliasSaving) { Text(stringResource(R.string.insight_alias_cancel)) }
                 }
                 if (existing != null) TextButton(onClick = { vm.saveAliases(existing.primaryKey, null, onDismiss) }, enabled = !vm.aliasSaving) {
                     Text(stringResource(R.string.insight_alias_dissolve))

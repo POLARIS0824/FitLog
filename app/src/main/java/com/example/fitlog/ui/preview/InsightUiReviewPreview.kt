@@ -168,7 +168,7 @@ private fun ExerciseChartReviewContent() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 InsightChart(InsightSeries(WeightBasis.TOTAL, listOf(40.0, 45.0, 42.5, 50.0).mapIndexed { index, value ->
                     InsightPoint(LocalDate.parse(PreviewDiary.DATE).minusDays((3L - index) * 7), value, emptyList())
-                }))
+                }), onOpen = {})
             }
         } }
     }

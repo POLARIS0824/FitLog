@@ -73,4 +73,11 @@
     <string name="insight_alias_cancel">Cancel</string>
     <string name="insight_alias_dissolve">Separate all names in this group</string>
     <string name="insight_alias_save_failed">Could not save aliases. Your selection is kept; try saving again.</string>
+    <string name="insight_previous_point">Previous data point</string>
+    <string name="insight_next_point">Next data point</string>
+    <string name="insight_show_points">Show all daily values</string>
+    <string name="insight_hide_points">Hide daily values</string>
+    <string name="insight_show_sets">Show recorded sets</string>
+    <string name="insight_hide_sets">Hide recorded sets</string>
+    <string name="insight_source_number">View record %1$d</string>
 </resources>

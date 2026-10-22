@@ -3,6 +3,7 @@
 package com.example.fitlog.insight
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,11 +21,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.data.analysis.ConfirmedSetRow
@@ -39,6 +46,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlinx.coroutines.flow.first
+import kotlin.math.abs
 
 internal fun insightNumber(value: Number): String = NumberFormat.getNumberInstance().apply { maximumFractionDigits = 2 }.format(value)
 internal fun insightDate(value: LocalDate): String = value.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
@@ -165,28 +173,75 @@ internal fun InsightHeatmap(data: InsightData) {
 }
 
 @Composable
-internal fun InsightChart(series: InsightSeries) {
+internal fun InsightChart(series: InsightSeries, onOpen: (String) -> Unit) {
     val points = series.points
+    if (points.isEmpty()) return
+    var selectedDate by rememberSaveable(series.basis, points) { mutableStateOf(points.last().date.toString()) }
+    val selectedIndex = points.indexOfFirst { it.date.toString() == selectedDate }.coerceAtLeast(0)
+    val selected = points[selectedIndex]
     val color = MaterialTheme.colorScheme.primary
     val axis = MaterialTheme.colorScheme.outline
+    val minimum = points.minOf { it.value }
+    val maximum = points.maxOf { it.value }
+    val spread = (maximum - minimum).takeIf { it > 0 } ?: 1.0
+    val start = points.first().date.toEpochDay()
+    val days = (points.last().date.toEpochDay() - start).coerceAtLeast(1)
     val description = stringResource(R.string.insight_chart_description, points.size,
         insightDate(points.first().date), insightDate(points.last().date))
-    Canvas(Modifier.fillMaxWidth().height(160.dp).semantics { contentDescription = description }) {
-        val inset = 12.dp.toPx()
-        val minimum = points.minOf { it.value }
-        val maximum = points.maxOf { it.value }
-        val spread = (maximum - minimum).takeIf { it > 0 } ?: 1.0
-        val start = points.first().date.toEpochDay()
-        val days = (points.last().date.toEpochDay() - start).coerceAtLeast(1)
-        fun position(point: InsightPoint): Offset = Offset(
-            if (points.size == 1) size.width / 2 else inset + ((point.date.toEpochDay() - start).toDouble() / days * (size.width - inset * 2)).toFloat(),
-            if (maximum == minimum) size.height / 2 else size.height - inset - ((point.value - minimum) / spread * (size.height - inset * 2)).toFloat())
-        drawLine(axis, Offset(inset, size.height - inset), Offset(size.width - inset, size.height - inset), 1.dp.toPx())
-        points.zipWithNext().forEach { (a, b) -> drawLine(color, position(a), position(b), 3.dp.toPx()) }
-        points.forEach { drawCircle(color, 4.dp.toPx(), position(it)) }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.height(160.dp).padding(vertical = 4.dp), verticalArrangement = if (minimum == maximum) Arrangement.Center else Arrangement.SpaceBetween) {
+            Text(insightNumber(maximum), style = MaterialTheme.typography.labelSmall)
+            if (minimum != maximum) {
+                Text(insightNumber(minimum + (maximum - minimum) / 2), style = MaterialTheme.typography.labelSmall)
+                Text(insightNumber(minimum), style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Canvas(Modifier.fillMaxWidth().height(160.dp).semantics { contentDescription = description }
+                .pointerInput(points) {
+                    detectTapGestures { tap ->
+                        val inset = 12.dp.toPx()
+                        val fraction = ((tap.x - inset) / (size.width - inset * 2).coerceAtLeast(1f)).coerceIn(0f, 1f)
+                        val day = start + fraction.toDouble() * days
+                        selectedDate = points.minBy { abs(it.date.toEpochDay() - day) }.date.toString()
+                    }
+                }) {
+                val inset = 12.dp.toPx()
+                fun position(point: InsightPoint): Offset = Offset(
+                    if (points.size == 1) size.width / 2 else inset + ((point.date.toEpochDay() - start).toDouble() / days * (size.width - inset * 2)).toFloat(),
+                    if (maximum == minimum) size.height / 2 else size.height - inset - ((point.value - minimum) / spread * (size.height - inset * 2)).toFloat())
+                drawLine(axis, Offset(inset, size.height - inset), Offset(size.width - inset, size.height - inset), 1.dp.toPx())
+                points.zipWithNext().forEach { (a, b) -> drawLine(color, position(a), position(b), 3.dp.toPx()) }
+                points.forEach { drawCircle(color, 4.dp.toPx(), position(it)) }
+                drawCircle(color, 9.dp.toPx(), position(selected), style = Stroke(2.dp.toPx()))
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(insightDate(points.first().date), style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                if (points.size > 1) Text(insightDate(points.last().date), style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            }
+        }
     }
-    Text(stringResource(R.string.insight_chart_bounds, insightNumber(points.minOf { it.value }), insightNumber(points.maxOf { it.value })),
-        style = MaterialTheme.typography.bodySmall)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { selectedDate = points[selectedIndex - 1].date.toString() }, enabled = selectedIndex > 0,
+            shapes = IconButtonDefaults.shapes()) {
+            Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.insight_previous_point))
+        }
+        Text(stringResource(R.string.insight_point_value, insightDate(selected.date), insightNumber(selected.value)),
+            style = MaterialTheme.typography.bodyMediumEmphasized,
+            modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
+        IconButton(onClick = { selectedDate = points[selectedIndex + 1].date.toString() }, enabled = selectedIndex < points.lastIndex,
+            shapes = IconButtonDefaults.shapes()) {
+            Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.insight_next_point),
+                Modifier.graphicsLayer { rotationZ = 180f })
+        }
+    }
+    selected.recordIds.forEachIndexed { index, id ->
+        TextButton(onClick = { onOpen(id) }) {
+            Text(if (selected.recordIds.size == 1) stringResource(R.string.insight_view_source)
+                else stringResource(R.string.insight_source_number, index + 1))
+        }
+    }
     if (points.size == 1) Text(stringResource(R.string.insight_single_point), style = MaterialTheme.typography.bodySmall)
 }
 
