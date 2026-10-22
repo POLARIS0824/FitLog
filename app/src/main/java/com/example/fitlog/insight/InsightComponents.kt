@@ -52,10 +52,11 @@ internal fun insightNumber(value: Number): String = NumberFormat.getNumberInstan
 internal fun insightDate(value: LocalDate): String = value.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
 
 @Composable
-internal fun InsightRangePicker(range: InsightRange, onSelect: (InsightRange) -> Unit) {
+internal fun InsightRangePicker(range: InsightRange, onSelect: (InsightRange) -> Unit, enabled: Boolean = true) {
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
         InsightRange.entries.forEachIndexed { index, value ->
             ToggleButton(checked = range == value, onCheckedChange = { onSelect(value) },
+                enabled = enabled,
                 modifier = Modifier.heightIn(min = 48.dp).semantics { role = Role.RadioButton },
                 colors = ToggleButtonDefaults.colors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,

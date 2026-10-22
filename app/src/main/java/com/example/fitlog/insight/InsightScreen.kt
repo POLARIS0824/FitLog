@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -20,7 +22,6 @@ import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogSectionTitle
 import java.time.LocalDate
 import com.example.fitlog.R
-import com.example.fitlog.ui.components.FitLogPageHeader
 
 @Composable
 fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (String) -> Unit,
@@ -30,13 +31,15 @@ fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (String) 
     val data = vm.data.takeIf { vm.error == null && !vm.loading }
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         if (data == null) {
-            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                FitLogPageHeader(stringResource(R.string.insight_title), actions = { InsightRefreshAction(vm) })
-                InsightReadState(vm, onOpenLog)
+            InsightPage(headerActions = { InsightRefreshAction(vm) }) {
+                Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    InsightReadState(vm, onOpenLog)
+                }
             }
         } else InsightDashboardContent(data, vm.range, vm.focusedKeys, vm::selectRange,
             onManageFocus = { vm.clearFocusError(); sheet = "focus" }, onExercise, onOpen, onOpenLog,
             onSheet = { sheet = it }, headerActions = { InsightRefreshAction(vm) },
+            rangeEnabled = !vm.rangeSaving,
             notices = { InsightCoverage(vm, showScanTime = false) })
     }
     if (sheet == "focus" && data != null) {
@@ -49,6 +52,24 @@ fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (String) 
                 val diaries = data.activity()[day].orEmpty()
                 if (diaries.size == 1) { sheet = null; onOpen(diaries.single().key) } else sheet = day.toString()
             })
+    }
+}
+
+@Composable
+private fun InsightPage(
+    headerActions: @Composable RowScope.() -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Column(Modifier.widthIn(max = 720.dp).fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+        TopAppBar(
+            title = {
+                Text(stringResource(R.string.insight_title), style = MaterialTheme.typography.headlineLargeEmphasized,
+                    modifier = Modifier.semantics { heading() })
+            },
+            actions = headerActions,
+            windowInsets = WindowInsets(0, 0, 0, 0),
+        )
+        Box(Modifier.weight(1f).fillMaxWidth()) { content() }
     }
 }
 
@@ -74,16 +95,16 @@ internal fun InsightDashboardContent(
     onOpenLog: () -> Unit = {},
     onSheet: (String) -> Unit = {},
     headerActions: @Composable RowScope.() -> Unit = {},
+    rangeEnabled: Boolean = true,
     notices: @Composable () -> Unit = {},
-) {
+) = InsightPage(headerActions) {
     val overview = remember(data, range) { data.overview(range) }
     val focused = remember(overview, focusedKeys) { overview.focused(focusedKeys) }
-    LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxSize(),
+    LazyColumn(Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { FitLogPageHeader(stringResource(R.string.insight_title), actions = headerActions) }
         item { notices() }
-        item { InsightRangePicker(range, onSelectRange) }
+        item { InsightRangePicker(range, onSelectRange, enabled = rangeEnabled) }
         item { InsightSummary(overview) }
         if (overview.totals.sessions == 0) item {
             Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
