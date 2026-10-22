@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="insight_range_save_failed">时间范围保存失败，请重新选择以重试。</string>
     <string name="insight_heatmap_size_legend">从上到下为周一至周日 · 圆点越大，已记录的训练场次越多；空白格不代表休息日</string>
 </resources>

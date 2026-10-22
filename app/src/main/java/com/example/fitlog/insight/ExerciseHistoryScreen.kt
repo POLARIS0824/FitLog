@@ -52,7 +52,7 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
             if (vm.loading || vm.error != null) item { InsightReadState(vm, onOpenLog) }
             if (data != null) {
                 item { InsightCoverage(vm) }
-                item { InsightRangePicker(vm.range, vm::selectRange) }
+                item { InsightRangePicker(vm.range, vm::selectRange, enabled = !vm.rangeSaving) }
                 if (exercise == null) item { FitLogNotice(stringResource(R.string.insight_no_exercise_records)) }
                 else {
                     item { Text(stringResource(R.string.insight_exercise_summary,

@@ -39,6 +39,7 @@ class InsightViewModel(
     var focusedKeys by mutableStateOf<Set<String>?>(null); private set
     var focusSaving by mutableStateOf(false); private set
     var focusError by mutableStateOf<Int?>(null); private set
+    var rangeSaving by mutableStateOf(false); private set
     var range by mutableStateOf(InsightRange.entries.firstOrNull {
         it.name == (savedState.get<String>("insightRange") ?: initialRange)
     } ?: InsightRange.NINETY); private set
@@ -65,9 +66,14 @@ class InsightViewModel(
                                 message = R.string.insight_read_failed; emit(null) }
                     } ?: flowOf(null)
                     combine(snapshots, reader.observeRecords(), aliasStore.observe(),
-                        preferences?.observe(vault?.vaultId) ?: flowOf(null)) { snapshot, records, aliases, focused ->
-                        Input(vault?.vaultId, snapshot, records, aliases) to focused
-                    }.collect { (next, focused) ->
+                        preferences?.observe(vault?.vaultId) ?: flowOf(null),
+                        preferences?.observeRange() ?: flowOf(null)) { snapshot, records, aliases, focused, selectedRange ->
+                        Triple(Input(vault?.vaultId, snapshot, records, aliases), focused, selectedRange)
+                    }.collect { (next, focused, selectedRange) ->
+                        InsightRange.entries.firstOrNull { it.name == selectedRange }?.let {
+                            range = it
+                            savedState["insightRange"] = it.name
+                        }
                         focusedKeys = focused
                         input = next; index = next.index
                         data = buildInsightData(next.vaultId, next.index, next.records, next.aliases, localDate())
@@ -80,7 +86,21 @@ class InsightViewModel(
             }
         }
     }
-    fun selectRange(value: InsightRange) { range = value; savedState["insightRange"] = value.name }
+    fun selectRange(value: InsightRange) {
+        if (rangeSaving || loading || error != null) return
+        rangeSaving = true
+        message = null
+        viewModelScope.launch {
+            try {
+                preferences?.saveRange(value.name)
+                range = value
+                savedState["insightRange"] = value.name
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                message = R.string.insight_range_save_failed
+            } finally { rangeSaving = false }
+        }
+    }
     fun refresh() { if (index?.refreshing != true && !aliasSaving) { message = null; observe(true) } }
     fun resumed() { input?.let { next ->
         if (data?.today != localDate()) data = buildInsightData(next.vaultId, next.index, next.records, next.aliases, localDate())
