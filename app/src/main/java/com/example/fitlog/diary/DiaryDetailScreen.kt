@@ -180,82 +180,85 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
     // The first confirmation read determines the result selector and candidate provenance.
     // Show that metadata together with the candidate, rather than inserting it above visible sets.
     val initialConfirmationRead = state.confirmationLoading && state.confirmed == null && state.review == null
-    LazyColumn(modifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        item(key = "status") {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.detail_review_help), style = MaterialTheme.typography.bodyMedium)
-                AnalysisStatusCard(state, actions, showParsesLoading, showConfirmationLoading)
-                if (state.sourceReadFailed) FitLogNotice(stringResource(R.string.detail_source_failed), error = true)
-                if (state.parsesReadFailed || state.confirmationReadFailed || state.parses.candidateReadFailed) {
-                    FitLogNotice(stringResource(if (state.parses.candidateReadFailed) R.string.detail_candidate_damaged else R.string.detail_analysis_failed), error = true)
-                    TextButton(onClick = actions.retryAnalysis, enabled = !state.parsesLoading && !state.confirmationLoading) {
-                        Text(stringResource(R.string.detail_retry_analysis))
-                    }
-                }
-                state.parseMessage?.let { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
-                if (state.analysisIndexWarning) FitLogNotice(stringResource(R.string.log_analysis_index_warning), error = true)
-                state.reviewMessage?.let { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium,
-                    color = if (it == R.string.detail_review_saved) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error) }
-                if (state.confirmed != null && state.parses.latestCandidate != null) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = !candidateSelected, onClick = { actions.selectResult(false) },
-                            enabled = state.review == null && !state.reviewSaving, label = { Text(stringResource(R.string.detail_confirmed_result)) })
-                        FilterChip(selected = candidateSelected, onClick = { actions.selectResult(true) },
-                            enabled = state.review == null && !state.reviewSaving, label = { Text(stringResource(R.string.detail_candidate_result)) })
-                    }
-                }
-            }
-        }
-        state.parses.latestFailure?.let { failure ->
-            item(key = "failure") {
-                FitLogNotice(stringResource(R.string.detail_failure_summary,
-                    DateFormat.getDateTimeInstance().format(Date(failure.finishedAt)), stringResource(failureLabel(failure))), error = true)
-            }
-        }
-        if (state.review != null) {
-            reviewItems(state.review, state.parses.latestCandidate?.takeIf { it.attempt.id == state.review.parseRunId && state.review.fromCandidate }, state.canReview, onEdit,
-                freshness = state.candidateStatus, usedForConfirmation = state.confirmed?.diary?.parseRunId == state.review.parseRunId,
-                onEditExercise = onEditExercise, checkingSource = state.sourceLoading && state.original == null,
-                onDeleteExercise = onDeleteExercise)
-        } else if (!initialConfirmationRead && candidateSelected) state.parses.latestCandidate?.let { candidate ->
-            candidateItems(candidate, state.candidateStatus, state.confirmed?.diary?.parseRunId == candidate.attempt.id,
-                canEdit = state.canReview, onEdit = onEdit, onEditExercise = onEditExercise,
-                checkingSource = state.sourceLoading && state.original == null, onDeleteExercise = onDeleteExercise)
-        } else if (!initialConfirmationRead) confirmedItems(requireNotNull(state.confirmed), canEdit = state.canReview,
-            onEdit = onEdit, onEditExercise = onEditExercise, onDeleteExercise = onDeleteExercise)
-        if (!state.parsesLoading && !state.confirmationLoading && state.parses.latestCandidate == null && state.confirmed == null) {
-            item(key = "empty") { Text(stringResource(R.string.detail_no_saved_result)) }
-        }
-        if (state.canReview || state.reviewSaving) {
-            val sessions = state.review?.sessions?.map { it.exercises.size }
-                ?: if (candidateSelected) state.parses.latestCandidate?.analysis?.sessions?.map { it.exercises.size }.orEmpty()
-                else requireNotNull(state.confirmed).sessions.map { it.exercises.size }
-            sessions.ifEmpty { listOf(0) }.forEachIndexed { session, exerciseCount ->
-                item(key = "add-exercise:$session") {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { onEditExercise(DiaryExerciseAddress(session, exerciseCount)) }, enabled = state.canReview) {
-                            Text(stringResource(if (sessions.size > 1) R.string.detail_add_session_exercise else R.string.detail_add_exercise, session + 1))
+    Column(modifier) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            item(key = "status") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(R.string.detail_review_help), style = MaterialTheme.typography.bodyMedium)
+                    AnalysisStatusCard(state, actions, showParsesLoading, showConfirmationLoading)
+                    if (state.sourceReadFailed) FitLogNotice(stringResource(R.string.detail_source_failed), error = true)
+                    if (state.parsesReadFailed || state.confirmationReadFailed || state.parses.candidateReadFailed) {
+                        FitLogNotice(stringResource(if (state.parses.candidateReadFailed) R.string.detail_candidate_damaged else R.string.detail_analysis_failed), error = true)
+                        TextButton(onClick = actions.retryAnalysis, enabled = !state.parsesLoading && !state.confirmationLoading) {
+                            Text(stringResource(R.string.detail_retry_analysis))
                         }
-                        if (session in sessions.indices) TextButton(onClick = { onDeleteSession(session) }, enabled = state.canReview,
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                            Text(stringResource(R.string.detail_delete_session, session + 1))
+                    }
+                    state.parseMessage?.let { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
+                    if (state.analysisIndexWarning) FitLogNotice(stringResource(R.string.log_analysis_index_warning), error = true)
+                    state.reviewMessage?.let { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium,
+                        color = if (it == R.string.detail_review_saved) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error) }
+                    if (state.confirmed != null && state.parses.latestCandidate != null) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(selected = !candidateSelected, onClick = { actions.selectResult(false) },
+                                enabled = state.review == null && !state.reviewSaving, label = { Text(stringResource(R.string.detail_confirmed_result)) })
+                            FilterChip(selected = candidateSelected, onClick = { actions.selectResult(true) },
+                                enabled = state.review == null && !state.reviewSaving, label = { Text(stringResource(R.string.detail_candidate_result)) })
                         }
                     }
                 }
             }
-            if (sessions.any { it > 0 }) item(key = "clear-training") {
-                TextButton(onClick = onClearTraining, enabled = state.canReview,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                    Text(stringResource(R.string.detail_clear_training))
+            state.parses.latestFailure?.let { failure ->
+                item(key = "failure") {
+                    FitLogNotice(stringResource(R.string.detail_failure_summary,
+                        DateFormat.getDateTimeInstance().format(Date(failure.finishedAt)), stringResource(failureLabel(failure))), error = true)
                 }
             }
-            item(key = "review-action") {
-                Button(onClick = onConfirm, enabled = state.canReview, modifier = Modifier.fillMaxWidth(),
-                    shapes = ButtonDefaults.shapes()) {
-                    Icon(painterResource(R.drawable.check_24px), null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(if (state.review == null) R.string.detail_confirm_save else R.string.detail_save_corrections))
+            if (state.review != null) {
+                reviewItems(state.review, state.parses.latestCandidate?.takeIf { it.attempt.id == state.review.parseRunId && state.review.fromCandidate }, state.canReview, onEdit,
+                    freshness = state.candidateStatus, usedForConfirmation = state.confirmed?.diary?.parseRunId == state.review.parseRunId,
+                    onEditExercise = onEditExercise, checkingSource = state.sourceLoading && state.original == null,
+                    onDeleteExercise = onDeleteExercise)
+            } else if (!initialConfirmationRead && candidateSelected) state.parses.latestCandidate?.let { candidate ->
+                candidateItems(candidate, state.candidateStatus, state.confirmed?.diary?.parseRunId == candidate.attempt.id,
+                    canEdit = state.canReview, onEdit = onEdit, onEditExercise = onEditExercise,
+                    checkingSource = state.sourceLoading && state.original == null, onDeleteExercise = onDeleteExercise)
+            } else if (!initialConfirmationRead) confirmedItems(requireNotNull(state.confirmed), canEdit = state.canReview,
+                onEdit = onEdit, onEditExercise = onEditExercise, onDeleteExercise = onDeleteExercise)
+            if (!state.parsesLoading && !state.confirmationLoading && state.parses.latestCandidate == null && state.confirmed == null) {
+                item(key = "empty") { Text(stringResource(R.string.detail_no_saved_result)) }
+            }
+            if (state.canReview || state.reviewSaving) {
+                val sessions = state.review?.sessions?.map { it.exercises.size }
+                    ?: if (candidateSelected) state.parses.latestCandidate?.analysis?.sessions?.map { it.exercises.size }.orEmpty()
+                    else requireNotNull(state.confirmed).sessions.map { it.exercises.size }
+                sessions.ifEmpty { listOf(0) }.forEachIndexed { session, exerciseCount ->
+                    item(key = "add-exercise:$session") {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { onEditExercise(DiaryExerciseAddress(session, exerciseCount)) }, enabled = state.canReview) {
+                                Text(stringResource(if (sessions.size > 1) R.string.detail_add_session_exercise else R.string.detail_add_exercise, session + 1))
+                            }
+                            if (session in sessions.indices) TextButton(onClick = { onDeleteSession(session) }, enabled = state.canReview,
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                                Text(stringResource(R.string.detail_delete_session, session + 1))
+                            }
+                        }
+                    }
                 }
+                if (sessions.any { it > 0 }) item(key = "clear-training") {
+                    TextButton(onClick = onClearTraining, enabled = state.canReview,
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                        Text(stringResource(R.string.detail_clear_training))
+                    }
+                }
+            }
+        }
+        if (state.canReview || state.reviewSaving) Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+            Button(onClick = onConfirm, enabled = state.canReview,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                shapes = ButtonDefaults.shapes()) {
+                Icon(painterResource(R.drawable.check_24px), null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(if (state.review == null) R.string.detail_confirm_save else R.string.detail_save_corrections))
             }
         }
     }
@@ -295,13 +298,15 @@ private fun AnalysisStatusCard(state: DiaryDetailUiState, actions: DiaryDetailAc
                     if (state.parsing) TextButton(onClick = actions.cancelParse) { Text(stringResource(R.string.ai_cancel_request)) }
                     FilledTonalButton(onClick = actions.parse,
                         enabled = extractionIdle && !state.sourceLoading,
-                        colors = if (state.sourceLoading && extractionIdle) ButtonDefaults.filledTonalButtonColors(
-                            disabledContainerColor = extractionColors.containerColor,
-                            disabledContentColor = extractionColors.contentColor) else extractionColors,
+                        colors = extractionColors,
                         shapes = ButtonDefaults.shapes()) {
                         Icon(painterResource(R.drawable.auto_awesome_24px), null)
                         Spacer(Modifier.width(8.dp))
-                        Text(stringResource(if (hasExtraction) R.string.ai_reparse else R.string.ai_parse))
+                        Text(stringResource(when {
+                            state.sourceLoading && extractionIdle -> R.string.detail_reading_source
+                            hasExtraction -> R.string.ai_reparse
+                            else -> R.string.ai_parse
+                        }))
                     }
                 }
             }

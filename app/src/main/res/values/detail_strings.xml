@@ -92,4 +92,5 @@
     <string name="detail_failure_service">The AI provider is temporarily unavailable.</string>
     <string name="detail_failure_empty">The model returned no answer.</string>
     <string name="detail_failure_truncated">The model answer was cut off. No candidate was accepted.</string>
+    <string name="detail_reading_source">Reading source…</string>
 </resources>
