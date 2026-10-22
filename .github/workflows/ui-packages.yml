@@ -33,9 +33,28 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Use official repositories for the hosted build
+        run: |
+          cat > "$RUNNER_TEMP/fitlog-repositories.gradle" <<'EOF'
+          settingsEvaluated { settings ->
+              settings.pluginManagement.repositories {
+                  clear()
+                  mavenCentral()
+                  google()
+                  gradlePluginPortal()
+              }
+              settings.dependencyResolutionManagement.repositories {
+                  clear()
+                  mavenCentral()
+                  google()
+              }
+          }
+          EOF
+
       - name: Build Debug and Release APKs and run lint
         run: >-
           bash ./gradlew :app:assembleDebug :app:assembleRelease :app:lint
+          --init-script "$RUNNER_TEMP/fitlog-repositories.gradle"
           --no-daemon --no-parallel --max-workers=1
           -Dorg.gradle.jvmargs='-Xmx2048m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
           -Pkotlin.compiler.execution.strategy=in-process
