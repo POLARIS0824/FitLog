@@ -39,7 +39,7 @@ jobs:
           --no-daemon --no-parallel --max-workers=1
           -Dorg.gradle.jvmargs='-Xmx2048m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
           -Pkotlin.compiler.execution.strategy=in-process
-          --console=plain
+          --refresh-dependencies --info --console=plain
 
       - name: Prepare packages
         run: |
