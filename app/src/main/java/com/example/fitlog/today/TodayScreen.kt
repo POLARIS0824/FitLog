@@ -1,5 +1,8 @@
 package com.example.fitlog.today
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.example.fitlog.ui.components.*
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -33,6 +36,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -60,36 +64,43 @@ fun TodayScreen(
     val date = LocalDate.now().format(
         DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale)
     )
+    val behavior = rememberFitLogTopAppBarBehavior(expanded = true)
+    val windowSize = LocalWindowInfo.current.containerSize
+    val windowWidth = with(LocalDensity.current) { windowSize.width.toDp() }
     val fontScale = LocalDensity.current.fontScale
-    BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        val horizontalPadding = if (maxWidth < 600.dp) 16.dp else 24.dp
-        // Page spacing and widths are design choices, separate from Material component tokens.
-        val showSupportingColumn = maxWidth >= 840.dp && fontScale < 1.5f
-        val showIllustration = maxHeight >= 600.dp
-        LazyColumn(
-            modifier = Modifier.widthIn(max = if (showSupportingColumn) 1040.dp else 640.dp).fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = horizontalPadding,
-                top = 16.dp,
-                end = horizontalPadding,
-                bottom = 120.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(32.dp),
-        ) {
-            item(key = "header") { TodayHeader(onSettings = onSettings, date = date) }
-            item(key = "content") {
-                if (showSupportingColumn) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                        TodayTrainingCard(onOpenToday, showIllustration, Modifier.weight(1f))
-                        TodayLibrary(onOpenLog, onImportFolder, Modifier.weight(1f))
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(32.dp),
-                    ) {
-                        TodayTrainingCard(onOpenToday, showIllustration)
-                        TodayLibrary(onOpenLog, onImportFolder)
+    Column(modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection)) {
+        TodayHeader(onSettings, date, behavior,
+            if (windowWidth >= FitLogDimens.WideContentWidth && fontScale < 1.5f)
+                FitLogDimens.WideContentWidth else FitLogDimens.ContentWidth)
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            val horizontalPadding = fitLogPagePadding()
+            // Page spacing and widths are design choices, separate from Material component tokens.
+            val showSupportingColumn = maxWidth >= FitLogDimens.WideContentWidth && fontScale < 1.5f
+            val showIllustration = maxHeight >= 600.dp
+            LazyColumn(
+                modifier = Modifier.widthIn(max = if (showSupportingColumn) FitLogDimens.WideContentWidth else FitLogDimens.ContentWidth).fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = horizontalPadding,
+                    top = 16.dp,
+                    end = horizontalPadding,
+                    bottom = FitLogDimens.TodayBottomPadding,
+                ),
+                verticalArrangement = Arrangement.spacedBy(32.dp),
+            ) {
+                item(key = "content") {
+                    if (showSupportingColumn) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                            TodayTrainingCard(onOpenToday, showIllustration, Modifier.weight(1f))
+                            TodayLibrary(onOpenLog, onImportFolder, Modifier.weight(1f))
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier.widthIn(max = FitLogDimens.ContentWidth).fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(32.dp),
+                        ) {
+                            TodayTrainingCard(onOpenToday, showIllustration)
+                            TodayLibrary(onOpenLog, onImportFolder)
+                        }
                     }
                 }
             }
@@ -127,7 +138,7 @@ private fun TodayTrainingCard(
             }
         }
         val largeText = LocalDensity.current.fontScale >= 1.3f
-        val height = ButtonDefaults.LargeContainerHeight
+        val height = ButtonDefaults.MediumContainerHeight
         Button(
             onClick = onOpenToday,
             shapes = ButtonDefaults.shapesFor(height),
@@ -145,8 +156,7 @@ private fun TodayTrainingCard(
             }
             Text(
                 text = stringResource(R.string.today_write),
-                style = if (largeText) MaterialTheme.typography.titleMediumEmphasized
-                    else MaterialTheme.typography.titleLargeEmphasized,
+                style = MaterialTheme.typography.titleMediumEmphasized,
             )
         }
     }

@@ -1,5 +1,6 @@
 package com.example.fitlog.settings
 
+import androidx.compose.material3.ButtonDefaults
 import android.os.Build
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,7 +60,7 @@ internal fun SettingsScreen(
                         is VaultConfigState.Configured -> R.string.settings_ui_vault_connected
                         is VaultConfigState.Failed -> R.string.vault_error_load_config_failed
                     }), onVaultManagement, tone = 1)
-                if (config is VaultConfigState.Failed) TextButton(onClick = onRetryVault) {
+                if (config is VaultConfigState.Failed) TextButton(onClick = onRetryVault, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.log_retry))
                 }
             }

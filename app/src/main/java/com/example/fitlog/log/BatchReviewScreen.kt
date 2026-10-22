@@ -1,5 +1,8 @@
 package com.example.fitlog.log
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.example.fitlog.ui.components.*
+
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,9 +31,6 @@ import com.example.fitlog.data.index.IndexedSource
 import com.example.fitlog.diary.basisLabel
 import com.example.fitlog.diary.validationLabel
 import com.example.fitlog.diary.weightLabel
-import com.example.fitlog.ui.components.FitLogNotice
-import com.example.fitlog.ui.components.FitLogProgressFeedback
-import com.example.fitlog.ui.components.rememberDelayedLoading
 import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.PreviewDiary
@@ -51,15 +51,15 @@ internal fun BatchReviewContent(items: List<BatchReviewItem>, selected: Set<Stri
     val ready = items.filter { it.assessment.eligibility == BatchReviewEligibility.READY }
     val checked = ready.count { it.id in selected }
     val readyState = when { checked == 0 -> ToggleableState.Off; checked == ready.size -> ToggleableState.On; else -> ToggleableState.Indeterminate }
-    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        TopAppBar(title = { Text(stringResource(R.string.batch_review_title)) },
-            navigationIcon = { IconButton(onClick = onBack, enabled = !saving, shapes = IconButtonDefaults.shapes()) {
-                Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
-            } }, actions = { IconButton(onClick = onRefresh, enabled = !saving, shapes = IconButtonDefaults.shapes()) {
+    val behavior = rememberFitLogTopAppBarBehavior()
+    val pagePadding = fitLogPagePadding()
+    Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
+        FitLogTopAppBar(stringResource(R.string.batch_review_title), behavior, onBack = onBack,
+            backEnabled = !saving, actions = { IconButton(onClick = onRefresh, enabled = !saving, shapes = IconButtonDefaults.shapes()) {
                 Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.log_refresh))
             } })
-        Box(Modifier.weight(1f).widthIn(max = 840.dp).fillMaxWidth()) {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.weight(1f).widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth()) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(pagePadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item(key = "selection") {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.batch_review_explanation), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -110,10 +110,10 @@ internal fun BatchReviewContent(items: List<BatchReviewItem>, selected: Set<Stri
         Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
             Button(onClick = onSubmit, enabled = selected.isNotEmpty() && !saving && !loading && !readFailed && activeVault,
                 shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
-                modifier = Modifier.widthIn(max = 840.dp).fillMaxWidth().navigationBarsPadding().padding(16.dp)
+                modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().navigationBarsPadding().padding(16.dp)
                     .heightIn(min = ButtonDefaults.MediumContainerHeight)) {
                 Text(stringResource(if (saving) R.string.batch_review_saving else R.string.batch_review_confirm, selected.size),
-                    style = MaterialTheme.typography.labelLargeEmphasized)
+                    style = MaterialTheme.typography.titleMediumEmphasized)
             }
         }
     }
@@ -151,9 +151,9 @@ private fun BatchReviewRow(item: BatchReviewItem, selected: Boolean, enabled: Bo
                 candidate.modelIssues.forEach { Text(it.question, style = MaterialTheme.typography.bodySmall) }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { expanded = !expanded }) { Text(stringResource(
+                TextButton(onClick = { expanded = !expanded }, shapes = ButtonDefaults.shapes()) { Text(stringResource(
                     if (expanded) R.string.batch_review_collapse else R.string.batch_review_expand)) }
-                TextButton(onClick = onOpen, enabled = enabled && item.source != null && item.source.status != IndexedSource.MISSING) {
+                TextButton(onClick = onOpen, enabled = enabled && item.source != null && item.source.status != IndexedSource.MISSING, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.batch_review_open_diary))
                 }
             }

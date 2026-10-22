@@ -42,7 +42,7 @@ internal fun AppearanceContent(
         message?.let { item {
             SettingsFormCard {
                 FitLogNotice(stringResource(it), error = true)
-                if (!canEdit) TextButton(onClick = onRetry, enabled = !busy) {
+                if (!canEdit) TextButton(onClick = onRetry, enabled = !busy, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.log_retry))
                 }
             }

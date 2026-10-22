@@ -70,7 +70,6 @@
     <string name="insight_alias_owned">Belongs to %1$s · Remove it from that group first</string>
     <string name="insight_alias_primary">Display name</string>
     <string name="insight_alias_save">Save aliases</string>
-    <string name="insight_alias_cancel">Cancel</string>
     <string name="insight_alias_dissolve">Separate all names in this group</string>
     <string name="insight_alias_save_failed">Could not save aliases. Your selection is kept; try saving again.</string>
     <string name="insight_previous_point">Previous data point</string>

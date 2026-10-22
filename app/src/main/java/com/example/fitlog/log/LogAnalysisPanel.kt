@@ -1,5 +1,7 @@
 package com.example.fitlog.log
 
+import com.example.fitlog.ui.components.*
+
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -73,11 +75,11 @@ internal fun AnalysisRunFeedback(run: DiaryAnalysisRun, onCancel: () -> Unit, on
                 Text(stringResource(R.string.log_analysis_source_changed), color = MaterialTheme.colorScheme.error)
             if (run.indexWarning) Text(stringResource(R.string.log_analysis_index_warning), color = MaterialTheme.colorScheme.error)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (run.active) TextButton(onClick = onCancel) { Text(stringResource(R.string.ai_cancel_request)) }
+                if (run.active) TextButton(onClick = onCancel, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.ai_cancel_request)) }
                 if (run.failed > 0 || run.items.any { it.issue?.problem == AnalysisProblem.SOURCE })
-                    TextButton(onClick = onFailures) { Text(stringResource(R.string.log_view_failures)) }
+                    TextButton(onClick = onFailures, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.log_view_failures)) }
                 if (run.issue?.problem == AnalysisProblem.CONFIGURATION)
-                    TextButton(onClick = onAiSettings) { Text(stringResource(R.string.ai_settings_title)) }
+                    TextButton(onClick = onAiSettings, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.ai_settings_title)) }
             }
         }
     }
@@ -95,11 +97,11 @@ private fun AnalysisRangeSheet(state: LogUiState, actions: LogActions, onDismiss
     val unreadable = allMatched.size - matched.size
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
         enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).navigationBarsPadding(),
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(FitLogSheetDefaults.ContentPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.log_analyze), style = MaterialTheme.typography.headlineSmallEmphasized)
+                FitLogSheetTitle(stringResource(R.string.log_analyze))
                 Text(stringResource(R.string.log_analysis_scope), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Column(Modifier.selectableGroup()) {
                     LogAnalysisRange.entries.forEach { choice ->
@@ -122,8 +124,8 @@ private fun AnalysisRangeSheet(state: LogUiState, actions: LogActions, onDismiss
             }
             Button(onClick = { actions.startAnalysis(range, reanalyze); onDismiss() }, enabled = matched.isNotEmpty() &&
                 !state.analysisBusy && !state.refreshing && !state.summariesLoading && !state.summariesReadFailed,
-                shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
-                modifier = Modifier.fillMaxWidth().heightIn(min = ButtonDefaults.MediumContainerHeight)) {
+                shapes = ButtonDefaults.shapesFor(ButtonDefaults.MinHeight),
+                modifier = Modifier.fillMaxWidth().heightIn(min = ButtonDefaults.MinHeight)) {
                 Text(stringResource(R.string.log_analysis_start), style = MaterialTheme.typography.labelLargeEmphasized)
             }
             Spacer(Modifier.height(8.dp))

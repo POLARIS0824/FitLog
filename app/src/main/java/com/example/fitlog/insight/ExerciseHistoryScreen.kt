@@ -2,6 +2,9 @@
 
 package com.example.fitlog.insight
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.example.fitlog.ui.components.*
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,9 +26,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.fitlog.R
 import com.example.fitlog.data.analysis.WeightBasis
 import com.example.fitlog.data.insight.ExerciseAliasGroup
-import com.example.fitlog.ui.components.FitLogNotice
-import com.example.fitlog.ui.components.FitLogPageHeader
-import com.example.fitlog.ui.components.FitLogSectionTitle
 
 @Composable
 fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String) -> Unit,
@@ -41,20 +41,22 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
     }
     val title = exercise?.name ?: data?.aliases?.groupFor(nameKey)?.primaryName ?: data?.names?.get(nameKey)
         ?: stringResource(R.string.insight_exercise_history)
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxSize(),
-            contentPadding = PaddingValues(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 100.dp),
+    val behavior = rememberFitLogTopAppBarBehavior()
+    val pagePadding = fitLogPagePadding()
+    Column(modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
+        FitLogTopAppBar(title, behavior, onBack = onBack, actions = {
+            if (data != null) IconButton(onClick = { vm.clearAliasError(); editingAliases = true },
+                enabled = !vm.aliasSaving, shapes = IconButtonDefaults.shapes()) {
+                Icon(painterResource(R.drawable.edit_24px), stringResource(R.string.insight_manage_aliases))
+            }
+            FilledTonalIconButton(onClick = vm::refresh, enabled = vm.index?.refreshing != true && !vm.aliasSaving,
+                shapes = IconButtonDefaults.shapes()) {
+                Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.insight_refresh))
+            }
+        })
+        LazyColumn(Modifier.weight(1f).widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth(),
+            contentPadding = PaddingValues(start = pagePadding, top = 24.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { FitLogPageHeader(title, onBack = onBack, actions = {
-                if (data != null) IconButton(onClick = { vm.clearAliasError(); editingAliases = true },
-                    enabled = !vm.aliasSaving, shapes = IconButtonDefaults.shapes()) {
-                    Icon(painterResource(R.drawable.edit_24px), stringResource(R.string.insight_manage_aliases))
-                }
-                FilledTonalIconButton(onClick = vm::refresh, enabled = vm.index?.refreshing != true && !vm.aliasSaving,
-                    shapes = IconButtonDefaults.shapes()) {
-                    Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.insight_refresh))
-                }
-            }) }
             if (vm.loading || vm.error != null) item { InsightReadState(vm, onOpenLog) }
             if (data != null) {
                 item { InsightCoverage(vm) }
@@ -75,11 +77,11 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
                                     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                         InsightComparisonContent(comparison)
                                         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            TextButton(onClick = { onOpen(comparison.latest.recordId) }) {
+                                            TextButton(onClick = { onOpen(comparison.latest.recordId) }, shapes = ButtonDefaults.shapes()) {
                                                 Text(stringResource(R.string.insight_latest_source))
                                             }
                                             comparison.previous?.let { previous ->
-                                                TextButton(onClick = { onOpen(previous.recordId) }) {
+                                                TextButton(onClick = { onOpen(previous.recordId) }, shapes = ButtonDefaults.shapes()) {
                                                     Text(stringResource(R.string.insight_previous_source))
                                                 }
                                             }
@@ -117,7 +119,7 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
                             TextButton(onClick = {
                                 expandedCurves = ArrayList(if (curve.basis.name in expandedCurves)
                                     expandedCurves - curve.basis.name else expandedCurves + curve.basis.name)
-                            }) { Text(stringResource(if (curve.basis.name in expandedCurves) R.string.insight_hide_points else R.string.insight_show_points)) }
+                            }, shapes = ButtonDefaults.shapes()) { Text(stringResource(if (curve.basis.name in expandedCurves) R.string.insight_hide_points else R.string.insight_show_points)) }
                         }
                         if (curve.basis.name in expandedCurves) items(curve.points.reversed(), key = { "${curve.basis}-${it.date}" }) { point ->
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -164,9 +166,9 @@ private fun AliasEditor(vm: InsightViewModel, data: InsightData, nameKey: String
         enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
         confirmValueChange = { !vm.aliasSaving || it != SheetValue.Hidden })) {
         Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).navigationBarsPadding()) {
-            LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), contentPadding = PaddingValues(24.dp),
+            LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), contentPadding = FitLogSheetDefaults.ContentPadding,
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { Text(stringResource(R.string.insight_manage_aliases), style = MaterialTheme.typography.headlineSmall)
+                item { FitLogSheetTitle(stringResource(R.string.insight_manage_aliases))
                     Text(stringResource(R.string.insight_alias_help), style = MaterialTheme.typography.bodyMedium) }
                 itemsIndexed(options, key = { _, entry -> "member-${entry.key}" }) { index, (key, name) ->
                     val owner = data.aliases.groupFor(key)
@@ -191,20 +193,14 @@ private fun AliasEditor(vm: InsightViewModel, data: InsightData, nameKey: String
                         trailingContent = { RadioButton(primary == key, onClick = null, enabled = !vm.aliasSaving) })
                 }
             }
-            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+            Column(Modifier.fillMaxWidth().padding(horizontal = FitLogDimens.SheetPadding).padding(top = 12.dp, bottom = FitLogDimens.SheetPadding),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 vm.aliasError?.let { FitLogNotice(stringResource(it), error = true) }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = dismiss, enabled = !vm.aliasSaving, shapes = ButtonDefaults.shapes()) {
-                        Text(stringResource(R.string.insight_alias_cancel))
-                    }
-                    Button(onClick = { vm.saveAliases(existing?.primaryKey,
-                        ExerciseAliasGroup(names[primary] ?: primary, chosen.sorted()), onDismiss) },
-                        enabled = !vm.aliasSaving, shapes = ButtonDefaults.shapes()) {
-                        Text(stringResource(R.string.insight_alias_save))
-                    }
-                }
-                if (existing != null) TextButton(onClick = { vm.saveAliases(existing.primaryKey, null, onDismiss) }, enabled = !vm.aliasSaving) {
+                FitLogSheetActions(dismiss, onConfirm = { vm.saveAliases(existing?.primaryKey,
+                    ExerciseAliasGroup(names[primary] ?: primary, chosen.sorted()), onDismiss) },
+                    enabled = !vm.aliasSaving, dismissEnabled = !vm.aliasSaving,
+                    confirmLabel = stringResource(R.string.insight_alias_save))
+                if (existing != null) TextButton(onClick = { vm.saveAliases(existing.primaryKey, null, onDismiss) }, enabled = !vm.aliasSaving, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.insight_alias_dissolve))
                 }
             }

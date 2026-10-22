@@ -1,7 +1,7 @@
 package com.example.fitlog
 
+import androidx.compose.material3.ButtonDefaults
 import android.app.Activity
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -58,7 +58,6 @@ import com.example.fitlog.navigation.FitLogRoute
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
 import com.example.fitlog.vault.VaultFlowController
 import com.example.fitlog.settings.AppearanceViewModel
-import kotlinx.coroutines.launch
 
 /**
  * 负责整个 App 的 UI 框架
@@ -131,7 +130,7 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text(stringResource(R.string.log_batch_running, analysisRun.items.size, analysisRun.total), Modifier.weight(1f))
-                            TextButton(onClick = analysisRuntime.controller::cancel) { Text(stringResource(R.string.ai_cancel_request)) }
+                            TextButton(onClick = analysisRuntime.controller::cancel, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.ai_cancel_request)) }
                         }
                     }
                 }

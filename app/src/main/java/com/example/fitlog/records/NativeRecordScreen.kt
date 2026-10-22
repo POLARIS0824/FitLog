@@ -1,5 +1,8 @@
 package com.example.fitlog.records
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.example.fitlog.ui.components.*
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -23,7 +26,6 @@ import com.example.fitlog.R
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.diary.*
 import com.example.fitlog.navigation.FitLogBackGuard
-import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.preview.FitLogPreview
 import java.time.Instant
 import java.time.LocalDate
@@ -37,21 +39,21 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
     var setEdit by remember { mutableStateOf<NativeSetOptions?>(null) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val behavior = rememberFitLogTopAppBarBehavior()
+    val pagePadding = fitLogPagePadding()
     FitLogBackGuard(enabled = vm.hasChanges || vm.deleting) { vm.requestLeave(onBack) }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        Column(Modifier.widthIn(max = 840.dp).fillMaxSize().imePadding()) {
-            TopAppBar(title = { Text(stringResource(R.string.record_title), style = MaterialTheme.typography.titleLargeEmphasized) }, windowInsets = WindowInsets(0),
-                navigationIcon = { IconButton(onClick = { vm.requestLeave(onBack) }, enabled = !vm.deleting,
-                    shapes = IconButtonDefaults.shapes()) {
-                    Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
-                } }, actions = {
+        Column(Modifier.fillMaxSize().imePadding().nestedScroll(behavior.nestedScrollConnection),
+            horizontalAlignment = Alignment.CenterHorizontally) {
+            FitLogTopAppBar(stringResource(R.string.record_title), behavior,
+                onBack = { vm.requestLeave(onBack) }, backEnabled = !vm.deleting, actions = {
                     TextButton(onClick = { deleting = true }, enabled = vm.canEdit && (vm.exists || vm.input.hasContent),
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.record_delete))
                     }
                 })
             NativeRecordSaveFeedback(vm, onBack)
-            LazyColumn(Modifier.weight(1f), state = listState, contentPadding = PaddingValues(16.dp),
+            LazyColumn(Modifier.weight(1f).widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth(), state = listState, contentPadding = PaddingValues(pagePadding),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -91,24 +93,26 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             if (vm.canUndoRemoval) Snackbar(
-                modifier = Modifier.padding(horizontal = 16.dp),
+                modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().padding(horizontal = pagePadding),
                 action = { TextButton(onClick = vm::undoRemoval, enabled = vm.canEdit,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inversePrimary)) {
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inversePrimary), shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.record_undo))
                 } },
                 dismissAction = { TextButton(onClick = vm::dismissUndo,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inverseOnSurface)) { Text(stringResource(R.string.record_dismiss)) } }) {
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inverseOnSurface), shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_dismiss)) } }) {
                 Text(stringResource(R.string.record_removed))
             }
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+            Surface(modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainer) {
                 FilledTonalButton(onClick = {
                     vm.addExercise()
                     scope.launch { listState.animateScrollToItem(vm.input.exercises.size) }
-                }, enabled = vm.canEdit, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    shapes = ButtonDefaults.shapes()) {
+                }, enabled = vm.canEdit, modifier = Modifier.fillMaxWidth().padding(horizontal = pagePadding, vertical = 8.dp)
+                    .heightIn(min = ButtonDefaults.MediumContainerHeight),
+                    shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
+                    contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)) {
                     Icon(painterResource(R.drawable.add_24px), null)
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(stringResource(R.string.record_add_exercise), style = MaterialTheme.typography.labelLargeEmphasized)
+                    Text(stringResource(R.string.record_add_exercise), style = MaterialTheme.typography.titleMediumEmphasized)
                 }
             }
         }
@@ -129,21 +133,21 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
         DatePickerDialog(onDismissRequest = { datePicker = false }, confirmButton = {
             TextButton(onClick = { state.selectedDateMillis?.let {
                 vm.date(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())
-            }; datePicker = false }) { Text(stringResource(R.string.record_done)) }
-        }, dismissButton = { TextButton(onClick = { datePicker = false }) { Text(stringResource(R.string.record_cancel)) } }) {
+            }; datePicker = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_done)) }
+        }, dismissButton = { TextButton(onClick = { datePicker = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_cancel)) } }) {
             DatePicker(state)
         }
     }
     if (deleting) AlertDialog(onDismissRequest = { deleting = false },
         text = { Text(stringResource(R.string.record_delete_confirm)) },
-        confirmButton = { TextButton(onClick = { deleting = false; vm.delete(onBack) }) { Text(stringResource(R.string.record_delete)) } },
-        dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.record_cancel)) } })
+        confirmButton = { TextButton(onClick = { deleting = false; vm.delete(onBack) }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_delete)) } },
+        dismissButton = { TextButton(onClick = { deleting = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_cancel)) } })
     if (vm.leaveRequested) AlertDialog(onDismissRequest = vm::cancelLeave,
         text = { Text(stringResource(R.string.record_leave_failed)) },
-        confirmButton = { TextButton(onClick = vm::retryAndLeave) { Text(stringResource(R.string.record_retry)) } },
+        confirmButton = { TextButton(onClick = vm::retryAndLeave, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_retry)) } },
         dismissButton = { Column {
-            TextButton(onClick = vm::cancelLeave) { Text(stringResource(R.string.record_keep_editing)) }
-            TextButton(onClick = vm::discardAndLeave) { Text(stringResource(R.string.record_discard_changes)) }
+            TextButton(onClick = vm::cancelLeave, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_keep_editing)) }
+            TextButton(onClick = vm::discardAndLeave, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_discard_changes)) }
         } })
 }
 
@@ -161,9 +165,9 @@ private fun NativeRecordSaveFeedback(vm: NativeRecordViewModel, onBack: () -> Un
             RecordSaveState.FAILED -> R.string.record_failed
         }
     }
-    Surface(color = if (failed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
+    Surface(modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth(), color = if (failed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
         contentColor = if (failed) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+        Row(Modifier.fillMaxWidth().padding(horizontal = fitLogPagePadding(), vertical = 8.dp)
             .semantics { if (failed) liveRegion = LiveRegionMode.Polite },
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (failed || vm.state == RecordSaveState.SAVED) Icon(
@@ -171,7 +175,7 @@ private fun NativeRecordSaveFeedback(vm: NativeRecordViewModel, onBack: () -> Un
             Text(stringResource(label), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
             if (failed && vm.canEdit) TextButton(onClick = {
                 if (vm.message == R.string.record_delete_failed) vm.delete(onBack) else vm.retry()
-            }) { Text(stringResource(R.string.record_retry)) }
+            }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_retry)) }
         }
     }
 }
@@ -213,10 +217,10 @@ private fun NativeExerciseEntry(exercise: ReviewedExercise, enabled: Boolean,
                 }
             }
             if (exercise.sets.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onAddSet, enabled = enabled && exercise.sets.size < 1000) {
+                TextButton(onClick = onAddSet, enabled = enabled && exercise.sets.size < 1000, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.record_add_set))
                 }
-                TextButton(onClick = { onCopy(exercise.sets.lastIndex) }, enabled = enabled && exercise.sets.size < 1000) {
+                TextButton(onClick = { onCopy(exercise.sets.lastIndex) }, enabled = enabled && exercise.sets.size < 1000, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.record_copy_last_set))
                 }
             }
@@ -230,7 +234,7 @@ private fun OptionalRecordNotes(value: String, enabled: Boolean, label: Int, onV
     var expanded by rememberSaveable { mutableStateOf(value.isNotBlank()) }
     if (expanded) OutlinedTextField(value, onValue, enabled = enabled,
         label = { Text(stringResource(label)) }, modifier = Modifier.fillMaxWidth())
-    else TextButton(onClick = { expanded = true }, enabled = enabled) { Text(stringResource(label)) }
+    else TextButton(onClick = { expanded = true }, enabled = enabled, shapes = ButtonDefaults.shapes()) { Text(stringResource(label)) }
 }
 
 @Preview(name = "Native record sets", widthDp = 412, heightDp = 700, locale = "en")

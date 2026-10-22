@@ -2,12 +2,13 @@
 
 package com.example.fitlog.insight
 
+import com.example.fitlog.ui.components.*
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,8 +28,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -53,32 +52,13 @@ internal fun insightDate(value: LocalDate): String = value.format(DateTimeFormat
 
 @Composable
 internal fun InsightRangePicker(range: InsightRange, onSelect: (InsightRange) -> Unit, enabled: Boolean = true) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
-        InsightRange.entries.forEachIndexed { index, value ->
-            ToggleButton(checked = range == value, onCheckedChange = { onSelect(value) },
-                enabled = enabled,
-                modifier = Modifier.heightIn(min = 48.dp).semantics { role = Role.RadioButton },
-                colors = ToggleButtonDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    checkedContainerColor = MaterialTheme.colorScheme.secondary,
-                    checkedContentColor = MaterialTheme.colorScheme.onSecondary,
-                ),
-                shapes = when (index) {
-                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                    InsightRange.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                }) {
-                Text(stringResource(when (value) {
-                    InsightRange.THIRTY -> R.string.insight_range_thirty
-                    InsightRange.NINETY -> R.string.insight_range_ninety
-                    InsightRange.YEAR -> R.string.insight_range_year
-                    InsightRange.ALL -> R.string.insight_range_all
-                }), style = if (range == value) MaterialTheme.typography.labelLargeEmphasized
-                    else MaterialTheme.typography.labelLarge)
-            }
-        }
-    }
+    FitLogConnectedButtonGroup(InsightRange.entries, range, enabled = enabled, onSelect = onSelect,
+        label = { stringResource(when (it) {
+            InsightRange.THIRTY -> R.string.insight_range_thirty
+            InsightRange.NINETY -> R.string.insight_range_ninety
+            InsightRange.YEAR -> R.string.insight_range_year
+            InsightRange.ALL -> R.string.insight_range_all
+        }) })
 }
 
 @Composable
@@ -86,7 +66,7 @@ internal fun InsightReadState(vm: InsightViewModel, onOpenLog: () -> Unit): Bool
     when {
         vm.loading -> { LoadingIndicator(); return false }
         vm.error != null -> { FitLogNotice(stringResource(requireNotNull(vm.error)), error = true)
-            Button(onClick = vm::refresh) { Text(stringResource(R.string.insight_retry)) }; return false }
+            Button(onClick = vm::refresh, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.insight_retry)) }; return false }
     }
     return vm.data != null
 }
@@ -238,7 +218,7 @@ internal fun InsightChart(series: InsightSeries, onOpen: (String) -> Unit) {
         }
     }
     selected.recordIds.forEachIndexed { index, id ->
-        TextButton(onClick = { onOpen(id) }) {
+        TextButton(onClick = { onOpen(id) }, shapes = ButtonDefaults.shapes()) {
             Text(if (selected.recordIds.size == 1) stringResource(R.string.insight_view_source)
                 else stringResource(R.string.insight_source_number, index + 1))
         }

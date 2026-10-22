@@ -1,5 +1,7 @@
 package com.example.fitlog.records
 
+import com.example.fitlog.ui.components.*
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -113,9 +115,9 @@ internal fun NativeSetOptionsSheet(edit: NativeSetOptions, onDismiss: () -> Unit
     var basis by remember { mutableStateOf(edit.value.basis ?: WeightBasis.UNKNOWN) }
     var applyAll by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(24.dp),
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(FitLogSheetDefaults.ContentPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.record_weight_options), style = MaterialTheme.typography.titleLargeEmphasized)
+            FitLogSheetTitle(stringResource(R.string.record_weight_options))
             if (basis != WeightBasis.BODYWEIGHT) {
                 Text(stringResource(R.string.detail_unit), style = MaterialTheme.typography.labelLarge)
                 FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

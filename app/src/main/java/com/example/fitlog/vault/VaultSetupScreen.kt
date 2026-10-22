@@ -2,6 +2,8 @@
 
 package com.example.fitlog.vault
 
+import com.example.fitlog.ui.components.*
+
 import android.net.Uri
 import com.example.fitlog.navigation.FitLogBackGuard
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -153,9 +155,9 @@ fun VaultSetupScreen(
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
-                .widthIn(max = 640.dp)
+                .widthIn(max = FitLogDimens.ContentWidth)
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 24.dp),
+                .padding(horizontal = fitLogPagePadding(), vertical = 24.dp),
         ) {
             Column(
                 modifier = Modifier
@@ -415,7 +417,7 @@ private fun MessageBanner(
             if (showRetry) {
                 TextButton(
                     onClick = onRetryClick,
-                    modifier = Modifier.align(Alignment.End),
+                    modifier = Modifier.align(Alignment.End), shapes = ButtonDefaults.shapes(),
                 ) {
                     Text(stringResource(R.string.vault_setup_btn_retry))
                 }

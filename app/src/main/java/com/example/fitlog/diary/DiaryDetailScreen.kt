@@ -1,8 +1,8 @@
 package com.example.fitlog.diary
 
-import com.example.fitlog.ui.components.FitLogLoadingIndicator
-import com.example.fitlog.ui.components.FitLogProgressFeedback
-import com.example.fitlog.ui.components.rememberDelayedLoading
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.example.fitlog.ui.components.*
+
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -24,7 +24,6 @@ import com.example.fitlog.R
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.data.vault.MarkdownSnapshot
 import com.example.fitlog.navigation.FitLogRoute
-import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.preview.*
 import java.text.DateFormat
 import java.util.Date
@@ -64,6 +63,7 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
     var removal by remember { mutableStateOf<DiaryReviewRemoval?>(null) }
     var revoking by remember { mutableStateOf(false) }
     var confirming by remember { mutableStateOf(false) }
+    val behavior = rememberFitLogTopAppBarBehavior()
     val showSourceLoading = rememberDelayedLoading(state.sourceLoading)
     val showParsesLoading = rememberDelayedLoading(state.parsesLoading)
     val showConfirmationLoading = rememberDelayedLoading(state.confirmationLoading)
@@ -72,13 +72,9 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
     }
     LaunchedEffect(state.review) { if (state.review == null) confirming = false }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        Column(Modifier.widthIn(max = 840.dp).fillMaxSize()) {
-            TopAppBar(
-                title = { Text(diaryDateFromFileName(state.route.fileName)?.toString() ?: state.route.fileName,
-                    style = MaterialTheme.typography.titleLargeEmphasized) },
-                navigationIcon = { IconButton(onClick = onBack, enabled = !state.reviewSaving, shapes = IconButtonDefaults.shapes()) {
-                    Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
-                } },
+        Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
+            FitLogTopAppBar(diaryDateFromFileName(state.route.fileName)?.toString() ?: state.route.fileName,
+                behavior, onBack = onBack, backEnabled = !state.reviewSaving,
                 actions = {
                     Box {
                         IconButton(onClick = { menu = true }, enabled = !state.reviewSaving, shapes = IconButtonDefaults.shapes()) {
@@ -94,17 +90,17 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
                                 enabled = state.review == null, onClick = { menu = false; revoking = true })
                         }
                     }
-                }, windowInsets = WindowInsets(0))
-            PrimaryTabRow(selectedTabIndex = state.tab.ordinal) {
+                })
+            PrimaryTabRow(selectedTabIndex = state.tab.ordinal, modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth()) {
                 DiaryDetailTab.entries.forEach { tab ->
                     Tab(selected = state.tab == tab, onClick = { actions.selectTab(tab) }, text = {
                         Text(stringResource(if (tab == DiaryDetailTab.ORIGINAL) R.string.detail_original else R.string.detail_analysis))
                     })
                 }
             }
-            Box(Modifier.weight(1f)) {
+            Box(Modifier.weight(1f).widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth()) {
                 if (state.tab == DiaryDetailTab.ORIGINAL) {
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(fitLogPagePadding()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         if (state.sourceReadFailed) item { FitLogNotice(stringResource(R.string.detail_source_failed), error = true) }
                         state.original?.let { snapshot ->
                             if (!snapshot.file.writable) item { Text(stringResource(R.string.detail_read_only)) }
@@ -144,11 +140,11 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
     }
     if (revoking) AlertDialog(onDismissRequest = { revoking = false },
         text = { Text(stringResource(R.string.record_revoke_confirm)) },
-        confirmButton = { TextButton(onClick = { revoking = false; actions.revoke() }) { Text(stringResource(R.string.record_revoke)) } },
-        dismissButton = { TextButton(onClick = { revoking = false }) { Text(stringResource(R.string.record_cancel)) } })
+        confirmButton = { TextButton(onClick = { revoking = false; actions.revoke() }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_revoke)) } },
+        dismissButton = { TextButton(onClick = { revoking = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_cancel)) } })
     if (fileInfo) AlertDialog(onDismissRequest = { fileInfo = false }, title = { Text(stringResource(R.string.detail_file_info)) },
         text = { SelectionContainer { Text(state.route.relPath) } },
-        confirmButton = { TextButton(onClick = { fileInfo = false }) { Text(stringResource(R.string.detail_picker_done)) } })
+        confirmButton = { TextButton(onClick = { fileInfo = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.detail_picker_done)) } })
     if (confirming) state.review?.let { draft ->
         ReviewConfirmationDialog(draft, state.reviewSaving, state.reviewMessage,
             onDismiss = { actions.cancelConfirmation(); confirming = false }, onSave = actions.saveReview)
@@ -160,15 +156,15 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
             confirmButton = { TextButton(onClick = {
                 if (actions.draftForReview() == target.draft) target.apply()
                 removal = null
-            }, enabled = unchanged, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+            }, enabled = unchanged, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.detail_delete_review_confirm))
-            } }, dismissButton = { TextButton(onClick = { removal = null }) { Text(stringResource(R.string.record_cancel)) } })
+            } }, dismissButton = { TextButton(onClick = { removal = null }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_cancel)) } })
     }
     if (state.leaveRequested) AlertDialog(onDismissRequest = actions.cancelLeave,
         title = { Text(stringResource(R.string.detail_unsaved_title)) },
         text = { Text(stringResource(R.string.detail_unsaved_message)) },
-        confirmButton = { TextButton(onClick = actions.cancelLeave) { Text(stringResource(R.string.detail_continue_review)) } },
-        dismissButton = { TextButton(onClick = actions.discardAndLeave) { Text(stringResource(R.string.detail_discard_review)) } })
+        confirmButton = { TextButton(onClick = actions.cancelLeave, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.detail_continue_review)) } },
+        dismissButton = { TextButton(onClick = actions.discardAndLeave, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.detail_discard_review)) } })
 }
 
 @Composable
@@ -181,7 +177,7 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
     // Show that metadata together with the candidate, rather than inserting it above visible sets.
     val initialConfirmationRead = state.confirmationLoading && state.confirmed == null && state.review == null
     Column(modifier) {
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(fitLogPagePadding()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             item(key = "status") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(stringResource(R.string.detail_review_help), style = MaterialTheme.typography.bodyMedium)
@@ -189,7 +185,7 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
                     if (state.sourceReadFailed) FitLogNotice(stringResource(R.string.detail_source_failed), error = true)
                     if (state.parsesReadFailed || state.confirmationReadFailed || state.parses.candidateReadFailed) {
                         FitLogNotice(stringResource(if (state.parses.candidateReadFailed) R.string.detail_candidate_damaged else R.string.detail_analysis_failed), error = true)
-                        TextButton(onClick = actions.retryAnalysis, enabled = !state.parsesLoading && !state.confirmationLoading) {
+                        TextButton(onClick = actions.retryAnalysis, enabled = !state.parsesLoading && !state.confirmationLoading, shapes = ButtonDefaults.shapes()) {
                             Text(stringResource(R.string.detail_retry_analysis))
                         }
                     }
@@ -234,11 +230,11 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
                 sessions.ifEmpty { listOf(0) }.forEachIndexed { session, exerciseCount ->
                     item(key = "add-exercise:$session") {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { onEditExercise(DiaryExerciseAddress(session, exerciseCount)) }, enabled = state.canReview) {
+                            TextButton(onClick = { onEditExercise(DiaryExerciseAddress(session, exerciseCount)) }, enabled = state.canReview, shapes = ButtonDefaults.shapes()) {
                                 Text(stringResource(if (sessions.size > 1) R.string.detail_add_session_exercise else R.string.detail_add_exercise, session + 1))
                             }
                             if (session in sessions.indices) TextButton(onClick = { onDeleteSession(session) }, enabled = state.canReview,
-                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
                                 Text(stringResource(R.string.detail_delete_session, session + 1))
                             }
                         }
@@ -246,7 +242,7 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
                 }
                 if (sessions.any { it > 0 }) item(key = "clear-training") {
                     TextButton(onClick = onClearTraining, enabled = state.canReview,
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.detail_clear_training))
                     }
                 }
@@ -254,11 +250,14 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
         }
         if (state.canReview || state.reviewSaving) Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
             Button(onClick = onConfirm, enabled = state.canReview,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                shapes = ButtonDefaults.shapes()) {
+                modifier = Modifier.fillMaxWidth().padding(horizontal = fitLogPagePadding(), vertical = 8.dp)
+                    .heightIn(min = ButtonDefaults.MediumContainerHeight),
+                shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
+                contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)) {
                 Icon(painterResource(R.drawable.check_24px), null)
                 Spacer(Modifier.width(8.dp))
-                Text(stringResource(if (state.review == null) R.string.detail_confirm_save else R.string.detail_save_corrections))
+                Text(stringResource(if (state.review == null) R.string.detail_confirm_save else R.string.detail_save_corrections),
+                    style = MaterialTheme.typography.titleMediumEmphasized)
             }
         }
     }
@@ -295,7 +294,7 @@ private fun AnalysisStatusCard(state: DiaryDetailUiState, actions: DiaryDetailAc
                 StatusRow(R.string.detail_status_parse, parseLabel, state.parses.latestAttempt?.status == ParseRunStatus.FAILED || state.parsesReadFailed)
                 StatusRow(R.string.detail_status_confirmation, confirmLabel, state.confirmationReadFailed)
                 FlowRow(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (state.parsing) TextButton(onClick = actions.cancelParse) { Text(stringResource(R.string.ai_cancel_request)) }
+                    if (state.parsing) TextButton(onClick = actions.cancelParse, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.ai_cancel_request)) }
                     FilledTonalButton(onClick = actions.parse,
                         enabled = extractionIdle && !state.sourceLoading,
                         colors = extractionColors,
@@ -357,9 +356,9 @@ private fun ReviewConfirmationDialog(draft: DiaryReviewDraft, saving: Boolean, m
             }
             FitLogLoadingIndicator(saving, Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         } },
-        confirmButton = { TextButton(onClick = { onSave(date, partial) }, enabled = !saving && reviewDate(date) != null && (!draft.partial || partial)) {
+        confirmButton = { TextButton(onClick = { onSave(date, partial) }, enabled = !saving && reviewDate(date) != null && (!draft.partial || partial), shapes = ButtonDefaults.shapes()) {
             Text(stringResource(R.string.detail_confirm_save))
-        } }, dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text(stringResource(R.string.record_cancel)) } })
+        } }, dismissButton = { TextButton(onClick = onDismiss, enabled = !saving, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_cancel)) } })
 }
 
 internal data class DiaryDetailUiState(
