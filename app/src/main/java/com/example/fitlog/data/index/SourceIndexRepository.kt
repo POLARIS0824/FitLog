@@ -1,9 +1,9 @@
 package com.example.fitlog.data.index
 
-import android.net.Uri
 import com.example.fitlog.data.vault.MarkdownDocuments
 import com.example.fitlog.data.vault.MarkdownSnapshot
 import com.example.fitlog.data.vault.requireVaultId
+import com.example.fitlog.data.vault.nextMarkdownReadOrder
 import com.example.fitlog.data.hash.ContentTextSnapshot
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +25,7 @@ class SourceIndexRepository(
     private val computationDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val now: () -> Long = System::currentTimeMillis,
     private val scope: CoroutineScope,
-    private val resolveVaultUri: suspend (vaultId: String) -> Uri,
+    private val resolveVaultUri: suspend (vaultId: String) -> String,
 ) : SourceIndex {
     private data class Activity(val vaultId: String? = null, val busy: Boolean = false, val failed: Boolean = false)
     private val activity = MutableStateFlow(Activity())
@@ -65,7 +65,7 @@ class SourceIndexRepository(
                 gate.withLock {
                     activity.value = Activity(vaultId, busy = true)
                     try {
-                        val treeUri = resolveVaultUri(vaultId).toString()
+                        val treeUri = resolveVaultUri(vaultId)
                         val previous = store.sources(vaultId)
                         val discovered = documents.scan(treeUri)
                         currentCoroutineContext().ensureActive()
@@ -81,12 +81,14 @@ class SourceIndexRepository(
                             IndexedSource(vaultId, file.uri, snapshot?.file?.name ?: file.name,
                                 file.path, file.directory, snapshot?.file?.writable ?: file.writable,
                                 if (snapshot != null) IndexedSource.AVAILABLE else IndexedSource.READ_FAILED,
-                                version?.hash, version?.hashVersion)
+                                version?.hash, version?.hashVersion, observedAt = snapshot?.readAt ?: nextMarkdownReadOrder())
                         }.toMutableList()
                         val complete = !discovered.partial && !readFailed
                         if (complete) {
                             val seen = updates.mapTo(mutableSetOf()) { it.uri }
-                            previous.filter { it.uri !in seen }.forEach { updates += it.copy(status = IndexedSource.MISSING) }
+                            previous.filter { it.uri !in seen }.forEach {
+                                updates += it.copy(status = IndexedSource.MISSING, observedAt = nextMarkdownReadOrder())
+                            }
                         }
                         currentCoroutineContext().ensureActive()
                         store.commit(updates, IndexedScan(vaultId,
@@ -118,8 +120,10 @@ class SourceIndexRepository(
         val version = contentVersion(snapshot)
         gate.withLock {
             val old = store.sources(vaultId).firstOrNull { it.uri == snapshot.file.uri && it.path == path } ?: return@withLock
+            // A scan may have observed this source later than the caller did; never commit the older view.
+            if (snapshot.readAt <= old.observedAt) return@withLock
             store.commit(listOf(old.copy(status = IndexedSource.AVAILABLE, writable = snapshot.file.writable,
-                contentHash = version.hash, hashVersion = version.hashVersion)))
+                contentHash = version.hash, hashVersion = version.hashVersion, observedAt = snapshot.readAt)))
         }
     }
 

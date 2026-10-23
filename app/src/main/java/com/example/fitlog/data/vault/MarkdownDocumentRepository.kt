@@ -12,12 +12,21 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicLong
 import androidx.core.net.toUri
 
 data class MarkdownFile(val uri: String, val name: String, val path: String, val writable: Boolean,
     val directory: String? = null, val lastModified: Long? = null, val size: Long? = null)
-data class MarkdownSnapshot(val file: MarkdownFile, val text: String, val fingerprint: String, val bom: Boolean)
+data class MarkdownSnapshot(val file: MarkdownFile, val text: String, val fingerprint: String, val bom: Boolean,
+    /** Logical read order, allocated before I/O; distinct even within the same millisecond. */
+    val readAt: Long = nextMarkdownReadOrder())
 data class MarkdownScan(val files: List<MarkdownFile>, val partial: Boolean)
+
+private val lastMarkdownReadOrder = AtomicLong()
+
+/** A process-wide order that continues increasing if the wall clock repeats or moves backwards. */
+internal fun nextMarkdownReadOrder(now: Long = System.currentTimeMillis()): Long =
+    lastMarkdownReadOrder.updateAndGet { previous -> maxOf(now, previous + 1) }
 
 interface MarkdownDocuments {
     suspend fun scan(vault: String): MarkdownScan
@@ -105,6 +114,8 @@ class MarkdownDocumentRepository(context: Context,
     } ?: throw IOException()
 
     override suspend fun read(uri: String): MarkdownSnapshot = withContext(ioDispatcher) {
+        // Observation time is taken before the read: a slow read of older bytes must not look newer.
+        val observedAt = nextMarkdownReadOrder()
         val document = Uri.parse(uri)
         val file = metadata(document)
         val bytes = resolver.openInputStream(document)?.use { it.readBytes() } ?: throw IOException()
@@ -112,7 +123,7 @@ class MarkdownDocumentRepository(context: Context,
         val text = Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
             .onUnmappableCharacter(CodingErrorAction.REPORT)
             .decode(ByteBuffer.wrap(bytes, if (bom) 3 else 0, bytes.size - if (bom) 3 else 0)).toString()
-        MarkdownSnapshot(file, text, fingerprint(bytes), bom)
+        MarkdownSnapshot(file, text, fingerprint(bytes), bom, observedAt)
     }
 
 

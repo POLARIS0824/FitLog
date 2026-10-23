@@ -13,7 +13,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.unit.dp
-import com.example.fitlog.log.AnalysisRuntimeViewModel
+import com.example.fitlog.runtime.AnalysisRuntimeViewModel
 
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
@@ -47,6 +47,7 @@ import com.example.fitlog.navigation.FitLogRoute
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
 import com.example.fitlog.vault.VaultFlowController
 import com.example.fitlog.settings.AppearanceViewModel
+import com.example.fitlog.settings.AppearanceUiState
 
 /**
  * 负责整个 App 的 UI 框架
@@ -57,12 +58,11 @@ import com.example.fitlog.settings.AppearanceViewModel
  */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
-internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel) {
+internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel, appearanceState: AppearanceUiState) {
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val appearanceState by appearance.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(appearanceState.messageId) {
         appearanceState.message?.let {
             appearance.messageShown(appearanceState.messageId)
@@ -113,6 +113,7 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel)
                     runtime = analysisRuntime,
                     runtimeState = runtimeState,
                     appearance = appearance,
+                    appearanceState = appearanceState,
                     onSetupCompleted = vaultFlow::onSetupCompleted,
                     onOpenRoute = vaultFlow::openRoute,
                     onNavigateTo = vaultFlow::navigateTo,

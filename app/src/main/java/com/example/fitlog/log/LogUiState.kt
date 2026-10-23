@@ -29,11 +29,13 @@ internal data class LogUiState(
     val summariesLoading: Boolean = false,
     val summariesReadFailed: Boolean = false,
     val run: DiaryAnalysisRun = DiaryAnalysisRun(),
-    val analysisBusy: Boolean = false,
     val pendingCount: Int = 0,
     val statuses: Map<String, LogDiaryStatus> = emptyMap(),
     val statusFilter: LogStatusFilter = LogStatusFilter.ALL,
-)
+) {
+    /** One fact, one field: the run owns whether analysis is active. */
+    val analysisBusy: Boolean get() = run.active
+}
 
 internal fun LogUiState.withDerivedValues(): LogUiState {
     val statuses = kotlin.run {

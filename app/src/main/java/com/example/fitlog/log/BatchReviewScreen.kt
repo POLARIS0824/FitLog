@@ -1,5 +1,7 @@
 package com.example.fitlog.log
 
+import com.example.fitlog.domain.analysis.*
+
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.example.fitlog.ui.components.*
 

@@ -17,7 +17,8 @@ interface TrainingRecords {
 
 /** Local facts shared by native entry, Markdown confirmation and statistics. */
 class TrainingRecordRepository(private val database: DiaryAnalysisDatabase,
-    private val computationDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default) : TrainingRecords {
+    private val computationDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default,
+    private val now: () -> Long = System::currentTimeMillis) : TrainingRecords {
     private val dao = database.analysis()
     override fun observeRecords() = dao.observeRecords().map { records -> records.map { it.ordered() } }.flowOn(computationDispatcher)
     override suspend fun read(id: String) = withContext(computationDispatcher) { dao.record(id)?.ordered() }
@@ -27,7 +28,7 @@ class TrainingRecordRepository(private val database: DiaryAnalysisDatabase,
             val previous = dao.record(id)
             require(previous == null || previous.diary.origin == RecordOrigin.NATIVE)
             val record = TrainingRecord(id, null, null, date.toString(), null, null, null,
-                maxOf(System.currentTimeMillis(), (previous?.diary?.confirmedAt ?: 0L) + 1), false,
+                maxOf(now(), (previous?.diary?.confirmedAt ?: 0L) + 1), false,
                 RecordOrigin.NATIVE, kind)
             replaceRecord(dao, record, sessions, previous != null)
         }

@@ -1,6 +1,7 @@
 package com.example.fitlog.domain
 
 import com.example.fitlog.data.analysis.*
+import com.example.fitlog.domain.analysis.needsDiaryAnalysis
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive

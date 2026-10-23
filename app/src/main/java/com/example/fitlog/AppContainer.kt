@@ -17,12 +17,14 @@ import com.example.fitlog.data.settings.AppearancePreferencesStore
 import com.example.fitlog.data.settings.appearanceDataStore
 import com.example.fitlog.data.vault.*
 import com.example.fitlog.diary.DiaryDetailViewModel
-import com.example.fitlog.log.DiaryAnalysisController
+import com.example.fitlog.runtime.DiaryAnalysisController
+import com.example.fitlog.runtime.IndexWarning
 import com.example.fitlog.domain.SaveNativeRecord
 import com.example.fitlog.domain.confirmCurrentDiary
 import com.example.fitlog.domain.insight.InsightRange
 import com.example.fitlog.insight.InsightViewModel
 import com.example.fitlog.log.*
+import com.example.fitlog.runtime.AnalysisRuntimeViewModel
 import com.example.fitlog.navigation.FitLogRoute
 import com.example.fitlog.records.NativeRecordViewModel
 import com.example.fitlog.settings.AppearanceViewModel
@@ -47,7 +49,7 @@ internal class AppContainer(context: Context) {
     private val saveRecord by lazy { SaveNativeRecord(records) }
     private val sourceIndex: SourceIndex by lazy {
         SourceIndexRepository(documents, RoomSourceIndexStore(SourceIndexDatabase.open(applicationContext)),
-            scope = applicationScope, resolveVaultUri = vaultPreferences::getVaultUri)
+            scope = applicationScope, resolveVaultUri = { vaultPreferences.getVaultUri(it).toString() })
     }
     private val providers = AiProviderRepository(applicationContext.aiDataStore)
     private val aiClient by lazy { createAiHttpClient() }
@@ -59,16 +61,15 @@ internal class AppContainer(context: Context) {
     fun appearance() = AppearanceViewModel(appearanceStore)
 
     fun analysisRuntime() = AnalysisRuntimeViewModel(vaultPreferences, sourceIndex) { scope ->
-        lateinit var controller: DiaryAnalysisController
-        controller = DiaryAnalysisController(scope,
+        val warning = IndexWarning()
+        DiaryAnalysisController(scope,
             prepare = { ConfiguredDiaryAnalysisRepository(providers, documents, analysis::parse, chats).prepare { source, snapshot ->
                 try { sourceIndex.recordRead(source.key.vaultId, source.key.relPath, snapshot) }
                 catch (e: Exception) {
                     if (e is CancellationException) throw e
-                    controller.reportIndexWarning()
+                    warning.report()
                 }
-            } }, readSummary = analysis::readSummary)
-        controller
+            } }, readSummary = analysis::readSummary, indexWarning = warning)
     }
 
     fun log(savedState: SavedStateHandle, controller: DiaryAnalysisController) =
@@ -79,15 +80,17 @@ internal class AppContainer(context: Context) {
             refreshIndex = { sourceIndex.refresh(it) }, initialRange = range, preferences = insightPreferences, nameKey = nameKey)
 
     fun batchReview(route: FitLogRoute.BatchReview, savedState: SavedStateHandle): BatchReviewViewModel {
-        lateinit var vm: BatchReviewViewModel
-        vm = BatchReviewViewModel(route, savedState, sourceIndex.observe(route.vaultId), analysis, vaultPreferences.vaultConfig,
+        // The warning callback needs the finished VM; a late-bound lambda avoids a self-reference.
+        var onIndexWarning: () -> Unit = {}
+        val vm = BatchReviewViewModel(route, savedState, sourceIndex.observe(route.vaultId), analysis, vaultPreferences.vaultConfig,
             confirm = { source, request -> confirmCurrentDiary(request, source.uri, documents, analysis) { snapshot ->
                 try { sourceIndex.recordRead(route.vaultId, source.path, snapshot) }
                 catch (e: Exception) {
                     if (e is CancellationException) throw e
-                    vm.reportIndexWarning()
+                    onIndexWarning()
                 }
             } }, refreshIndex = { sourceIndex.refresh(route.vaultId) })
+        onIndexWarning = vm::reportIndexWarning
         return vm
     }
 

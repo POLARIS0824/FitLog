@@ -17,9 +17,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
-import com.example.fitlog.ai.aiConfigurationMessage
-import com.example.fitlog.ai.aiRequestMessage
+import com.example.fitlog.ui.text.aiConfigurationMessage
+import com.example.fitlog.ui.text.aiRequestMessage
 import com.example.fitlog.data.analysis.*
+import com.example.fitlog.domain.analysis.needsDiaryAnalysis
 import java.time.LocalDate
 
 internal fun analysisIssueMessage(issue: AnalysisIssue): Int = issue.configurationFailure?.let(::aiConfigurationMessage)

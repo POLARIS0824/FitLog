@@ -1,4 +1,4 @@
-package com.example.fitlog.log
+package com.example.fitlog.runtime
 
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.domain.AnalyzeDiary
@@ -8,24 +8,37 @@ import com.example.fitlog.data.ai.AiConfigurationException
 import com.example.fitlog.data.ai.AiConfigurationFailure
 import com.example.fitlog.data.analysis.adapter.DiaryOriginalReadException
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 
 class DiaryAnalysisBusyException : IllegalStateException("An explicit analysis is already running")
+
+/** Index-write failures are reported by the caller, so the controller never references itself. */
+class IndexWarning {
+    private val _reported = MutableStateFlow(false)
+    val reported: StateFlow<Boolean> = _reported.asStateFlow()
+    fun report() { _reported.value = true }
+    fun reset() { _reported.value = false }
+}
 
 /** One in-memory request slot. Navigation does not own batches; no operation waits for the slot. */
 class DiaryAnalysisController internal constructor(
     private val scope: CoroutineScope,
     private val prepare: suspend () -> DiaryAnalysisSession,
     private val readSummary: suspend (SourceKey) -> DiaryAnalysisSummary,
+    private val indexWarning: IndexWarning = IndexWarning(),
 ) {
     private val mutableState = MutableStateFlow(DiaryAnalysisRun())
-    val state = mutableState.asStateFlow()
+    val state: StateFlow<DiaryAnalysisRun> = combine(mutableState, indexWarning.reported) { run, warned ->
+        run.copy(indexWarning = warned)
+    }.stateIn(scope, SharingStarted.Eagerly, mutableState.value)
     private var owner: Job? = null
     private var activeVault: String? = null
 
     fun activate(vaultId: String?) {
-        if (activeVault != vaultId) cancel()
+        if (activeVault != vaultId) {
+            cancel()
+            indexWarning.reset()
+        }
         activeVault = vaultId
     }
 
@@ -37,6 +50,7 @@ class DiaryAnalysisController internal constructor(
 
     fun startBatch(sources: List<AnalysisSource>, reanalyze: Boolean): Boolean {
         if (owner != null || sources.isEmpty() || sources.any { it.key.vaultId != activeVault }) return false
+        indexWarning.reset()
         val task = scope.launch(start = CoroutineStart.LAZY) { process(sources.toList(), reanalyze, batch = true) }
         owner = task
         task.invokeOnCompletion {
@@ -53,6 +67,7 @@ class DiaryAnalysisController internal constructor(
     suspend fun runSingle(source: AnalysisSource): StoredDiaryParse {
         if (owner != null) throw DiaryAnalysisBusyException()
         check(activeVault == source.key.vaultId) { "The diary vault is no longer active" }
+        indexWarning.reset()
         val task = scope.async(start = CoroutineStart.LAZY) {
             requireNotNull(process(listOf(source), reanalyze = true, batch = false))
         }
@@ -68,7 +83,7 @@ class DiaryAnalysisController internal constructor(
         return task.await()
     }
 
-    fun reportIndexWarning() { mutableState.value = mutableState.value.copy(indexWarning = true) }
+    fun reportIndexWarning() { indexWarning.report() }
 
     private suspend fun process(sources: List<AnalysisSource>, reanalyze: Boolean, batch: Boolean): StoredDiaryParse? {
         var singleResult: StoredDiaryParse? = null

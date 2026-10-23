@@ -1,6 +1,7 @@
 package com.example.fitlog.domain
 
 import com.example.fitlog.data.analysis.*
+import com.example.fitlog.domain.analysis.*
 
 import com.example.fitlog.data.hash.ContentTextSnapshot
 import com.example.fitlog.data.vault.MarkdownDocuments

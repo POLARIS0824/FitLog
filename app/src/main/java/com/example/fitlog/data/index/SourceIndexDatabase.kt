@@ -18,6 +18,8 @@ data class IndexedSource(
     val status: String = AVAILABLE,
     val contentHash: String? = null,
     val hashVersion: Int? = null,
+    /** Logical order of the indexed observation; older or repeated reads cannot replace it. */
+    val observedAt: Long = 0L,
 ) {
     init { requireVaultId(vaultId) }
     fun file() = MarkdownFile(uri, name, path, writable, directory)
@@ -59,7 +61,7 @@ interface SourceIndexDao {
     @Upsert suspend fun putScan(scan: IndexedScan)
 }
 
-@Database(entities = [IndexedSource::class, IndexedScan::class], version = 5, exportSchema = true)
+@Database(entities = [IndexedSource::class, IndexedScan::class], version = 6, exportSchema = true)
 abstract class SourceIndexDatabase : RoomDatabase() {
     abstract fun index(): SourceIndexDao
     companion object {

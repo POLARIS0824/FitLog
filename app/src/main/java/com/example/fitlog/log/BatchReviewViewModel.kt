@@ -10,8 +10,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.data.index.*
+import com.example.fitlog.domain.analysis.*
 import com.example.fitlog.data.vault.VaultConfigState
 import com.example.fitlog.navigation.FitLogRoute
+import com.example.fitlog.ui.text.confirmationFailureMessage
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -160,12 +162,4 @@ internal class BatchReviewViewModel internal constructor(
     fun cancelSubmission() { submission?.cancel() }
     fun reportIndexWarning() { updateState { current -> current.copy(indexWarning = true) } }
     fun onStopped(changingConfiguration: Boolean) { if (!changingConfiguration) cancelSubmission() }
-}
-
-internal fun confirmationFailureMessage(reason: ConfirmationFailure) = when (reason) {
-    ConfirmationFailure.SOURCE_CHANGED -> R.string.batch_review_source_changed
-    ConfirmationFailure.SOURCE_UNAVAILABLE -> R.string.detail_source_failed
-    ConfirmationFailure.CONFIRMATION_CHANGED -> R.string.detail_review_changed
-    ConfirmationFailure.CANDIDATE_CHANGED -> R.string.batch_review_candidate_changed
-    else -> R.string.detail_review_save_failed
 }

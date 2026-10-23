@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
                         navigationBarStyle = SystemBarStyle.auto(barColor, barColor) { dark },
                     )
                 }
-                FitLogApp(container, appearance)
+                FitLogApp(container, appearance, appearanceState)
             }
         }
     }

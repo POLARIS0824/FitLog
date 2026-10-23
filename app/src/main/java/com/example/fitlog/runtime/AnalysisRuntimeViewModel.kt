@@ -1,4 +1,4 @@
-package com.example.fitlog.log
+package com.example.fitlog.runtime
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

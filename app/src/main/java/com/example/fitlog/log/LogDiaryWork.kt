@@ -3,6 +3,7 @@ package com.example.fitlog.log
 import com.example.fitlog.R
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.data.index.IndexedSource
+import com.example.fitlog.domain.analysis.*
 import java.time.LocalDate
 
 enum class LogDiaryStatus(val label: Int) {

@@ -73,11 +73,14 @@ internal class NativeRecordViewModel(private val recordId: String?, private val 
                     val session = it.reviewedSessions().singleOrNull() ?: ReviewedSession()
                     NativeRecordInput(it.diary.date, session.exercises, session.notes.orEmpty(), it.diary.kind)
                 }
+                // The marker is consumed once: a crash notice must not repeat on every later open.
+                val interrupted = savedState.get<Boolean>("unsavedInput") == true
+                if (interrupted) savedState["unsavedInput"] = false
                 updateState { current -> current.copy(
                     persisted = loaded,
                     input = loaded ?: current.input,
                     state = if (loaded != null) RecordSaveState.SAVED else RecordSaveState.EMPTY,
-                    message = if (savedState.get<Boolean>("unsavedInput") == true) R.string.record_restore_interrupted else null,
+                    message = if (interrupted) R.string.record_restore_interrupted else null,
                 ) }
 
             } catch (e: Exception) {

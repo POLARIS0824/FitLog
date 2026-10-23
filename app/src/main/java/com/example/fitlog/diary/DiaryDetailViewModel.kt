@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
-import com.example.fitlog.ai.aiConfigurationMessage
-import com.example.fitlog.ai.aiRequestMessage
+import com.example.fitlog.ui.text.aiConfigurationMessage
+import com.example.fitlog.ui.text.aiRequestMessage
 import com.example.fitlog.data.ai.AiConfigurationException
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.data.analysis.adapter.DiaryOriginalReadException
@@ -26,7 +26,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import com.example.fitlog.log.confirmationFailureMessage
+import com.example.fitlog.ui.text.confirmationFailureMessage
 import kotlinx.coroutines.withContext
 
 enum class DiaryDetailTab { ORIGINAL, ANALYSIS }
@@ -76,8 +76,6 @@ internal class DiaryDetailViewModel(
     private val confirmationLoading get() = _uiState.value.confirmationLoading
     private val confirmationReadFailed get() = _uiState.value.confirmationReadFailed
     private val parsing get() = _uiState.value.parsing
-    private val analysisBusy get() = _uiState.value.analysisBusy
-    private val analysisIndexWarning get() = _uiState.value.analysisIndexWarning
     private val parseMessage get() = _uiState.value.parseMessage
     private val review get() = _uiState.value.review
     private val reviewSaving get() = _uiState.value.reviewSaving
@@ -100,7 +98,7 @@ internal class DiaryDetailViewModel(
     init {
         reloadOriginal(); retryAnalysis()
         analysisState?.let { state -> viewModelScope.launch { state.collect { value ->
-            updateState { current -> current.copy(analysisBusy = value.active, analysisIndexWarning = value.indexWarning) }
+            updateState { current -> current.copy(analysis = value) }
             if (value.vaultId == sourceKey.vaultId && !value.active && value.stopped && parsing) {
                 updateState { current -> current.copy(parsing = false, parseMessage = R.string.ai_parse_cancelled) }
             }
@@ -138,7 +136,10 @@ internal class DiaryDetailViewModel(
                 if (generation != sourceGeneration) return@launch
                 updateState { current -> current.copy(original = snapshot, contentVersion = version) }
                 try { onSourceRead(snapshot) }
-                catch (e: Exception) { if (e is CancellationException) throw e; updateState { current -> current.copy(analysisIndexWarning = true) } }
+                catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    updateState { current -> current.copy(analysis = current.analysis.copy(indexWarning = true)) }
+                }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 currentCoroutineContext().ensureActive()
@@ -208,7 +209,7 @@ internal class DiaryDetailViewModel(
 
     /** The route observes its request; the shared controller owns its lifetime across navigation. */
     fun parse() {
-        if (parsing || analysisBusy || sourceLoading || reviewSaving || review != null) return
+        if (parsing || _uiState.value.analysis.active || sourceLoading || reviewSaving || review != null) return
         updateState { current -> current.copy(parsing = true, parseMessage = null) }
         selectTab(DiaryDetailTab.ANALYSIS)
         parseJob = viewModelScope.launch {
@@ -234,7 +235,7 @@ internal class DiaryDetailViewModel(
                     is AiConfigurationException -> aiConfigurationMessage(e.reason)
                     is DiaryOriginalReadException -> R.string.detail_source_failed
                     is DiaryAnalysisStorageException -> R.string.ai_parse_save_failed
-                    is com.example.fitlog.log.DiaryAnalysisBusyException -> R.string.log_analysis_busy
+                    is com.example.fitlog.runtime.DiaryAnalysisBusyException -> R.string.log_analysis_busy
                     else -> R.string.ai_request_failed
                 }
                 updateState { it.copy(parseMessage = message) }
@@ -403,6 +404,5 @@ internal class DiaryDetailViewModel(
     override fun onCleared() {
         sourceGeneration++
         analysisGeneration++
-        super.onCleared()
     }
 }

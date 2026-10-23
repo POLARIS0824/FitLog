@@ -7,6 +7,7 @@ import com.example.fitlog.data.index.*
 import com.example.fitlog.data.vault.*
 import com.example.fitlog.domain.AnalyzeDiary
 import com.example.fitlog.log.*
+import com.example.fitlog.runtime.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.test.*

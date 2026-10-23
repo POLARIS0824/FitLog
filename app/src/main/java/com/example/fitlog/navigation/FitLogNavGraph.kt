@@ -1,11 +1,12 @@
 package com.example.fitlog.navigation
 
-import com.example.fitlog.log.DiaryAnalysisController
+import com.example.fitlog.runtime.DiaryAnalysisController
+import com.example.fitlog.runtime.AnalysisRuntimeViewModel
+import com.example.fitlog.runtime.AppRuntimeUiState
 import com.example.fitlog.AppContainer
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.NavBackStack
@@ -41,9 +42,10 @@ import com.example.fitlog.R
 internal fun FitLogNavGraph(
     backStack: NavBackStack<NavKey>,
     container: AppContainer,
-    runtime: com.example.fitlog.log.AnalysisRuntimeViewModel,
-    runtimeState: com.example.fitlog.log.AppRuntimeUiState,
+    runtime: AnalysisRuntimeViewModel,
+    runtimeState: AppRuntimeUiState,
     appearance: AppearanceViewModel,
+    appearanceState: com.example.fitlog.settings.AppearanceUiState,
     onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
     onOpenRoute: (FitLogRoute) -> Unit,
     onNavigateTo: (FitLogRoute) -> Unit,
@@ -53,7 +55,6 @@ internal fun FitLogNavGraph(
     modifier: Modifier = Modifier,
 ) {
     val analysisController = runtime.controller
-    val appearanceState by appearance.uiState.collectAsStateWithLifecycle()
     var showMarkdown by rememberSaveable { mutableStateOf(false) }
     val backHandlers = remember { mutableStateMapOf<NavKey, () -> Unit>() }
 

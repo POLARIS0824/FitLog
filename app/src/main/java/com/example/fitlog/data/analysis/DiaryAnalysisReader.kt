@@ -40,12 +40,6 @@ data class DiaryParseRecords(
 
 enum class DiaryResultFreshness { CURRENT, NEEDS_UPDATE, UNVERIFIABLE }
 
-fun resultFreshness(version: DiaryContentVersion, current: DiaryContentVersion?): DiaryResultFreshness = when {
-    current == null || current.hashVersion != version.hashVersion -> DiaryResultFreshness.UNVERIFIABLE
-    current.contentHash == version.contentHash -> DiaryResultFreshness.CURRENT
-    else -> DiaryResultFreshness.NEEDS_UPDATE
-}
-
 /** Read and transactional-write boundary used by the confirmation use case. */
 interface DiaryConfirmations : DiaryAnalysisReader, DiaryVaultAnalysisReader {
     suspend fun readSummary(sourceKey: SourceKey): DiaryAnalysisSummary

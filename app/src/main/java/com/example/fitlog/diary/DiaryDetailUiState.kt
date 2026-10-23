@@ -1,6 +1,8 @@
 package com.example.fitlog.diary
 
 import com.example.fitlog.data.analysis.*
+import com.example.fitlog.domain.analysis.confirmationFreshness
+import com.example.fitlog.domain.analysis.resultFreshness
 import com.example.fitlog.data.vault.MarkdownSnapshot
 import com.example.fitlog.navigation.FitLogRoute
 
@@ -24,8 +26,7 @@ internal data class DiaryDetailUiState(
     val confirmationStatus: ConfirmationFreshness = ConfirmationFreshness.UNCONFIRMED,
     val candidateStatus: DiaryResultFreshness? = null,
     val parsing: Boolean = false,
-    val analysisBusy: Boolean = false,
-    val analysisIndexWarning: Boolean = false,
+    val analysis: DiaryAnalysisRun = DiaryAnalysisRun(),
     val parseMessage: Int? = null,
     val showCandidate: Boolean = false,
     val review: DiaryReviewDraft? = null,
@@ -35,7 +36,10 @@ internal data class DiaryDetailUiState(
     val leaveRequested: Boolean = false,
     val leaveTarget: DiaryLeaveTarget? = null,
     val leaveReady: Boolean = false,
-)
+) {
+    val analysisBusy: Boolean get() = analysis.active
+    val analysisIndexWarning: Boolean get() = analysis.indexWarning
+}
 
 internal fun DiaryDetailUiState.withDerivedValues() = copy(
     canReview = reviewAvailable && !reviewSaving && !parsing && !confirmationLoading && !parsesLoading && !confirmationReadFailed &&

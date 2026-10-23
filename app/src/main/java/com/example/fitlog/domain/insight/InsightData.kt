@@ -1,6 +1,7 @@
 package com.example.fitlog.domain.insight
 
 import com.example.fitlog.data.analysis.*
+import com.example.fitlog.domain.analysis.confirmationFreshness
 import com.example.fitlog.data.index.IndexedSource
 import com.example.fitlog.data.index.SourceIndexSnapshot
 import com.example.fitlog.data.insight.ExerciseAliases

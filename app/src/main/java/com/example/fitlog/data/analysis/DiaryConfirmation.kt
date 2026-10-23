@@ -123,11 +123,3 @@ data class DiaryContentVersion(val contentHash: String, val hashVersion: Int) {
 }
 
 enum class ConfirmationFreshness { UNCONFIRMED, CONFIRMED, NEEDS_UPDATE, UNVERIFIABLE }
-
-/** Caller must supply a normalized content version, never an index byte fingerprint. */
-fun confirmationFreshness(confirmed: TrainingRecord?, current: DiaryContentVersion?): ConfirmationFreshness = when {
-    confirmed == null -> ConfirmationFreshness.UNCONFIRMED
-    current == null || current.hashVersion != confirmed.hashVersion -> ConfirmationFreshness.UNVERIFIABLE
-    current.contentHash == confirmed.contentHash -> ConfirmationFreshness.CONFIRMED
-    else -> ConfirmationFreshness.NEEDS_UPDATE
-}
