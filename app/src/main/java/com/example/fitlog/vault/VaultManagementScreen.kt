@@ -1,6 +1,8 @@
 package com.example.fitlog.vault
 
-import com.example.fitlog.ui.components.FitLogLoadingIndicator
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.example.fitlog.ui.components.*
+
 
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
@@ -19,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.ui.components.FitLogNotice
-import com.example.fitlog.ui.components.FitLogPageHeader
 
 @Composable
 internal fun VaultManagementScreen(vm: VaultManagementViewModel, onConnect: () -> Unit, onBack: () -> Unit) {
@@ -38,13 +39,18 @@ internal fun VaultManagementScreen(vm: VaultManagementViewModel, onConnect: () -
 
 @Composable
 private fun VaultManagementContent(state: VaultManagementUiState, actions: VaultManagementActions, onConnect: () -> Unit, onBack: () -> Unit) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    val behavior = rememberFitLogTopAppBarBehavior()
+    val pagePadding = fitLogPagePadding()
+    Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection)) {
+      FitLogTopAppBar(stringResource(R.string.vault_management_title), behavior,
+          maxContentWidth = FitLogDimens.ContentWidth, onBack = onBack, backEnabled = !state.busy)
+      Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Column(
-            Modifier.widthIn(max = 640.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+            Modifier.widthIn(max = FitLogDimens.ContentWidth).fillMaxSize().verticalScroll(rememberScrollState()).padding(pagePadding),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            FitLogPageHeader(stringResource(R.string.vault_management_title),
-                stringResource(R.string.vault_management_description), onBack, backEnabled = !state.busy)
+            Text(stringResource(R.string.vault_management_description), style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             val folder = state.folder
             if (!state.loading) {
                 if (folder != null) VaultCard(folder, pending = false)
@@ -63,20 +69,21 @@ private fun VaultManagementContent(state: VaultManagementUiState, actions: Vault
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(stringResource(R.string.vault_disconnect_message), style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedButton(onClick = actions.requestDisconnect, enabled = !state.busy && folder != null) {
+                    OutlinedButton(onClick = actions.requestDisconnect, enabled = !state.busy && folder != null, shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.vault_disconnect), color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
         }
         FitLogLoadingIndicator(state.loading || state.busy,
-            Modifier.align(Alignment.TopCenter).widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 24.dp))
+            Modifier.align(Alignment.TopCenter).widthIn(max = FitLogDimens.ContentWidth).fillMaxWidth().padding(horizontal = pagePadding))
+      }
     }
     if (state.confirmDisconnect) AlertDialog(onDismissRequest = actions.cancelDisconnect,
         title = { Text(stringResource(R.string.vault_disconnect)) },
         text = { Text(stringResource(R.string.vault_disconnect_message)) },
-        confirmButton = { TextButton(onClick = { actions.disconnect() }, enabled = !state.busy) { Text(stringResource(R.string.vault_disconnect)) } },
-        dismissButton = { TextButton(onClick = actions.cancelDisconnect, enabled = !state.busy) { Text(stringResource(R.string.record_cancel)) } })
+        confirmButton = { TextButton(onClick = { actions.disconnect() }, enabled = !state.busy, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.vault_disconnect)) } },
+        dismissButton = { TextButton(onClick = actions.cancelDisconnect, enabled = !state.busy, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_cancel)) } })
 }
 
 

@@ -84,7 +84,7 @@ internal fun DiaryReviewQuestion(issue: CandidateIssue, candidate: StoredDiaryCa
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         (target.field?.let { listOf(it) } ?: DiarySetField.entries).forEach { field ->
                             TextButton(onClick = { onEdit(DiarySetEdit(target.set, target.set.set + 1, field,
-                                set.weight, set.unit, set.reps, set.basis)) }, enabled = canEdit) {
+                                set.weight, set.unit, set.reps, set.basis)) }, enabled = canEdit, shapes = ButtonDefaults.shapes()) {
                                 Text(stringResource(R.string.detail_clarify_field, stringResource(when (field) {
                                     DiarySetField.BASIS -> R.string.detail_basis
                                     DiarySetField.WEIGHT -> if (issue.path.endsWith(".unit")) R.string.detail_unit else R.string.detail_weight
@@ -94,7 +94,7 @@ internal fun DiaryReviewQuestion(issue: CandidateIssue, candidate: StoredDiaryCa
                         }
                     }
                 }
-                if (target.field == null || set == null) TextButton(onClick = { onEditExercise(target.exercise) }, enabled = canEdit) {
+                if (target.field == null || set == null) TextButton(onClick = { onEditExercise(target.exercise) }, enabled = canEdit, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.detail_edit_exercise))
                 }
             } else if (!questionWasRemoved(issue, draft, candidate))

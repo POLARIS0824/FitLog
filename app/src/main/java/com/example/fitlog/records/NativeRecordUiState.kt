@@ -12,6 +12,7 @@ internal data class NativeRecordUiState(
     val readFailed: Boolean = false,
     val closeRequested: Boolean = false,
     val deleted: Boolean = false,
+    val canUndoRemoval: Boolean = false,
 ) {
     val exists get() = persisted != null
     val hasChanges get() = input != persisted && (persisted != null || input.hasContent)

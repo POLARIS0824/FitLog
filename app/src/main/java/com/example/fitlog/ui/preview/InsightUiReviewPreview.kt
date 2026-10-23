@@ -46,7 +46,8 @@ import com.example.fitlog.log.LogActions
 import com.example.fitlog.log.LogContent
 import com.example.fitlog.log.LogDiaryStatus
 import com.example.fitlog.log.LogUiState
-import com.example.fitlog.ui.components.FitLogPageHeader
+import com.example.fitlog.ui.components.*
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.example.fitlog.ui.components.FitLogSectionTitle
 import java.time.LocalDate
 import java.util.UUID
@@ -136,12 +137,15 @@ internal fun InsightActivityLargeTextReviewPreview() {
 
 @Composable
 private fun InsightActivityReviewContent(data: InsightData) {
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { FitLogPageHeader(stringResource(R.string.insight_title)) }
-        item { InsightRangePicker(InsightRange.THIRTY, {}) }
-        item { FitLogSectionTitle(stringResource(R.string.insight_activity)) }
-        item { InsightHeatmap(data, data.activity()) }
+    val behavior = rememberFitLogTopAppBarBehavior(expanded = true)
+    Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection)) {
+        FitLogTopAppBar(stringResource(R.string.insight_title), behavior, expanded = true)
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(fitLogPagePadding()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item { InsightRangePicker(InsightRange.THIRTY, {}) }
+            item { FitLogSectionTitle(stringResource(R.string.insight_activity)) }
+            item { InsightHeatmap(data, data.activity()) }
+        }
     }
 }
 
@@ -159,19 +163,22 @@ internal fun ExerciseChartLargeTextReviewPreview() {
 
 @Composable
 private fun ExerciseChartReviewContent() {
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { FitLogPageHeader(stringResource(R.string.preview_exercise_name)) }
-        item { Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.insight_basis_total), style = MaterialTheme.typography.titleMediumEmphasized)
-                Text(stringResource(R.string.insight_metric_kg), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                InsightChart(InsightSeries(WeightBasis.TOTAL, listOf(40.0, 45.0, 42.5, 50.0).mapIndexed { index, value ->
-                    InsightPoint(LocalDate.parse(PreviewDiary.DATE).minusDays((3L - index) * 7), value, emptyList())
-                }))
-            }
-        } }
+    val behavior = rememberFitLogTopAppBarBehavior()
+    Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection)) {
+        FitLogTopAppBar(stringResource(R.string.preview_exercise_name), behavior, onBack = {})
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(fitLogPagePadding()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item { Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.insight_basis_total), style = MaterialTheme.typography.titleMediumEmphasized)
+                    Text(stringResource(R.string.insight_metric_kg), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    InsightChart(InsightSeries(WeightBasis.TOTAL, listOf(40.0, 45.0, 42.5, 50.0).mapIndexed { index, value ->
+                        InsightPoint(LocalDate.parse(PreviewDiary.DATE).minusDays((3L - index) * 7), value, emptyList())
+                    }), onOpen = {})
+                }
+            } }
+        }
     }
 }
 

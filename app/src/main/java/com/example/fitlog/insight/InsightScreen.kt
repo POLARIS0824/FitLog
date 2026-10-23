@@ -3,6 +3,9 @@
 package com.example.fitlog.insight
 
 import com.example.fitlog.domain.insight.*
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.example.fitlog.ui.components.*
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,13 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import com.example.fitlog.ui.components.FitLogNotice
-import com.example.fitlog.ui.components.FitLogSectionTitle
 import java.time.LocalDate
 import com.example.fitlog.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -39,7 +39,7 @@ internal fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: 
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         if (data == null) {
             InsightPage(headerActions = { InsightRefreshAction(state, vm::refresh) }) {
-                Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.fillMaxWidth().padding(fitLogPagePadding()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     InsightReadState(state, vm::refresh)
                 }
             }
@@ -67,16 +67,10 @@ private fun InsightPage(
     headerActions: @Composable RowScope.() -> Unit,
     content: @Composable () -> Unit,
 ) {
-    Column(Modifier.widthIn(max = 720.dp).fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        TopAppBar(
-            title = {
-                Text(stringResource(R.string.insight_title), style = MaterialTheme.typography.headlineLargeEmphasized,
-                    modifier = Modifier.semantics { heading() })
-            },
-            actions = headerActions,
-            windowInsets = WindowInsets(0, 0, 0, 0),
-        )
-        Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+    val behavior = rememberFitLogTopAppBarBehavior(expanded = true)
+    Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
+        FitLogTopAppBar(stringResource(R.string.insight_title), behavior, expanded = true, actions = headerActions)
+        Box(Modifier.weight(1f).widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth()) { content() }
     }
 }
 
@@ -105,11 +99,12 @@ internal fun InsightDashboardContent(
     rangeEnabled: Boolean = true,
     notices: @Composable () -> Unit = {},
 ) = InsightPage(headerActions) {
+    val pagePadding = fitLogPagePadding()
     val data = presentation.data
     val overview = presentation.overview
     val focused = presentation.focused
     LazyColumn(Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 100.dp),
+        contentPadding = PaddingValues(start = pagePadding, top = 24.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { notices() }
         item { InsightRangePicker(range, onSelectRange, enabled = rangeEnabled) }
@@ -205,13 +200,13 @@ private fun InsightSourceSheet(presentation: InsightPresentation, selection: Str
     ModalBottomSheet(onDismissRequest = onDismiss,
         sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
             enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))) {
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp), contentPadding = PaddingValues(24.dp),
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp), contentPadding = FitLogSheetDefaults.ContentPadding,
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Text(when { selection == "sources" -> stringResource(R.string.insight_coverage)
+            item { FitLogSheetTitle(when { selection == "sources" -> stringResource(R.string.insight_coverage)
                 selection == "exercises" -> stringResource(R.string.insight_exercises)
                 selection == "records" -> stringResource(R.string.insight_recent_records)
                 status != null -> sourceStatusLabel(status); day != null -> insightDate(day)
-                else -> stringResource(R.string.insight_view_days) }, style = MaterialTheme.typography.headlineSmall) }
+                else -> stringResource(R.string.insight_view_days) }) }
             when {
                 selection == "sources" -> {
                     item { coverage() }
@@ -263,9 +258,9 @@ private fun InsightFocusSheet(state: InsightUiState, presentation: InsightPresen
     ModalBottomSheet(onDismissRequest = { if (!state.focusSaving) onDismiss() },
         sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
             enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))) {
-        Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).padding(24.dp),
+        Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).navigationBarsPadding().padding(FitLogSheetDefaults.ContentPadding),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(stringResource(R.string.insight_focus_title), style = MaterialTheme.typography.headlineSmallEmphasized)
+            FitLogSheetTitle(stringResource(R.string.insight_focus_title))
             Text(stringResource(R.string.insight_focus_help), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
@@ -283,11 +278,9 @@ private fun InsightFocusSheet(state: InsightUiState, presentation: InsightPresen
                 }
             }
             state.focusError?.let { FitLogNotice(stringResource(it), error = true) }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { onSave(chosen.toSet()) }, enabled = !state.focusSaving,
-                    shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.insight_focus_save)) }
-                TextButton(onClick = onDismiss, enabled = !state.focusSaving) { Text(stringResource(R.string.insight_alias_cancel)) }
-            }
+            FitLogSheetActions(onDismiss, onConfirm = { onSave(chosen.toSet()) },
+                enabled = !state.focusSaving, dismissEnabled = !state.focusSaving,
+                confirmLabel = stringResource(R.string.insight_focus_save))
         }
     }
 }

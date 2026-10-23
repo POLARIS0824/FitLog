@@ -1,5 +1,7 @@
 package com.example.fitlog.ai
 
+import com.example.fitlog.ui.components.*
+
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.data.ai.AiModelSelection
@@ -95,7 +97,7 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
         state.message?.let { message -> item {
             SettingsFormCard {
                 Text(stringResource(message), style = MaterialTheme.typography.bodyMedium)
-                if (!state.initialized) TextButton(onClick = actions.reload, enabled = !state.loading) {
+                if (!state.initialized) TextButton(onClick = actions.reload, enabled = !state.loading, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.log_retry))
                 }
             }
@@ -121,7 +123,7 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
                     OutlinedTextField(state.name, actions.changeName, label = { Text(stringResource(R.string.ai_connection_name)) },
                         enabled = state.canEdit, singleLine = true, modifier = Modifier.fillMaxWidth())
                     if (state.providers.any { it.id == state.providerId }) {
-                        TextButton(onClick = { confirmDelete = true }, enabled = state.canEdit && !state.requestRunning) {
+                        TextButton(onClick = { confirmDelete = true }, enabled = state.canEdit && !state.requestRunning, shapes = ButtonDefaults.shapes()) {
                             Text(stringResource(R.string.ai_delete_connection), color = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -139,7 +141,7 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
                     visualTransformation = if (state.showKey) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     trailingIcon = {
-                        TextButton(onClick = actions.toggleKey, enabled = state.canEdit) {
+                        TextButton(onClick = actions.toggleKey, enabled = state.canEdit, shapes = ButtonDefaults.shapes()) {
                             Text(stringResource(if (state.showKey) R.string.ai_hide_key else R.string.ai_show_key))
                         }
                     }, enabled = state.canEdit, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -165,14 +167,14 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = actions.addModel,
-                        enabled = state.canEdit && state.selectedModel.isNotBlank() && state.selectedModel.trim() !in state.modelIds) {
+                        enabled = state.canEdit && state.selectedModel.isNotBlank() && state.selectedModel.trim() !in state.modelIds, shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.ai_add_model))
                     }
-                    TextButton(onClick = actions.removeModel, enabled = state.canEdit && state.selectedModel in state.modelIds) {
+                    TextButton(onClick = actions.removeModel, enabled = state.canEdit && state.selectedModel in state.modelIds, shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.ai_remove_model))
                     }
                 }
-                OutlinedButton(onClick = actions.fetch, enabled = state.canEdit && !state.requestRunning) {
+                OutlinedButton(onClick = actions.fetch, enabled = state.canEdit && !state.requestRunning, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.ai_fetch_models))
                 }
             }
@@ -182,7 +184,7 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
             SettingsFormCard {
                 Text(stringResource(R.string.ai_test_description), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedButton(onClick = actions.test, enabled = state.canEdit && !state.requestRunning) {
+                OutlinedButton(onClick = actions.test, enabled = state.canEdit && !state.requestRunning, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.ai_test_button))
                 }
             }
@@ -206,9 +208,9 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
         title = { Text(stringResource(R.string.ai_delete_connection)) },
         text = { Text(stringResource(R.string.ai_delete_description)) },
         confirmButton = { TextButton(onClick = { confirmDelete = false; actions.delete() },
-            enabled = state.canEdit && !state.requestRunning) {
+            enabled = state.canEdit && !state.requestRunning, shapes = ButtonDefaults.shapes()) {
             Text(stringResource(R.string.ai_delete_connection))
-        } }, dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.ai_cancel_request)) } })
+        } }, dismissButton = { TextButton(onClick = { confirmDelete = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.ai_cancel_request)) } })
 }
 
 @Composable
@@ -232,10 +234,10 @@ internal fun ConnectionPicker(
     onDeepSeek: () -> Unit,
     onCustom: () -> Unit,
 ) {
-    LazyColumn(Modifier.fillMaxWidth().selectableGroup(),
-        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
+    LazyColumn(Modifier.fillMaxWidth().selectableGroup().navigationBarsPadding(),
+        contentPadding = FitLogSheetDefaults.ContentPadding,
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { SettingsSectionTitle(stringResource(R.string.ai_choose_connection)) }
+        item { FitLogSheetTitle(stringResource(R.string.ai_choose_connection)) }
         if (connections.none { it.id == editingId }) item {
             Text(stringResource(R.string.ai_unsaved_connection), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -268,11 +270,11 @@ internal fun ConnectionPicker(
         }
         item {
             SettingsSectionTitle(stringResource(R.string.ai_new_connection_heading))
-            FilledTonalButton(onClick = onDeepSeek, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+            FilledTonalButton(onClick = onDeepSeek, enabled = enabled, modifier = Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.ai_add_deepseek))
             }
             OutlinedButton(onClick = onCustom, enabled = enabled,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp), shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.ai_add_custom))
             }
         }

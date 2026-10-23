@@ -1,7 +1,8 @@
 package com.example.fitlog.log
 
-import com.example.fitlog.ui.components.FitLogProgressFeedback
-import com.example.fitlog.ui.components.rememberDelayedLoading
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.example.fitlog.ui.components.*
+
 
 import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.FitLogPreview
@@ -16,11 +17,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
@@ -29,7 +30,6 @@ import com.example.fitlog.data.vault.MarkdownFile
 import com.example.fitlog.data.index.IndexedScan
 import com.example.fitlog.data.index.IndexedSource
 import com.example.fitlog.data.analysis.*
-import com.example.fitlog.ui.components.FitLogNotice
 
 @Composable
 internal fun LogScreen(
@@ -70,35 +70,42 @@ internal fun LogContent(
     showAppBar: Boolean = true,
 ) {
     var sortExpanded by remember { mutableStateOf(false) }
+    var toolsExpanded by rememberSaveable { mutableStateOf(false) }
     val showLoading = rememberDelayedLoading(state.refreshing || state.loading)
+    val behavior = rememberFitLogTopAppBarBehavior(expanded = true)
+    val pagePadding = fitLogPagePadding()
     val files = state.visibleFiles
-    Column(modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (showAppBar) LogTopAppBar(true, state.refreshing, actions.refresh, onConnect, onManage)
+    Column(modifier.fillMaxSize().then(if (showAppBar) Modifier.nestedScroll(behavior.nestedScrollConnection) else Modifier), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (showAppBar) LogTopAppBar(true, state.refreshing, actions.refresh, onConnect, onManage, behavior)
         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
-                modifier = Modifier.widthIn(max = 840.dp).fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 100.dp),
+                modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxSize(),
+                contentPadding = PaddingValues(start = pagePadding, top = 16.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
             ) {
                 item(key = "header") {
                     OutlinedTextField(
                         value = state.query, onValueChange = actions.search, singleLine = true,
-                        placeholder = { Text(stringResource(R.string.log_search)) },
+                        label = { Text(stringResource(R.string.log_search)) },
                         shape = CircleShape,
                         leadingIcon = { Icon(painterResource(R.drawable.search_24px), null) },
                         modifier = Modifier.fillMaxWidth(),
                         trailingIcon = {
-                            if (state.query.isNotEmpty()) IconButton(onClick = { actions.search("") }) {
+                            if (state.query.isNotEmpty()) IconButton(onClick = { actions.search("") }, shapes = IconButtonDefaults.shapes()) {
                                 Icon(painterResource(R.drawable.close_24px), stringResource(R.string.log_clear_search))
                             }
                         },
                     )
-                    Spacer(Modifier.height(12.dp))
+                    TextButton(onClick = { toolsExpanded = !toolsExpanded }, shapes = ButtonDefaults.shapes()) {
+                        Text(stringResource(if (toolsExpanded) R.string.log_hide_tools else R.string.log_show_tools,
+                            stringResource(state.statusFilter.label)))
+                    }
+                    if (toolsExpanded) {
                     LogAnalysisControls(state, actions, onReview)
                     Spacer(Modifier.height(12.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Box {
-                            OutlinedButton(onClick = { sortExpanded = true }, enabled = !state.sortBusy) {
+                            OutlinedButton(onClick = { sortExpanded = true }, enabled = !state.sortBusy, shapes = ButtonDefaults.shapes()) {
                                 Text(stringResource(if (state.sort == LogSortOrder.Ascending) R.string.log_sort_ascending else R.string.log_sort_descending))
                             }
                             DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
@@ -112,6 +119,7 @@ internal fun LogContent(
                         }
                         FilterChip(selected = state.showMissing, onClick = actions.toggleMissing,
                             label = { Text(stringResource(R.string.index_show_missing)) })
+                    }
                     }
                     Text(stringResource(when {
                         showLoading && state.vault != null -> R.string.index_scanning
@@ -137,6 +145,13 @@ internal fun LogContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
+                if (state.summariesReadFailed) item(key = "analysis-error") {
+                    FitLogNotice(stringResource(R.string.detail_analysis_failed), error = true)
+                }
+                if (state.run.batch && state.run.total > 0) item(key = "analysis-run") {
+                    AnalysisRunFeedback(state.run, actions.cancelAnalysis,
+                        { actions.filter(LogStatusFilter.FAILED) }, actions.openAiSettings)
+                }
                 state.error?.let { item { FitLogNotice(stringResource(it), error = true) } }
                 state.sortError?.let { item { FitLogNotice(stringResource(it), error = true) } }
                 if (state.partial) item { FitLogNotice(stringResource(R.string.log_partial)) }
@@ -152,8 +167,11 @@ internal fun LogContent(
                                     state.files.isEmpty() -> R.string.log_empty
                                     else -> R.string.log_no_matches
                                 }), style = MaterialTheme.typography.titleMedium)
-                                if (state.vault == null) Button(onClick = onConnect, shapes = ButtonDefaults.shapes()) {
-                                    Text(stringResource(R.string.log_connect))
+                                if (state.vault == null) Button(onClick = onConnect,
+                                    shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
+                                    modifier = Modifier.heightIn(min = ButtonDefaults.MediumContainerHeight),
+                                    contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)) {
+                                    Text(stringResource(R.string.log_connect), style = MaterialTheme.typography.titleMediumEmphasized)
                                 }
                             }
                         }
@@ -190,7 +208,7 @@ internal fun LogContent(
                 }
             }
             FitLogProgressFeedback(showLoading,
-                Modifier.align(Alignment.TopCenter).widthIn(max = 840.dp).fillMaxWidth().padding(horizontal = 16.dp))
+                Modifier.align(Alignment.TopCenter).widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().padding(horizontal = pagePadding))
         }
     }
 }
@@ -203,21 +221,17 @@ internal fun LogTopAppBar(
     onRefresh: () -> Unit,
     onConnect: () -> Unit,
     onManage: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
-    TopAppBar(
-        modifier = Modifier.widthIn(max = 840.dp).fillMaxWidth(),
-        title = {
-            Text(stringResource(R.string.log_title), style = MaterialTheme.typography.headlineLargeEmphasized,
-                modifier = Modifier.semantics { heading() })
-        },
+    FitLogTopAppBar(stringResource(R.string.log_title), scrollBehavior, expanded = true,
         actions = {
             if (markdown) {
                 FilledTonalIconButton(onClick = onRefresh, enabled = !refreshing, shapes = IconButtonDefaults.shapes()) {
                     Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.log_refresh))
                 }
                 Box {
-                    IconButton(onClick = { menuExpanded = true }) {
+                    IconButton(onClick = { menuExpanded = true }, shapes = IconButtonDefaults.shapes()) {
                         Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.log_options))
                     }
                     DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
@@ -229,7 +243,6 @@ internal fun LogTopAppBar(
                 }
             }
         },
-        windowInsets = WindowInsets(0, 0, 0, 0),
     )
 }
 

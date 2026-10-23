@@ -73,9 +73,9 @@ private fun DiaryExerciseCard(name: String, notes: String?, evidence: EvidenceQu
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(name, style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.semantics { heading() })
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = onEditExercise, enabled = canEdit) { Text(stringResource(R.string.detail_edit_exercise)) }
+            TextButton(onClick = onEditExercise, enabled = canEdit, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.detail_edit_exercise)) }
             if (onDeleteExercise != null) TextButton(onClick = onDeleteExercise, enabled = canEdit,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.detail_delete_exercise))
             }
         }
@@ -92,7 +92,7 @@ private fun DiaryExerciseCard(name: String, notes: String?, evidence: EvidenceQu
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 val turn by animateFloatAsState(if (expanded) 90f else 0f, MaterialTheme.motionScheme.fastSpatialSpec(), label = "sourceExpand")
-                TextButton(onClick = { expanded = !expanded }, modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = { expanded = !expanded }, modifier = Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) {
                     Text(if (issues.isEmpty()) stringResource(R.string.detail_sources)
                         else stringResource(R.string.detail_sources_issues, issues.size), modifier = Modifier.weight(1f))
                     Icon(painterResource(R.drawable.chevron_right_24px), null, modifier = Modifier.graphicsLayer { rotationZ = turn })
@@ -171,7 +171,7 @@ private fun DiarySetRow(set: DiarySetUi, commonBasis: WeightBasis?, canEdit: Boo
             controls()
         }
         if (set.address != null) TextButton(onClick = { onEdit(DiarySetEdit(set.address, requireNotNull(set.number),
-            DiarySetField.BASIS, set.weight, set.unit, set.reps, set.basis)) }, enabled = enabled) {
+            DiarySetField.BASIS, set.weight, set.unit, set.reps, set.basis)) }, enabled = enabled, shapes = ButtonDefaults.shapes()) {
             Text(stringResource(R.string.detail_field, stringResource(R.string.detail_basis), stringResource(basisLabel(set.basis))))
         } else if (commonBasis == null) Text(stringResource(basisLabel(set.basis)), style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)

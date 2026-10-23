@@ -1,23 +1,19 @@
 package com.example.fitlog.records
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.example.fitlog.ui.components.*
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
@@ -27,7 +23,6 @@ import com.example.fitlog.data.vault.MarkdownFile
 import com.example.fitlog.log.LogScreen
 import com.example.fitlog.log.LogViewModel
 import com.example.fitlog.log.LogTopAppBar
-import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.preview.FitLogPreview
 import kotlinx.coroutines.CancellationException
 
@@ -39,12 +34,24 @@ internal fun RecordsLogScreen(vm: LogViewModel,
     val state by vm.uiState.collectAsStateWithLifecycle()
     val records = state.nativeRecords
     val error = state.recordsReadFailed
-    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        RecordsLogHeader(markdown, state.refreshing, onMarkdown, { vm.refresh() }, onConnect, onManage)
+    val behavior = rememberFitLogTopAppBarBehavior(expanded = true)
+    val pagePadding = fitLogPagePadding()
+    Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
+        RecordsLogHeader(markdown, state.refreshing, onMarkdown, { vm.refresh() }, onConnect, onManage, behavior)
+        if (state.run.active && !state.run.batch) Surface(
+            modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Row(Modifier.padding(horizontal = pagePadding), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.log_batch_running, state.run.items.size, state.run.total), Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelLarge)
+                TextButton(onClick = vm::cancelAnalysis, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.ai_cancel_request)) }
+            }
+        }
         if (markdown) LogScreen(vm, onOpenMarkdown, onConnect, onManage,
             modifier = Modifier.weight(1f), onReview = onReview, onAiSettings = onAiSettings, showAppBar = false)
-        else LazyColumn(Modifier.widthIn(max = 840.dp).fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 100.dp),
+        else LazyColumn(Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(start = pagePadding, top = 16.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text(stringResource(R.string.record_ui_list_subtitle), style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -55,12 +62,12 @@ internal fun RecordsLogScreen(vm: LogViewModel,
                     contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)) {
                     Icon(painterResource(R.drawable.add_24px), null, Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MediumContainerHeight)))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(stringResource(R.string.record_new), style = MaterialTheme.typography.labelLargeEmphasized)
+                    Text(stringResource(R.string.record_new), style = MaterialTheme.typography.titleMediumEmphasized)
                 }
             }
             if (error) item {
                 FitLogNotice(stringResource(R.string.record_read_failed), error = true)
-                TextButton(onClick = vm::retryRecords) { Text(stringResource(R.string.record_retry)) }
+                TextButton(onClick = vm::retryRecords, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_retry)) }
             }
             if (!error && !state.recordsLoading && records.isEmpty()) item { FitLogNotice(stringResource(R.string.record_no_records)) }
             items(records, key = { it.diary.id }) { record ->
@@ -97,36 +104,19 @@ internal fun RecordsLogScreen(vm: LogViewModel,
 
 @Composable
 private fun RecordsLogHeader(markdown: Boolean, refreshing: Boolean, onMarkdown: (Boolean) -> Unit,
-    onRefresh: () -> Unit, onConnect: () -> Unit, onManage: () -> Unit) {
-    LogTopAppBar(markdown, refreshing, onRefresh, onConnect, onManage)
+    onRefresh: () -> Unit, onConnect: () -> Unit, onManage: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior = rememberFitLogTopAppBarBehavior(expanded = true)) {
+    LogTopAppBar(markdown, refreshing, onRefresh, onConnect, onManage, scrollBehavior)
     RecordSourceSelector(markdown, onMarkdown)
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun RecordSourceSelector(markdown: Boolean, onMarkdown: (Boolean) -> Unit) {
-    BoxWithConstraints(Modifier.widthIn(max = 840.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-          val labels = listOf(stringResource(R.string.record_native), stringResource(R.string.record_markdown))
-          val style = MaterialTheme.typography.labelLargeEmphasized
-          val measurer = rememberTextMeasurer()
-          val density = LocalDensity.current
-          val itemWidth = maxOf((maxWidth - ButtonGroupDefaults.ConnectedSpaceBetween) / 2,
-              labels.maxOf { with(density) { measurer.measure(it, style, maxLines = 1).size.width.toDp() } } + 32.dp)
-          Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
-              horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
-            listOf(false, true).forEachIndexed { index, source ->
-                FilledTonalToggleButton(checked = markdown == source, onCheckedChange = { onMarkdown(source) },
-                    modifier = Modifier.width(itemWidth).heightIn(min = 48.dp).semantics { role = Role.RadioButton },
-                    shapes = if (index == 0) ButtonGroupDefaults.connectedLeadingButtonShapes()
-                        else ButtonGroupDefaults.connectedTrailingButtonShapes()) {
-                    Text(stringResource(if (source) R.string.record_markdown else R.string.record_native),
-                        style = if (markdown == source) MaterialTheme.typography.labelLargeEmphasized
-                            else MaterialTheme.typography.labelLarge,
-                        maxLines = 1, softWrap = false)
-                }
-            }
-          }
-    }
+    FitLogConnectedButtonGroup(listOf(false, true), markdown,
+        label = { stringResource(if (it) R.string.record_markdown else R.string.record_native) },
+        onSelect = onMarkdown,
+        modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth)
+            .padding(horizontal = fitLogPagePadding(), vertical = 8.dp))
 }
 
 @Preview(name = "Record sources", widthDp = 412, heightDp = 400, locale = "en")

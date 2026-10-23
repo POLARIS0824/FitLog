@@ -13,12 +13,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.example.fitlog.R
 
 /** The app owns system insets; this frame owns the app bar and one scrolling content list. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,40 +29,21 @@ internal fun FitLogSettingsPage(
     actions: @Composable RowScope.() -> Unit = {},
     content: LazyListScope.() -> Unit,
 ) {
-    val behavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
-        snapAnimationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-    )
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLow),
-        contentAlignment = Alignment.TopCenter) {
-        Column(Modifier.widthIn(max = 640.dp).fillMaxSize().nestedScroll(behavior.nestedScrollConnection)) {
-            LargeFlexibleTopAppBar(
-                title = {
-                    Text(title, fontFamily = MaterialTheme.typography.displaySmallEmphasized.fontFamily,
-                        fontWeight = MaterialTheme.typography.displaySmallEmphasized.fontWeight,
-                        modifier = Modifier.semantics { heading() })
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack, enabled = backEnabled, shapes = IconButtonDefaults.shapes()) {
-                        Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
-                    }
-                },
-                actions = actions,
-                windowInsets = WindowInsets(0, 0, 0, 0),
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                ),
-                scrollBehavior = behavior,
+    val behavior = rememberFitLogTopAppBarBehavior()
+    val pagePadding = fitLogPagePadding()
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLow)
+        .nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
+        FitLogTopAppBar(title, behavior, maxContentWidth = FitLogDimens.ContentWidth,
+            onBack = onBack, backEnabled = backEnabled, actions = actions)
+
+        Box(Modifier.weight(1f).widthIn(max = FitLogDimens.ContentWidth).fillMaxWidth().imePadding()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = pagePadding, end = pagePadding, top = 16.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                content = content,
             )
-            Box(Modifier.weight(1f).fillMaxWidth().imePadding()) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
-                    content = content,
-                )
-                FitLogLoadingIndicator(loading, Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 24.dp))
-            }
+            FitLogLoadingIndicator(loading, Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = pagePadding))
         }
     }
 }

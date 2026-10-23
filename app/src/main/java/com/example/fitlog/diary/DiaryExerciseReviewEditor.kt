@@ -1,5 +1,7 @@
 package com.example.fitlog.diary
 
+import com.example.fitlog.ui.components.*
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
@@ -58,16 +60,15 @@ internal fun DiaryExerciseReviewEditorContent(address: DiaryExerciseAddress, exe
     val valid = name.isNotBlank() && knownCount != null && fragmentCounts.values.all { it != null && it in 0..1000 } &&
         total != null && total <= 1000
     Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding()) {
-      Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
+      Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = FitLogDimens.SheetPadding).padding(top = 8.dp),
           verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(if (exercise == null) R.string.detail_add_exercise else R.string.detail_edit_exercise_title),
-                    style = MaterialTheme.typography.headlineSmallEmphasized)
+                FitLogSheetTitle(stringResource(if (exercise == null) R.string.detail_add_exercise else R.string.detail_edit_exercise_title))
                 Text(stringResource(R.string.detail_exercise_review_subtitle), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(onClick = onDismiss) {
+            IconButton(onClick = onDismiss, shapes = IconButtonDefaults.shapes()) {
                 Icon(painterResource(R.drawable.close_24px), stringResource(R.string.detail_close_exercise_editor))
             }
         }
@@ -102,9 +103,10 @@ internal fun DiaryExerciseReviewEditorContent(address: DiaryExerciseAddress, exe
         Text(stringResource(R.string.detail_manual_review_help), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
-      ExerciseReviewActions(valid, onDismiss) {
-          onSave(name.trim(), requireNotNull(knownCount), fragmentCounts.mapValues { requireNotNull(it.value) })
-      }
+      FitLogSheetActions(onDismiss, enabled = valid,
+          confirmLabel = stringResource(R.string.detail_apply_correction),
+          modifier = Modifier.padding(horizontal = FitLogDimens.SheetPadding).padding(top = 12.dp, bottom = FitLogDimens.SheetPadding),
+          onConfirm = { onSave(name.trim(), requireNotNull(knownCount), fragmentCounts.mapValues { requireNotNull(it.value) }) })
     }
 }
 
@@ -162,7 +164,7 @@ private fun ExerciseOriginalNote(quote: String) {
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Column {
             TextButton(onClick = { expanded = !expanded }, modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp), shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.detail_original_note), Modifier.weight(1f), textAlign = TextAlign.Start)
                 val rotation by animateFloatAsState(if (expanded) 270f else 90f,
                     MaterialTheme.motionScheme.fastSpatialSpec(), label = "exerciseOriginalNote")
@@ -174,38 +176,6 @@ private fun ExerciseOriginalNote(quote: String) {
                 SelectionContainer { Text(quote, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                     style = MaterialTheme.typography.bodyMedium) }
             }
-        }
-    }
-}
-
-@Composable
-private fun ExerciseReviewActions(valid: Boolean, onDismiss: () -> Unit, onSave: () -> Unit) {
-    val cancelLabel = stringResource(R.string.record_cancel)
-    val applyLabel = stringResource(R.string.detail_apply_correction)
-    val textStyle = MaterialTheme.typography.labelLargeEmphasized
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-    val minimumWidth = with(density) {
-        (measurer.measure(cancelLabel, textStyle, maxLines = 1).size.width +
-            measurer.measure(applyLabel, textStyle, maxLines = 1).size.width).toDp()
-    } + 76.dp
-    val cancel: @Composable (Modifier) -> Unit = { modifier ->
-        TextButton(onClick = onDismiss, modifier = modifier.heightIn(min = 48.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-            Text(cancelLabel, style = textStyle, maxLines = 1, softWrap = false)
-        }
-    }
-    val apply: @Composable (Modifier) -> Unit = { modifier ->
-        Button(onClick = onSave, enabled = valid, modifier = modifier.heightIn(min = 56.dp), shapes = ButtonDefaults.shapes(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(applyLabel, style = textStyle, maxLines = 1, softWrap = false)
-        }
-    }
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 12.dp, bottom = 24.dp)) {
-        if (maxWidth < minimumWidth) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            apply(Modifier.fillMaxWidth()); cancel(Modifier.fillMaxWidth())
-        } else Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            cancel(Modifier); apply(Modifier.weight(1f))
         }
     }
 }

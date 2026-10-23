@@ -68,9 +68,15 @@
     <string name="insight_alias_owned">已归属“%1$s”，请先从该分组移除</string>
     <string name="insight_alias_primary">展示名称</string>
     <string name="insight_alias_save">保存别名</string>
-    <string name="insight_alias_cancel">取消</string>
     <string name="insight_alias_dissolve">解除分组，各名称分别统计</string>
     <string name="insight_alias_save_failed">无法保存别名，已保留当前选择，请手动重试保存</string>
     <string name="insight_heatmap_count">%1$d</string>
     <string name="insight_heatmap_four_plus">%1$d+</string>
+    <string name="insight_previous_point">上一个数据点</string>
+    <string name="insight_next_point">下一个数据点</string>
+    <string name="insight_show_points">展开每日数值</string>
+    <string name="insight_hide_points">收起每日数值</string>
+    <string name="insight_show_sets">展开训练组明细</string>
+    <string name="insight_hide_sets">收起训练组明细</string>
+    <string name="insight_source_number">查看第 %1$d 条记录</string>
 </resources>

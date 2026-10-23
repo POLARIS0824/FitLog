@@ -92,4 +92,5 @@
     <string name="detail_failure_service">AI 接入商暂时不可用。</string>
     <string name="detail_failure_empty">模型未返回回答。</string>
     <string name="detail_failure_truncated">模型回答被截断，本次未接受任何候选结果。</string>
+    <string name="detail_reading_source">正在读取原文…</string>
 </resources>
