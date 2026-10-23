@@ -1,7 +1,7 @@
 package com.example.fitlog.ui.text
 
 import com.example.fitlog.R
-import com.example.fitlog.data.analysis.ConfirmationFailure
+import com.example.fitlog.model.analysis.ConfirmationFailure
 
 /** Confirmation conflicts are shared by the detail page and batch review, so they live outside both. */
 internal fun confirmationFailureMessage(reason: ConfirmationFailure) = when (reason) {

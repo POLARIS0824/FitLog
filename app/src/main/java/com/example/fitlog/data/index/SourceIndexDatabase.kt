@@ -2,46 +2,11 @@ package com.example.fitlog.data.index
 
 import android.content.Context
 import androidx.room.*
-import com.example.fitlog.data.vault.MarkdownFile
-import com.example.fitlog.data.vault.requireVaultId
+import com.example.fitlog.model.source.IndexedScan
+import com.example.fitlog.model.source.IndexedSource
+import com.example.fitlog.model.source.SourceIndexSnapshot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-
-@Entity(tableName = "sources", primaryKeys = ["vaultId", "uri"])
-data class IndexedSource(
-    val vaultId: String,
-    val uri: String,
-    val name: String,
-    val path: String,
-    val directory: String?,
-    val writable: Boolean,
-    val status: String = AVAILABLE,
-    val contentHash: String? = null,
-    val hashVersion: Int? = null,
-    /** Logical order of the indexed observation; older or repeated reads cannot replace it. */
-    val observedAt: Long = 0L,
-) {
-    init { requireVaultId(vaultId) }
-    fun file() = MarkdownFile(uri, name, path, writable, directory)
-    companion object {
-        const val AVAILABLE = "available"
-        const val READ_FAILED = "read_failed"
-        const val MISSING = "missing"
-    }
-}
-
-@Entity(tableName = "scans")
-data class IndexedScan(@PrimaryKey val vaultId: String, val status: String, val completedAt: Long? = null) {
-    init { requireVaultId(vaultId) }
-    companion object {
-        const val COMPLETE = "complete"
-        const val PARTIAL = "partial"
-        const val FAILED = "failed"
-    }
-}
-
-data class SourceIndexSnapshot(val sources: List<IndexedSource>, val scan: IndexedScan?,
-    val refreshing: Boolean = false, val refreshFailed: Boolean = false)
 
 interface SourceIndexStore {
     fun observe(vaultId: String): Flow<SourceIndexSnapshot>
@@ -50,19 +15,19 @@ interface SourceIndexStore {
 }
 
 @Dao
-interface SourceIndexDao {
+internal interface SourceIndexDao {
     @Query("SELECT * FROM sources WHERE vaultId = :vaultId")
-    fun observeSources(vaultId: String): Flow<List<IndexedSource>>
+    fun observeSources(vaultId: String): Flow<List<IndexedSourceRow>>
     @Query("SELECT * FROM scans WHERE vaultId = :vaultId")
-    fun observeScan(vaultId: String): Flow<IndexedScan?>
+    fun observeScan(vaultId: String): Flow<IndexedScanRow?>
     @Query("SELECT * FROM sources WHERE vaultId = :vaultId")
-    suspend fun sources(vaultId: String): List<IndexedSource>
-    @Upsert suspend fun putSources(sources: List<IndexedSource>)
-    @Upsert suspend fun putScan(scan: IndexedScan)
+    suspend fun sources(vaultId: String): List<IndexedSourceRow>
+    @Upsert suspend fun putSources(sources: List<IndexedSourceRow>)
+    @Upsert suspend fun putScan(scan: IndexedScanRow)
 }
 
-@Database(entities = [IndexedSource::class, IndexedScan::class], version = 6, exportSchema = true)
-abstract class SourceIndexDatabase : RoomDatabase() {
+@Database(entities = [IndexedSourceRow::class, IndexedScanRow::class], version = 6, exportSchema = true)
+internal abstract class SourceIndexDatabase : RoomDatabase() {
     abstract fun index(): SourceIndexDao
     companion object {
         internal fun open(context: Context, name: String = "source-index.db"): SourceIndexDatabase =
@@ -72,12 +37,14 @@ abstract class SourceIndexDatabase : RoomDatabase() {
     }
 }
 
-class RoomSourceIndexStore(private val database: SourceIndexDatabase) : SourceIndexStore {
+class RoomSourceIndexStore internal constructor(private val database: SourceIndexDatabase) : SourceIndexStore {
     private val dao = database.index()
-    override fun observe(vaultId: String) = combine(dao.observeSources(vaultId), dao.observeScan(vaultId), ::SourceIndexSnapshot)
-    override suspend fun sources(vaultId: String) = dao.sources(vaultId)
+    override fun observe(vaultId: String) = combine(dao.observeSources(vaultId), dao.observeScan(vaultId)) { sources, scan ->
+        SourceIndexSnapshot(sources.map { it.toSource() }, scan?.toScan())
+    }
+    override suspend fun sources(vaultId: String) = dao.sources(vaultId).map { it.toSource() }
     override suspend fun commit(sources: List<IndexedSource>, scan: IndexedScan?) = database.withTransaction {
-        dao.putSources(sources)
-        if (scan != null) dao.putScan(scan)
+        dao.putSources(sources.map { it.toRow() })
+        if (scan != null) dao.putScan(scan.toRow())
     }
 }

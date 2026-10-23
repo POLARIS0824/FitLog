@@ -40,6 +40,27 @@
     <string name="record_revoke">Remove confirmation</string>
     <string name="record_revoke_confirm">Remove the local confirmation? The Markdown source and AI candidate are kept.</string>
     <string name="record_coverage">Statistics include local records and current confirmations from the connected Markdown folder.</string>
-    <string name="vault_capability_readable">Readable · source files stay unchanged</string>
     <string name="record_name_separator">", "</string>
+    <string name="record_ui_list_subtitle">Your training, one record at a time</string>
+    <string name="record_ui_date">Training date</string>
+    <string name="record_ui_edit_set">%1$s, %2$s: %3$s</string>
+    <string name="record_ui_empty_title">Start with one exercise</string>
+    <plurals name="record_ui_completed_sets">
+        <item quantity="one">%1$d completed set</item>
+        <item quantity="other">%1$d completed sets</item>
+    </plurals>
+    <string name="record_set_options">Set %1$d options</string>
+    <string name="record_exercise_options">Exercise options</string>
+    <string name="record_weight_options">Weight settings</string>
+    <string name="record_copy_set">Copy this set</string>
+    <string name="record_copy_last_set">Copy last set</string>
+    <string name="record_weight_placeholder">Optional</string>
+    <string name="record_bodyweight_change_help">Bodyweight needs no external load. Applying this clears the weight and unit for the selected sets.</string>
+    <string name="record_weight_options_help">Enter weight directly in the set. Changing kg or lb converts an existing numeric weight; the basis describes what that number means.</string>
+    <string name="record_undo">Undo</string>
+    <string name="record_removed">Removed from this record</string>
+    <string name="record_dismiss">Dismiss</string>
+    <string name="record_deleting">Deleting…</string>
+    <string name="editor_title">Workout</string>
+    <string name="record_restore_interrupted">The previous save was interrupted. The last saved record has been loaded; review it before continuing.</string>
 </resources>

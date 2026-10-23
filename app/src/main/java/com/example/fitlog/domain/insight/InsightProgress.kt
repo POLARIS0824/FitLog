@@ -1,7 +1,7 @@
 package com.example.fitlog.domain.insight
 
-import com.example.fitlog.data.analysis.WeightBasis
-import com.example.fitlog.data.analysis.WeightUnit
+import com.example.fitlog.model.record.WeightBasis
+import com.example.fitlog.model.record.WeightUnit
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters

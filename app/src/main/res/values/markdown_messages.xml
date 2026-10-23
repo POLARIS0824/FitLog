@@ -1,9 +1,0 @@
-<resources>
-    <string name="log_refresh">Refresh</string>
-    <string name="log_empty">No Markdown files in this folder.</string>
-    <string name="log_partial">Some folders could not be read. Showing available files.</string>
-    <string name="log_failed">Unable to scan this folder. Retry or reconnect it.</string>
-    <string name="log_connect">Connect folder</string>
-    <string name="log_no_vault">Connect a folder to browse Markdown files.</string>
-    <string name="log_retry">Retry</string>
-</resources>

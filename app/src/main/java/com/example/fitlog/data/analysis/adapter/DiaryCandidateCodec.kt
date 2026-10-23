@@ -1,6 +1,11 @@
 package com.example.fitlog.data.analysis.adapter
 
-import com.example.fitlog.data.analysis.*
+import com.example.fitlog.model.analysis.DIARY_SCHEMA_VERSION
+import com.example.fitlog.model.analysis.DiaryCandidate
+import com.example.fitlog.model.analysis.DiaryParseFailure
+import com.example.fitlog.model.analysis.IssueSeverity
+import com.example.fitlog.model.analysis.ValidationCode
+import com.example.fitlog.model.analysis.ValidationIssue
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.*
 

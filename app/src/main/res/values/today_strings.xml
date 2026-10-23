@@ -1,0 +1,10 @@
+<resources>
+    <string name="today_hero_title">Your training, recorded</string>
+    <string name="today_hero_description">Log sets directly, or connect Markdown notes for analysis.</string>
+    <string name="today_write">Record training</string>
+    <string name="today_library">Your records</string>
+    <string name="today_browse">Browse records</string>
+    <string name="today_browse_description">View local training and imported notes</string>
+    <string name="today_import_description">Connect your existing Markdown folder</string>
+    <string name="today_title">Today</string>
+</resources>

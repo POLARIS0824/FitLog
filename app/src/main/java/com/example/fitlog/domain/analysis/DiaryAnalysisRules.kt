@@ -1,6 +1,18 @@
 package com.example.fitlog.domain.analysis
 
-import com.example.fitlog.data.analysis.*
+import com.example.fitlog.model.analysis.BatchReviewAssessment
+import com.example.fitlog.model.analysis.BatchReviewBlock
+import com.example.fitlog.model.analysis.BatchReviewEligibility
+import com.example.fitlog.model.analysis.CandidateOrigin
+import com.example.fitlog.model.analysis.ConfirmationFreshness
+import com.example.fitlog.model.analysis.DiaryAnalysis
+import com.example.fitlog.model.analysis.DiaryAnalysisSummary
+import com.example.fitlog.model.analysis.DiaryContentVersion
+import com.example.fitlog.model.analysis.DiaryResultFreshness
+import com.example.fitlog.model.analysis.ParseRunStatus
+import com.example.fitlog.model.analysis.ValidationCode
+import com.example.fitlog.model.record.TrainingRecord
+import com.example.fitlog.model.record.WeightBasis
 
 /**
  * Rules that decide whether a stored candidate/confirmation is still current and whether it can be

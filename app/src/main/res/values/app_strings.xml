@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">FitLog</string>
+    <string name="nav_today">Today</string>
+    <string name="nav_log">Log</string>
+    <string name="nav_insight">Insight</string>
+    <string name="nav_action_add_file">Record training</string>
+    <string name="nav_action_import_folder">Import Folder</string>
+    <string name="cd_open_menu">Open menu</string>
+    <string name="cd_close_menu">Close menu</string>
+    <string name="cd_back">Back</string>
+</resources>

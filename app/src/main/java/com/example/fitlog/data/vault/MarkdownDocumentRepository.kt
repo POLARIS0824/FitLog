@@ -3,17 +3,17 @@ package com.example.fitlog.data.vault
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
+import androidx.core.net.toUri
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicLong
-import androidx.core.net.toUri
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 
 data class MarkdownFile(val uri: String, val name: String, val path: String, val writable: Boolean,
     val directory: String? = null, val lastModified: Long? = null, val size: Long? = null)

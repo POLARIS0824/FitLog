@@ -26,6 +26,7 @@
 
 # 构建产物与临时日志
 *.log
+/apks/
 
 # Coding agent local configuration
 .opencode/

@@ -1,5 +1,7 @@
 package com.example.fitlog.data.vault
 
+
+
 sealed interface VaultAccessStatus {
     val usable: Boolean get() = this == Readable
     data object Readable : VaultAccessStatus

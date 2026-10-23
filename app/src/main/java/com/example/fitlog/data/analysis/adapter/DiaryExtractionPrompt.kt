@@ -1,5 +1,7 @@
 package com.example.fitlog.data.analysis.adapter
 
+
+
 /** Included in extractorVersion so each attempt records the instructions it used. */
 internal object DiaryExtractionPrompt {
     const val VERSION = "diary-json-v3"

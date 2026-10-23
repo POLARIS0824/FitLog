@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">FitLog</string>
+    <string name="nav_today">今日</string>
+    <string name="nav_log">记录</string>
+    <string name="nav_insight">洞察</string>
+    <string name="nav_action_add_file">记录训练</string>
+    <string name="nav_action_import_folder">导入文件夹</string>
+    <string name="cd_open_menu">打开菜单</string>
+    <string name="cd_close_menu">关闭菜单</string>
+    <string name="cd_back">返回</string>
+</resources>

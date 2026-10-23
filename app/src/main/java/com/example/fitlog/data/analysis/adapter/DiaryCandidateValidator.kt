@@ -1,22 +1,21 @@
 package com.example.fitlog.data.analysis.adapter
 
-import com.example.fitlog.data.analysis.CandidateOrigin
-import com.example.fitlog.data.analysis.CandidateValue
-import com.example.fitlog.data.analysis.DiaryAnalysis
 import com.example.fitlog.data.analysis.DiaryParseInput
-import com.example.fitlog.data.analysis.EvidenceQuote
-import com.example.fitlog.data.analysis.ExpandedSet
-import com.example.fitlog.data.analysis.DiaryCandidate
-import com.example.fitlog.data.analysis.ExerciseCandidate
-import com.example.fitlog.data.analysis.SetGroupCandidate
-import com.example.fitlog.data.analysis.ValidatedExercise
-import com.example.fitlog.data.analysis.ValidatedSession
-import com.example.fitlog.data.analysis.ValidationCode
-import com.example.fitlog.data.analysis.ValidationIssue
-import com.example.fitlog.data.analysis.WeightBasis
-import com.example.fitlog.data.analysis.WeightUnit
 import com.example.fitlog.data.hash.normalizeLineEndings
-
+import com.example.fitlog.model.analysis.CandidateOrigin
+import com.example.fitlog.model.analysis.CandidateValue
+import com.example.fitlog.model.analysis.DiaryAnalysis
+import com.example.fitlog.model.analysis.DiaryCandidate
+import com.example.fitlog.model.analysis.EvidenceQuote
+import com.example.fitlog.model.analysis.ExerciseCandidate
+import com.example.fitlog.model.analysis.ExpandedSet
+import com.example.fitlog.model.analysis.SetGroupCandidate
+import com.example.fitlog.model.analysis.ValidatedExercise
+import com.example.fitlog.model.analysis.ValidatedSession
+import com.example.fitlog.model.analysis.ValidationCode
+import com.example.fitlog.model.analysis.ValidationIssue
+import com.example.fitlog.model.record.WeightBasis
+import com.example.fitlog.model.record.WeightUnit
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 

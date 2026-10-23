@@ -1,11 +1,18 @@
 package com.example.fitlog.domain.insight
 
-import com.example.fitlog.data.analysis.*
 import com.example.fitlog.domain.analysis.confirmationFreshness
-import com.example.fitlog.data.index.IndexedSource
-import com.example.fitlog.data.index.SourceIndexSnapshot
-import com.example.fitlog.data.insight.ExerciseAliases
-import com.example.fitlog.data.insight.exerciseNameKey
+import com.example.fitlog.model.analysis.ConfirmationFreshness
+import com.example.fitlog.model.analysis.DiaryContentVersion
+import com.example.fitlog.model.record.ConfirmedExerciseRecord
+import com.example.fitlog.model.record.ExerciseAliases
+import com.example.fitlog.model.record.RecordOrigin
+import com.example.fitlog.model.record.TrainingRecordDetails
+import com.example.fitlog.model.record.WeightBasis
+import com.example.fitlog.model.record.WeightUnit
+import com.example.fitlog.model.record.exerciseNameKey
+import com.example.fitlog.model.source.IndexedSource
+import com.example.fitlog.model.source.SourceIndexSnapshot
+import com.example.fitlog.model.source.SourceKey
 import java.time.LocalDate
 
 enum class InsightRange(val days: Long?) { THIRTY(30), NINETY(90), YEAR(365), ALL(null);

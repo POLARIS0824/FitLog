@@ -3,10 +3,24 @@ package com.example.fitlog.ui.preview
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.example.fitlog.R
-import com.example.fitlog.data.analysis.*
 import com.example.fitlog.data.vault.MarkdownFile
 import com.example.fitlog.data.vault.MarkdownSnapshot
-import com.example.fitlog.navigation.FitLogRoute
+import com.example.fitlog.model.analysis.CandidateOrigin
+import com.example.fitlog.model.analysis.CandidateValue
+import com.example.fitlog.model.analysis.DiaryAnalysis
+import com.example.fitlog.model.analysis.DiaryParseAttempt
+import com.example.fitlog.model.analysis.DiaryParseKey
+import com.example.fitlog.model.analysis.EvidenceQuote
+import com.example.fitlog.model.analysis.ExerciseCandidate
+import com.example.fitlog.model.analysis.ExpandedSet
+import com.example.fitlog.model.analysis.ParseRunStatus
+import com.example.fitlog.model.analysis.SetGroupCandidate
+import com.example.fitlog.model.analysis.StoredDiaryCandidate
+import com.example.fitlog.model.analysis.ValidatedExercise
+import com.example.fitlog.model.analysis.ValidatedSession
+import com.example.fitlog.model.record.WeightBasis
+import com.example.fitlog.model.record.WeightUnit
+import com.example.fitlog.model.source.SourceKey
 import java.time.LocalDate
 
 /** In-memory fixtures only: no ViewModel, database, SAF access, or network requests. */
@@ -19,7 +33,6 @@ internal object PreviewDiary {
     const val DOCUMENT = "content://preview/document/$FILE_NAME"
     const val TIMESTAMP = 1791417600000L
 
-    val route = FitLogRoute.DiaryDetail(VAULT_URI, VAULT_ID, DOCUMENT, PATH, VAULT_URI, FILE_NAME)
     val file = MarkdownFile(DOCUMENT, FILE_NAME, PATH, writable = false, directory = VAULT_URI)
 
     @Composable

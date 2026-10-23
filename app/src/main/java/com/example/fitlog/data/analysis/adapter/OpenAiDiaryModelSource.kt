@@ -1,10 +1,10 @@
 package com.example.fitlog.data.analysis.adapter
 
+import com.example.fitlog.data.ai.transport.ChatMessage
+import com.example.fitlog.data.ai.transport.ChatOutcome
+import com.example.fitlog.data.ai.transport.ChatSpec
+import com.example.fitlog.data.ai.transport.OpenAiChatClient
 import com.example.fitlog.data.analysis.toDiaryFailure
-import com.example.fitlog.data.llm.ChatMessage
-import com.example.fitlog.data.llm.ChatOutcome
-import com.example.fitlog.data.llm.ChatSpec
-import com.example.fitlog.data.llm.OpenAiChatClient
 
 /**
  * Diary extraction expressed on top of the shared OpenAI-compatible client.

@@ -1,7 +1,7 @@
 package com.example.fitlog.data.analysis.adapter
 
 import com.example.fitlog.data.analysis.DiaryParseInput
-import com.example.fitlog.data.analysis.DiaryParseResult
+import com.example.fitlog.model.analysis.DiaryParseResult
 
 /**
  * Raw responses are available to persistence, never attached to business analysis values.

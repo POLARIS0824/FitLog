@@ -1,10 +1,10 @@
 package com.example.fitlog.data.analysis.adapter
 
+import com.example.fitlog.data.ai.transport.openAiEndpoint
 import java.security.MessageDigest
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import com.example.fitlog.data.llm.openAiEndpoint
 
 /**
  * Response format requested for extraction. It participates in the extractor identity, so changing

@@ -40,6 +40,26 @@
     <string name="record_revoke">撤销确认结果</string>
     <string name="record_revoke_confirm">撤销本地确认结果？Markdown 原文和 AI 候选会保留。</string>
     <string name="record_coverage">统计包含本地记录和当前 Markdown 资料库的有效确认结果。</string>
-    <string name="vault_capability_readable">可读取 · 原文件保持不变</string>
     <string name="record_name_separator">、</string>
+    <string name="record_ui_list_subtitle">每次训练，都有迹可循</string>
+    <string name="record_ui_date">训练日期</string>
+    <string name="record_ui_edit_set">%1$s，%2$s：%3$s</string>
+    <string name="record_ui_empty_title">从一个动作开始</string>
+    <plurals name="record_ui_completed_sets">
+        <item quantity="other">已记录 %1$d 组</item>
+    </plurals>
+    <string name="record_set_options">第 %1$d 组选项</string>
+    <string name="record_exercise_options">动作选项</string>
+    <string name="record_weight_options">重量设置</string>
+    <string name="record_copy_set">复制此组</string>
+    <string name="record_copy_last_set">复制上一组</string>
+    <string name="record_weight_placeholder">可留空</string>
+    <string name="record_bodyweight_change_help">自重无需填写外部负重。应用后将清除所选组的重量和单位。</string>
+    <string name="record_weight_options_help">在组内直接填写重量。切换 kg 或 lb 会换算已有重量；重量口径说明数值的含义。</string>
+    <string name="record_undo">撤销</string>
+    <string name="record_removed">已从此记录移除</string>
+    <string name="record_dismiss">关闭</string>
+    <string name="record_deleting">删除中…</string>
+    <string name="editor_title">训练记录</string>
+    <string name="record_restore_interrupted">上次保存被中断，现已载入最后保存的记录，请检查后继续。</string>
 </resources>

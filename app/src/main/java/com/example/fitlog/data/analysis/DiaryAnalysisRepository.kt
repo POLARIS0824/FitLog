@@ -2,6 +2,22 @@ package com.example.fitlog.data.analysis
 
 import androidx.room.withTransaction
 import com.example.fitlog.data.analysis.adapter.RecordingDiaryParser
+import com.example.fitlog.data.local.FitLogDatabase
+import com.example.fitlog.data.record.replaceRecord
+import com.example.fitlog.data.record.toRecord
+import com.example.fitlog.model.analysis.ConfirmationFailure
+import com.example.fitlog.model.analysis.DiaryAnalysis
+import com.example.fitlog.model.analysis.DiaryAnalysisSummary
+import com.example.fitlog.model.analysis.DiaryConfirmation
+import com.example.fitlog.model.analysis.DiaryConfirmationResult
+import com.example.fitlog.model.analysis.DiaryParseAttempt
+import com.example.fitlog.model.analysis.DiaryParseRecords
+import com.example.fitlog.model.analysis.DiaryParseResult
+import com.example.fitlog.model.analysis.ParseRunStatus
+import com.example.fitlog.model.analysis.StoredDiaryCandidate
+import com.example.fitlog.model.record.TrainingRecord
+import com.example.fitlog.model.record.TrainingRecordDetails
+import com.example.fitlog.model.source.SourceKey
 import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -19,7 +35,7 @@ data class StoredDiaryParse(val parseRunId: String, val result: DiaryParseResult
 
 /** Confirmation data is independent of index rebuilds and the currently connected vault. */
 class DiaryAnalysisRepository internal constructor(
-    private val database: DiaryAnalysisDatabase,
+    private val database: FitLogDatabase,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
@@ -52,10 +68,10 @@ class DiaryAnalysisRepository internal constructor(
     }
 
     suspend fun confirmed(sourceKey: SourceKey): TrainingRecordDetails? =
-        withContext(computationDispatcher) { persist { dao.confirmed(sourceKey.vaultId, sourceKey.relPath)?.ordered() } }
+        withContext(computationDispatcher) { persist { dao.confirmed(sourceKey.vaultId, sourceKey.relPath)?.toRecord() } }
 
     override fun observeConfirmed(sourceKey: SourceKey) =
-        dao.observeConfirmed(sourceKey.vaultId, sourceKey.relPath).map { it?.ordered() }.flowOn(computationDispatcher)
+        dao.observeConfirmed(sourceKey.vaultId, sourceKey.relPath).map { it?.toRecord() }.flowOn(computationDispatcher)
             .catch { throw readFailure(it) }
 
     override fun observeSummaries(vaultId: String) = combine(dao.observeVaultHeads(vaultId), dao.observeConfirmedRows(vaultId)) { runs, confirmations ->
@@ -64,7 +80,7 @@ class DiaryAnalysisRepository internal constructor(
         (byPath.keys + confirmed.keys).map { path ->
             val records = parseRecords(byPath[path].orEmpty())
             DiaryAnalysisSummary(SourceKey(vaultId, path), records.latestAttempt, records.latestCandidate,
-                confirmed[path], records.candidateReadFailed)
+                confirmed[path]?.toRecord(), records.candidateReadFailed)
         }
     }.flowOn(computationDispatcher).catch { throw readFailure(it) }
 
@@ -132,8 +148,8 @@ class DiaryAnalysisRepository internal constructor(
                 val updated = previous.diary.copy(date = request.date.toString(),
                     confirmedAt = maxOf(now(), previous.diary.confirmedAt + 1), acceptedPartialResult = request.acceptedPartialResult,
                     kind = request.kind)
-                replaceRecord(dao, updated, request.sessions, true)
-                return@withTransaction DiaryConfirmationResult.Confirmed(checkNotNull(dao.record(updated.id)).ordered())
+                replaceRecord(dao, updated.toRecord(), request.sessions, true)
+                return@withTransaction DiaryConfirmationResult.Confirmed(checkNotNull(dao.record(updated.id)).toRecord())
             }
             val run = dao.run(request.parseRunId)
             if (run == null || run.status != ParseRunStatus.SUCCEEDED)
@@ -151,7 +167,7 @@ class DiaryAnalysisRepository internal constructor(
                 maxOf(now(), (previous?.diary?.confirmedAt ?: -1L) + 1L), request.acceptedPartialResult,
                 kind = request.kind)
             replaceRecord(dao, diary, sessions, previous != null)
-            DiaryConfirmationResult.Confirmed(checkNotNull(dao.confirmed(run.vaultId, run.relPath)).ordered())
+            DiaryConfirmationResult.Confirmed(checkNotNull(dao.confirmed(run.vaultId, run.relPath)).toRecord())
         }
     }
 

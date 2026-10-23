@@ -1,9 +1,9 @@
 package com.example.fitlog.data.analysis.adapter
 
-import com.example.fitlog.data.analysis.DiaryParseFailure
 import com.example.fitlog.data.analysis.DiaryParseInput
-import com.example.fitlog.data.analysis.DiaryParseResult
 import com.example.fitlog.data.analysis.DiaryParser
+import com.example.fitlog.model.analysis.DiaryParseFailure
+import com.example.fitlog.model.analysis.DiaryParseResult
 
 /** Expected request failures are reported explicitly; cancellation and programming errors propagate. */
 internal interface DiaryModelSource {

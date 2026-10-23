@@ -1,10 +1,13 @@
 package com.example.fitlog.data.index
 
+import com.example.fitlog.data.hash.ContentTextSnapshot
 import com.example.fitlog.data.vault.MarkdownDocuments
 import com.example.fitlog.data.vault.MarkdownSnapshot
-import com.example.fitlog.data.vault.requireVaultId
 import com.example.fitlog.data.vault.nextMarkdownReadOrder
-import com.example.fitlog.data.hash.ContentTextSnapshot
+import com.example.fitlog.model.source.IndexedScan
+import com.example.fitlog.model.source.IndexedSource
+import com.example.fitlog.model.source.SourceIndexSnapshot
+import com.example.fitlog.model.source.requireVaultId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
