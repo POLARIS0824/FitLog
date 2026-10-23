@@ -1,6 +1,5 @@
 package com.example.fitlog.data.analysis
 
-import android.content.Context
 import androidx.room.withTransaction
 import com.example.fitlog.data.analysis.adapter.RecordingDiaryParser
 import java.io.IOException
@@ -23,18 +22,13 @@ class DiaryAnalysisRepository internal constructor(
     private val database: DiaryAnalysisDatabase,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) : DiaryAnalysisReader, DiaryVaultAnalysisReader {
+    private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+    private val computationDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Default,
+) : DiaryConfirmations {
     private val dao = database.analysis()
 
-    companion object {
-        @Volatile private var instance: DiaryAnalysisRepository? = null
-        fun get(context: Context): DiaryAnalysisRepository = instance ?: synchronized(this) {
-            instance ?: DiaryAnalysisRepository(DiaryAnalysisDatabase.get(context.applicationContext)).also { instance = it }
-        }
-    }
-
     /** Caller owns the coroutine and prevents duplicate UI actions. Every call is an explicit attempt. */
-    internal suspend fun parse(input: DiaryParseInput, parser: RecordingDiaryParser): StoredDiaryParse = withContext(Dispatchers.IO) {
+    internal suspend fun parse(input: DiaryParseInput, parser: RecordingDiaryParser): StoredDiaryParse = withContext(ioDispatcher) {
         // Fail before requesting a paid model when the local database cannot be opened.
         persist { database.openHelper.writableDatabase }
         val id = newId()
@@ -58,10 +52,10 @@ class DiaryAnalysisRepository internal constructor(
     }
 
     suspend fun confirmed(sourceKey: SourceKey): TrainingRecordDetails? =
-        persist { dao.confirmed(sourceKey.vaultId, sourceKey.relPath)?.ordered() }
+        withContext(computationDispatcher) { persist { dao.confirmed(sourceKey.vaultId, sourceKey.relPath)?.ordered() } }
 
     override fun observeConfirmed(sourceKey: SourceKey) =
-        dao.observeConfirmed(sourceKey.vaultId, sourceKey.relPath).map { it?.ordered() }
+        dao.observeConfirmed(sourceKey.vaultId, sourceKey.relPath).map { it?.ordered() }.flowOn(computationDispatcher)
             .catch { throw readFailure(it) }
 
     override fun observeSummaries(vaultId: String) = combine(dao.observeVaultHeads(vaultId), dao.observeConfirmedRows(vaultId)) { runs, confirmations ->
@@ -72,9 +66,9 @@ class DiaryAnalysisRepository internal constructor(
             DiaryAnalysisSummary(SourceKey(vaultId, path), records.latestAttempt, records.latestCandidate,
                 confirmed[path], records.candidateReadFailed)
         }
-    }.flowOn(Dispatchers.IO).catch { throw readFailure(it) }
+    }.flowOn(computationDispatcher).catch { throw readFailure(it) }
 
-    suspend fun readSummary(sourceKey: SourceKey): DiaryAnalysisSummary {
+    override suspend fun readSummary(sourceKey: SourceKey): DiaryAnalysisSummary {
         val records = readParses(sourceKey)
         return DiaryAnalysisSummary(sourceKey, records.latestAttempt, records.latestCandidate,
             confirmed(sourceKey)?.diary, records.candidateReadFailed)
@@ -82,17 +76,17 @@ class DiaryAnalysisRepository internal constructor(
 
     suspend fun readParses(sourceKey: SourceKey): DiaryParseRecords {
         val rows = persist { dao.runs(sourceKey.vaultId, sourceKey.relPath) }
-        return withContext(Dispatchers.Default) { parseRecords(rows) }
+        return withContext(computationDispatcher) { parseRecords(rows) }
     }
 
     override fun observeParses(sourceKey: SourceKey) =
         dao.observeRuns(sourceKey.vaultId, sourceKey.relPath).map(::parseRecords)
-            .flowOn(Dispatchers.IO).catch { throw readFailure(it) }
+            .flowOn(computationDispatcher).catch { throw readFailure(it) }
 
     override suspend fun readCandidate(sourceKey: SourceKey, parseRunId: String): StoredDiaryCandidate? {
         val run = persist { dao.run(parseRunId) } ?: return null
         if (run.status != ParseRunStatus.SUCCEEDED || run.parseKey().sourceKey != sourceKey) return null
-        return withContext(Dispatchers.Default) {
+        return withContext(computationDispatcher) {
             StoredDiaryCandidate(DiaryParseAttempt(run.id, run.parseKey(), run.status, run.startedAt, run.finishedAt,
                 run.failureCode), decodeCandidate(run))
         }
@@ -125,7 +119,7 @@ class DiaryAnalysisRepository internal constructor(
         throw DiaryAnalysisStorageException(e)
     }
 
-    suspend fun confirm(request: DiaryConfirmation): DiaryConfirmationResult = persist {
+    override suspend fun confirm(request: DiaryConfirmation): DiaryConfirmationResult = persist {
         database.withTransaction {
             if (request.editConfirmed) {
                 val previous = dao.confirmed(request.sourceKey.vaultId, request.sourceKey.relPath)
@@ -135,12 +129,9 @@ class DiaryAnalysisRepository internal constructor(
                 val expected = request.expectedContentVersion
                 if (expected == null || previous.diary.contentHash != expected.contentHash || previous.diary.hashVersion != expected.hashVersion)
                     return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.SOURCE_CHANGED)
-                try { require(request.date.year in 1..9999); validateRecordValues(request.sessions) } catch (_: IllegalArgumentException) {
-                    return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_DATA)
-                }
                 val updated = previous.diary.copy(date = request.date.toString(),
                     confirmedAt = maxOf(now(), previous.diary.confirmedAt + 1), acceptedPartialResult = request.acceptedPartialResult,
-                    kind = if (request.sessions.all { it.exercises.isEmpty() }) RecordKind.REST else RecordKind.TRAINING)
+                    kind = request.kind)
                 replaceRecord(dao, updated, request.sessions, true)
                 return@withTransaction DiaryConfirmationResult.Confirmed(checkNotNull(dao.record(updated.id)).ordered())
             }
@@ -149,12 +140,7 @@ class DiaryAnalysisRepository internal constructor(
                 return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_PARSE_RUN)
             if (run.parseKey().sourceKey != request.sourceKey)
                 return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.SOURCE_MISMATCH)
-            val analysis = decodeCandidate(run)
-            if (requiresPartialAcceptance(analysis) && !request.acceptedPartialResult)
-                return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.PARTIAL_RESULT_NOT_ACCEPTED)
-            val sessions = try { normalizeReview(request, analysis) } catch (_: IllegalArgumentException) {
-                return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_DATA)
-            }
+            val sessions = request.sessions
             val previous = dao.confirmed(run.vaultId, run.relPath)
             if (previous?.diary?.confirmedAt != request.expectedConfirmedAt)
                 return@withTransaction DiaryConfirmationResult.Invalid(ConfirmationFailure.CONFIRMATION_CHANGED)
@@ -163,48 +149,9 @@ class DiaryAnalysisRepository internal constructor(
             val diary = TrainingRecord(previous?.diary?.id ?: newId(), run.vaultId, run.relPath,
                 request.date.toString(), run.contentHash, run.hashVersion, run.id,
                 maxOf(now(), (previous?.diary?.confirmedAt ?: -1L) + 1L), request.acceptedPartialResult,
-                kind = if (sessions.all { it.exercises.isEmpty() }) RecordKind.REST else RecordKind.TRAINING)
+                kind = request.kind)
             replaceRecord(dao, diary, sessions, previous != null)
             DiaryConfirmationResult.Confirmed(checkNotNull(dao.confirmed(run.vaultId, run.relPath)).ordered())
-        }
-    }
-
-    /** Validate final values and source references, deriving the group-level edit flag locally. */
-    private fun normalizeReview(request: DiaryConfirmation, analysis: DiaryAnalysis): List<ReviewedSession> {
-        require(request.date.year in 1..9999)
-        val sessionPaths = mutableSetOf<String>()
-        val exercisePaths = mutableSetOf<String>()
-        val originalExercises = analysis.sessions.flatMap { it.exercises }.associateBy { it.path }
-        return request.sessions.map { session ->
-            session.sourcePath?.let { path ->
-                require(sessionPaths.add(path))
-                requireNotNull(analysis.sessions.find { it.path == path })
-            }
-            session.copy(exercises = session.exercises.map { exercise ->
-                require(exercise.rawName.isNotBlank())
-                require(exercise.sets.size <= 1000)
-                val original = exercise.sourcePath?.let { path ->
-                    require(exercisePaths.add(path))
-                    requireNotNull(originalExercises[path])
-                }
-                exercise.evidence?.let {
-                    require(it.segmentId == DiaryParseInput.SEGMENT_ID && it.quote.isNotBlank())
-                }
-                val sourceSets = mutableSetOf<Pair<Int, Int>>()
-                exercise.copy(sets = exercise.sets.map { set ->
-                    require(set.weight == null || (set.weight.isFinite() && set.weight >= 0))
-                    require(set.reps == null || set.reps > 0)
-                    require((set.groupIndex == null) == (set.setInGroup == null))
-                    val baseline = if (set.groupIndex != null && set.setInGroup != null) {
-                        require(sourceSets.add(set.groupIndex to set.setInGroup))
-                        requireNotNull(original?.sets?.find {
-                            it.groupIndex == set.groupIndex && it.setInGroup == set.setInGroup
-                        })
-                    } else null
-                    set.copy(userEdited = baseline == null || set.weight != baseline.weight.value ||
-                        set.unit != baseline.unit.value || set.basis != baseline.basis.value || set.reps != baseline.reps.value)
-                })
-            })
         }
     }
 

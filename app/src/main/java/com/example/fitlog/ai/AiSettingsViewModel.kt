@@ -1,9 +1,10 @@
 package com.example.fitlog.ai
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
 import com.example.fitlog.data.ai.*
@@ -20,101 +21,109 @@ import kotlinx.coroutines.launch
 
 /** Form state survives Activity recreation; plaintext keys are never put in SavedStateHandle. */
 internal class AiSettingsViewModel(
-    private val repository: AiProviderRepository,
+    private val repository: AiProviders,
     private val defaultName: String,
-    private val fetchModels: suspend (String, String) -> AiModelsResult,
-    private val testConnection: suspend (String, String, String) -> AiRequestFailure?,
+    private val operations: AiOperations,
 ) : ViewModel() {
-    var providers by mutableStateOf<List<AiProviderConnection>>(emptyList()); private set
-    var currentSelection by mutableStateOf<AiModelSelection?>(null); private set
-    var providerId by mutableStateOf(UUID.randomUUID().toString()); private set
-    var name by mutableStateOf(defaultName); private set
-    var baseUrl by mutableStateOf(DEEPSEEK_URL); private set
-    var apiKey by mutableStateOf(""); private set
-    var showKey by mutableStateOf(false); private set
-    var modelIds by mutableStateOf<List<String>>(emptyList()); private set
-    var selectedModel by mutableStateOf(""); private set
-    var loading by mutableStateOf(true); private set
-    var saving by mutableStateOf(false); private set
-    var requestRunning by mutableStateOf(false); private set
-    var initialized by mutableStateOf(false); private set
-    var message by mutableStateOf<Int?>(null); private set
+    private val _uiState = MutableStateFlow(
+        AiSettingsUiState(
+            providerId = UUID.randomUUID().toString(),
+            name = defaultName,
+            loading = true,
+            initialized = false,
+        ).withDerivedValues()
+    )
+    val uiState: StateFlow<AiSettingsUiState> = _uiState.asStateFlow()
+
+    private inline fun updateState(transform: (AiSettingsUiState) -> AiSettingsUiState) {
+        _uiState.update { transform(it).withDerivedValues() }
+    }
+
+    private val providers get() = _uiState.value.providers
+    private val currentSelection get() = _uiState.value.currentSelection
+    private val providerId get() = _uiState.value.providerId
+    private val name get() = _uiState.value.name
+    private val baseUrl get() = _uiState.value.baseUrl
+    private val apiKey get() = _uiState.value.apiKey
+    private val showKey get() = _uiState.value.showKey
+    private val modelIds get() = _uiState.value.modelIds
+    private val selectedModel get() = _uiState.value.selectedModel
+    private val loading get() = _uiState.value.loading
+    private val saving get() = _uiState.value.saving
+    private val requestRunning get() = _uiState.value.requestRunning
+    private val initialized get() = _uiState.value.initialized
+    private val message get() = _uiState.value.message
     private var savedKey = ""
     private var loadJob: Job? = null
     private var requestJob: Job? = null
 
-    val canEdit get() = initialized && !loading && !saving
-    val canSave get() = canEdit && !requestRunning && name.isNotBlank() && validCredentials() &&
-        selectedModel.trim() in modelIds
+    private val canEdit get() = _uiState.value.canEdit
+    private val canSave get() = _uiState.value.canSave
 
     init { reload() }
 
     fun reload() {
         if (saving) return
         loadJob?.cancel(); cancelRequest()
-        loading = true; message = null
+        updateState { current -> current.copy(loading = true, message = null) }
         loadJob = viewModelScope.launch {
             try {
                 val settings = repository.read()
                 currentCoroutineContext().ensureActive()
-                providers = settings.providers; currentSelection = settings.selection
-                initialized = true
+                updateState { current -> current.copy(providers = settings.providers, currentSelection = settings.selection, initialized = true) }
                 val id = settings.selection?.providerId ?: settings.providers.firstOrNull()?.id
                 if (id == null) reset(defaultName, DEEPSEEK_URL) else fill(providers.single { it.id == id })
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 currentCoroutineContext().ensureActive()
-                message = R.string.ai_settings_read_failed
-            } finally { if (currentCoroutineContext().isActive) loading = false }
+                updateState { current -> current.copy(message = R.string.ai_settings_read_failed) }
+            } finally { if (currentCoroutineContext().isActive) updateState { current -> current.copy(loading = false) } }
         }
     }
 
     fun chooseProvider(id: String) {
         if (!canEdit || id == providerId) return
         val connection = providers.singleOrNull { it.id == id } ?: return
-        loadJob?.cancel(); cancelRequest(); loading = true; message = null
+        loadJob?.cancel(); cancelRequest(); updateState { current -> current.copy(loading = true, message = null) }
         loadJob = viewModelScope.launch {
             try { fill(connection) }
-            finally { if (currentCoroutineContext().isActive) loading = false }
+            finally { if (currentCoroutineContext().isActive) updateState { current -> current.copy(loading = false) } }
         }
     }
 
     private suspend fun fill(connection: AiProviderConnection) {
         val key = try { repository.readKey(connection.id) } catch (e: AiConfigurationException) {
             currentCoroutineContext().ensureActive()
-            message = aiConfigurationMessage(e.reason)
+            updateState { current -> current.copy(message = aiConfigurationMessage(e.reason)) }
             ""
         }
         currentCoroutineContext().ensureActive()
-        providerId = connection.id; name = connection.name; baseUrl = connection.baseUrl
-        apiKey = key; savedKey = key; showKey = false; modelIds = connection.modelIds
-        selectedModel = currentSelection?.takeIf { it.providerId == connection.id }?.modelId.orEmpty()
+        updateState { current -> current.copy(providerId = connection.id, name = connection.name, baseUrl = connection.baseUrl, apiKey = key) }; savedKey = key; updateState { current -> current.copy(showKey = false, modelIds = connection.modelIds, selectedModel = currentSelection?.takeIf { it.providerId == connection.id }?.modelId.orEmpty()) }
     }
 
     fun newConnection(connectionName: String, url: String = "") {
         if (!canEdit) return
-        cancelRequest(); message = null; reset(connectionName, url)
+        cancelRequest(); updateState { current -> current.copy(message = null) }; reset(connectionName, url)
     }
 
     private fun reset(connectionName: String, url: String) {
-        providerId = UUID.randomUUID().toString(); name = connectionName; baseUrl = url
-        apiKey = ""; savedKey = ""; showKey = false; modelIds = emptyList(); selectedModel = ""
+        updateState { current -> current.copy(providerId = UUID.randomUUID().toString(), name = connectionName, baseUrl = url, apiKey = "") }; savedKey = ""; updateState { current -> current.copy(showKey = false, modelIds = emptyList(), selectedModel = "") }
     }
 
     private fun edit(action: () -> Unit) {
         if (!canEdit) return
-        cancelRequest(); message = null; action()
+        cancelRequest(); updateState { current -> current.copy(message = null) }; action()
     }
-    fun changeName(value: String) = edit { name = value }
-    fun changeBaseUrl(value: String) = edit { baseUrl = value }
-    fun changeKey(value: String) = edit { apiKey = value }
-    fun changeModel(value: String) = edit { selectedModel = value }
-    fun toggleKey() { if (canEdit) showKey = !showKey }
+    fun changeName(value: String) = edit { updateState { current -> current.copy(name = value) } }
+    fun changeBaseUrl(value: String) = edit { updateState { current -> current.copy(baseUrl = value) } }
+    fun changeKey(value: String) = edit { updateState { current -> current.copy(apiKey = value) } }
+    fun changeModel(value: String) = edit { updateState { current -> current.copy(selectedModel = value) } }
+    fun toggleKey() { if (canEdit) updateState { current -> current.copy(showKey = !showKey) } }
     fun addModel() = edit {
         val id = selectedModel.trim()
-        if (id.isNotEmpty()) { modelIds = (modelIds + id).distinct(); selectedModel = id }
+        if (id.isNotEmpty()) { updateState { current -> current.copy(modelIds = (modelIds + id).distinct(), selectedModel = id) } }
     }
-    fun removeModel() = edit { modelIds = modelIds.filterNot { it == selectedModel }; selectedModel = "" }
+    fun removeModel() = edit { updateState { current -> current.copy(modelIds = modelIds.filterNot { it == selectedModel }, selectedModel = "") } }
 
     private fun validCredentials(): Boolean = try {
         openAiEndpoint(baseUrl, "models")
@@ -123,85 +132,83 @@ internal class AiSettingsViewModel(
 
     fun fetch() {
         if (!canEdit || requestRunning) return
-        if (!validCredentials()) { message = R.string.ai_invalid_credentials; return }
+        if (!validCredentials()) { updateState { current -> current.copy(message = R.string.ai_invalid_credentials) }; return }
         val url = baseUrl.trim(); val key = apiKey.trim()
-        requestRunning = true; message = null
+        updateState { current -> current.copy(requestRunning = true, message = null) }
         requestJob = viewModelScope.launch {
             try {
-                val result = fetchModels(url, key)
+                val result = operations.models(url, key)
                 currentCoroutineContext().ensureActive()
                 when (result) {
                     is AiModelsResult.Success -> {
-                        modelIds = (modelIds + result.modelIds).distinct()
-                        message = if (result.modelIds.isEmpty()) R.string.ai_models_empty else R.string.ai_models_loaded
+                        updateState { current -> current.copy(modelIds = (modelIds + result.modelIds).distinct()) }
+                        updateState { current -> current.copy(message = if (result.modelIds.isEmpty()) R.string.ai_models_empty else R.string.ai_models_loaded) }
                     }
-                    is AiModelsResult.Failure -> message = aiRequestMessage(result.reason)
+                    is AiModelsResult.Failure -> updateState { current -> current.copy(message = aiRequestMessage(result.reason)) }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                currentCoroutineContext().ensureActive(); message = R.string.ai_request_failed
-            } finally { if (currentCoroutineContext().isActive) requestRunning = false }
+                currentCoroutineContext().ensureActive(); updateState { current -> current.copy(message = R.string.ai_request_failed) }
+            } finally { if (currentCoroutineContext().isActive) updateState { current -> current.copy(requestRunning = false) } }
         }
     }
 
     fun test() {
         if (!canEdit || requestRunning) return
-        if (!validCredentials() || selectedModel.isBlank()) { message = R.string.ai_invalid_credentials; return }
+        if (!validCredentials() || selectedModel.isBlank()) { updateState { current -> current.copy(message = R.string.ai_invalid_credentials) }; return }
         val url = baseUrl.trim(); val key = apiKey.trim(); val model = selectedModel.trim()
-        requestRunning = true; message = null
+        updateState { current -> current.copy(requestRunning = true, message = null) }
         requestJob = viewModelScope.launch {
             try {
-                val failure = testConnection(url, model, key)
+                val failure = operations.test(url, model, key)
                 currentCoroutineContext().ensureActive()
-                message = failure?.let(::aiRequestMessage) ?: R.string.ai_connection_success
+                updateState { current -> current.copy(message = failure?.let(::aiRequestMessage) ?: R.string.ai_connection_success) }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                currentCoroutineContext().ensureActive(); message = R.string.ai_request_failed
-            } finally { if (currentCoroutineContext().isActive) requestRunning = false }
+                currentCoroutineContext().ensureActive(); updateState { current -> current.copy(message = R.string.ai_request_failed) }
+            } finally { if (currentCoroutineContext().isActive) updateState { current -> current.copy(requestRunning = false) } }
         }
     }
 
-    fun cancelRequest() { requestJob?.cancel(); requestRunning = false }
+    fun cancelRequest() { requestJob?.cancel(); updateState { current -> current.copy(requestRunning = false) } }
 
     fun save() {
         if (!canSave) return
         val connection = AiProviderConnection(providerId, name.trim(), baseUrl.trim().trimEnd('/'), modelIds.toList())
         val selection = AiModelSelection(providerId, selectedModel.trim())
         val key = apiKey.trim()
-        saving = true; message = null
+        updateState { current -> current.copy(saving = true, message = null) }
         viewModelScope.launch {
             try {
                 if (providers.singleOrNull { it.id == providerId } == connection && key == savedKey)
                     repository.selectModel(selection)
                 else repository.save(connection, key, selection)
                 currentCoroutineContext().ensureActive()
-                providers = if (providers.any { it.id == connection.id })
+                updateState { current -> current.copy(providers = if (providers.any { it.id == connection.id })
                     providers.map { if (it.id == connection.id) connection else it }
-                else providers + connection
-                currentSelection = selection; savedKey = key
-                name = connection.name; baseUrl = connection.baseUrl; apiKey = key; selectedModel = selection.modelId
-                message = R.string.ai_settings_saved
+                    else providers + connection, currentSelection = selection) }; savedKey = key
+                updateState { current -> current.copy(name = connection.name, baseUrl = connection.baseUrl, apiKey = key, selectedModel = selection.modelId, message = R.string.ai_settings_saved) }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                message = if (e is AiConfigurationException && e.reason != AiConfigurationFailure.STORAGE)
-                    aiConfigurationMessage(e.reason) else R.string.ai_settings_save_failed
-            } finally { saving = false }
+                updateState { current -> current.copy(message = if (e is AiConfigurationException && e.reason != AiConfigurationFailure.STORAGE)
+                    aiConfigurationMessage(e.reason) else R.string.ai_settings_save_failed) }
+            } finally { updateState { current -> current.copy(saving = false) } }
         }
     }
 
     fun delete() {
         if (!canEdit || requestRunning || providers.none { it.id == providerId }) return
-        val id = providerId; saving = true; message = null
+        val id = providerId
+        updateState { it.copy(saving = true, message = null) }
         viewModelScope.launch {
             try {
                 repository.delete(id)
-                providers = providers.filterNot { it.id == id }
-                currentSelection = currentSelection?.takeUnless { it.providerId == id }
-                reset(defaultName, DEEPSEEK_URL); message = R.string.ai_settings_deleted
+                updateState { current -> current.copy(providers = providers.filterNot { it.id == id }, currentSelection = currentSelection?.takeUnless { it.providerId == id }) }
+                reset(defaultName, DEEPSEEK_URL); updateState { current -> current.copy(message = R.string.ai_settings_deleted) }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                message = R.string.ai_settings_save_failed
-            } finally { saving = false }
+                updateState { current -> current.copy(message = R.string.ai_settings_save_failed) }
+            } finally { updateState { current -> current.copy(saving = false) } }
         }
     }
 

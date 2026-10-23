@@ -2,6 +2,7 @@
 
 package com.example.fitlog.insight
 
+import com.example.fitlog.domain.insight.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,34 +23,40 @@ import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogSectionTitle
 import java.time.LocalDate
 import com.example.fitlog.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (String) -> Unit,
+internal fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (String) -> Unit,
     onExercise: (String) -> Unit, modifier: Modifier = Modifier) {
+    val state by vm.uiState.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.resumed() }
-    var sheet by rememberSaveable(vm.data?.vaultId) { mutableStateOf<String?>(null) }
-    val data = vm.data.takeIf { vm.error == null && !vm.loading }
+    var sheet by rememberSaveable(state.data?.vaultId) { mutableStateOf<String?>(null) }
+    val presentation = state.presentation.takeIf { state.error == null && !state.loading }
+    val data = presentation?.data
+    LaunchedEffect(state.focusSaved) {
+        if (state.focusSaved) { vm.focusSaveHandled(); sheet = null }
+    }
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         if (data == null) {
-            InsightPage(headerActions = { InsightRefreshAction(vm) }) {
+            InsightPage(headerActions = { InsightRefreshAction(state, vm::refresh) }) {
                 Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    InsightReadState(vm, onOpenLog)
+                    InsightReadState(state, vm::refresh)
                 }
             }
-        } else InsightDashboardContent(data, vm.range, vm.focusedKeys, vm::selectRange,
+        } else InsightDashboardContent(requireNotNull(presentation), state.range, state.focusedKeys, vm::selectRange,
             onManageFocus = { vm.clearFocusError(); sheet = "focus" }, onExercise, onOpen, onOpenLog,
-            onSheet = { sheet = it }, headerActions = { InsightRefreshAction(vm) },
-            rangeEnabled = !vm.rangeSaving,
-            notices = { InsightCoverage(vm, showScanTime = false) })
+            onSheet = { sheet = it }, headerActions = { InsightRefreshAction(state, vm::refresh) },
+            rangeEnabled = !state.rangeSaving,
+            notices = { InsightCoverage(state, showScanTime = false) })
     }
     if (sheet == "focus" && data != null) {
-        InsightFocusSheet(vm, data, onDismiss = { sheet = null })
+        InsightFocusSheet(state, requireNotNull(presentation), vm::saveFocus, onDismiss = { sheet = null })
     } else if (sheet != null && data != null) {
-        InsightSourceSheet(data, vm.range, requireNotNull(sheet), onDismiss = { sheet = null },
+        InsightSourceSheet(requireNotNull(presentation), requireNotNull(sheet), onDismiss = { sheet = null },
             onSelect = { sheet = it }, onExercise = { key -> sheet = null; onExercise(key) },
-            coverage = { InsightCoverage(vm) }, onOpen = { key -> sheet = null; onOpen(key) },
+            coverage = { InsightCoverage(state) }, onOpen = { key -> sheet = null; onOpen(key) },
             onOpenLog = { sheet = null; onOpenLog() }, onDay = { day ->
-                val diaries = data.activity()[day].orEmpty()
+                val diaries = presentation.activity[day].orEmpty()
                 if (diaries.size == 1) { sheet = null; onOpen(diaries.single().key) } else sheet = day.toString()
             })
     }
@@ -74,9 +81,9 @@ private fun InsightPage(
 }
 
 @Composable
-private fun InsightRefreshAction(vm: InsightViewModel) {
-    FilledTonalIconButton(onClick = vm::refresh,
-        enabled = vm.index?.refreshing != true && !vm.aliasSaving && !vm.focusSaving,
+private fun InsightRefreshAction(state: InsightUiState, onRefresh: () -> Unit) {
+    FilledTonalIconButton(onClick = onRefresh,
+        enabled = state.index?.refreshing != true && !state.aliasSaving && !state.focusSaving,
         shapes = IconButtonDefaults.shapes()) {
         Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.insight_refresh))
     }
@@ -85,7 +92,7 @@ private fun InsightRefreshAction(vm: InsightViewModel) {
 /** Shared by the live page and its previews so review fixtures exercise the real layout. */
 @Composable
 internal fun InsightDashboardContent(
-    data: InsightData,
+    presentation: InsightPresentation,
     range: InsightRange,
     focusedKeys: Set<String>? = null,
     onSelectRange: (InsightRange) -> Unit = {},
@@ -98,8 +105,9 @@ internal fun InsightDashboardContent(
     rangeEnabled: Boolean = true,
     notices: @Composable () -> Unit = {},
 ) = InsightPage(headerActions) {
-    val overview = remember(data, range) { data.overview(range) }
-    val focused = remember(overview, focusedKeys) { overview.focused(focusedKeys) }
+    val data = presentation.data
+    val overview = presentation.overview
+    val focused = presentation.focused
     LazyColumn(Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -161,14 +169,14 @@ internal fun InsightDashboardContent(
         item {
             Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    InsightHeatmap(data)
+                    InsightHeatmap(data, presentation.activity)
                     FilledTonalButton(onClick = { onSheet("days") }, shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.insight_view_days))
                     }
                 }
             }
         }
-        val recent = data.diaries(range).filter { it.sessions.isNotEmpty() }.take(3)
+        val recent = presentation.recent
         if (recent.isNotEmpty()) item { FitLogSectionTitle(stringResource(R.string.insight_recent)) }
         items(recent, key = { "recent-${it.key}" }) { diary ->
             InsightRow(insightDate(diary.date), stringResource(R.string.insight_diary_summary,
@@ -187,14 +195,13 @@ internal fun InsightDashboardContent(
 }
 
 @Composable
-private fun InsightSourceSheet(data: InsightData, range: InsightRange, selection: String, onDismiss: () -> Unit,
+private fun InsightSourceSheet(presentation: InsightPresentation, selection: String, onDismiss: () -> Unit,
     onSelect: (String) -> Unit, onExercise: (String) -> Unit, coverage: @Composable () -> Unit,
     onOpen: (String) -> Unit, onOpenLog: () -> Unit, onDay: (LocalDate) -> Unit) {
+    val data = presentation.data
     val status = InsightSourceStatus.entries.firstOrNull { it.name == selection }
     val day = runCatching { LocalDate.parse(selection) }.getOrNull()
-    val achievements = remember(data, range, selection) {
-        if (selection == "records") data.overview(range).achievements else emptyList()
-    }
+    val achievements = presentation.overview.achievements
     ModalBottomSheet(onDismissRequest = onDismiss,
         sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
             enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))) {
@@ -214,7 +221,7 @@ private fun InsightSourceSheet(data: InsightData, range: InsightRange, selection
                             { onSelect(sourceStatus.name) })
                     }
                 }
-                selection == "exercises" -> items(data.exercises(range), key = { it.nameKey }) { exercise ->
+                selection == "exercises" -> items(presentation.exercises, key = { it.nameKey }) { exercise ->
                     InsightRow(exercise.name, stringResource(R.string.insight_exercise_summary,
                         exercise.occurrences.map { it.sessionId }.distinct().size,
                         exercise.occurrences.sumOf { it.exercise.sets.size }), { onExercise(exercise.nameKey) })
@@ -228,11 +235,11 @@ private fun InsightSourceSheet(data: InsightData, range: InsightRange, selection
                     InsightRow(source.key.relPath, sourceStatusLabel(source.status),
                         data.diaries.firstOrNull { it.sourceKey == source.key }?.let { diary -> ({ onOpen(diary.key) }) } ?: onOpenLog)
                 }
-                day != null -> items(data.activity()[day].orEmpty(), key = { it.key }) { diary ->
+                day != null -> items(presentation.activity[day].orEmpty(), key = { it.key }) { diary ->
                     InsightRow(diary.title, stringResource(R.string.insight_exercise_summary, diary.sessions.size, diary.setCount), { onOpen(diary.key) })
                 }
                 else -> {
-                    val activity = data.activity().toSortedMap(compareByDescending { it })
+                    val activity = presentation.activity
                     if (activity.isEmpty()) item { Text(stringResource(R.string.insight_empty)) }
                     items(activity.keys.toList(), key = { it.toString() }) { date ->
                         val diaries = activity.getValue(date)
@@ -246,13 +253,14 @@ private fun InsightSourceSheet(data: InsightData, range: InsightRange, selection
 }
 
 @Composable
-private fun InsightFocusSheet(vm: InsightViewModel, data: InsightData, onDismiss: () -> Unit) {
-    val overview = remember(data, vm.range) { data.overview(vm.range) }
-    val options = remember(overview) { overview.progress.map { it.exercise }.sortedBy { it.name } }
+private fun InsightFocusSheet(state: InsightUiState, presentation: InsightPresentation,
+    onSave: (Set<String>) -> Unit, onDismiss: () -> Unit) {
+    val data = presentation.data
+    val options = presentation.focusOptions
     var chosen by rememberSaveable(data.vaultId) {
-        mutableStateOf(ArrayList(overview.focused(vm.focusedKeys).map { it.exercise.nameKey }))
+        mutableStateOf(presentation.focused.map { it.exercise.nameKey })
     }
-    ModalBottomSheet(onDismissRequest = { if (!vm.focusSaving) onDismiss() },
+    ModalBottomSheet(onDismissRequest = { if (!state.focusSaving) onDismiss() },
         sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
             enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))) {
         Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).padding(24.dp),
@@ -266,19 +274,19 @@ private fun InsightFocusSheet(vm: InsightViewModel, data: InsightData, onDismiss
                     val checked = exercise.nameKey in chosen
                     SegmentedListItem(checked = checked,
                         onCheckedChange = { selected ->
-                            chosen = ArrayList(if (selected) chosen + exercise.nameKey else chosen - exercise.nameKey)
-                        }, enabled = !vm.focusSaving && (checked || chosen.size < 3),
+                            chosen = if (selected) chosen + exercise.nameKey else chosen - exercise.nameKey
+                        }, enabled = !state.focusSaving && (checked || chosen.size < 3),
                         shapes = ListItemDefaults.segmentedShapes(index, options.size),
                         content = { Text(exercise.name) },
                         trailingContent = { Checkbox(checked, onCheckedChange = null,
-                            enabled = !vm.focusSaving && (checked || chosen.size < 3)) })
+                            enabled = !state.focusSaving && (checked || chosen.size < 3)) })
                 }
             }
-            vm.focusError?.let { FitLogNotice(stringResource(it), error = true) }
+            state.focusError?.let { FitLogNotice(stringResource(it), error = true) }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { vm.saveFocus(chosen.toSet(), onDismiss) }, enabled = !vm.focusSaving,
+                Button(onClick = { onSave(chosen.toSet()) }, enabled = !state.focusSaving,
                     shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.insight_focus_save)) }
-                TextButton(onClick = onDismiss, enabled = !vm.focusSaving) { Text(stringResource(R.string.insight_alias_cancel)) }
+                TextButton(onClick = onDismiss, enabled = !state.focusSaving) { Text(stringResource(R.string.insight_alias_cancel)) }
             }
         }
     }

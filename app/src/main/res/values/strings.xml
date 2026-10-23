@@ -50,4 +50,5 @@
     <string name="vault_error_read_only">This folder is read-only, cannot create new notes</string>
     <string name="vault_error_check_failed">Check failed: %1$s</string>
     <string name="vault_error_load_config_failed">Could not read folder settings. Please try again.</string>
+    <string name="record_restore_interrupted">The previous save was interrupted. The last saved record has been loaded; review it before continuing.</string>
 </resources>

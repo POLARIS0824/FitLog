@@ -1,4 +1,4 @@
-package com.example.fitlog.insight
+package com.example.fitlog.domain.insight
 
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.data.index.IndexedSource

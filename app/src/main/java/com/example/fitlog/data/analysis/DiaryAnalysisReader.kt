@@ -45,3 +45,9 @@ fun resultFreshness(version: DiaryContentVersion, current: DiaryContentVersion?)
     current.contentHash == version.contentHash -> DiaryResultFreshness.CURRENT
     else -> DiaryResultFreshness.NEEDS_UPDATE
 }
+
+/** Read and transactional-write boundary used by the confirmation use case. */
+interface DiaryConfirmations : DiaryAnalysisReader, DiaryVaultAnalysisReader {
+    suspend fun readSummary(sourceKey: SourceKey): DiaryAnalysisSummary
+    suspend fun confirm(request: DiaryConfirmation): DiaryConfirmationResult
+}

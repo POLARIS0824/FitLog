@@ -10,8 +10,8 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.fitlog.R
 import com.example.fitlog.data.vault.VaultAccessStatus
 import com.example.fitlog.data.vault.VaultConfigState
-import com.example.fitlog.data.vault.VaultPreferences
-import com.example.fitlog.data.vault.VaultRepository
+import com.example.fitlog.data.vault.VaultSettings
+import com.example.fitlog.data.vault.VaultFolders
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,8 +28,8 @@ import kotlinx.coroutines.launch
 class VaultSetupViewModel(
     private val savedStateHandle: SavedStateHandle,
     private val requestId: String,
-    private val vaultPreferences: VaultPreferences,
-    private val vaultRepository: VaultRepository,
+    private val vaultPreferences: VaultSettings,
+    private val vaultRepository: VaultFolders,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -341,8 +341,8 @@ class VaultSetupViewModel(
 
     class Factory(
         private val requestId: String,
-        private val vaultPreferences: VaultPreferences,
-        private val vaultRepository: VaultRepository,
+        private val vaultPreferences: VaultSettings,
+        private val vaultRepository: VaultFolders,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {

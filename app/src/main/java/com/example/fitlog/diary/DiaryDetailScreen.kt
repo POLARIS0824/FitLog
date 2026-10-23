@@ -21,6 +21,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.fitlog.navigation.FitLogBackGuard
 import com.example.fitlog.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.data.vault.MarkdownSnapshot
 import com.example.fitlog.navigation.FitLogRoute
@@ -30,18 +31,25 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
-fun DiaryDetailScreen(vm: DiaryDetailViewModel, onBack: () -> Unit, onAiSettings: () -> Unit) {
+internal fun DiaryDetailScreen(vm: DiaryDetailViewModel, onBack: () -> Unit, onAiSettings: () -> Unit) {
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    val currentOnBack by rememberUpdatedState(onBack)
+    val currentOnAiSettings by rememberUpdatedState(onAiSettings)
+    LaunchedEffect(state.leaveReady, state.leaveTarget) {
+        if (state.leaveReady) {
+            val target = state.leaveTarget
+            vm.leaveHandled()
+            when (target) {
+                DiaryLeaveTarget.BACK -> currentOnBack()
+                DiaryLeaveTarget.AI_SETTINGS -> currentOnAiSettings()
+                null -> Unit
+            }
+        }
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { vm.onStart() }
-    FitLogBackGuard(enabled = vm.review != null || vm.reviewSaving, onBackCompleted = onBack)
+    FitLogBackGuard(enabled = state.review != null || state.reviewSaving, onBackCompleted = { vm.requestLeave() })
     DiaryDetailContent(
-        DiaryDetailUiState(route = vm.route, tab = vm.tab, original = vm.original, sourceLoading = vm.sourceLoading,
-            sourceReadFailed = vm.sourceReadFailed, parses = vm.parses, parsesLoading = vm.parsesLoading,
-            parsesReadFailed = vm.parsesReadFailed, confirmed = vm.confirmed, confirmationLoading = vm.confirmationLoading,
-            confirmationReadFailed = vm.confirmationReadFailed, confirmationStatus = vm.confirmationStatus,
-            candidateStatus = vm.candidateStatus, parsing = vm.parsing, parseMessage = vm.parseMessage,
-            analysisBusy = vm.analysisBusy, analysisIndexWarning = vm.analysisIndexWarning,
-            showCandidate = vm.showCandidate, review = vm.review, reviewSaving = vm.reviewSaving,
-            reviewMessage = vm.reviewMessage, canReview = vm.canReview, leaveRequested = vm.leaveRequested),
+        state,
         DiaryDetailActions(refresh = vm::refresh, parse = vm::parse, cancelParse = vm::cancelParse, retryAnalysis = vm::retryAnalysis,
             selectTab = vm::selectTab, selectResult = vm::selectResult,
             updateWeight = { address, value -> vm.updateWeight(address, value.weight, value.unit, value.converted, value.basis) }, updateReps = vm::updateReps,
@@ -50,20 +58,20 @@ fun DiaryDetailScreen(vm: DiaryDetailViewModel, onBack: () -> Unit, onAiSettings
             draftForReview = vm::draftForReview,
             beginReview = vm::beginReview, cancelConfirmation = vm::cancelReviewConfirmation, saveReview = vm::saveReview,
             cancelLeave = vm::cancelLeave, discardAndLeave = vm::discardAndLeave, revoke = vm::revokeConfirmation),
-        onBack, onAiSettings)
+        { vm.requestLeave() }, { vm.requestLeave(DiaryLeaveTarget.AI_SETTINGS) })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailActions,
     onBack: () -> Unit, onAiSettings: () -> Unit) {
-    var menu by remember { mutableStateOf(false) }
-    var fileInfo by remember { mutableStateOf(false) }
+    var menu by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var fileInfo by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var edit by remember { mutableStateOf<DiarySetEdit?>(null) }
     var exerciseEdit by remember { mutableStateOf<DiaryExerciseEdit?>(null) }
     var removal by remember { mutableStateOf<DiaryReviewRemoval?>(null) }
-    var revoking by remember { mutableStateOf(false) }
-    var confirming by remember { mutableStateOf(false) }
+    var revoking by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var confirming by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val showSourceLoading = rememberDelayedLoading(state.sourceLoading)
     val showParsesLoading = rememberDelayedLoading(state.parsesLoading)
     val showConfirmationLoading = rememberDelayedLoading(state.confirmationLoading)
@@ -328,8 +336,8 @@ private fun StatusRow(label: Int, value: Int?, error: Boolean) {
 @Composable
 private fun ReviewConfirmationDialog(draft: DiaryReviewDraft, saving: Boolean, message: Int?, onDismiss: () -> Unit,
     onSave: (String, Boolean) -> Unit) {
-    var date by remember(draft.parseRunId) { mutableStateOf(draft.date) }
-    var partial by remember(draft.parseRunId) { mutableStateOf(draft.acceptedPartial) }
+    var date by androidx.compose.runtime.saveable.rememberSaveable(draft.parseRunId) { mutableStateOf(draft.date) }
+    var partial by androidx.compose.runtime.saveable.rememberSaveable(draft.parseRunId) { mutableStateOf(draft.acceptedPartial) }
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text(stringResource(R.string.detail_confirm_save)) },
         text = { Box {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -357,32 +365,7 @@ private fun ReviewConfirmationDialog(draft: DiaryReviewDraft, saving: Boolean, m
         } }, dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text(stringResource(R.string.record_cancel)) } })
 }
 
-internal data class DiaryDetailUiState(
-    val route: FitLogRoute.DiaryDetail,
-    val tab: DiaryDetailTab = DiaryDetailTab.ORIGINAL,
-    val original: MarkdownSnapshot? = null,
-    val sourceLoading: Boolean = false,
-    val sourceReadFailed: Boolean = false,
-    val canEdit: Boolean = true,
-    val parses: DiaryParseRecords = DiaryParseRecords(),
-    val parsesLoading: Boolean = false,
-    val parsesReadFailed: Boolean = false,
-    val confirmed: TrainingRecordDetails? = null,
-    val confirmationLoading: Boolean = false,
-    val confirmationReadFailed: Boolean = false,
-    val confirmationStatus: ConfirmationFreshness = ConfirmationFreshness.UNCONFIRMED,
-    val candidateStatus: DiaryResultFreshness? = null,
-    val parsing: Boolean = false,
-    val analysisBusy: Boolean = false,
-    val analysisIndexWarning: Boolean = false,
-    val parseMessage: Int? = null,
-    val showCandidate: Boolean = false,
-    val review: DiaryReviewDraft? = null,
-    val reviewSaving: Boolean = false,
-    val reviewMessage: Int? = null,
-    val canReview: Boolean = false,
-    val leaveRequested: Boolean = false,
-)
+
 
 internal data class DiaryDetailActions(
     val revoke: () -> Unit = {},

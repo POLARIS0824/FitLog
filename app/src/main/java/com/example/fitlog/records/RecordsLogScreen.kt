@@ -21,6 +21,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.data.vault.MarkdownFile
 import com.example.fitlog.log.LogScreen
@@ -31,20 +32,15 @@ import com.example.fitlog.ui.preview.FitLogPreview
 import kotlinx.coroutines.CancellationException
 
 @Composable
-internal fun RecordsLogScreen(vm: LogViewModel, repository: TrainingRecordRepository,
+internal fun RecordsLogScreen(vm: LogViewModel,
     onOpenNative: (String?) -> Unit, onOpenMarkdown: (String, MarkdownFile) -> Unit,
     onConnect: () -> Unit, onManage: () -> Unit, onReview: () -> Unit, onAiSettings: () -> Unit,
     markdown: Boolean, onMarkdown: (Boolean) -> Unit) {
-    var records by remember { mutableStateOf<List<TrainingRecordDetails>>(emptyList()) }
-    var error by remember { mutableStateOf(false) }
-    var retry by remember { mutableIntStateOf(0) }
-    LaunchedEffect(repository, retry) {
-        error = false
-        try { repository.observeRecords().collect { rows -> records = rows.filter { it.diary.origin == RecordOrigin.NATIVE } } }
-        catch (e: Exception) { if (e is CancellationException) throw e; error = true }
-    }
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    val records = state.nativeRecords
+    val error = state.recordsReadFailed
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        RecordsLogHeader(markdown, vm.refreshing, onMarkdown, { vm.refresh() }, onConnect, onManage)
+        RecordsLogHeader(markdown, state.refreshing, onMarkdown, { vm.refresh() }, onConnect, onManage)
         if (markdown) LogScreen(vm, onOpenMarkdown, onConnect, onManage,
             modifier = Modifier.weight(1f), onReview = onReview, onAiSettings = onAiSettings, showAppBar = false)
         else LazyColumn(Modifier.widthIn(max = 840.dp).fillMaxWidth().weight(1f),
@@ -64,9 +60,9 @@ internal fun RecordsLogScreen(vm: LogViewModel, repository: TrainingRecordReposi
             }
             if (error) item {
                 FitLogNotice(stringResource(R.string.record_read_failed), error = true)
-                TextButton(onClick = { retry++ }) { Text(stringResource(R.string.record_retry)) }
+                TextButton(onClick = vm::retryRecords) { Text(stringResource(R.string.record_retry)) }
             }
-            if (!error && records.isEmpty()) item { FitLogNotice(stringResource(R.string.record_no_records)) }
+            if (!error && !state.recordsLoading && records.isEmpty()) item { FitLogNotice(stringResource(R.string.record_no_records)) }
             items(records, key = { it.diary.id }) { record ->
                 Surface(onClick = { onOpenNative(record.diary.id) }, shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerLow) {

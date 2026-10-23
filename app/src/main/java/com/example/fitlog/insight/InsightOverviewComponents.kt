@@ -1,5 +1,6 @@
 package com.example.fitlog.insight
 
+import com.example.fitlog.domain.insight.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*

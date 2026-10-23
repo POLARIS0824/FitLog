@@ -44,6 +44,7 @@ data class DiaryConfirmation(
     val requireLatestCandidate: Boolean = false,
     val editConfirmed: Boolean = false,
     val expectedContentVersion: DiaryContentVersion? = null,
+    val kind: RecordKind = RecordKind.TRAINING,
 ) {
     companion object {
         fun fromCandidate(

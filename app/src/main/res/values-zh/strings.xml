@@ -51,4 +51,5 @@
     <string name="vault_error_read_only">该文件夹为只读，无法新建笔记</string>
     <string name="vault_error_check_failed">检查失败：%1$s</string>
     <string name="vault_error_load_config_failed">无法读取文件夹设置，请重试</string>
+    <string name="record_restore_interrupted">上次保存被中断，现已载入最后保存的记录，请检查后继续。</string>
 </resources>

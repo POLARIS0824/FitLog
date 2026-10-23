@@ -8,6 +8,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.SideEffect
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.toArgb
@@ -27,16 +29,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        val container = (application as FitLogApplication).container
         setContent {
             val appearance = viewModel<AppearanceViewModel> {
-                AppearanceViewModel(AppearancePreferencesStore(applicationContext.appearanceDataStore))
+                container.appearance()
             }
-            val dark = when (appearance.preferences.themeMode) {
+            val appearanceState by appearance.uiState.collectAsStateWithLifecycle()
+            val dark = when (appearanceState.preferences.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
-            FitLogTheme(darkTheme = dark, dynamicColor = appearance.preferences.dynamicColor) {
+            FitLogTheme(darkTheme = dark, dynamicColor = appearanceState.preferences.dynamicColor) {
                 val barColor = MaterialTheme.colorScheme.surface.toArgb()
                 SideEffect {
                     enableEdgeToEdge(
@@ -44,7 +48,7 @@ class MainActivity : ComponentActivity() {
                         navigationBarStyle = SystemBarStyle.auto(barColor, barColor) { dark },
                     )
                 }
-                FitLogApp(appearance)
+                FitLogApp(container, appearance)
             }
         }
     }

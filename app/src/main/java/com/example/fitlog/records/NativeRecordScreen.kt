@@ -17,6 +17,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.diary.*
 import com.example.fitlog.navigation.FitLogBackGuard
@@ -29,18 +30,46 @@ import java.time.ZoneOffset
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
-    var datePicker by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    val currentOnBack by rememberUpdatedState(onBack)
+    LaunchedEffect(state.closeRequested) {
+        if (state.closeRequested) { vm.closeHandled(); currentOnBack() }
+    }
+    NativeRecordContent(state, NativeRecordActions(
+        requestLeave = vm::requestLeave, retry = vm::retry, rest = vm::rest,
+        name = vm::name, removeSet = vm::removeSet, addSet = vm::addSet,
+        removeExercise = vm::removeExercise, exerciseNotes = vm::exerciseNotes,
+        addExercise = vm::addExercise, notes = vm::notes, set = vm::set, date = vm::date,
+        delete = vm::delete, cancelLeave = vm::cancelLeave, retryAndLeave = vm::retryAndLeave,
+        discardAndLeave = vm::discardAndLeave,
+    ))
+}
+
+internal data class NativeRecordActions(
+    val requestLeave: () -> Unit, val retry: () -> Unit, val rest: () -> Unit,
+    val name: (Int, String) -> Unit, val removeSet: (Int, Int) -> Unit,
+    val addSet: (Int) -> Unit, val removeExercise: (Int) -> Unit,
+    val exerciseNotes: (Int, String) -> Unit, val addExercise: () -> Unit,
+    val notes: (String) -> Unit, val set: (Int, Int, (ReviewedSet) -> ReviewedSet) -> Unit,
+    val date: (LocalDate) -> Unit, val delete: () -> Unit, val cancelLeave: () -> Unit,
+    val retryAndLeave: () -> Unit, val discardAndLeave: () -> Unit,
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun NativeRecordContent(state: NativeRecordUiState, actions: NativeRecordActions) {
+    var datePicker by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var deleting by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var setEdit by remember { mutableStateOf<DiarySetEdit?>(null) }
-    FitLogBackGuard(enabled = vm.hasChanges || vm.deleting) { vm.requestLeave(onBack) }
+    FitLogBackGuard(enabled = state.hasChanges || state.deleting) { actions.requestLeave() }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 840.dp).fillMaxSize()) {
             TopAppBar(title = { Text(stringResource(R.string.record_title), style = MaterialTheme.typography.titleLargeEmphasized) }, windowInsets = WindowInsets(0),
-                navigationIcon = { IconButton(onClick = { vm.requestLeave(onBack) }, enabled = !vm.deleting,
+                navigationIcon = { IconButton(onClick = { actions.requestLeave() }, enabled = !state.deleting,
                     shapes = IconButtonDefaults.shapes()) {
                     Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
                 } }, actions = {
-                    TextButton(onClick = { deleting = true }, enabled = vm.canEdit && (vm.exists || vm.input.hasContent),
+                    TextButton(onClick = { deleting = true }, enabled = state.canEdit && (state.exists || state.input.hasContent),
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                         Text(stringResource(R.string.record_delete))
                     }
@@ -51,75 +80,76 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                       Text(stringResource(R.string.record_ui_date), style = MaterialTheme.typography.labelLarge,
                           color = MaterialTheme.colorScheme.onSurfaceVariant)
-                      OutlinedButton(onClick = { datePicker = true }, enabled = vm.canEdit,
+                      OutlinedButton(onClick = { datePicker = true }, enabled = state.canEdit,
                           shapes = ButtonDefaults.shapes()) {
-                          Text(vm.input.date, style = MaterialTheme.typography.titleMediumEmphasized)
+                          Text(state.input.date, style = MaterialTheme.typography.titleMediumEmphasized)
                       }
                       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (vm.state == RecordSaveState.SAVED || vm.state == RecordSaveState.FAILED) Icon(
-                            painterResource(if (vm.state == RecordSaveState.FAILED) R.drawable.warning_24px else R.drawable.check_24px),
+                        if (state.state == RecordSaveState.SAVED || state.state == RecordSaveState.FAILED) Icon(
+                            painterResource(if (state.state == RecordSaveState.FAILED) R.drawable.warning_24px else R.drawable.check_24px),
                             null, Modifier.size(20.dp),
-                            tint = if (vm.state == RecordSaveState.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                            tint = if (state.state == RecordSaveState.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(stringResource(when {
-                            vm.loading -> R.string.record_loading
-                            else -> when (vm.state) {
+                            state.loading -> R.string.record_loading
+                            else -> when (state.state) {
                                 RecordSaveState.EMPTY -> R.string.record_autosave_help
                                 RecordSaveState.SAVING -> R.string.record_saving
                                 RecordSaveState.SAVED -> R.string.record_saved
                                 RecordSaveState.FAILED -> R.string.record_failed
                             }
                         }), style = MaterialTheme.typography.labelLarge,
-                            color = if (vm.state == RecordSaveState.FAILED) MaterialTheme.colorScheme.error
+                            color = if (state.state == RecordSaveState.FAILED) MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurfaceVariant)
                       }
                     }
                 }
-                vm.message?.let { message -> item {
+                state.message?.let { message -> item {
                     FitLogNotice(stringResource(message), error = true)
-                    if (vm.canEdit) TextButton(onClick = vm::retry) { Text(stringResource(R.string.record_retry)) }
+                    if (!state.loading && !state.deleting && (state.readFailed || state.state == RecordSaveState.FAILED))
+                        TextButton(onClick = actions.retry) { Text(stringResource(R.string.record_retry)) }
                 } }
-                if (vm.input.kind == RecordKind.REST) item { FitLogNotice(stringResource(R.string.record_rest)) }
-                if (vm.input.exercises.isEmpty() && vm.input.kind != RecordKind.REST) item {
+                if (state.input.kind == RecordKind.REST) item { FitLogNotice(stringResource(R.string.record_rest)) }
+                if (state.input.exercises.isEmpty() && state.input.kind != RecordKind.REST) item {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(stringResource(R.string.record_ui_empty_title), style = MaterialTheme.typography.headlineSmallEmphasized)
                         Text(stringResource(R.string.record_empty), style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        OutlinedButton(onClick = vm::rest, enabled = vm.canEdit && vm.input.kind != RecordKind.REST,
+                        OutlinedButton(onClick = actions.rest, enabled = state.canEdit && state.input.kind != RecordKind.REST,
                             shapes = ButtonDefaults.shapes()) {
                             Text(stringResource(R.string.record_mark_rest))
                         }
                     }
                 }
-                itemsIndexed(vm.input.exercises) { exerciseIndex, exercise ->
+                itemsIndexed(state.input.exercises) { exerciseIndex, exercise ->
                     Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TextField(value = exercise.rawName, onValueChange = { vm.name(exerciseIndex, it) },
-                                enabled = vm.canEdit, label = { Text(stringResource(R.string.record_exercise)) },
+                            TextField(value = exercise.rawName, onValueChange = { actions.name(exerciseIndex, it) },
+                                enabled = state.canEdit, label = { Text(stringResource(R.string.record_exercise)) },
                                 singleLine = true, modifier = Modifier.fillMaxWidth())
                             exercise.sets.forEachIndexed { setIndex, set ->
-                                NativeSetEditor(set, setIndex + 1, vm.canEdit,
-                                    onRemove = { vm.removeSet(exerciseIndex, setIndex) }, onEdit = { field ->
+                                NativeSetEditor(set, setIndex + 1, state.canEdit,
+                                    onRemove = { actions.removeSet(exerciseIndex, setIndex) }, onEdit = { field ->
                                         setEdit = DiarySetEdit(DiarySetAddress(0, exerciseIndex, setIndex), setIndex + 1,
                                             field, set.weight, set.unit, set.reps, set.basis)
                                     })
                             }
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilledTonalButton(onClick = { vm.addSet(exerciseIndex) }, enabled = vm.canEdit && exercise.sets.size < 1000,
+                                FilledTonalButton(onClick = { actions.addSet(exerciseIndex) }, enabled = state.canEdit && exercise.sets.size < 1000,
                                     shapes = ButtonDefaults.shapes()) {
                                     Text(stringResource(R.string.record_add_set))
                                 }
-                                TextButton(onClick = { vm.removeExercise(exerciseIndex) }, enabled = vm.canEdit,
+                                TextButton(onClick = { actions.removeExercise(exerciseIndex) }, enabled = state.canEdit,
                                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                                     Text(stringResource(R.string.record_remove_exercise))
                                 }
                             }
-                            TextField(value = exercise.notes.orEmpty(), onValueChange = { vm.exerciseNotes(exerciseIndex, it) },
-                                enabled = vm.canEdit, label = { Text(stringResource(R.string.record_exercise_notes)) },
+                            TextField(value = exercise.notes.orEmpty(), onValueChange = { actions.exerciseNotes(exerciseIndex, it) },
+                                enabled = state.canEdit, label = { Text(stringResource(R.string.record_exercise_notes)) },
                                 modifier = Modifier.fillMaxWidth())
                         }
                     }
                 }
-                item { Button(onClick = vm::addExercise, enabled = vm.canEdit,
+                item { Button(onClick = actions.addExercise, enabled = state.canEdit,
                     modifier = Modifier.fillMaxWidth().heightIn(min = ButtonDefaults.MediumContainerHeight),
                     shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
                     contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)) {
@@ -127,7 +157,7 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Text(stringResource(R.string.record_add_exercise), style = MaterialTheme.typography.labelLargeEmphasized)
                 } }
-                item { TextField(value = vm.input.notes, onValueChange = vm::notes, enabled = vm.canEdit,
+                item { TextField(value = state.input.notes, onValueChange = actions.notes, enabled = state.canEdit,
                     label = { Text(stringResource(R.string.record_notes)) }, modifier = Modifier.fillMaxWidth()) }
                 item { Text(stringResource(R.string.record_statistics_help), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -135,21 +165,21 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
         }
     }
     setEdit?.let { edit -> DiarySetPicker(edit, { setEdit = null }, onWeight = { value ->
-        vm.set(edit.address.exercise, edit.address.set) { it.copy(weight = value.weight, unit = value.unit, basis = value.basis) }
+        actions.set(edit.address.exercise, edit.address.set) { it.copy(weight = value.weight, unit = value.unit, basis = value.basis) }
         setEdit = null
     }, onReps = { value ->
-        vm.set(edit.address.exercise, edit.address.set) { it.copy(reps = value) }; setEdit = null
+        actions.set(edit.address.exercise, edit.address.set) { it.copy(reps = value) }; setEdit = null
     }, onBasis = { basis, all ->
-        val indices = if (all) vm.input.exercises[edit.address.exercise].sets.indices else listOf(edit.address.set)
-        indices.forEach { index -> vm.set(edit.address.exercise, index) {
+        val indices = if (all) state.input.exercises[edit.address.exercise].sets.indices else listOf(edit.address.set)
+        indices.forEach { index -> actions.set(edit.address.exercise, index) {
             if (basis == WeightBasis.BODYWEIGHT) it.copy(weight = null, unit = null, basis = basis) else it.copy(basis = basis)
         } }; setEdit = null
     }) }
     if (datePicker) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = LocalDate.parse(vm.input.date).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli())
+        val state = rememberDatePickerState(initialSelectedDateMillis = LocalDate.parse(state.input.date).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli())
         DatePickerDialog(onDismissRequest = { datePicker = false }, confirmButton = {
             TextButton(onClick = { state.selectedDateMillis?.let {
-                vm.date(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())
+                actions.date(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())
             }; datePicker = false }) { Text(stringResource(R.string.record_done)) }
         }, dismissButton = { TextButton(onClick = { datePicker = false }) { Text(stringResource(R.string.record_cancel)) } }) {
             DatePicker(state)
@@ -157,14 +187,14 @@ internal fun NativeRecordScreen(vm: NativeRecordViewModel, onBack: () -> Unit) {
     }
     if (deleting) AlertDialog(onDismissRequest = { deleting = false },
         text = { Text(stringResource(R.string.record_delete_confirm)) },
-        confirmButton = { TextButton(onClick = { deleting = false; vm.delete(onBack) }) { Text(stringResource(R.string.record_delete)) } },
+        confirmButton = { TextButton(onClick = { deleting = false; actions.delete() }) { Text(stringResource(R.string.record_delete)) } },
         dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.record_cancel)) } })
-    if (vm.leaveRequested) AlertDialog(onDismissRequest = vm::cancelLeave,
+    if (state.leaveRequested) AlertDialog(onDismissRequest = actions.cancelLeave,
         text = { Text(stringResource(R.string.record_leave_failed)) },
-        confirmButton = { TextButton(onClick = vm::retryAndLeave) { Text(stringResource(R.string.record_retry)) } },
+        confirmButton = { TextButton(onClick = actions.retryAndLeave) { Text(stringResource(R.string.record_retry)) } },
         dismissButton = { Column {
-            TextButton(onClick = vm::cancelLeave) { Text(stringResource(R.string.record_keep_editing)) }
-            TextButton(onClick = vm::discardAndLeave) { Text(stringResource(R.string.record_discard_changes)) }
+            TextButton(onClick = actions.cancelLeave) { Text(stringResource(R.string.record_keep_editing)) }
+            TextButton(onClick = actions.discardAndLeave) { Text(stringResource(R.string.record_discard_changes)) }
         } })
 }
 

@@ -1,4 +1,4 @@
-package com.example.fitlog.insight
+package com.example.fitlog.domain.insight
 
 import com.example.fitlog.data.analysis.WeightBasis
 import com.example.fitlog.data.analysis.WeightUnit

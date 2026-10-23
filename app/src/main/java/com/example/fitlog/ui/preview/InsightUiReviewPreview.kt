@@ -29,18 +29,19 @@ import com.example.fitlog.data.analysis.WeightUnit
 import com.example.fitlog.data.index.IndexedScan
 import com.example.fitlog.data.insight.ExerciseAliases
 import com.example.fitlog.insight.InsightChart
-import com.example.fitlog.insight.InsightData
+import com.example.fitlog.domain.insight.InsightData
+import com.example.fitlog.domain.insight.prepareInsight
 import com.example.fitlog.insight.InsightDashboardContent
 import com.example.fitlog.insight.InsightProgressCard
 import com.example.fitlog.insight.InsightWeeklyTrends
 import com.example.fitlog.insight.InsightHeatmap
-import com.example.fitlog.insight.InsightPoint
-import com.example.fitlog.insight.InsightRange
+import com.example.fitlog.domain.insight.InsightPoint
+import com.example.fitlog.domain.insight.InsightRange
 import com.example.fitlog.insight.InsightRangePicker
-import com.example.fitlog.insight.InsightSeries
-import com.example.fitlog.insight.buildInsightData
-import com.example.fitlog.insight.overview
-import com.example.fitlog.insight.focused
+import com.example.fitlog.domain.insight.InsightSeries
+import com.example.fitlog.domain.insight.buildInsightData
+import com.example.fitlog.domain.insight.overview
+import com.example.fitlog.domain.insight.focused
 import com.example.fitlog.log.LogActions
 import com.example.fitlog.log.LogContent
 import com.example.fitlog.log.LogDiaryStatus
@@ -54,25 +55,25 @@ import java.util.UUID
 @FitLogPreviews
 @Composable
 internal fun InsightDashboardReviewPreview() {
-    FitLogPreview { InsightDashboardContent(previewInsightData(), InsightRange.THIRTY) }
+    FitLogPreview { InsightDashboardContent(prepareInsight(previewInsightData(), InsightRange.THIRTY), InsightRange.THIRTY) }
 }
 
 @Preview(name = "Insights · Empty", widthDp = 412, heightDp = 892, locale = "zh")
 @Composable
 internal fun InsightDashboardEmptyReviewPreview() {
-    FitLogPreview { InsightDashboardContent(previewInsightData(empty = true), InsightRange.THIRTY) }
+    FitLogPreview { InsightDashboardContent(prepareInsight(previewInsightData(empty = true), InsightRange.THIRTY), InsightRange.THIRTY) }
 }
 
 @Preview(name = "Insights · 320dp · 200%", widthDp = 320, heightDp = 1100, fontScale = 2f, locale = "zh")
 @Composable
 internal fun InsightDashboardLargeTextReviewPreview() {
-    FitLogPreview { InsightDashboardContent(previewInsightData(), InsightRange.THIRTY) }
+    FitLogPreview { InsightDashboardContent(prepareInsight(previewInsightData(), InsightRange.THIRTY), InsightRange.THIRTY) }
 }
 
 @Preview(name = "Insights · First day", widthDp = 412, heightDp = 1100, locale = "en")
 @Composable
 internal fun InsightBaselineReviewPreview() {
-    FitLogPreview { InsightDashboardContent(previewInsightData(singleDay = true), InsightRange.THIRTY) }
+    FitLogPreview { InsightDashboardContent(prepareInsight(previewInsightData(singleDay = true), InsightRange.THIRTY), InsightRange.THIRTY) }
 }
 
 @FitLogPreviews
@@ -140,7 +141,7 @@ private fun InsightActivityReviewContent(data: InsightData) {
         item { FitLogPageHeader(stringResource(R.string.insight_title)) }
         item { InsightRangePicker(InsightRange.THIRTY, {}) }
         item { FitLogSectionTitle(stringResource(R.string.insight_activity)) }
-        item { InsightHeatmap(data) }
+        item { InsightHeatmap(data, data.activity()) }
     }
 }
 

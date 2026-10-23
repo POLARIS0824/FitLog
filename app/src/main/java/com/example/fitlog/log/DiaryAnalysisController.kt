@@ -1,4 +1,8 @@
-package com.example.fitlog.data.analysis
+package com.example.fitlog.log
+
+import com.example.fitlog.data.analysis.*
+import com.example.fitlog.domain.AnalyzeDiary
+import com.example.fitlog.domain.stopsBatch
 
 import com.example.fitlog.data.ai.AiConfigurationException
 import com.example.fitlog.data.ai.AiConfigurationFailure
@@ -6,34 +10,6 @@ import com.example.fitlog.data.analysis.adapter.DiaryOriginalReadException
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-
-data class AnalysisSource(val key: SourceKey, val documentUri: String)
-enum class AnalysisItemOutcome { SUCCEEDED, FAILED, SKIPPED }
-enum class AnalysisProblem { SOURCE, SOURCE_CHANGED, CONFIGURATION, STORAGE, REQUEST }
-data class AnalysisIssue(val problem: AnalysisProblem, val modelFailure: DiaryParseFailure? = null,
-    val configurationFailure: AiConfigurationFailure? = null)
-data class AnalysisItemResult(val source: AnalysisSource, val outcome: AnalysisItemOutcome, val issue: AnalysisIssue? = null)
-data class DiaryAnalysisRun(
-    val vaultId: String? = null,
-    val active: Boolean = false,
-    val batch: Boolean = false,
-    val total: Int = 0,
-    val current: SourceKey? = null,
-    val items: List<AnalysisItemResult> = emptyList(),
-    val stopped: Boolean = false,
-    val issue: AnalysisIssue? = null,
-    val indexWarning: Boolean = false,
-) {
-    val succeeded get() = items.count { it.outcome == AnalysisItemOutcome.SUCCEEDED }
-    val failed get() = items.count { it.outcome == AnalysisItemOutcome.FAILED }
-    val skipped get() = items.count { it.outcome == AnalysisItemOutcome.SKIPPED }
-    val remaining get() = total - items.size
-}
-
-internal interface DiaryAnalysisSession {
-    suspend fun read(source: AnalysisSource): DiaryParseInput
-    suspend fun execute(input: DiaryParseInput): StoredDiaryParse
-}
 
 class DiaryAnalysisBusyException : IllegalStateException("An explicit analysis is already running")
 
@@ -103,30 +79,12 @@ class DiaryAnalysisController internal constructor(
                 currentCoroutineContext().ensureActive()
                 mutableState.value = mutableState.value.copy(current = source.key)
                 try {
-                    val input = session.read(source)
+                    val result = AnalyzeDiary(readSummary)(session, source, reanalyze)
                     currentCoroutineContext().ensureActive()
-                    if (!reanalyze && !needsDiaryAnalysis(readSummary(source.key), DiaryContentVersion.from(input))) {
-                        append(AnalysisItemResult(source, AnalysisItemOutcome.SKIPPED))
-                        continue
-                    }
-                    val stored = session.execute(input)
-                    currentCoroutineContext().ensureActive()
-                    singleResult = stored
-                    val failure = (stored.result as? DiaryParseResult.Failure)?.reason
-                    var issue = failure?.let { AnalysisIssue(AnalysisProblem.REQUEST, it) }
-                    // A single fresh read after inference catches edits made while the model was running.
-                    try {
-                        val fresh = session.read(source)
-                        if (DiaryContentVersion.from(fresh) != DiaryContentVersion.from(input))
-                            issue = issue ?: AnalysisIssue(AnalysisProblem.SOURCE_CHANGED)
-                    } catch (e: Exception) {
-                        if (e is CancellationException) throw e
-                        issue = issue ?: AnalysisIssue(AnalysisProblem.SOURCE)
-                    }
-                    currentCoroutineContext().ensureActive()
-                    append(AnalysisItemResult(source, if (failure == null) AnalysisItemOutcome.SUCCEEDED else AnalysisItemOutcome.FAILED, issue))
-                    if (failure != null && stopsBatch(failure)) {
-                        mutableState.value = mutableState.value.copy(issue = issue)
+                    singleResult = result.stored
+                    append(result.item)
+                    if (result.stopBatch) {
+                        mutableState.value = mutableState.value.copy(issue = result.item.issue)
                         break
                     }
                 } catch (e: Exception) {
@@ -159,9 +117,6 @@ class DiaryAnalysisController internal constructor(
         mutableState.value = mutableState.value.copy(items = mutableState.value.items + item)
     }
 }
-
-/** Stop the batch when the provider itself cannot continue; one unparsable answer must not. */
-internal fun stopsBatch(reason: DiaryParseFailure) = reason.toAiRequestFailure()?.isFatal == true
 
 private fun issueFor(error: Exception) = when (error) {
     is DiaryOriginalReadException -> AnalysisIssue(AnalysisProblem.SOURCE)

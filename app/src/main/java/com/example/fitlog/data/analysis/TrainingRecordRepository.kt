@@ -4,17 +4,25 @@ import androidx.room.withTransaction
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+
+interface TrainingRecords {
+    fun observeRecords(): kotlinx.coroutines.flow.Flow<List<TrainingRecordDetails>>
+    suspend fun read(id: String): TrainingRecordDetails?
+    suspend fun saveNative(id: String, date: LocalDate, sessions: List<ReviewedSession>, kind: RecordKind)
+    suspend fun delete(id: String)
+    suspend fun deleteConfirmation(key: SourceKey)
+}
 
 /** Local facts shared by native entry, Markdown confirmation and statistics. */
-class TrainingRecordRepository(private val database: DiaryAnalysisDatabase) {
+class TrainingRecordRepository(private val database: DiaryAnalysisDatabase,
+    private val computationDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default) : TrainingRecords {
     private val dao = database.analysis()
-    fun observeRecords() = dao.observeRecords().map { records -> records.map { it.ordered() } }
-    suspend fun read(id: String) = dao.record(id)?.ordered()
+    override fun observeRecords() = dao.observeRecords().map { records -> records.map { it.ordered() } }.flowOn(computationDispatcher)
+    override suspend fun read(id: String) = withContext(computationDispatcher) { dao.record(id)?.ordered() }
 
-    suspend fun saveNative(id: String, date: LocalDate, sessions: List<ReviewedSession>, kind: RecordKind) {
-        require(date.year in 1..9999)
-        validateRecordValues(sessions, allowIncomplete = true)
-        require(kind != RecordKind.REST || sessions.all { it.exercises.isEmpty() })
+    override suspend fun saveNative(id: String, date: LocalDate, sessions: List<ReviewedSession>, kind: RecordKind) {
         database.withTransaction {
             val previous = dao.record(id)
             require(previous == null || previous.diary.origin == RecordOrigin.NATIVE)
@@ -25,21 +33,10 @@ class TrainingRecordRepository(private val database: DiaryAnalysisDatabase) {
         }
     }
 
-    suspend fun delete(id: String) = database.withTransaction { dao.deleteRecord(id) }
-    suspend fun deleteConfirmation(key: SourceKey) = database.withTransaction {
+    override suspend fun delete(id: String): Unit = database.withTransaction { dao.deleteRecord(id) }
+    override suspend fun deleteConfirmation(key: SourceKey): Unit = database.withTransaction {
         dao.confirmed(key.vaultId, key.relPath)?.let { dao.deleteRecord(it.diary.id) }
     }
-}
-
-internal fun validateRecordValues(sessions: List<ReviewedSession>, allowIncomplete: Boolean = false) {
-    sessions.forEach { session -> session.exercises.forEach { exercise ->
-        require(allowIncomplete || exercise.rawName.isNotBlank())
-        require(exercise.sets.size <= 1000)
-        exercise.sets.forEach { set ->
-            require(set.weight == null || (set.weight.isFinite() && set.weight >= 0))
-            require(set.reps == null || set.reps > 0)
-        }
-    } }
 }
 
 /** Call inside a Room transaction; all entry paths write the same record graph. */

@@ -48,7 +48,7 @@
     <string name="detail_failure_summary">Last failed attempt: %1$s\n%2$s</string>
     <string name="detail_sources_issues">Source and original extraction notes · %1$d items</string>
     <string name="detail_reps_unit">reps</string>
-    <string name="detail_review_restore_failed">Could not restore unfinished corrections. Return and reopen this diary before reviewing again.</string>
+    <string name="detail_review_restore_failed">An unfinished review was interrupted. Saved confirmations are available; reapply any unsaved changes.</string>
     <string name="detail_file_info">File information</string>
     <string name="detail_weight_unrecorded">Not logged</string>
     <string name="detail_weight_bodyweight">Bodyweight</string>

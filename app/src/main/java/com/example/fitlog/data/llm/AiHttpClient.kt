@@ -7,9 +7,6 @@ import io.ktor.client.plugins.HttpTimeout
 import okhttp3.RequestBody
 import okio.BufferedSink
 
-/** Process-owned client survives Activity recreation; request credentials are never client defaults. */
-internal val sharedAiHttpClient: HttpClient by lazy { createAiHttpClient() }
-
 /** Share one client at application scope. Tests supply MockEngine using the same configuration. */
 internal fun createAiHttpClient(
     engine: HttpClientEngine = OkHttp.create {

@@ -74,19 +74,14 @@ import com.example.fitlog.ui.components.FitLogLoadingIndicator
 @Composable
 fun VaultSetupRoute(
     route: FitLogRoute.VaultSetup,
-    vaultPreferences: VaultPreferences,
-    vaultRepository: VaultRepository,
+    factory: androidx.lifecycle.ViewModelProvider.Factory,
     onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onVaultConnected: suspend (String) -> Unit = {},
 ) {
     val viewModel: VaultSetupViewModel = viewModel(
-        factory = VaultSetupViewModel.Factory(
-            requestId = route.requestId,
-            vaultPreferences = vaultPreferences,
-            vaultRepository = vaultRepository,
-        )
+        factory = factory
     )
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()

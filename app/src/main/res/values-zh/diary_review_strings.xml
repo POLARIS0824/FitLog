@@ -48,7 +48,7 @@
     <string name="detail_failure_summary">最近一次解析失败：%1$s\n%2$s</string>
     <string name="detail_sources_issues">来源与原始提取说明 · %1$d 项</string>
     <string name="detail_reps_unit">次</string>
-    <string name="detail_review_restore_failed">无法恢复未完成的修正，请返回并重新打开此日记后再核对。</string>
+    <string name="detail_review_restore_failed">未完成的校对已中断，已保存的确认结果仍可使用，请重新录入未保存的修改。</string>
     <string name="detail_file_info">文件信息</string>
     <string name="detail_weight_unrecorded">未记录</string>
     <string name="detail_weight_bodyweight">自重</string>

@@ -67,10 +67,6 @@ abstract class SourceIndexDatabase : RoomDatabase() {
             Room.databaseBuilder(context.applicationContext, SourceIndexDatabase::class.java, name)
                 .fallbackToDestructiveMigration(dropAllTables = true).build()
 
-        @Volatile private var instance: SourceIndexDatabase? = null
-        fun get(context: Context): SourceIndexDatabase = instance ?: synchronized(this) {
-            instance ?: open(context).also { instance = it }
-        }
     }
 }
 

@@ -2,6 +2,7 @@
 
 package com.example.fitlog.insight
 
+import com.example.fitlog.domain.insight.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.fitlog.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.data.analysis.WeightBasis
 import com.example.fitlog.data.insight.ExerciseAliasGroup
 import com.example.fitlog.ui.components.FitLogNotice
@@ -28,14 +30,17 @@ import com.example.fitlog.ui.components.FitLogPageHeader
 import com.example.fitlog.ui.components.FitLogSectionTitle
 
 @Composable
-fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String) -> Unit,
+internal fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String) -> Unit,
     onOpenLog: () -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val state by vm.uiState.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.resumed() }
     var editingAliases by rememberSaveable { mutableStateOf(false) }
-    val data = vm.data.takeIf { vm.error == null }
-    val exercise = data?.exercise(nameKey, vm.range)
-    val progress = remember(data, nameKey, vm.range) {
-        data?.exercise(nameKey, InsightRange.ALL)?.progress(vm.range, data.today)
+    val data = state.data.takeIf { state.error == null }
+    val presentation = state.presentation
+    val exercise = presentation?.exercise
+    val progress = presentation?.progress
+    LaunchedEffect(state.aliasSaved) {
+        if (state.aliasSaved) { vm.aliasSaveHandled(); editingAliases = false }
     }
     val title = exercise?.name ?: data?.aliases?.groupFor(nameKey)?.primaryName ?: data?.names?.get(nameKey)
         ?: stringResource(R.string.insight_exercise_history)
@@ -44,15 +49,15 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
             contentPadding = PaddingValues(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item { FitLogPageHeader(title, onBack = onBack, actions = {
-                FilledTonalIconButton(onClick = vm::refresh, enabled = vm.index?.refreshing != true && !vm.aliasSaving,
+                FilledTonalIconButton(onClick = vm::refresh, enabled = state.index?.refreshing != true && !state.aliasSaving,
                     shapes = IconButtonDefaults.shapes()) {
                     Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.insight_refresh))
                 }
             }) }
-            if (vm.loading || vm.error != null) item { InsightReadState(vm, onOpenLog) }
+            if (state.loading || state.error != null) item { InsightReadState(state, vm::refresh) }
             if (data != null) {
-                item { InsightCoverage(vm) }
-                item { InsightRangePicker(vm.range, vm::selectRange, enabled = !vm.rangeSaving) }
+                item { InsightCoverage(state) }
+                item { InsightRangePicker(state.range, vm::selectRange, enabled = !state.rangeSaving) }
                 if (exercise == null) item { FitLogNotice(stringResource(R.string.insight_no_exercise_records)) }
                 else {
                     item { Text(stringResource(R.string.insight_exercise_summary,
@@ -83,7 +88,7 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
                             }
                         }
                     }
-                    val series = exerciseSeries(exercise)
+                    val series = presentation.series
                     if (series.isNotEmpty()) item { FitLogSectionTitle(stringResource(R.string.insight_load_history)) }
                     if (series.isEmpty()) item { FitLogNotice(stringResource(R.string.insight_no_numeric_data)) }
                     series.forEach { curve ->
@@ -103,7 +108,7 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
                                 Text(stringResource(if (curve.basis == WeightBasis.ASSISTED) R.string.insight_record_lowest else R.string.insight_record_highest,
                                     insightNumber(record.value), insightDate(record.date)), style = MaterialTheme.typography.titleMedium)
                                 record.recordIds.forEach { key ->
-                                    InsightRow(vm.recordTitle(key), stringResource(R.string.insight_view_source), { onOpen(key) })
+                                    InsightRow(presentation.recordTitles[key].orEmpty(), stringResource(R.string.insight_view_source), { onOpen(key) })
                                 }
                             }
                         }
@@ -112,7 +117,7 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
                                 Text(stringResource(R.string.insight_point_value, insightDate(point.date), insightNumber(point.value)),
                                     style = MaterialTheme.typography.bodyMedium)
                                 point.recordIds.forEach { key ->
-                                    InsightRow(vm.recordTitle(key), stringResource(R.string.insight_view_source), { onOpen(key) })
+                                    InsightRow(presentation.recordTitles[key].orEmpty(), stringResource(R.string.insight_view_source), { onOpen(key) })
                                 }
                             }
                         }
@@ -136,20 +141,21 @@ fun ExerciseHistoryScreen(vm: InsightViewModel, nameKey: String, onOpen: (String
             }
         }
     }
-    if (editingAliases && data != null) AliasEditor(vm, data, nameKey) { editingAliases = false }
+    if (editingAliases && data != null) AliasEditor(state, data, nameKey, vm::saveAliases) { editingAliases = false }
 }
 
 @Composable
-private fun AliasEditor(vm: InsightViewModel, data: InsightData, nameKey: String, onDismiss: () -> Unit) {
+private fun AliasEditor(state: InsightUiState, data: InsightData, nameKey: String,
+    onSave: (String?, ExerciseAliasGroup?) -> Unit, onDismiss: () -> Unit) {
     val existing = data.aliases.groupFor(nameKey)
-    var chosen by rememberSaveable(nameKey) { mutableStateOf(ArrayList(existing?.members ?: listOf(nameKey))) }
+    var chosen by rememberSaveable(nameKey) { mutableStateOf(existing?.members ?: listOf(nameKey)) }
     var primary by rememberSaveable(nameKey) { mutableStateOf(existing?.primaryKey ?: nameKey) }
     val names = data.names + mapOf(nameKey to (data.names[nameKey] ?: nameKey))
     val options = names.entries.sortedBy { it.value }
-    val dismiss = { if (!vm.aliasSaving) onDismiss() }
+    val dismiss = { if (!state.aliasSaving) onDismiss() }
     ModalBottomSheet(onDismissRequest = dismiss, sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
         enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
-        confirmValueChange = { !vm.aliasSaving || it != SheetValue.Hidden })) {
+        confirmValueChange = { !state.aliasSaving || it != SheetValue.Hidden })) {
         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 640.dp), contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text(stringResource(R.string.insight_manage_aliases), style = MaterialTheme.typography.headlineSmall)
@@ -159,33 +165,33 @@ private fun AliasEditor(vm: InsightViewModel, data: InsightData, nameKey: String
                 val occupied = owner != null && owner.primaryKey != existing?.primaryKey
                 SegmentedListItem(checked = key in chosen, shapes = ListItemDefaults.segmentedShapes(index, options.size), onCheckedChange = { checked ->
                     val changed = if (checked) chosen + key else chosen - key
-                    chosen = ArrayList(changed)
+                    chosen = changed
                     if (primary !in changed) primary = changed.first()
-                }, enabled = !vm.aliasSaving && !occupied && !(chosen.size == 1 && key in chosen),
+                }, enabled = !state.aliasSaving && !occupied && !(chosen.size == 1 && key in chosen),
                     colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                     content = { Text(name) }, supportingContent = {
                         if (occupied) Text(stringResource(R.string.insight_alias_owned, requireNotNull(owner).primaryName))
-                    }, trailingContent = { Checkbox(key in chosen, onCheckedChange = null, enabled = !occupied && !vm.aliasSaving) })
+                    }, trailingContent = { Checkbox(key in chosen, onCheckedChange = null, enabled = !occupied && !state.aliasSaving) })
             }
             item { FitLogSectionTitle(stringResource(R.string.insight_alias_primary)) }
             itemsIndexed(chosen.toList(), key = { _, key -> "primary-$key" }) { index, key ->
-                SegmentedListItem(onClick = { primary = key }, enabled = !vm.aliasSaving,
+                SegmentedListItem(onClick = { primary = key }, enabled = !state.aliasSaving,
                     shapes = ListItemDefaults.segmentedShapes(index, chosen.size),
                     modifier = Modifier.semantics { role = Role.RadioButton; selected = primary == key },
                     colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                     content = { Text(names[key] ?: key) },
-                    trailingContent = { RadioButton(primary == key, onClick = null, enabled = !vm.aliasSaving) })
+                    trailingContent = { RadioButton(primary == key, onClick = null, enabled = !state.aliasSaving) })
             }
             item {
-                vm.aliasError?.let { FitLogNotice(stringResource(it), error = true) }
+                state.aliasError?.let { FitLogNotice(stringResource(it), error = true) }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { vm.saveAliases(existing?.primaryKey,
-                        ExerciseAliasGroup(names[primary] ?: primary, chosen.sorted()), onDismiss) }, enabled = !vm.aliasSaving) {
+                    Button(onClick = { onSave(existing?.primaryKey,
+                        ExerciseAliasGroup(names[primary] ?: primary, chosen.sorted())) }, enabled = !state.aliasSaving) {
                         Text(stringResource(R.string.insight_alias_save))
                     }
-                    OutlinedButton(onClick = dismiss, enabled = !vm.aliasSaving) { Text(stringResource(R.string.insight_alias_cancel)) }
+                    OutlinedButton(onClick = dismiss, enabled = !state.aliasSaving) { Text(stringResource(R.string.insight_alias_cancel)) }
                 }
-                if (existing != null) TextButton(onClick = { vm.saveAliases(existing.primaryKey, null, onDismiss) }, enabled = !vm.aliasSaving) {
+                if (existing != null) TextButton(onClick = { onSave(existing.primaryKey, null) }, enabled = !state.aliasSaving) {
                     Text(stringResource(R.string.insight_alias_dissolve))
                 }
             }

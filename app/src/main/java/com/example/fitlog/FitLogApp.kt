@@ -29,7 +29,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import com.example.fitlog.data.vault.VaultConfigState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,17 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.navigation3.runtime.rememberNavBackStack
-import com.example.fitlog.data.vault.VaultPreferences
-import com.example.fitlog.data.vault.VaultRepository
-import com.example.fitlog.data.vault.MarkdownDocumentRepository
-import com.example.fitlog.data.vault.vaultDataStore
-import com.example.fitlog.data.index.SourceIndexRepository
-import com.example.fitlog.data.analysis.DiaryAnalysisRepository
-import com.example.fitlog.data.ai.AiProviderRepository
-import com.example.fitlog.data.ai.aiDataStore
-import com.example.fitlog.data.llm.openAiChatClientFactory
-import com.example.fitlog.data.llm.sharedAiHttpClient
-import com.example.fitlog.log.LogPreferences
 import com.example.fitlog.navigation.FitLogNavGraph
 import com.example.fitlog.navigation.FitLogRoute
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
@@ -64,37 +52,30 @@ import kotlinx.coroutines.launch
 /**
  * 负责整个 App 的 UI 框架
  *
- * 创建 VaultPreferences、VaultRepository、MarkdownDocumentRepository、SourceIndexRepository、DiaryAnalysisRepository 等全局对象，
+ * 使用 Application 持有的依赖，负责生命周期与页面框架。
  *
  * 维护 Navigation3 back stack、VaultFlowController、索引刷新生命周期，并放置 Scaffold、NavGraph 和底部浮动导航
  */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
-internal fun FitLogApp(appearance: AppearanceViewModel) {
+internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel) {
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    LaunchedEffect(appearance.message) {
-        appearance.message?.let { snackbarHostState.showSnackbar(context.getString(it)) }
+    val appearanceState by appearance.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(appearanceState.messageId) {
+        appearanceState.message?.let {
+            appearance.messageShown(appearanceState.messageId)
+            snackbarHostState.showSnackbar(context.getString(it))
+        }
     }
 
-    val preferencesStore = remember { context.applicationContext.vaultDataStore }
-    val vaultPreferences = remember { VaultPreferences(preferencesStore) }
-    val logPreferences = remember { LogPreferences(preferencesStore) }
-    val vaultRepository = remember { VaultRepository(context) }
-    val documents = remember { MarkdownDocumentRepository(context) }
-    val sourceIndex = remember { SourceIndexRepository.get(context) }
-    val diaryAnalysis = remember { DiaryAnalysisRepository.get(context) }
-    val aiProviders = remember { AiProviderRepository(context.applicationContext.aiDataStore) }
-    val aiClient = remember { sharedAiHttpClient }
-    val aiChats = remember(aiClient) { openAiChatClientFactory(aiClient) }
-    val analysisRuntime = viewModel<AnalysisRuntimeViewModel> {
-        AnalysisRuntimeViewModel(aiProviders, documents, diaryAnalysis, sourceIndex, aiChats)
-    }
-    val analysisRun by analysisRuntime.controller.state.collectAsStateWithLifecycle()
+    val analysisRuntime = viewModel<AnalysisRuntimeViewModel> { container.analysisRuntime() }
+    val runtimeState by analysisRuntime.uiState.collectAsStateWithLifecycle()
+    val analysisRun = runtimeState.analysis
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
-        if ((context as? Activity)?.isChangingConfigurations != true) analysisRuntime.controller.cancel()
+        analysisRuntime.onStopped((context as? Activity)?.isChangingConfigurations == true)
     }
 
     // 当前导航历史
@@ -102,16 +83,6 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
 
     val vaultFlow = remember(backStack) { VaultFlowController(backStack) }
     val currentRoute = backStack.lastOrNull()
-    val config by vaultPreferences.vaultConfig.collectAsState(initial = VaultConfigState.Loading)
-    val currentVault = (config as? VaultConfigState.Configured)?.vaultId
-    LaunchedEffect(config) {
-        // Loading is not a disconnect; do not cancel an active scan during collection restart.
-        if (config !is VaultConfigState.Loading) {
-            sourceIndex.activate(currentVault)
-            analysisRuntime.controller.activate(currentVault)
-        }
-    }
-
     val showNavigationToolbar =
         currentRoute == FitLogRoute.Today ||
         currentRoute == FitLogRoute.Log ||
@@ -133,20 +104,15 @@ internal fun FitLogApp(appearance: AppearanceViewModel) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text(stringResource(R.string.log_batch_running, analysisRun.items.size, analysisRun.total), Modifier.weight(1f))
-                            TextButton(onClick = analysisRuntime.controller::cancel) { Text(stringResource(R.string.ai_cancel_request)) }
+                            TextButton(onClick = analysisRuntime::cancelAnalysis) { Text(stringResource(R.string.ai_cancel_request)) }
                         }
                     }
                 }
                 FitLogNavGraph(
                     backStack = backStack,
-                    vaultPreferences = vaultPreferences,
-                    logSettings = logPreferences,
-                    vaultRepository = vaultRepository,
-                    sourceIndex = sourceIndex,
-                    analysisRepository = diaryAnalysis,
-                    analysisController = analysisRuntime.controller,
-                    aiRepository = aiProviders,
-                    aiChats = aiChats,
+                    container = container,
+                    runtime = analysisRuntime,
+                    runtimeState = runtimeState,
                     appearance = appearance,
                     onSetupCompleted = vaultFlow::onSetupCompleted,
                     onOpenRoute = vaultFlow::openRoute,

@@ -164,10 +164,7 @@ interface DiaryAnalysisDao {
 abstract class DiaryAnalysisDatabase : RoomDatabase() {
     abstract fun analysis(): DiaryAnalysisDao
     companion object {
-        @Volatile private var instance: DiaryAnalysisDatabase? = null
-        fun get(context: Context): DiaryAnalysisDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, DiaryAnalysisDatabase::class.java,
-                "training-records.db").build().also { instance = it }
-        }
+        fun open(context: Context): DiaryAnalysisDatabase =
+            Room.databaseBuilder(context.applicationContext, DiaryAnalysisDatabase::class.java, "training-records.db").build()
     }
 }

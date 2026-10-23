@@ -1,8 +1,11 @@
 package com.example.fitlog.records
 
-import androidx.compose.runtime.*
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
 import com.example.fitlog.data.analysis.*
@@ -14,8 +17,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 @Serializable
 internal data class NativeRecordInput(val date: String, val exercises: List<ReviewedExercise> = emptyList(),
@@ -27,49 +28,68 @@ internal data class NativeRecordInput(val date: String, val exercises: List<Revi
 internal enum class RecordSaveState { EMPTY, SAVING, SAVED, FAILED }
 
 /** One active form and one sequential writer. No draft store, timers or automatic retries. */
-internal class NativeRecordViewModel(recordId: String?, private val repository: TrainingRecordRepository,
+internal class NativeRecordViewModel(private val recordId: String?, private val repository: TrainingRecords,
+    private val saveRecord: com.example.fitlog.domain.SaveNativeRecord,
     private val savedState: SavedStateHandle) : ViewModel() {
     val id: String = recordId ?: savedState.get<String>("recordId") ?: UUID.randomUUID().toString()
-    var input by mutableStateOf(NativeRecordInput(LocalDate.now().toString())); private set
-    var loading by mutableStateOf(true); private set
-    var state by mutableStateOf(RecordSaveState.EMPTY); private set
-    var message by mutableStateOf<Int?>(null); private set
-    var leaveRequested by mutableStateOf(false); private set
-    var deleting by mutableStateOf(false); private set
-    private var persisted: NativeRecordInput? = null
+    private val _uiState = MutableStateFlow(
+        NativeRecordUiState()
+    )
+    val uiState: StateFlow<NativeRecordUiState> = _uiState.asStateFlow()
+
+    private inline fun updateState(transform: (NativeRecordUiState) -> NativeRecordUiState) {
+        _uiState.update { transform(it) }
+    }
+
+    private val input get() = _uiState.value.input
+    private val loading get() = _uiState.value.loading
+    private val state get() = _uiState.value.state
+    private val message get() = _uiState.value.message
+    private val leaveRequested get() = _uiState.value.leaveRequested
+    private val deleting get() = _uiState.value.deleting
+    private val persisted get() = _uiState.value.persisted
     private var writer: Job? = null
-    private var pendingLeave: (() -> Unit)? = null
-    private var readFailed = false
-    val exists get() = persisted != null
-    val hasChanges get() = input != persisted && (persisted != null || input.hasContent)
-    val canEdit get() = !loading && !deleting && !readFailed
+    private var loadJob: Job? = null
+    private var leaveJob: Job? = null
+    private val readFailed get() = _uiState.value.readFailed
+    private val hasChanges get() = _uiState.value.hasChanges
+    private val canEdit get() = _uiState.value.canEdit
 
     init {
         savedState["recordId"] = id
-        viewModelScope.launch {
+        loadRecord()
+    }
+
+    private fun loadRecord() {
+        if (loadJob?.isActive == true) return
+        updateState { it.copy(loading = true, readFailed = false, message = null) }
+        loadJob = viewModelScope.launch {
             try {
-                val record = if (recordId != null || savedState.contains("input")) repository.read(id) else null
+                val record = repository.read(id)
                 require(recordId == null || record != null)
                 require(record == null || record.diary.origin == RecordOrigin.NATIVE)
-                persisted = record?.let {
+                val loaded = record?.let {
                     val session = it.reviewedSessions().singleOrNull() ?: ReviewedSession()
                     NativeRecordInput(it.diary.date, session.exercises, session.notes.orEmpty(), it.diary.kind)
                 }
-                input = savedState.get<String>("input")?.let { Json.decodeFromString<NativeRecordInput>(it) }
-                    ?: persisted ?: input
-                state = if (hasChanges) RecordSaveState.FAILED else if (persisted != null) RecordSaveState.SAVED else RecordSaveState.EMPTY
-                if (hasChanges) message = R.string.record_save_failed
+                updateState { current -> current.copy(
+                    persisted = loaded,
+                    input = loaded ?: current.input,
+                    state = if (loaded != null) RecordSaveState.SAVED else RecordSaveState.EMPTY,
+                    message = if (savedState.get<Boolean>("unsavedInput") == true) R.string.record_restore_interrupted else null,
+                ) }
+
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                readFailed = true; state = RecordSaveState.FAILED; message = R.string.record_read_failed
-            } finally { loading = false }
+                updateState { current -> current.copy(readFailed = true, state = RecordSaveState.FAILED, message = R.string.record_read_failed) }
+            } finally { updateState { current -> current.copy(loading = false) } }
         }
     }
 
     private fun change(next: NativeRecordInput) {
         if (!canEdit || next == input) return
-        input = next
-        savedState["input"] = Json.encodeToString(next)
+        updateState { current -> current.copy(input = next) }
+        savedState["unsavedInput"] = true
         if (state != RecordSaveState.FAILED) saveLatest()
     }
     fun date(value: LocalDate) = change(input.copy(date = value.toString()))
@@ -92,60 +112,57 @@ internal class NativeRecordViewModel(recordId: String?, private val repository: 
 
     private fun saveLatest() {
         if (!canEdit || !hasChanges || writer?.isActive == true) return
-        state = RecordSaveState.SAVING; message = null
+        updateState { current -> current.copy(state = RecordSaveState.SAVING, message = null) }
         writer = viewModelScope.launch {
             try {
                 while (hasChanges) {
                     val snapshot = input
                     withContext(NonCancellable) {
-                        repository.saveNative(id, LocalDate.parse(snapshot.date), snapshot.sessions(), snapshot.kind)
+                        saveRecord(id, LocalDate.parse(snapshot.date), snapshot.sessions(), snapshot.kind)
                     }
-                    persisted = snapshot
+                    updateState { current -> current.copy(persisted = snapshot) }
+                    savedState["unsavedInput"] = hasChanges
                 }
-                state = RecordSaveState.SAVED
+                updateState { current -> current.copy(state = RecordSaveState.SAVED) }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                state = RecordSaveState.FAILED; message = R.string.record_save_failed
+                updateState { current -> current.copy(state = RecordSaveState.FAILED, message = R.string.record_save_failed) }
             }
         }
     }
-    fun retry() { if (!readFailed) { state = RecordSaveState.EMPTY; saveLatest() } }
-    fun requestLeave(action: () -> Unit) {
-        if (deleting) return
-        if (!hasChanges) { action(); return }
-        pendingLeave = action
-        if (state == RecordSaveState.FAILED) { leaveRequested = true; return }
+    fun retry() {
+        if (readFailed) loadRecord()
+        else { updateState { it.copy(state = RecordSaveState.EMPTY) }; saveLatest() }
+    }
+    fun requestLeave() {
+        if (deleting || leaveJob?.isActive == true) return
+        if (!hasChanges) { updateState { it.copy(closeRequested = true) }; return }
+        if (state == RecordSaveState.FAILED) { updateState { it.copy(leaveRequested = true) }; return }
         saveLatest()
-        viewModelScope.launch {
+        leaveJob = viewModelScope.launch {
             writer?.join()
-            if (hasChanges) leaveRequested = true else { pendingLeave = null; action() }
+            updateState { it.copy(leaveRequested = hasChanges, closeRequested = !hasChanges) }
         }
     }
-    fun cancelLeave() { pendingLeave = null; leaveRequested = false }
-    fun retryAndLeave() {
-        val action = pendingLeave ?: return
-        leaveRequested = false
-        retry()
-        requestLeave(action)
-    }
+    fun closeHandled() { updateState { it.copy(closeRequested = false) } }
+    fun cancelLeave() { updateState { it.copy(leaveRequested = false) } }
+    fun retryAndLeave() { cancelLeave(); retry(); requestLeave() }
     fun discardAndLeave() {
-        val action = pendingLeave
-        savedState.remove<String>("input")
-        cancelLeave(); action?.invoke()
+        savedState["unsavedInput"] = false
+        updateState { it.copy(leaveRequested = false, closeRequested = true) }
     }
-    fun delete(onDeleted: () -> Unit) {
+    fun delete() {
         if (!canEdit) return
-        deleting = true
+        updateState { it.copy(deleting = true) }
         viewModelScope.launch {
             try {
                 writer?.join()
                 withContext(NonCancellable) { repository.delete(id) }
-                savedState.remove<String>("input")
-                onDeleted()
+                updateState { it.copy(deleted = true, closeRequested = true) }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                message = R.string.record_delete_failed
-            } finally { deleting = false }
+                updateState { it.copy(message = R.string.record_delete_failed) }
+            } finally { updateState { it.copy(deleting = false) } }
         }
     }
 }

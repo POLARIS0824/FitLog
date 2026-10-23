@@ -35,18 +35,28 @@ class AiConfigurationException(val reason: AiConfigurationFailure, cause: Except
 /** One request snapshot. Ordinary identity-based toString intentionally does not print the key. */
 class AiSelectedModel(val provider: AiProviderConnection, val modelId: String, val apiKey: String)
 
+interface AiProviders {
+    suspend fun read(): AiSettings
+    suspend fun readKey(providerId: String): String
+    suspend fun readActive(): AiSelectedModel
+    suspend fun save(connection: AiProviderConnection, apiKey: String, selection: AiModelSelection)
+    suspend fun selectModel(selection: AiModelSelection)
+    suspend fun delete(providerId: String)
+}
+
 /** All configuration writes replace one value atomically; no read performs a repair or network call. */
 class AiProviderRepository internal constructor(
     private val store: DataStore<Preferences>,
     private val encrypt: (String) -> String = AiKeyCipher::encrypt,
     private val decrypt: (String) -> String = AiKeyCipher::decrypt,
-) {
-    suspend fun read(): AiSettings = storage {
+    private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+) : AiProviders {
+    override suspend fun read(): AiSettings = storage {
         val saved = decode(store.data.first()[CONFIG])
         AiSettings(saved.providers.map { it.connection }, saved.selection)
     }
 
-    suspend fun readKey(providerId: String): String = storage {
+    override suspend fun readKey(providerId: String): String = storage {
         val saved = decode(store.data.first()[CONFIG])
         val provider = saved.providers.singleOrNull { it.connection.id == providerId }
             ?: throw AiConfigurationException(AiConfigurationFailure.NOT_CONFIGURED)
@@ -54,7 +64,7 @@ class AiProviderRepository internal constructor(
     }
 
     /** Reads the connection, model and credential from the same persisted configuration snapshot. */
-    suspend fun readActive(): AiSelectedModel = storage {
+    override suspend fun readActive(): AiSelectedModel = storage {
         val saved = decode(store.data.first()[CONFIG])
         val selected = saved.selection ?: throw AiConfigurationException(AiConfigurationFailure.NOT_CONFIGURED)
         val provider = saved.providers.single { it.connection.id == selected.providerId }
@@ -62,7 +72,7 @@ class AiProviderRepository internal constructor(
     }
 
     /** Explicit Save also selects the model, preserving every other connection and its model list. */
-    suspend fun save(connection: AiProviderConnection, apiKey: String, selection: AiModelSelection) = storage {
+    override suspend fun save(connection: AiProviderConnection, apiKey: String, selection: AiModelSelection): Unit = storage {
         val normalized = connection.copy(name = connection.name.trim(), baseUrl = connection.baseUrl.trim().trimEnd('/'),
             modelIds = connection.modelIds.map(String::trim).filter(String::isNotEmpty).distinct())
         val key = apiKey.trim()
@@ -88,7 +98,7 @@ class AiProviderRepository internal constructor(
     }
 
     /** Switching a model only changes the selection; it does not rewrite credentials or model lists. */
-    suspend fun selectModel(selection: AiModelSelection) = storage {
+    override suspend fun selectModel(selection: AiModelSelection): Unit = storage {
         store.edit { preferences ->
             val saved = decode(preferences[CONFIG])
             val provider = saved.providers.singleOrNull { it.connection.id == selection.providerId }
@@ -98,7 +108,7 @@ class AiProviderRepository internal constructor(
         }
     }
 
-    suspend fun delete(providerId: String) = storage {
+    override suspend fun delete(providerId: String): Unit = storage {
         store.edit { preferences ->
             val saved = decode(preferences[CONFIG])
             preferences[CONFIG] = json.encodeToString(saved.copy(
@@ -131,7 +141,7 @@ class AiProviderRepository internal constructor(
         return saved
     }
 
-    private suspend fun <T> storage(block: suspend () -> T): T = withContext(Dispatchers.IO) {
+    private suspend fun <T> storage(block: suspend () -> T): T = withContext(ioDispatcher) {
         try { block() } catch (e: Exception) {
             if (e is CancellationException || e is AiConfigurationException) throw e
             throw AiConfigurationException(AiConfigurationFailure.STORAGE, e)

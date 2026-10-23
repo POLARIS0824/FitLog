@@ -7,6 +7,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -14,6 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.data.settings.AppearancePreferences
 import com.example.fitlog.data.settings.ThemeMode
 import com.example.fitlog.ui.components.*
@@ -22,7 +24,8 @@ import com.example.fitlog.ui.preview.FitLogPreviews
 
 @Composable
 internal fun AppearanceScreen(vm: AppearanceViewModel, onBack: () -> Unit) {
-    AppearanceContent(vm.preferences, vm.canEdit, vm.loading || vm.saving, vm.message,
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    AppearanceContent(state.preferences, state.canEdit, state.loading || state.saving, state.message,
         vm::changeThemeMode, vm::changeDynamicColor, vm::reload, onBack)
 }
 

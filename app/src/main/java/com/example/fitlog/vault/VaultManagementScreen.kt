@@ -11,25 +11,22 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogPageHeader
 
 @Composable
-fun VaultManagementScreen(vm: VaultManagementViewModel, onConnect: () -> Unit, onBack: () -> Unit) {
-    FitLogBackGuard(enabled = vm.busy) { }
+internal fun VaultManagementScreen(vm: VaultManagementViewModel, onConnect: () -> Unit, onBack: () -> Unit) {
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    FitLogBackGuard(enabled = state.busy) { }
     VaultManagementContent(
-        state = VaultManagementUiState(
-            busy = vm.busy,
-            loading = vm.loading,
-            folder = vm.folder,
-            error = vm.error,
-            confirmDisconnect = vm.confirmDisconnect,
-        ),
+        state = state,
         actions = VaultManagementActions(
             requestDisconnect = { vm.requestDisconnect() },
             cancelDisconnect = { vm.cancelDisconnect() },
@@ -82,13 +79,7 @@ private fun VaultManagementContent(state: VaultManagementUiState, actions: Vault
         dismissButton = { TextButton(onClick = actions.cancelDisconnect, enabled = !state.busy) { Text(stringResource(R.string.record_cancel)) } })
 }
 
-private data class VaultManagementUiState(
-    val busy: Boolean = false,
-    val loading: Boolean = false,
-    val folder: VaultFolderInfo? = null,
-    val error: Int? = null,
-    val confirmDisconnect: Boolean = false,
-)
+
 
 private data class VaultManagementActions(
     val requestDisconnect: () -> Unit = {},

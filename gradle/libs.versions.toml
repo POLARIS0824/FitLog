@@ -1,4 +1,5 @@
 [versions]
+junit = "4.13.2"
 agp = "9.3.3"
 coreKtx = "1.18.0"
 coreSplashscreen = "1.0.1"
@@ -29,6 +30,8 @@ googleADK = "1.0.1"
 
 
 [libraries]
+junit = { module = "junit:junit", version.ref = "junit" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test" }
 ktor-bom = { module = "io.ktor:ktor-bom", version.ref = "ktor" }
 ktor-client-core = { module = "io.ktor:ktor-client-core" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp" }

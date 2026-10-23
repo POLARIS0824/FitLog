@@ -1,10 +1,11 @@
 package com.example.fitlog.log
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
 import com.example.fitlog.data.analysis.*
@@ -26,7 +27,7 @@ internal data class BatchConfirmationProgress(val total: Int = 0, val confirmed:
     val remaining get() = total - confirmed - skipped - failed
 }
 
-class BatchReviewViewModel internal constructor(
+internal class BatchReviewViewModel internal constructor(
     val route: FitLogRoute.BatchReview,
     private val savedState: SavedStateHandle,
     private val index: Flow<SourceIndexSnapshot>,
@@ -35,15 +36,24 @@ class BatchReviewViewModel internal constructor(
     private val confirm: suspend (IndexedSource, DiaryConfirmation) -> DiaryConfirmationResult,
     private val refreshIndex: () -> Unit,
 ) : ViewModel() {
-    internal var items by mutableStateOf<List<BatchReviewItem>>(emptyList()); private set
-    internal var selected by mutableStateOf(savedState.get<ArrayList<String>>("selected")?.toSet().orEmpty()); private set
-    var loading by mutableStateOf(true); private set
-    var readFailed by mutableStateOf(false); private set
-    var activeVault by mutableStateOf(false); private set
-    var saving by mutableStateOf(false); private set
-    var message by mutableStateOf<Int?>(null); private set
-    internal var progress by mutableStateOf(BatchConfirmationProgress()); private set
-    var indexWarning by mutableStateOf(false); private set
+    private val _uiState = MutableStateFlow(
+        BatchReviewUiState()
+    )
+    val uiState: StateFlow<BatchReviewUiState> = _uiState.asStateFlow()
+
+    private inline fun updateState(transform: (BatchReviewUiState) -> BatchReviewUiState) {
+        _uiState.update { transform(it) }
+    }
+
+    private val items get() = _uiState.value.items
+    private val selected get() = _uiState.value.selected
+    private val loading get() = _uiState.value.loading
+    private val readFailed get() = _uiState.value.readFailed
+    private val activeVault get() = _uiState.value.activeVault
+    private val saving get() = _uiState.value.saving
+    private val message get() = _uiState.value.message
+    private val progress get() = _uiState.value.progress
+    private val indexWarning get() = _uiState.value.indexWarning
     private var initialized = savedState.get<Boolean>("initialized") ?: false
     private var observation: Job? = null
     private var submission: Job? = null
@@ -51,42 +61,42 @@ class BatchReviewViewModel internal constructor(
     init { observe() }
 
     private fun observe() {
-        observation?.cancel(); loading = true; readFailed = false
+        observation?.cancel(); updateState { current -> current.copy(loading = true, readFailed = false) }
         observation = viewModelScope.launch {
             try {
                 combine(index, analysis.observeSummaries(route.vaultId), config) { snapshot, summaries, value ->
                     Triple(snapshot, summaries, value)
                 }.collect { (snapshot, summaries, value) ->
                     if (value !is VaultConfigState.Loading) {
-                        activeVault = (value as? VaultConfigState.Configured)?.vaultId == route.vaultId
+                        updateState { current -> current.copy(activeVault = (value as? VaultConfigState.Configured)?.vaultId == route.vaultId) }
                         if (!activeVault) cancelSubmission()
                     }
                     // An empty initial index is still loading, not proof that every source is missing.
                     if (snapshot.sources.isEmpty() && snapshot.refreshing && snapshot.scan == null) {
-                        loading = true
+                        updateState { current -> current.copy(loading = true) }
                         return@collect
                     }
                     val sources = snapshot.sources.associateBy { it.path }
-                    items = summaries.filter { summary -> summary.candidateReadFailed ||
+                    updateState { current -> current.copy(items = summaries.filter { summary -> summary.candidateReadFailed ||
                         (summary.candidate != null && summary.confirmed?.parseRunId != summary.candidate.attempt.id)
                     }.map { summary ->
                         val source = sources[summary.sourceKey.relPath]
                         BatchReviewItem(source, summary, assessBatchReview(summary, source?.let(::indexedVersion),
                             source?.status == IndexedSource.AVAILABLE))
-                    }.sortedByDescending { it.summary.sourceKey.relPath }
+                    }.sortedByDescending { it.summary.sourceKey.relPath }) }
                     val eligible = items.filter { it.selectable }.mapTo(mutableSetOf()) { it.id }
                     val retained = selected.intersect(eligible)
-                    if (retained != selected && !saving) message = R.string.batch_review_selection_changed
+                    if (retained != selected && !saving) updateState { current -> current.copy(message = R.string.batch_review_selection_changed) }
                     storeSelection(retained)
                     if (!initialized && !(snapshot.sources.isEmpty() && snapshot.refreshing)) {
                         storeSelection(items.filter { it.assessment.eligibility == BatchReviewEligibility.READY }.mapTo(mutableSetOf()) { it.id })
                         initialized = true; savedState["initialized"] = true
                     }
-                    loading = value is VaultConfigState.Loading
+                    updateState { current -> current.copy(loading = value is VaultConfigState.Loading) }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                readFailed = true; loading = false
+                updateState { current -> current.copy(readFailed = true, loading = false) }
             }
         }
     }
@@ -104,20 +114,20 @@ class BatchReviewViewModel internal constructor(
         storeSelection(if (ready.isNotEmpty() && selected.containsAll(ready)) selected - ready else selected + ready)
     }
 
-    private fun storeSelection(value: Set<String>) { selected = value; savedState["selected"] = ArrayList(value) }
+    private fun storeSelection(value: Set<String>) { updateState { current -> current.copy(selected = value) } }
 
     fun submit() {
         if (saving || loading || readFailed || !activeVault) return
         val chosen = items.filter { it.id in selected && it.selectable }.toList()
         if (chosen.isEmpty()) return
-        saving = true; message = null; progress = BatchConfirmationProgress(total = chosen.size)
+        updateState { current -> current.copy(saving = true, message = null, progress = BatchConfirmationProgress(total = chosen.size)) }
         submission = viewModelScope.launch {
             try {
                 for (item in chosen) {
                     currentCoroutineContext().ensureActive()
                     val current = items.firstOrNull { it.id == item.id && it.selectable }
                     if (current == null || item.id !in selected) {
-                        progress = progress.copy(skipped = progress.skipped + 1); continue
+                        updateState { current -> current.copy(progress = progress.copy(skipped = progress.skipped + 1)) }; continue
                     }
                     try {
                         val candidate = requireNotNull(item.summary.candidate)
@@ -125,32 +135,31 @@ class BatchReviewViewModel internal constructor(
                             requireNotNull(item.assessment.date)).copy(requireLatestCandidate = true)
                         when (val result = confirm(requireNotNull(item.source), request)) {
                             is DiaryConfirmationResult.Confirmed -> {
-                                progress = progress.copy(confirmed = progress.confirmed + 1)
+                                updateState { current -> current.copy(progress = progress.copy(confirmed = progress.confirmed + 1)) }
                                 storeSelection(selected - item.id)
                             }
                             is DiaryConfirmationResult.Invalid -> {
-                                progress = progress.copy(skipped = progress.skipped + 1)
+                                updateState { current -> current.copy(progress = progress.copy(skipped = progress.skipped + 1)) }
                                 storeSelection(selected - item.id)
-                                message = confirmationFailureMessage(result.reason)
+                                updateState { current -> current.copy(message = confirmationFailureMessage(result.reason)) }
                             }
                         }
                     } catch (e: Exception) {
                         if (e is CancellationException) throw e
-                        progress = progress.copy(failed = progress.failed + 1, stopped = true)
-                        message = R.string.detail_review_save_failed
+                        updateState { current -> current.copy(progress = progress.copy(failed = progress.failed + 1, stopped = true), message = R.string.detail_review_save_failed) }
                         break
                     }
                 }
             } catch (e: CancellationException) {
-                progress = progress.copy(stopped = true)
+                updateState { current -> current.copy(progress = progress.copy(stopped = true)) }
                 throw e
-            } finally { saving = false }
+            } finally { updateState { current -> current.copy(saving = false) } }
         }
     }
 
     fun cancelSubmission() { submission?.cancel() }
-    fun reportIndexWarning() { indexWarning = true }
-    fun requestLeave(action: () -> Unit) { if (!saving) action() }
+    fun reportIndexWarning() { updateState { current -> current.copy(indexWarning = true) } }
+    fun onStopped(changingConfiguration: Boolean) { if (!changingConfiguration) cancelSubmission() }
 }
 
 internal fun confirmationFailureMessage(reason: ConfirmationFailure) = when (reason) {

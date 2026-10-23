@@ -94,5 +94,8 @@ dependencies {
     // DataStore
     implementation(libs.androidx.datastore.preferences)
 
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

@@ -25,7 +25,8 @@ interface MarkdownDocuments {
 }
 
 /** All SAF operations stay on document URIs, never filesystem paths. */
-class MarkdownDocumentRepository(context: Context) : MarkdownDocuments {
+class MarkdownDocumentRepository(context: Context,
+    private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO) : MarkdownDocuments {
     private val appContext = context.applicationContext
     private val resolver = appContext.contentResolver
 
@@ -64,7 +65,7 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments {
         } ?: throw IOException()
     }
 
-    override suspend fun scan(vault: String): MarkdownScan = withContext(Dispatchers.IO) {
+    override suspend fun scan(vault: String): MarkdownScan = withContext(ioDispatcher) {
         val scanContext = currentCoroutineContext()
         val found = linkedMapOf<String, MarkdownFile>()
         val visited = mutableSetOf<String>()
@@ -103,7 +104,7 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments {
             size = if (cursor.isNull(3)) null else cursor.getLong(3).takeIf { it >= 0 })
     } ?: throw IOException()
 
-    override suspend fun read(uri: String): MarkdownSnapshot = withContext(Dispatchers.IO) {
+    override suspend fun read(uri: String): MarkdownSnapshot = withContext(ioDispatcher) {
         val document = Uri.parse(uri)
         val file = metadata(document)
         val bytes = resolver.openInputStream(document)?.use { it.readBytes() } ?: throw IOException()

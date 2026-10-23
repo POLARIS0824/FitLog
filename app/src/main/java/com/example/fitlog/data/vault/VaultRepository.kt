@@ -19,10 +19,16 @@ data class VaultFolderInfo(
 /**
  * Vault 文件与目录操作的统一入口 Repository
  */
+interface VaultFolders {
+    suspend fun inspectFolder(uri: Uri): VaultFolderInfo
+    suspend fun takePermissionAndInspect(uri: Uri): VaultFolderInfo
+    suspend fun checkAccess(uri: Uri): VaultAccessStatus
+}
+
 class VaultRepository(
     private val safAccessor: SafDirectoryAccessor,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) {
+) : VaultFolders {
     /**
      * 供生产环境直接基于 Context 创建。
      */
@@ -34,7 +40,7 @@ class VaultRepository(
     /**
      * 查询目标 URI 的详细信息与访问状态。
      */
-    suspend fun inspectFolder(uri: Uri): VaultFolderInfo = withContext(ioDispatcher) {
+    override suspend fun inspectFolder(uri: Uri): VaultFolderInfo = withContext(ioDispatcher) {
         try {
             // 1. 检查持久化授权：必须已获取读权限
             if (!safAccessor.hasPersistedReadPermission(uri)) {
@@ -66,7 +72,7 @@ class VaultRepository(
     /**
      * 请求持久授权并检查目录访问能力（用于候选目录初次选择预览）。
      */
-    suspend fun takePermissionAndInspect(uri: Uri): VaultFolderInfo = withContext(ioDispatcher) {
+    override suspend fun takePermissionAndInspect(uri: Uri): VaultFolderInfo = withContext(ioDispatcher) {
         try {
             val permResult = safAccessor.takePersistablePermission(uri)
             if (permResult.isFailure) {
@@ -93,5 +99,5 @@ class VaultRepository(
      * @param uri 待检查的目录 tree URI
      * @return [VaultAccessStatus] 枚举对应的检查结果
      */
-    suspend fun checkAccess(uri: Uri): VaultAccessStatus = inspectFolder(uri).accessStatus
+    override suspend fun checkAccess(uri: Uri): VaultAccessStatus = inspectFolder(uri).accessStatus
 }

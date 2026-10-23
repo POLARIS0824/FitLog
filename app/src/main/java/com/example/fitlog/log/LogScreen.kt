@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.data.vault.MarkdownFile
 import com.example.fitlog.data.index.IndexedScan
 import com.example.fitlog.data.index.IndexedSource
@@ -31,7 +32,7 @@ import com.example.fitlog.data.analysis.*
 import com.example.fitlog.ui.components.FitLogNotice
 
 @Composable
-fun LogScreen(
+internal fun LogScreen(
     vm: LogViewModel,
     onOpen: (String, MarkdownFile) -> Unit,
     onConnect: () -> Unit,
@@ -42,26 +43,9 @@ fun LogScreen(
     showAppBar: Boolean = true,
 ) {
 
+    val state by vm.uiState.collectAsStateWithLifecycle()
     LogContent(
-        state = LogUiState(
-            visibleFiles = vm.visibleFiles,
-            vault = vm.vault,
-            files = vm.files,
-            query = vm.query,
-            sort = vm.sort,
-            sortBusy = vm.sortBusy,
-            sortError = vm.sortError,
-            loading = vm.loading,
-            refreshing = vm.refreshing,
-            partial = vm.partial,
-            error = vm.error,
-            scanStatus = vm.scanStatus,
-            showMissing = vm.showMissing,
-            sources = vm.sources,
-            summaries = vm.summaries, summariesLoading = vm.summariesLoading, summariesReadFailed = vm.summariesReadFailed,
-            run = vm.run, analysisBusy = vm.analysisBusy, pendingCount = vm.pendingCount,
-            statuses = vm.statuses, statusFilter = vm.statusFilter,
-        ),
+        state = state,
         actions = LogActions(
             refresh = { vm.refresh() },
             search = { vm.search(it) },
@@ -249,30 +233,7 @@ internal fun LogTopAppBar(
     )
 }
 
-internal data class LogUiState(
-    val visibleFiles: List<MarkdownFile> = emptyList(),
-    val vault: String? = null,
-    val files: List<MarkdownFile> = emptyList(),
-    val query: String = "",
-    val sort: LogSortOrder = LogSortOrder.Descending,
-    val sortBusy: Boolean = false,
-    val sortError: Int? = null,
-    val loading: Boolean = false,
-    val refreshing: Boolean = false,
-    val partial: Boolean = false,
-    val error: Int? = null,
-    val scanStatus: String? = null,
-    val showMissing: Boolean = false,
-    val sources: List<IndexedSource> = emptyList(),
-    val summaries: Map<String, DiaryAnalysisSummary> = emptyMap(),
-    val summariesLoading: Boolean = false,
-    val summariesReadFailed: Boolean = false,
-    val run: DiaryAnalysisRun = DiaryAnalysisRun(),
-    val analysisBusy: Boolean = false,
-    val pendingCount: Int = 0,
-    val statuses: Map<String, LogDiaryStatus> = emptyMap(),
-    val statusFilter: LogStatusFilter = LogStatusFilter.ALL,
-)
+
 
 internal data class LogActions(
     val refresh: () -> Unit = {},

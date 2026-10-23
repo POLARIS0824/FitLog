@@ -31,6 +31,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.ui.components.FitLogSettingsPage
 import com.example.fitlog.ui.components.SettingsSectionTitle
 import com.example.fitlog.ui.components.SettingsGroup
@@ -40,26 +41,10 @@ import com.example.fitlog.ui.components.SettingsFormCard
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AiSettingsScreen(vm: AiSettingsViewModel, onBack: () -> Unit) {
-    FitLogBackGuard(enabled = vm.saving) { }
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    FitLogBackGuard(enabled = state.saving) { }
     AiSettingsContent(
-        state = AiSettingsUiState(
-            saving = vm.saving,
-            initialized = vm.initialized,
-            currentSelection = vm.currentSelection,
-            providers = vm.providers,
-            loading = vm.loading,
-            requestRunning = vm.requestRunning,
-            message = vm.message,
-            baseUrl = vm.baseUrl,
-            name = vm.name,
-            canEdit = vm.canEdit,
-            providerId = vm.providerId,
-            apiKey = vm.apiKey,
-            showKey = vm.showKey,
-            modelIds = vm.modelIds,
-            selectedModel = vm.selectedModel,
-            canSave = vm.canSave,
-        ),
+        state = state,
         actions = AiSettingsActions(
             cancelRequest = { vm.cancelRequest() },
             reload = { vm.reload() },
@@ -294,24 +279,7 @@ internal fun ConnectionPicker(
     }
 }
 
-internal data class AiSettingsUiState(
-    val saving: Boolean = false,
-    val initialized: Boolean = true,
-    val currentSelection: AiModelSelection? = null,
-    val providers: List<AiProviderConnection> = emptyList(),
-    val loading: Boolean = false,
-    val requestRunning: Boolean = false,
-    val message: Int? = null,
-    val baseUrl: String = AiSettingsViewModel.DEEPSEEK_URL,
-    val name: String = "",
-    val canEdit: Boolean = true,
-    val providerId: String = "",
-    val apiKey: String = "",
-    val showKey: Boolean = false,
-    val modelIds: List<String> = emptyList(),
-    val selectedModel: String = "",
-    val canSave: Boolean = false,
-)
+
 
 internal data class AiSettingsActions(
     val cancelRequest: () -> Unit = {},

@@ -1,4 +1,6 @@
-package com.example.fitlog.data.analysis
+package com.example.fitlog.domain
+
+import com.example.fitlog.data.analysis.*
 
 import com.example.fitlog.data.hash.ContentTextSnapshot
 import com.example.fitlog.data.vault.MarkdownDocuments
@@ -12,13 +14,27 @@ internal suspend fun confirmCurrentDiary(
     request: DiaryConfirmation,
     documentUri: String,
     documents: MarkdownDocuments,
-    repository: DiaryAnalysisRepository,
+    repository: DiaryConfirmations,
+    computationDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Default,
     recordRead: suspend (MarkdownSnapshot) -> Unit = {},
 ): DiaryConfirmationResult {
-    val expected = if (request.editConfirmed) request.expectedContentVersion else {
-        val candidate = repository.readCandidate(request.sourceKey, request.parseRunId)
+    val candidate = if (request.editConfirmed) null else {
+        repository.readCandidate(request.sourceKey, request.parseRunId)
             ?: return DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_PARSE_RUN)
-        val key = candidate.analysis.parseKey
+    }
+    if (candidate != null && requiresPartialAcceptance(candidate.analysis) && !request.acceptedPartialResult)
+        return DiaryConfirmationResult.Invalid(ConfirmationFailure.PARTIAL_RESULT_NOT_ACCEPTED)
+    val normalized = try { withContext(computationDispatcher) {
+        if (request.editConfirmed) {
+            require(request.date.year in 1..9999)
+            validateRecordValues(request.sessions)
+            request
+        } else request.copy(sessions = normalizeReview(request, requireNotNull(candidate).analysis))
+    } } catch (_: IllegalArgumentException) {
+        return DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_DATA)
+    }
+    val expected = if (request.editConfirmed) request.expectedContentVersion else {
+        val key = requireNotNull(candidate).analysis.parseKey
         DiaryContentVersion(key.contentHash, key.hashVersion)
     }
     if (expected == null) return DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_DATA)
@@ -26,7 +42,7 @@ internal suspend fun confirmCurrentDiary(
         if (e is CancellationException) throw e
         return DiaryConfirmationResult.Invalid(ConfirmationFailure.SOURCE_UNAVAILABLE)
     }
-    val version = withContext(Dispatchers.Default) {
+    val version = withContext(computationDispatcher) {
         val value = ContentTextSnapshot.fromRawText((if (snapshot.bom) "\uFEFF" else "") + snapshot.text)
         DiaryContentVersion(value.hash, value.hashVersion)
     }
@@ -42,7 +58,8 @@ internal suspend fun confirmCurrentDiary(
         if (assessment.eligibility !in setOf(BatchReviewEligibility.READY, BatchReviewEligibility.WITH_NOTICES) || assessment.date != request.date)
             return DiaryConfirmationResult.Invalid(ConfirmationFailure.INVALID_DATA)
     }
-    val result = repository.confirm(request)
+    val kind = if (normalized.sessions.all { it.exercises.isEmpty() }) RecordKind.REST else RecordKind.TRAINING
+    val result = repository.confirm(normalized.copy(kind = kind))
     // Index work follows the transaction so a concurrent scan cannot delay source verification.
     recordRead(snapshot)
     return result

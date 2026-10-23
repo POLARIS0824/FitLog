@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, agent]
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, agent]
 
 jobs:
   check:
@@ -23,6 +23,9 @@ jobs:
 
       - name: Debug build
         run: bash ./gradlew :app:assembleDebug
+
+      - name: JVM regression tests
+        run: bash ./gradlew :app:testDebugUnitTest
 
       - name: Lint
         run: bash ./gradlew lintDebug

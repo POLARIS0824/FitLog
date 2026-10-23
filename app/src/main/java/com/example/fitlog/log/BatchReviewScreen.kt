@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.fitlog.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.data.analysis.*
 import com.example.fitlog.data.index.IndexedSource
 import com.example.fitlog.diary.basisLabel
@@ -36,11 +37,15 @@ import com.example.fitlog.ui.preview.FitLogPreviews
 import com.example.fitlog.ui.preview.PreviewDiary
 
 @Composable
-fun BatchReviewScreen(vm: BatchReviewViewModel, onOpen: (IndexedSource) -> Unit, onBack: () -> Unit) {
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.cancelSubmission() }
-    BatchReviewContent(vm.items, vm.selected, vm.loading, vm.readFailed, vm.activeVault, vm.saving, vm.message,
-        vm.progress, vm.indexWarning, vm::toggle, vm::toggleReady, vm::submit, vm::refresh,
-        onOpen = onOpen, onBack = { vm.requestLeave(onBack) })
+internal fun BatchReviewScreen(vm: BatchReviewViewModel, onOpen: (IndexedSource) -> Unit, onBack: () -> Unit) {
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        vm.onStopped((context as? android.app.Activity)?.isChangingConfigurations == true)
+    }
+    BatchReviewContent(state.items, state.selected, state.loading, state.readFailed, state.activeVault, state.saving, state.message,
+        state.progress, state.indexWarning, vm::toggle, vm::toggleReady, vm::submit, vm::refresh,
+        onOpen = onOpen, onBack = { if (!state.saving) onBack() })
 }
 
 @Composable

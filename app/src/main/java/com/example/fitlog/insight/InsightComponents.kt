@@ -2,6 +2,7 @@
 
 package com.example.fitlog.insight
 
+import com.example.fitlog.domain.insight.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -74,18 +75,18 @@ internal fun InsightRangePicker(range: InsightRange, onSelect: (InsightRange) ->
 }
 
 @Composable
-internal fun InsightReadState(vm: InsightViewModel, onOpenLog: () -> Unit): Boolean {
+internal fun InsightReadState(state: InsightUiState, onRetry: () -> Unit): Boolean {
     when {
-        vm.loading -> { LoadingIndicator(); return false }
-        vm.error != null -> { FitLogNotice(stringResource(requireNotNull(vm.error)), error = true)
-            Button(onClick = vm::refresh) { Text(stringResource(R.string.insight_retry)) }; return false }
+        state.loading -> { LoadingIndicator(); return false }
+        state.error != null -> { FitLogNotice(stringResource(requireNotNull(state.error)), error = true)
+            Button(onClick = onRetry) { Text(stringResource(R.string.insight_retry)) }; return false }
     }
-    return vm.data != null
+    return state.data != null
 }
 
 @Composable
-internal fun InsightCoverage(vm: InsightViewModel, showScanTime: Boolean = true) {
-    val index = vm.index
+internal fun InsightCoverage(state: InsightUiState, showScanTime: Boolean = true) {
+    val index = state.index
     val timestamp = index?.scan?.completedAt?.let {
         DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()))
     }
@@ -96,7 +97,7 @@ internal fun InsightCoverage(vm: InsightViewModel, showScanTime: Boolean = true)
         if (index?.refreshing == true) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
         if (index?.scan?.status == IndexedScan.PARTIAL) FitLogNotice(stringResource(R.string.insight_scan_partial))
         if (index?.refreshFailed == true || index?.scan?.status == IndexedScan.FAILED) FitLogNotice(stringResource(R.string.insight_scan_failed), error = true)
-        vm.message?.let { FitLogNotice(stringResource(it), error = true) }
+        state.message?.let { FitLogNotice(stringResource(it), error = true) }
     }
 }
 
@@ -112,8 +113,7 @@ internal fun InsightRow(title: String, subtitle: String, onClick: () -> Unit, en
 }
 
 @Composable
-internal fun InsightHeatmap(data: InsightData) {
-    val activity = data.activity()
+internal fun InsightHeatmap(data: InsightData, activity: Map<LocalDate, List<InsightDiary>>) {
     val first = data.today.minusDays(364)
     val gridStart = first.minusDays(first.dayOfWeek.value.toLong() - 1)
     val weeks = ((data.today.toEpochDay() - gridStart.toEpochDay()) / 7 + 1).toInt()
