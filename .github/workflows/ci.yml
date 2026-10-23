@@ -2,33 +2,72 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, agent, ui, benchmark]
+    paths-ignore: ['apks/**']
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, agent, ui, benchmark]
+    paths-ignore: ['apks/**']
+
+permissions:
+  contents: read
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
-
-      - name: Setup Gradle
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install Android platform and build tools
+        run: sdkmanager 'platforms;android-37.1' 'build-tools;36.0.0'
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-
-      - name: Debug build
-        run: bash ./gradlew :app:assembleDebug
-
-      - name: Lint
-        run: bash ./gradlew lintDebug
-
-      # R8/资源收缩门禁：release 已启用 minify+shrinkResources，keep 规则缺口
-      # （ADK、kotlinx-serialization 反射等）只有在 release 构建才会暴露，
-      # debug 单测/lint 均覆盖不到；不签名只验证构建与混淆通过
-      - name: Release build (R8 gate)
-        run: bash ./gradlew :app:assembleRelease
+      - name: Use official repositories for the hosted build
+        run: |
+          cat > "$RUNNER_TEMP/fitlog-repositories.gradle" <<'INIT'
+          settingsEvaluated { settings ->
+              settings.pluginManagement.repositories {
+                  clear()
+                  mavenCentral()
+                  google()
+                  gradlePluginPortal()
+              }
+              settings.dependencyResolutionManagement.repositories {
+                  clear()
+                  mavenCentral()
+                  google()
+              }
+          }
+          INIT
+      - name: Verify resolved OkHttp version
+        run: >-
+          bash ./gradlew :app:dependencyInsight
+          --dependency com.squareup.okhttp3 --configuration releaseRuntimeClasspath
+          --init-script "$RUNNER_TEMP/fitlog-repositories.gradle"
+          --no-daemon --no-parallel --max-workers=1
+          -Dorg.gradle.jvmargs='-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+          -Pkotlin.compiler.execution.strategy=in-process --console=plain
+      - name: JVM tests, Debug and Release builds, and lint
+        run: >-
+          bash ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:lintDebug
+          --init-script "$RUNNER_TEMP/fitlog-repositories.gradle"
+          --no-daemon --no-parallel --max-workers=1
+          -Dorg.gradle.jvmargs='-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+          -Pkotlin.compiler.execution.strategy=in-process --console=plain
+      - name: Upload validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ github.sha }}
+          path: |
+            app/build/reports/
+            app/build/test-results/
+          if-no-files-found: ignore
