@@ -1,2 +1,0 @@
-091d8f2baf65a95181d7facbaf5fe2345e963081c9bc775c69ed6c08dc79f854  apks/FitLog-ui-debug.apk
-2f1605027cad130049c9f66468fa267794b5d8ca72038d7564feb4723a0f5019  apks/FitLog-ui-release.apk
