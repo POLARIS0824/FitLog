@@ -1,22 +1,23 @@
 package com.example.fitlog.app.analysis
 
 import com.example.fitlog.data.ai.AiConfigurationException
-import com.example.fitlog.data.analysis.AnalysisIssue
-import com.example.fitlog.data.analysis.AnalysisItemOutcome
-import com.example.fitlog.data.analysis.AnalysisItemResult
-import com.example.fitlog.data.analysis.AnalysisProblem
-import com.example.fitlog.data.analysis.AnalysisSource
 import com.example.fitlog.data.analysis.DiaryAnalysisSession
 import com.example.fitlog.data.analysis.DiaryAnalysisStorageException
 import com.example.fitlog.data.analysis.StoredDiaryParse
 import com.example.fitlog.data.analysis.adapter.DiaryOriginalReadException
 import com.example.fitlog.domain.analysis.AnalyzeDiary
+import com.example.fitlog.domain.analysis.DiaryAnalysisBusyException
+import com.example.fitlog.domain.analysis.DiaryAnalysisRunner
+import com.example.fitlog.model.analysis.AnalysisIssue
+import com.example.fitlog.model.analysis.AnalysisItemOutcome
+import com.example.fitlog.model.analysis.AnalysisItemResult
+import com.example.fitlog.model.analysis.AnalysisProblem
+import com.example.fitlog.model.analysis.AnalysisSource
+import com.example.fitlog.model.analysis.DiaryAnalysisRun
 import com.example.fitlog.model.analysis.DiaryAnalysisSummary
 import com.example.fitlog.model.source.SourceKey
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-
-class DiaryAnalysisBusyException : IllegalStateException("An explicit analysis is already running")
 
 /** Index-write failures are reported by the caller, so the controller never references itself. */
 class IndexWarning {
@@ -32,9 +33,9 @@ class DiaryAnalysisController internal constructor(
     private val prepare: suspend () -> DiaryAnalysisSession,
     private val readSummary: suspend (SourceKey) -> DiaryAnalysisSummary,
     private val indexWarning: IndexWarning = IndexWarning(),
-) {
+) : DiaryAnalysisRunner {
     private val mutableState = MutableStateFlow(DiaryAnalysisRun())
-    val state: StateFlow<DiaryAnalysisRun> = combine(mutableState, indexWarning.reported) { run, warned ->
+    override val state: StateFlow<DiaryAnalysisRun> = combine(mutableState, indexWarning.reported) { run, warned ->
         run.copy(indexWarning = warned)
     }.stateIn(scope, SharingStarted.Eagerly, mutableState.value)
     private var owner: Job? = null
@@ -48,13 +49,13 @@ class DiaryAnalysisController internal constructor(
         activeVault = vaultId
     }
 
-    fun cancel() {
+    override fun cancel() {
         if (owner == null) return
         mutableState.value = mutableState.value.copy(stopped = true)
         owner?.cancel()
     }
 
-    fun startBatch(sources: List<AnalysisSource>, reanalyze: Boolean): Boolean {
+    override fun startBatch(sources: List<AnalysisSource>, reanalyze: Boolean): Boolean {
         if (owner != null || sources.isEmpty() || sources.any { it.key.vaultId != activeVault }) return false
         indexWarning.reset()
         val task = scope.launch(start = CoroutineStart.LAZY) { process(sources.toList(), reanalyze, batch = true) }

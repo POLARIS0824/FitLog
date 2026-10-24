@@ -1,8 +1,5 @@
-package com.example.fitlog.app.analysis
+package com.example.fitlog.model.analysis
 
-import com.example.fitlog.data.analysis.AnalysisIssue
-import com.example.fitlog.data.analysis.AnalysisItemOutcome
-import com.example.fitlog.data.analysis.AnalysisItemResult
 import com.example.fitlog.model.source.SourceKey
 
 data class DiaryAnalysisRun(

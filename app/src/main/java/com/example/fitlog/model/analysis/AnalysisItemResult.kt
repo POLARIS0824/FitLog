@@ -1,7 +1,6 @@
-package com.example.fitlog.data.analysis
+package com.example.fitlog.model.analysis
 
-import com.example.fitlog.data.ai.AiConfigurationFailure
-import com.example.fitlog.model.analysis.DiaryParseFailure
+import com.example.fitlog.model.ai.AiConfigurationFailure
 import com.example.fitlog.model.source.SourceKey
 
 data class AnalysisSource(val key: SourceKey, val documentUri: String)

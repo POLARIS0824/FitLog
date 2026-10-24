@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.fitlog.data.index.SourceIndex
 import com.example.fitlog.data.vault.VaultConfigState
 import com.example.fitlog.data.vault.VaultSettings
+import com.example.fitlog.model.analysis.DiaryAnalysisRun
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 

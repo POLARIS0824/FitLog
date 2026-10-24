@@ -1,14 +1,14 @@
 package com.example.fitlog.domain.analysis
 
-import com.example.fitlog.data.analysis.AnalysisIssue
-import com.example.fitlog.data.analysis.AnalysisItemOutcome
-import com.example.fitlog.data.analysis.AnalysisItemResult
-import com.example.fitlog.data.analysis.AnalysisProblem
-import com.example.fitlog.data.analysis.AnalysisSource
 import com.example.fitlog.data.analysis.DiaryAnalysisSession
 import com.example.fitlog.data.analysis.StoredDiaryParse
 import com.example.fitlog.data.analysis.from
 import com.example.fitlog.data.analysis.toAiRequestFailure
+import com.example.fitlog.model.analysis.AnalysisIssue
+import com.example.fitlog.model.analysis.AnalysisItemOutcome
+import com.example.fitlog.model.analysis.AnalysisItemResult
+import com.example.fitlog.model.analysis.AnalysisProblem
+import com.example.fitlog.model.analysis.AnalysisSource
 import com.example.fitlog.model.analysis.DiaryAnalysisSummary
 import com.example.fitlog.model.analysis.DiaryContentVersion
 import com.example.fitlog.model.analysis.DiaryParseFailure

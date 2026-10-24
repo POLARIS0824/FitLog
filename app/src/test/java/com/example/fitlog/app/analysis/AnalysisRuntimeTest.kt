@@ -2,7 +2,6 @@
 
 package com.example.fitlog.app.analysis
 
-import com.example.fitlog.data.analysis.AnalysisSource
 import com.example.fitlog.data.analysis.DiaryAnalysisSession
 import com.example.fitlog.data.analysis.DiaryParseInput
 import com.example.fitlog.data.analysis.StoredDiaryParse
@@ -11,6 +10,7 @@ import com.example.fitlog.data.vault.MarkdownSnapshot
 import com.example.fitlog.data.vault.VaultConfigState
 import com.example.fitlog.data.vault.VaultSettings
 import com.example.fitlog.domain.analysis.AnalyzeDiary
+import com.example.fitlog.model.analysis.AnalysisSource
 import com.example.fitlog.model.analysis.DiaryAnalysisSummary
 import com.example.fitlog.model.analysis.DiaryParseFailure
 import com.example.fitlog.model.analysis.DiaryParseResult

@@ -2,12 +2,12 @@ package com.example.fitlog.data.analysis.adapter
 
 import com.example.fitlog.data.ai.AiProviders
 import com.example.fitlog.data.ai.transport.OpenAiChatClientFactory
-import com.example.fitlog.data.analysis.AnalysisSource
 import com.example.fitlog.data.analysis.DiaryAnalysisSession
 import com.example.fitlog.data.analysis.DiaryParseInput
 import com.example.fitlog.data.analysis.StoredDiaryParse
 import com.example.fitlog.data.vault.MarkdownDocuments
 import com.example.fitlog.data.vault.MarkdownSnapshot
+import com.example.fitlog.model.analysis.AnalysisSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

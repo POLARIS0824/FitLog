@@ -1,8 +1,8 @@
 package com.example.fitlog.ui.text
 
 import com.example.fitlog.R
-import com.example.fitlog.data.ai.AiConfigurationFailure
 import com.example.fitlog.data.ai.transport.AiRequestFailure
+import com.example.fitlog.model.ai.AiConfigurationFailure
 
 /** Protocol/configuration failures become user-facing strings in one place, not in feature VMs. */
 internal fun aiConfigurationMessage(reason: AiConfigurationFailure): Int = when (reason) {

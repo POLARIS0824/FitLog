@@ -15,11 +15,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
-import com.example.fitlog.app.analysis.DiaryAnalysisRun
-import com.example.fitlog.data.analysis.AnalysisIssue
-import com.example.fitlog.data.analysis.AnalysisProblem
 import com.example.fitlog.data.analysis.toAiRequestFailure
 import com.example.fitlog.domain.analysis.needsDiaryAnalysis
+import com.example.fitlog.model.analysis.AnalysisIssue
+import com.example.fitlog.model.analysis.AnalysisProblem
+import com.example.fitlog.model.analysis.DiaryAnalysisRun
 import com.example.fitlog.model.source.IndexedSource
 import com.example.fitlog.ui.components.FitLogSheetDefaults
 import com.example.fitlog.ui.components.FitLogSheetTitle

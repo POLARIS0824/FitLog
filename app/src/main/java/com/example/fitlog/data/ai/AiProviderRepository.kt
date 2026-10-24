@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.fitlog.data.ai.transport.openAiEndpoint
+import com.example.fitlog.model.ai.AiConfigurationFailure
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +28,6 @@ data class AiModelSelection(val providerId: String, val modelId: String)
 
 data class AiSettings(val providers: List<AiProviderConnection> = emptyList(), val selection: AiModelSelection? = null)
 
-enum class AiConfigurationFailure { NOT_CONFIGURED, STORAGE, KEY_UNREADABLE, INVALID_CONFIGURATION }
 
 class AiConfigurationException(val reason: AiConfigurationFailure, cause: Exception? = null) :
     IOException("AI configuration: ${reason.name}", cause)

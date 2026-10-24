@@ -1,12 +1,12 @@
 package com.example.fitlog.feature.log
 
-import com.example.fitlog.app.analysis.DiaryAnalysisRun
-import com.example.fitlog.data.analysis.AnalysisItemOutcome
-import com.example.fitlog.data.analysis.AnalysisItemResult
-import com.example.fitlog.data.analysis.AnalysisProblem
 import com.example.fitlog.data.index.file
 import com.example.fitlog.data.settings.LogSortOrder
 import com.example.fitlog.data.vault.MarkdownFile
+import com.example.fitlog.model.analysis.AnalysisItemOutcome
+import com.example.fitlog.model.analysis.AnalysisItemResult
+import com.example.fitlog.model.analysis.AnalysisProblem
+import com.example.fitlog.model.analysis.DiaryAnalysisRun
 import com.example.fitlog.model.analysis.DiaryAnalysisSummary
 import com.example.fitlog.model.record.TrainingRecordDetails
 import com.example.fitlog.model.source.IndexedSource

@@ -1,11 +1,11 @@
 package com.example.fitlog.feature.diary
 
-import com.example.fitlog.app.analysis.DiaryAnalysisRun
-import com.example.fitlog.app.navigation.FitLogRoute
 import com.example.fitlog.data.vault.MarkdownSnapshot
 import com.example.fitlog.domain.analysis.confirmationFreshness
 import com.example.fitlog.domain.analysis.resultFreshness
+import com.example.fitlog.feature.diary.navigation.DiaryDetailNavKey
 import com.example.fitlog.model.analysis.ConfirmationFreshness
+import com.example.fitlog.model.analysis.DiaryAnalysisRun
 import com.example.fitlog.model.analysis.DiaryContentVersion
 import com.example.fitlog.model.analysis.DiaryParseRecords
 import com.example.fitlog.model.analysis.DiaryResultFreshness
@@ -14,7 +14,7 @@ import com.example.fitlog.model.record.TrainingRecordDetails
 internal enum class DiaryLeaveTarget { BACK, AI_SETTINGS }
 
 internal data class DiaryDetailUiState(
-    val route: FitLogRoute.DiaryDetail,
+    val route: DiaryDetailNavKey,
     val contentVersion: DiaryContentVersion? = null,
     val reviewAvailable: Boolean = false,
     val tab: DiaryDetailTab = DiaryDetailTab.ORIGINAL,

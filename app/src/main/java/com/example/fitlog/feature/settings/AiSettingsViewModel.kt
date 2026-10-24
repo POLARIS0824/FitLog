@@ -4,13 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
 import com.example.fitlog.data.ai.AiConfigurationException
-import com.example.fitlog.data.ai.AiConfigurationFailure
 import com.example.fitlog.data.ai.AiModelSelection
 import com.example.fitlog.data.ai.AiOperations
 import com.example.fitlog.data.ai.AiProviderConnection
 import com.example.fitlog.data.ai.AiProviders
 import com.example.fitlog.data.ai.transport.AiModelsResult
 import com.example.fitlog.data.ai.transport.openAiEndpoint
+import com.example.fitlog.model.ai.AiConfigurationFailure
 import com.example.fitlog.ui.text.aiConfigurationMessage
 import com.example.fitlog.ui.text.aiRequestMessage
 import java.util.UUID
