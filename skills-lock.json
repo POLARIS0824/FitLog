@@ -5,13 +5,13 @@
       "source": "gradle/gradle-skills",
       "sourceType": "github",
       "skillPath": "skills/gradle-best-practices/SKILL.md",
-      "computedHash": "acb26a50aaa0a4336e6d0320dfedcc85ce1ec9c87c78644fd164317cd799b6bf"
+      "computedHash": "9041497ec1f1311602a0cf84db882ab4091beb6f8febc3cfbc8e72628812866b"
     },
     "gradle-wrapper-upgrade": {
       "source": "gradle/gradle-skills",
       "sourceType": "github",
       "skillPath": "skills/gradle-wrapper-upgrade/SKILL.md",
-      "computedHash": "134a229ecabd62e791545483b776e9c55997341fa62930a87dc1075eedc8841e"
+      "computedHash": "c8501215b25e674fe0a5be96582dff4b5542f2141abda6fb2c5c442d0a226a29"
     }
   }
 }
