@@ -4,8 +4,10 @@ package com.example.fitlog.feature.insight
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -35,6 +37,7 @@ import java.time.LocalDate
 @Composable
 internal fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (String) -> Unit,
     onExercise: (String) -> Unit, modifier: Modifier = Modifier) {
+    val listState = rememberLazyListState()
     val state by vm.uiState.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.resumed() }
     var sheet by rememberSaveable(state.data?.vaultId) { mutableStateOf<String?>(null) }
@@ -54,7 +57,7 @@ internal fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: 
             onManageFocus = { vm.clearFocusError(); sheet = "focus" }, onExercise, onOpen, onOpenLog,
             onSheet = { sheet = it }, headerActions = { InsightRefreshAction(state, vm::refresh) },
             rangeEnabled = !state.rangeSaving,
-            notices = { InsightCoverage(state, showScanTime = false) })
+            notices = { InsightCoverage(state, showScanTime = false) }, listState = listState)
     }
     if (sheet == "focus" && data != null) {
         InsightFocusSheet(state, requireNotNull(presentation), vm::saveFocus, onDismiss = { sheet = null })
@@ -105,12 +108,13 @@ internal fun InsightDashboardContent(
     headerActions: @Composable RowScope.() -> Unit = {},
     rangeEnabled: Boolean = true,
     notices: @Composable () -> Unit = {},
+    listState: LazyListState = rememberLazyListState(),
 ) = InsightPage(headerActions) {
     val pagePadding = fitLogPagePadding()
     val data = presentation.data
     val overview = presentation.overview
     val focused = presentation.focused
-    LazyColumn(Modifier.fillMaxSize(),
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = pagePadding, top = 24.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { notices() }

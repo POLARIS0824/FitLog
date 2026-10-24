@@ -13,10 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
-import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import androidx.navigationevent.NavigationEvent
@@ -24,15 +24,21 @@ import kotlin.math.roundToInt
 
 /** Shared rendering and lifecycle boundary for every app destination. */
 @Composable
-internal fun FitLogNavDisplay(backStack: NavBackStack<NavKey>, onBack: () -> Unit,
-    entryProvider: (NavKey) -> NavEntry<NavKey>, modifier: Modifier = Modifier) {
+internal fun FitLogNavDisplay(navigationState: FitLogNavigationState, onBack: () -> Unit,
+    entryProvider: (NavKey, NavKey) -> NavEntry<NavKey>, modifier: Modifier = Modifier) {
     val surface = remember {
         NavEntryDecorator<NavKey> { entry -> Surface(Modifier.fillMaxSize()) { entry.Content() } }
     }
     val motion = MaterialTheme.motionScheme
     val previewMargin = with(LocalDensity.current) { 8.dp.toPx() }
-    NavDisplay(backStack = backStack, modifier = modifier, onBack = onBack,
-        entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator(), surface),
+    // Retain decorators for inactive stacks as well as the currently displayed entries.
+    val stacks = navigationState.backStacks.mapValues { (root, stack) ->
+        rememberDecoratedNavEntries(backStack = stack, entryProvider = { key -> scopedNavEntry(root, key, entryProvider(root, key)) },
+            entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator(), surface))
+    }
+    val activeRoots = if (navigationState.currentTab == navigationState.startTab) listOf(navigationState.startTab)
+        else listOf(navigationState.startTab, navigationState.currentTab)
+    NavDisplay(entries = activeRoots.flatMap { stacks.getValue(it) }, modifier = modifier, onBack = onBack,
         predictivePopTransitionSpec = { swipeEdge ->
             // Navigation3's default scales to 70% around the center, ignoring the swipe edge.
             // Use Android's 90% preview with an 8dp far-edge margin and physical (not RTL) direction.
@@ -48,6 +54,10 @@ internal fun FitLogNavDisplay(backStack: NavBackStack<NavKey>, onBack: () -> Uni
                     slideOutHorizontally(animationSpec = motion.slowSpatialSpec()) { width ->
                         (direction * (width * .05f - previewMargin).coerceAtLeast(0f)).roundToInt()
                     })
-        },
-        entryProvider = entryProvider)
+        })
 }
+
+/** A common destination can occur in different tabs without sharing its entry storage. */
+internal fun scopedNavEntry(root: NavKey, key: NavKey, entry: NavEntry<NavKey>) = NavEntry(
+    key = key, contentKey = "$root:${entry.contentKey}", metadata = entry.metadata,
+) { entry.Content() }

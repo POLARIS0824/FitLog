@@ -2,13 +2,12 @@
 
 package com.example.fitlog.feature.log
 
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
-import com.example.fitlog.app.analysis.DiaryAnalysisController
-import com.example.fitlog.app.analysis.DiaryAnalysisRun
-import com.example.fitlog.data.analysis.AnalysisSource
 import com.example.fitlog.data.analysis.DiaryVaultAnalysisReader
 import com.example.fitlog.data.index.SourceIndex
 import com.example.fitlog.data.index.file
@@ -16,17 +15,18 @@ import com.example.fitlog.data.record.TrainingRecords
 import com.example.fitlog.data.settings.LogSettingsStore
 import com.example.fitlog.data.settings.LogSortOrder
 import com.example.fitlog.data.vault.VaultConfigState
+import com.example.fitlog.domain.analysis.DiaryAnalysisRunner
+import com.example.fitlog.model.analysis.AnalysisSource
+import com.example.fitlog.model.analysis.DiaryAnalysisRun
+import com.example.fitlog.model.analysis.DiaryAnalysisSummary
 import com.example.fitlog.model.record.RecordOrigin
+import com.example.fitlog.model.record.TrainingRecordDetails
 import com.example.fitlog.model.source.IndexedScan
+import com.example.fitlog.model.source.SourceIndexSnapshot
 import com.example.fitlog.model.source.SourceKey
 import java.time.LocalDate
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 internal class LogViewModel(
     private val savedState: SavedStateHandle,
@@ -34,233 +34,133 @@ internal class LogViewModel(
     private val index: SourceIndex,
     private val settings: LogSettingsStore,
     private val analysis: DiaryVaultAnalysisReader? = null,
-    private val controller: DiaryAnalysisController? = null,
+    private val controller: DiaryAnalysisRunner? = null,
     private val records: TrainingRecords,
     private val computationDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val localDate: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(
-        LogUiState(
-            query = savedState.get<String>("query") ?: "",
-            sortBusy = true,
-            loading = true,
-            showMissing = savedState.get<Boolean>("showMissing") ?: false,
-            summariesLoading = analysis != null,
-            statusFilter = LogStatusFilter.entries.firstOrNull {
-                it.name == savedState.get<String>("statusFilter")
-            } ?: LogStatusFilter.ALL,
-        ).withDerivedValues()
+    private data class Controls(
+        val sort: LogSortOrder = LogSortOrder.Descending,
+        val sortBusy: Boolean = true,
+        val sortError: Int? = null,
+        val dismissedRun: DiaryAnalysisRun? = null,
     )
+    private data class Filters(val query: String, val missing: Boolean, val status: LogStatusFilter)
+    private data class RecordRead(val rows: List<TrainingRecordDetails> = emptyList(), val failed: Boolean = false)
+    private data class IndexRead(val snapshot: SourceIndexSnapshot? = null, val failed: Boolean = false)
+    private data class SummaryRead(val values: List<DiaryAnalysisSummary> = emptyList(), val failed: Boolean = false)
+    private data class VaultRead(val config: VaultConfigState, val index: IndexRead = IndexRead(), val summaries: SummaryRead = SummaryRead())
 
-    /**
-     * Display state exists only while the screen is collecting it. Collectors are children of the
-     * sharing scope, so leaving the page cancels them instead of leaking into viewModelScope.
-     */
-    val uiState: StateFlow<LogUiState> = flow {
-        coroutineScope {
-            launch { collectRecords() }
-            launch { collectConfig() }
-            controller?.let { runner -> launch { runner.state.collect(::applyRun) } }
-            emitAll(_uiState.mapLatest { value ->
-                withContext(computationDispatcher) { value.withDerivedValues() }
-            })
+    private val controls = MutableStateFlow(Controls())
+    private val recordsRetry = MutableStateFlow(0)
+    private val configRetry = MutableStateFlow(0)
+    private val displayRetry = MutableStateFlow(0)
+    // The editor owns text, selection and IME composition synchronously. Result
+    // computation observes it, but must never drive the editor's value back.
+    val searchFieldState = TextFieldState(savedState.get<String>("query").orEmpty())
+    private val query = snapshotFlow { searchFieldState.text.toString() }
+        .onEach { savedState["query"] = it }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, searchFieldState.text.toString())
+    private val showMissing = savedState.getStateFlow("showMissing", false)
+    private val statusFilter = savedState.getStateFlow("statusFilter", LogStatusFilter.ALL.name)
+    private val filters = combine(query, showMissing, statusFilter) { text, missing, status ->
+        Filters(text, missing, LogStatusFilter.entries.firstOrNull { it.name == status } ?: LogStatusFilter.ALL)
+    }
+    private val recordRead = recordsRetry.flatMapLatest {
+        flow { emitAll(records.observeRecords()) }.map { rows -> RecordRead(rows.filter { it.diary.origin == RecordOrigin.NATIVE }) }
+            .catch { e -> if (e is CancellationException) throw e; emit(RecordRead(failed = true)) }
+    }
+    private val vaultRead = configRetry.flatMapLatest {
+        config.filter { it !is VaultConfigState.Loading }.distinctUntilChanged().flatMapLatest { value ->
+            val id = (value as? VaultConfigState.Configured)?.vaultId
+            if (id == null) flowOf(VaultRead(value)) else {
+                val snapshots = displayRetry.flatMapLatest {
+                    flow { emitAll(index.observe(id)) }.map { IndexRead(it) }
+                        .catch { e -> if (e is CancellationException) throw e; emit(IndexRead(failed = true)) }
+                }
+                val summaries = displayRetry.flatMapLatest {
+                    if (analysis == null) flowOf(SummaryRead()) else
+                        flow { emitAll(analysis.observeSummaries(id)) }.map { SummaryRead(it) }
+                            .catch { e -> if (e is CancellationException) throw e; emit(SummaryRead(failed = true)) }
+                }
+                combine(snapshots, summaries) { snapshot, summary -> VaultRead(value, snapshot, summary) }
+            }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), _uiState.value)
+    }.catch { e -> if (e is CancellationException) throw e; emit(VaultRead(VaultConfigState.Failed(e))) }
 
-    private val recordsRetry = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    private val configRetry = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
-    private val displayRetry = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    private var currentConfig: VaultConfigState = VaultConfigState.Loading
+    val uiState: StateFlow<LogUiState> = combine(
+        filters, controls, recordRead, vaultRead, controller?.state ?: flowOf(DiaryAnalysisRun()),
+    ) { filter, control, records, vault, activeRun ->
+        val current = vault.config as? VaultConfigState.Configured
+        val snapshot = vault.index.snapshot
+        val run = activeRun.takeIf { it.vaultId == current?.vaultId } ?: DiaryAnalysisRun()
+        LogUiState(
+            query = filter.query, showMissing = filter.missing, statusFilter = filter.status,
+            sort = control.sort, sortBusy = control.sortBusy, sortError = control.sortError,
+            nativeRecords = records.rows, recordsLoading = false, recordsReadFailed = records.failed,
+            vault = current?.uri?.toString(), vaultId = current?.vaultId,
+            sources = snapshot?.sources.orEmpty(), files = snapshot?.sources.orEmpty().map { it.file() },
+            scanStatus = snapshot?.scan?.status, partial = snapshot?.scan?.status == IndexedScan.PARTIAL,
+            refreshing = snapshot?.refreshing == true,
+            loading = snapshot?.let { it.sources.isEmpty() && it.refreshing && it.scan == null } == true,
+            error = when {
+                vault.config is VaultConfigState.Failed -> R.string.vault_error_load_config_failed
+                vault.index.failed -> R.string.index_read_failed
+                snapshot?.refreshFailed == true || snapshot?.scan?.status == IndexedScan.FAILED -> R.string.log_failed
+                else -> null
+            },
+            summaries = vault.summaries.values.associateBy { it.sourceKey.relPath },
+            summariesReadFailed = vault.summaries.failed, summariesLoading = false, run = run,
+            dismissedRunItems = if (run === control.dismissedRun) run.items.toSet() else emptySet(),
+        ).withDerivedValues()
+    }.flowOn(computationDispatcher).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000),
+        LogUiState(query = query.value, showMissing = showMissing.value,
+            statusFilter = LogStatusFilter.entries.firstOrNull { it.name == statusFilter.value } ?: LogStatusFilter.ALL,
+            loading = true, sortBusy = true, summariesLoading = analysis != null))
 
     init {
         viewModelScope.launch {
-            try {
-                val order = settings.readSort()
-                updateState { it.copy(sort = order) }
-            } catch (e: Exception) {
+            try { val order = settings.readSort(); controls.update { it.copy(sort = order) } }
+            catch (e: Exception) {
                 if (e is CancellationException) throw e
-                updateState { it.copy(sortError = R.string.log_sort_failed) }
-            } finally {
-                updateState { it.copy(sortBusy = false) }
-            }
+                controls.update { it.copy(sortError = R.string.log_sort_failed) }
+            } finally { controls.update { it.copy(sortBusy = false) } }
         }
     }
 
-    private inline fun updateState(transform: (LogUiState) -> LogUiState) {
-        _uiState.update(transform)
-    }
-
-    private suspend fun collectRecords() {
-        recordsRetry.onStart { emit(Unit) }.collectLatest {
-            updateState { it.copy(recordsLoading = true, recordsReadFailed = false) }
-            try {
-                records.observeRecords().collect { rows ->
-                    updateState {
-                        it.copy(
-                            nativeRecords = rows.filter { row -> row.diary.origin == RecordOrigin.NATIVE },
-                            recordsLoading = false,
-                        )
-                    }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                updateState { it.copy(recordsLoading = false, recordsReadFailed = true) }
-            }
-        }
-    }
-
-    private suspend fun collectConfig() {
-        configRetry.onStart { emit(false) }.collectLatest { refreshAfterRead ->
-            // collectLatest, not collect: a new config value must cancel the old vault's collectors.
-            config.distinctUntilChanged().collectLatest { value ->
-                applyConfig(value)
-                val id = (value as? VaultConfigState.Configured)?.vaultId ?: return@collectLatest
-                coroutineScope {
-                    launch { displayRetry.onStart { emit(Unit) }.collectLatest { collectIndex(id) } }
-                    launch { displayRetry.onStart { emit(Unit) }.collectLatest { collectSummaries(id) } }
-                    if (refreshAfterRead) index.refresh(id)
-                }
-            }
-        }
-    }
-
-    private fun applyConfig(value: VaultConfigState) {
-        currentConfig = value
-        val nextVault = (value as? VaultConfigState.Configured)?.uri?.toString()
-        val nextId = (value as? VaultConfigState.Configured)?.vaultId
-        val changedVault = _uiState.value.vaultId != nextId
-        updateState { current ->
-            val next = if (changedVault) current.copy(
-                summaries = emptyMap(),
-                summariesLoading = analysis != null && nextId != null,
-                summariesReadFailed = false,
-                run = controller?.state?.value?.takeIf { it.vaultId == nextId } ?: DiaryAnalysisRun(),
-                files = emptyList(),
-                sources = emptyList(),
-                partial = false,
-                scanStatus = null,
-                refreshing = false,
-            ) else current
-            next.copy(
-                vault = nextVault,
-                vaultId = nextId,
-                error = if (value is VaultConfigState.Failed) R.string.vault_error_load_config_failed else null,
-                // Only a real vault switch (or the initial read) starts a full-page load.
-                loading = value is VaultConfigState.Loading || (nextVault != null && changedVault),
-            )
-        }
-    }
-
-    private suspend fun collectSummaries(id: String) {
-        val reader = analysis ?: return
-        updateState { it.copy(summariesLoading = true, summariesReadFailed = false) }
-        try {
-            reader.observeSummaries(id).collect { value ->
-                if (_uiState.value.vaultId == id) {
-                    updateState { it.copy(summaries = value.associateBy { it.sourceKey.relPath }, summariesLoading = false) }
-                }
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            if (_uiState.value.vaultId == id) {
-                updateState { it.copy(summariesReadFailed = true, summariesLoading = false) }
-            }
-        }
-    }
-
-    private suspend fun collectIndex(id: String) {
-        try {
-            index.observe(id).collect { snapshot ->
-                if (_uiState.value.vaultId != id) return@collect
-                val status = snapshot.scan?.status
-                updateState {
-                    it.copy(
-                        sources = snapshot.sources,
-                        files = snapshot.sources.map { source -> source.file() },
-                        scanStatus = status,
-                        partial = status == IndexedScan.PARTIAL,
-                        refreshing = snapshot.refreshing,
-                        loading = snapshot.sources.isEmpty() && snapshot.refreshing && snapshot.scan == null,
-                        error = if (snapshot.refreshFailed || status == IndexedScan.FAILED) R.string.log_failed else null,
-                    )
-                }
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            if (_uiState.value.vaultId == id) {
-                updateState { it.copy(error = R.string.index_read_failed, loading = false, refreshing = false) }
-            }
-        }
-    }
-
-    private fun applyRun(value: DiaryAnalysisRun) {
-        updateState { current ->
-            current.copy(
-                dismissedRunItems = if (value.active && !current.run.active) emptySet() else current.dismissedRunItems,
-                run = value.takeIf { it.vaultId == current.vaultId } ?: DiaryAnalysisRun(),
-            )
-        }
-    }
-
-    fun retryRecords() {
-        recordsRetry.tryEmit(Unit)
-    }
-
-    fun search(value: String) {
-        updateState { it.copy(query = value) }
-        savedState["query"] = value
-    }
-
-    fun filter(value: LogStatusFilter) {
-        updateState { it.copy(statusFilter = value) }
-        savedState["statusFilter"] = value.name
-    }
-
-    fun toggleMissing() {
-        updateState { it.copy(showMissing = !it.showMissing) }
-        savedState["showMissing"] = _uiState.value.showMissing
-    }
-
+    fun retryRecords() { recordsRetry.update { it + 1 } }
+    fun filter(value: LogStatusFilter) { savedState["statusFilter"] = value.name }
+    fun toggleMissing() { savedState["showMissing"] = !showMissing.value }
     fun startAnalysis(range: LogAnalysisRange, reanalyze: Boolean) {
-        val state = _uiState.value
+        val state = uiState.value
         if (state.analysisBusy || state.refreshing || state.summariesLoading || state.summariesReadFailed) return
         val matched = matchAnalysisSources(state.sources, state.summaries, range, localDate())
         controller?.startBatch(matched.map { AnalysisSource(SourceKey(it.vaultId, it.path), it.uri) }, reanalyze)
     }
-
-    fun cancelAnalysis() {
-        controller?.cancel()
-    }
-
+    fun cancelAnalysis() { controller?.cancel() }
     fun changeSort(order: LogSortOrder) {
-        val state = _uiState.value
-        if (state.sortBusy) return
-        updateState { it.copy(sortBusy = true, sortError = null) }
+        if (controls.value.sortBusy) return
+        controls.update { it.copy(sortBusy = true, sortError = null) }
         viewModelScope.launch {
-            try {
-                settings.saveSort(order)
-                updateState { it.copy(sort = order) }
-            } catch (e: Exception) {
+            try { settings.saveSort(order); controls.update { it.copy(sort = order) } }
+            catch (e: Exception) {
                 if (e is CancellationException) throw e
-                updateState { it.copy(sortError = R.string.log_sort_failed) }
-            } finally {
-                updateState { it.copy(sortBusy = false) }
-            }
+                controls.update { it.copy(sortError = R.string.log_sort_failed) }
+            } finally { controls.update { it.copy(sortBusy = false) } }
         }
     }
-
     fun refresh() {
-        updateState { it.copy(dismissedRunItems = it.run.items.toSet()) }
-        val id = _uiState.value.vaultId
-        if (currentConfig is VaultConfigState.Failed) {
-            configRetry.tryEmit(true)
-        } else {
-            // Restart only the display collectors; re-reading config would flash a Loading reset.
-            displayRetry.tryEmit(Unit)
-            id?.let(index::refresh)
+        val state = uiState.value
+        controls.update { it.copy(dismissedRun = state.run) }
+        displayRetry.update { it + 1 }
+        state.vaultId?.let(index::refresh)
+        if (state.error == R.string.vault_error_load_config_failed) {
+            configRetry.update { it + 1 }
+            viewModelScope.launch {
+                val value = config.catch { e -> if (e is CancellationException) throw e; emit(VaultConfigState.Failed(e)) }
+                    .first { it !is VaultConfigState.Loading }
+                (value as? VaultConfigState.Configured)?.vaultId?.let(index::refresh)
+            }
         }
     }
 }

@@ -6,8 +6,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,6 +50,7 @@ internal fun MarkdownLogContent(
     onReview: () -> Unit = {},
     onAiSettings: () -> Unit = {},
     showAppBar: Boolean = true,
+    listState: LazyListState = rememberLazyListState(),
 ) {
 
     val state by vm.uiState.collectAsStateWithLifecycle()
@@ -51,14 +58,14 @@ internal fun MarkdownLogContent(
         state = state,
         actions = LogActions(
             refresh = { vm.refresh() },
-            search = { vm.search(it) },
             changeSort = { vm.changeSort(it) },
             toggleMissing = { vm.toggleMissing() },
             filter = vm::filter, startAnalysis = vm::startAnalysis, cancelAnalysis = vm::cancelAnalysis,
             openAiSettings = onAiSettings,
         ),
         onOpen = onOpen, onConnect = onConnect,
-        onManage = onManage, modifier = modifier, onReview = onReview, showAppBar = showAppBar,
+        onManage = onManage, modifier = modifier, onReview = onReview, showAppBar = showAppBar, listState = listState,
+        searchFieldState = vm.searchFieldState,
     )
 }
 
@@ -71,6 +78,8 @@ internal fun LogContent(
     modifier: Modifier = Modifier,
     onReview: () -> Unit = {},
     showAppBar: Boolean = true,
+    listState: LazyListState = rememberLazyListState(),
+    searchFieldState: TextFieldState = rememberTextFieldState(initialText = state.query),
 ) {
     var sortExpanded by remember { mutableStateOf(false) }
     var toolsExpanded by rememberSaveable { mutableStateOf(false) }
@@ -82,19 +91,20 @@ internal fun LogContent(
         if (showAppBar) LogTopAppBar(true, state.refreshing, actions.refresh, onConnect, onManage, behavior)
         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxSize(),
                 contentPadding = PaddingValues(start = pagePadding, top = 16.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
             ) {
                 item(key = "header") {
                     OutlinedTextField(
-                        value = state.query, onValueChange = actions.search, singleLine = true,
+                        state = searchFieldState, lineLimits = TextFieldLineLimits.SingleLine,
                         label = { Text(stringResource(R.string.log_search)) },
                         shape = CircleShape,
                         leadingIcon = { Icon(painterResource(R.drawable.search_24px), null) },
                         modifier = Modifier.fillMaxWidth(),
                         trailingIcon = {
-                            if (state.query.isNotEmpty()) IconButton(onClick = { actions.search("") }, shapes = IconButtonDefaults.shapes()) {
+                            if (searchFieldState.text.isNotEmpty()) IconButton(onClick = searchFieldState::clearText, shapes = IconButtonDefaults.shapes()) {
                                 Icon(painterResource(R.drawable.close_24px), stringResource(R.string.log_clear_search))
                             }
                         },
@@ -253,7 +263,6 @@ internal fun LogTopAppBar(
 
 internal data class LogActions(
     val refresh: () -> Unit = {},
-    val search: (String) -> Unit = {},
     val changeSort: (LogSortOrder) -> Unit = {},
     val toggleMissing: () -> Unit = {},
     val filter: (LogStatusFilter) -> Unit = {},

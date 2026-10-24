@@ -1,4 +1,4 @@
-package com.example.fitlog.app.navigation
+package com.example.fitlog.ui.components
 
 import androidx.compose.runtime.Composable
 import androidx.navigationevent.NavigationEventInfo

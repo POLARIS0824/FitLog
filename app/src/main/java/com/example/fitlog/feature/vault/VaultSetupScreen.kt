@@ -58,10 +58,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitlog.R
-import com.example.fitlog.app.navigation.FitLogBackGuard
-import com.example.fitlog.app.navigation.FitLogRoute
 import com.example.fitlog.data.vault.VaultAccessStatus
 import com.example.fitlog.data.vault.VaultFolderInfo
+import com.example.fitlog.feature.vault.navigation.VaultSetupNavKey
+import com.example.fitlog.ui.components.FitLogBackGuard
 import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogLoadingIndicator
 import com.example.fitlog.ui.components.fitLogPagePadding
@@ -73,9 +73,9 @@ import com.example.fitlog.ui.preview.FitLogPreviews
  */
 @Composable
 fun VaultSetupRoute(
-    route: FitLogRoute.VaultSetup,
+    route: VaultSetupNavKey,
     factory: androidx.lifecycle.ViewModelProvider.Factory,
-    onSetupCompleted: (FitLogRoute.VaultSetup) -> Unit,
+    onSetupCompleted: (VaultSetupNavKey) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onVaultConnected: suspend (String) -> Unit = {},

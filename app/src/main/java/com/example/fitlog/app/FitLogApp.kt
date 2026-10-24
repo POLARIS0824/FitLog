@@ -38,14 +38,16 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation3.runtime.rememberNavBackStack
 import com.example.fitlog.R
 import com.example.fitlog.app.analysis.AnalysisRuntimeViewModel
 import com.example.fitlog.app.navigation.FitLogNavGraph
 import com.example.fitlog.app.navigation.FitLogNavigator
-import com.example.fitlog.app.navigation.FitLogRoute
+import com.example.fitlog.app.navigation.rememberFitLogNavigationState
+import com.example.fitlog.feature.insight.navigation.InsightNavKey
+import com.example.fitlog.feature.log.navigation.LogNavKey
 import com.example.fitlog.feature.settings.AppearanceUiState
 import com.example.fitlog.feature.settings.AppearanceViewModel
+import com.example.fitlog.feature.today.navigation.TodayNavKey
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
 
 /**
@@ -77,14 +79,15 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
     }
 
     // 当前导航历史
-    val backStack = rememberNavBackStack(FitLogRoute.Today)
+    val navigationState = rememberFitLogNavigationState()
+    val backStack = navigationState.backStack
 
-    val vaultFlow = remember(backStack) { FitLogNavigator(backStack) }
+    val vaultFlow = remember(navigationState) { FitLogNavigator(navigationState) }
     val currentRoute = backStack.lastOrNull()
     val showNavigationToolbar =
-        currentRoute == FitLogRoute.Today ||
-        currentRoute == FitLogRoute.Log ||
-        currentRoute == FitLogRoute.Insight
+        currentRoute == TodayNavKey ||
+        currentRoute == LogNavKey ||
+        currentRoute == InsightNavKey
 
     var fabMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
@@ -94,7 +97,7 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
     ) { innerPadding ->
         Box(Modifier.fillMaxSize()) {
             FitLogInsetContent(innerPadding) {
-                if (analysisRun.active && currentRoute != FitLogRoute.Log) {
+                if (analysisRun.active && currentRoute != LogNavKey) {
                     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Row(
                             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -107,7 +110,7 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
                     }
                 }
                 FitLogNavGraph(
-                    backStack = backStack,
+                    navigationState = navigationState,
                     container = container,
                     runtime = analysisRuntime,
                     runtimeState = runtimeState,

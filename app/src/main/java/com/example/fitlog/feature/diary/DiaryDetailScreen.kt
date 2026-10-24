@@ -18,14 +18,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
-import com.example.fitlog.app.navigation.FitLogBackGuard
-import com.example.fitlog.app.navigation.FitLogRoute
 import com.example.fitlog.domain.analysis.diaryDateFromFileName
+import com.example.fitlog.feature.diary.navigation.DiaryDetailNavKey
 import com.example.fitlog.model.analysis.DiaryParseRecords
 import com.example.fitlog.model.analysis.DiaryResultFreshness
 import com.example.fitlog.model.analysis.ParseRunStatus
 import com.example.fitlog.model.record.WeightBasis
 import com.example.fitlog.model.record.WeightUnit
+import com.example.fitlog.ui.components.FitLogBackGuard
 import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogLoadingIndicator
 import com.example.fitlog.ui.components.FitLogNotice
@@ -449,5 +449,5 @@ private fun DiaryRepsPickerPreview() {
     FitLogPreview { DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 1), 2, DiarySetField.REPS, 60.0, WeightUnit.KG, 8), {}, {}, {}) }
 }
 
-private val previewDiaryRoute = FitLogRoute.DiaryDetail(PreviewDiary.VAULT_URI, PreviewDiary.VAULT_ID,
+private val previewDiaryRoute = DiaryDetailNavKey(PreviewDiary.VAULT_URI, PreviewDiary.VAULT_ID,
     PreviewDiary.DOCUMENT, PreviewDiary.PATH, PreviewDiary.VAULT_URI, PreviewDiary.FILE_NAME)

@@ -4,10 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
-import com.example.fitlog.app.navigation.FitLogRoute
 import com.example.fitlog.data.analysis.DiaryVaultAnalysisReader
 import com.example.fitlog.data.vault.VaultConfigState
 import com.example.fitlog.domain.analysis.assessBatchReview
+import com.example.fitlog.feature.log.navigation.BatchReviewNavKey
 import com.example.fitlog.model.analysis.BatchReviewAssessment
 import com.example.fitlog.model.analysis.BatchReviewEligibility
 import com.example.fitlog.model.analysis.DiaryAnalysisSummary
@@ -36,7 +36,7 @@ internal data class BatchConfirmationProgress(val total: Int = 0, val confirmed:
 }
 
 internal class BatchReviewViewModel internal constructor(
-    val route: FitLogRoute.BatchReview,
+    val route: BatchReviewNavKey,
     private val savedState: SavedStateHandle,
     private val index: Flow<SourceIndexSnapshot>,
     private val analysis: DiaryVaultAnalysisReader,

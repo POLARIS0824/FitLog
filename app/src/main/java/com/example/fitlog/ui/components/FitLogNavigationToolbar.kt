@@ -40,7 +40,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import com.example.fitlog.R
-import com.example.fitlog.app.navigation.FitLogBackGuard
 import com.example.fitlog.app.navigation.TopLevelDestination
 import com.example.fitlog.app.navigation.topLevelDestinations
 

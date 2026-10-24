@@ -4,9 +4,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
-import com.example.fitlog.app.analysis.DiaryAnalysisBusyException
-import com.example.fitlog.app.analysis.DiaryAnalysisRun
-import com.example.fitlog.app.navigation.FitLogRoute
 import com.example.fitlog.data.ai.AiConfigurationException
 import com.example.fitlog.data.analysis.DiaryAnalysisReader
 import com.example.fitlog.data.analysis.DiaryAnalysisStorageException
@@ -16,7 +13,10 @@ import com.example.fitlog.data.analysis.toAiRequestFailure
 import com.example.fitlog.data.hash.ContentTextSnapshot
 import com.example.fitlog.data.vault.MarkdownDocuments
 import com.example.fitlog.data.vault.MarkdownSnapshot
+import com.example.fitlog.domain.analysis.DiaryAnalysisBusyException
+import com.example.fitlog.feature.diary.navigation.DiaryDetailNavKey
 import com.example.fitlog.model.analysis.ConfirmationFailure
+import com.example.fitlog.model.analysis.DiaryAnalysisRun
 import com.example.fitlog.model.analysis.DiaryConfirmation
 import com.example.fitlog.model.analysis.DiaryConfirmationResult
 import com.example.fitlog.model.analysis.DiaryContentVersion
@@ -48,7 +48,7 @@ enum class DiaryDetailTab { ORIGINAL, ANALYSIS }
 
 /** Immutable route identity keeps old reads isolated from another diary or vault. */
 internal class DiaryDetailViewModel(
-    val route: FitLogRoute.DiaryDetail,
+    val route: DiaryDetailNavKey,
     private val documents: MarkdownDocuments,
     private val analysis: DiaryAnalysisReader,
     private val savedState: SavedStateHandle,
@@ -250,7 +250,7 @@ internal class DiaryDetailViewModel(
                     is AiConfigurationException -> aiConfigurationMessage(e.reason)
                     is DiaryOriginalReadException -> R.string.detail_source_failed
                     is DiaryAnalysisStorageException -> R.string.ai_parse_save_failed
-                    is com.example.fitlog.app.analysis.DiaryAnalysisBusyException -> R.string.log_analysis_busy
+                    is DiaryAnalysisBusyException -> R.string.log_analysis_busy
                     else -> R.string.ai_request_failed
                 }
                 updateState { it.copy(parseMessage = message) }

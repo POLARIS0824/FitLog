@@ -3,6 +3,7 @@ package com.example.fitlog.feature.log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,6 +30,8 @@ internal fun LogScreen(vm: LogViewModel,
     onOpenNative: (String?) -> Unit, onOpenMarkdown: (String, MarkdownFile) -> Unit,
     onConnect: () -> Unit, onManage: () -> Unit, onReview: () -> Unit, onAiSettings: () -> Unit,
     markdown: Boolean, onMarkdown: (Boolean) -> Unit) {
+    val nativeListState = rememberLazyListState()
+    val markdownListState = rememberLazyListState()
     val state by vm.uiState.collectAsStateWithLifecycle()
     val records = state.nativeRecords
     val error = state.recordsReadFailed
@@ -47,8 +50,8 @@ internal fun LogScreen(vm: LogViewModel,
             }
         }
         if (markdown) MarkdownLogContent(vm, onOpenMarkdown, onConnect, onManage,
-            modifier = Modifier.weight(1f), onReview = onReview, onAiSettings = onAiSettings, showAppBar = false)
-        else LazyColumn(Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().weight(1f),
+            modifier = Modifier.weight(1f), onReview = onReview, onAiSettings = onAiSettings, showAppBar = false, listState = markdownListState)
+        else LazyColumn(state = nativeListState, modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(start = pagePadding, top = 16.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text(stringResource(R.string.record_ui_list_subtitle), style = MaterialTheme.typography.bodyLarge,

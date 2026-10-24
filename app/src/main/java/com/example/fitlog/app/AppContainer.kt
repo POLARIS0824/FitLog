@@ -6,13 +6,11 @@ import com.example.fitlog.R
 import com.example.fitlog.app.analysis.AnalysisRuntimeViewModel
 import com.example.fitlog.app.analysis.DiaryAnalysisController
 import com.example.fitlog.app.analysis.IndexWarning
-import com.example.fitlog.app.navigation.FitLogRoute
 import com.example.fitlog.data.ai.AiProviderDiagnostics
 import com.example.fitlog.data.ai.AiProviderRepository
 import com.example.fitlog.data.ai.aiDataStore
 import com.example.fitlog.data.ai.transport.createAiHttpClient
 import com.example.fitlog.data.ai.transport.openAiChatClientFactory
-import com.example.fitlog.data.analysis.AnalysisSource
 import com.example.fitlog.data.analysis.DiaryAnalysisRepository
 import com.example.fitlog.data.analysis.adapter.DiaryAnalysisSessionFactory
 import com.example.fitlog.data.index.RoomSourceIndexStore
@@ -34,14 +32,17 @@ import com.example.fitlog.domain.analysis.confirmCurrentDiary
 import com.example.fitlog.domain.insight.InsightRange
 import com.example.fitlog.domain.record.SaveNativeRecord
 import com.example.fitlog.feature.diary.DiaryDetailViewModel
+import com.example.fitlog.feature.diary.navigation.DiaryDetailNavKey
 import com.example.fitlog.feature.insight.InsightViewModel
 import com.example.fitlog.feature.log.BatchReviewViewModel
 import com.example.fitlog.feature.log.LogViewModel
+import com.example.fitlog.feature.log.navigation.BatchReviewNavKey
 import com.example.fitlog.feature.record.NativeRecordViewModel
 import com.example.fitlog.feature.settings.AiSettingsViewModel
 import com.example.fitlog.feature.settings.AppearanceViewModel
 import com.example.fitlog.feature.vault.VaultManagementViewModel
 import com.example.fitlog.feature.vault.VaultSetupViewModel
+import com.example.fitlog.model.analysis.AnalysisSource
 import com.example.fitlog.model.source.SourceKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -92,7 +93,7 @@ internal class AppContainer(context: Context) {
         InsightViewModel(vaultPreferences.vaultConfig, sourceIndex::observe, records, aliases, savedState,
             refreshIndex = { sourceIndex.refresh(it) }, initialRange = range, preferences = insightPreferences, nameKey = nameKey)
 
-    fun batchReview(route: FitLogRoute.BatchReview, savedState: SavedStateHandle): BatchReviewViewModel {
+    fun batchReview(route: BatchReviewNavKey, savedState: SavedStateHandle): BatchReviewViewModel {
         // The warning callback needs the finished VM; a late-bound lambda avoids a self-reference.
         var onIndexWarning: () -> Unit = {}
         val vm = BatchReviewViewModel(route, savedState, sourceIndex.observe(route.vaultId), analysis, vaultPreferences.vaultConfig,
@@ -107,7 +108,7 @@ internal class AppContainer(context: Context) {
         return vm
     }
 
-    fun diary(route: FitLogRoute.DiaryDetail, savedState: SavedStateHandle, controller: DiaryAnalysisController) =
+    fun diary(route: DiaryDetailNavKey, savedState: SavedStateHandle, controller: DiaryAnalysisController) =
         DiaryDetailViewModel(route, documents, analysis, savedState,
             parseDiary = { controller.runSingle(AnalysisSource(SourceKey(route.vaultId, route.relPath), route.document)) },
             confirmDiary = { request -> confirmCurrentDiary(request, route.document, documents, analysis) { snapshot ->
