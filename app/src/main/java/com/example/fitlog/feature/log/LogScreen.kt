@@ -12,7 +12,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
@@ -23,7 +22,6 @@ import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
-import com.example.fitlog.ui.preview.FitLogPreview
 
 @Composable
 internal fun LogScreen(vm: LogViewModel,
@@ -118,33 +116,4 @@ private fun RecordSourceSelector(markdown: Boolean, onMarkdown: (Boolean) -> Uni
         onSelect = onMarkdown,
         modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth)
             .padding(horizontal = fitLogPagePadding(), vertical = 8.dp))
-}
-
-@Preview(name = "Record sources", widthDp = 412, heightDp = 400, locale = "en")
-@Composable
-private fun RecordSourcesReviewPreview() {
-    FitLogPreview {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            RecordSourceSelector(markdown = false, onMarkdown = {})
-            RecordSourceSelector(markdown = true, onMarkdown = {})
-        }
-    }
-}
-
-@Preview(name = "Log app bar · Local records", widthDp = 412, heightDp = 240, locale = "en")
-@Composable
-private fun RecordsLogHeaderReviewPreview() {
-    FitLogPreview { Column { RecordsLogHeader(false, false, {}, {}, {}, {}) } }
-}
-
-@Preview(name = "Log app bar · Markdown", widthDp = 412, heightDp = 240, locale = "en")
-@Composable
-private fun RecordsLogMarkdownHeaderReviewPreview() {
-    FitLogPreview { Column { RecordsLogHeader(true, false, {}, {}, {}, {}) } }
-}
-
-@Preview(name = "Record sources · Large text", widthDp = 320, heightDp = 560, fontScale = 2f, locale = "zh")
-@Composable
-private fun RecordSourcesLargeTextReviewPreview() {
-    RecordSourcesReviewPreview()
 }

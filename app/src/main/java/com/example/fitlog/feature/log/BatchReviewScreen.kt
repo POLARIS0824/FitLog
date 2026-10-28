@@ -25,14 +25,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
-import com.example.fitlog.domain.analysis.assessBatchReview
 import com.example.fitlog.domain.analysis.batchReviewNotices
 import com.example.fitlog.feature.diary.validationLabel
 import com.example.fitlog.feature.diary.weightLabel
 import com.example.fitlog.model.analysis.BatchReviewAssessment
 import com.example.fitlog.model.analysis.BatchReviewBlock
 import com.example.fitlog.model.analysis.BatchReviewEligibility
-import com.example.fitlog.model.analysis.DiaryAnalysisSummary
 import com.example.fitlog.model.source.IndexedSource
 import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogNotice
@@ -41,9 +39,6 @@ import com.example.fitlog.ui.components.FitLogTopAppBar
 import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberDelayedLoading
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
-import com.example.fitlog.ui.preview.FitLogPreview
-import com.example.fitlog.ui.preview.FitLogPreviews
-import com.example.fitlog.ui.preview.PreviewDiary
 import com.example.fitlog.ui.training.weightBasisLabel
 
 @Composable
@@ -206,23 +201,3 @@ private fun blockMessage(value: BatchReviewAssessment) = when {
         else -> R.string.detail_candidate_damaged
     }
 }
-
-@FitLogPreviews
-@Composable
-private fun BatchReviewEmptyPreview() { FitLogPreview {
-    BatchReviewContent(emptyList(), emptySet(), false, false, true, false, null, BatchConfirmationProgress(), false,
-        {}, {}, {}, {}, {}, {})
-} }
-
-@FitLogPreviews
-@Composable
-private fun BatchReviewCandidatesPreview() { FitLogPreview {
-    val candidate = PreviewDiary.candidate()
-    val key = candidate.analysis.parseKey
-    val source = IndexedSource(key.sourceKey.vaultId, PreviewDiary.DOCUMENT, PreviewDiary.FILE_NAME,
-        key.sourceKey.relPath, PreviewDiary.VAULT_URI, true, contentHash = key.contentHash, hashVersion = key.hashVersion)
-    val summary = DiaryAnalysisSummary(key.sourceKey, candidate.attempt, candidate)
-    val ready = BatchReviewItem(source, summary, assessBatchReview(summary, indexedVersion(source), true))
-    BatchReviewContent(listOf(ready), setOf(ready.id), false, false, true, false, null,
-        BatchConfirmationProgress(), false, {}, {}, {}, {}, {}, {})
-} }

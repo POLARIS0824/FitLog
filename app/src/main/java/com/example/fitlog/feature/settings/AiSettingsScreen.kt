@@ -27,7 +27,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
-import com.example.fitlog.data.ai.AiModelSelection
 import com.example.fitlog.data.ai.AiProviderConnection
 import com.example.fitlog.ui.components.FitLogBackGuard
 import com.example.fitlog.ui.components.FitLogSettingsPage
@@ -36,8 +35,6 @@ import com.example.fitlog.ui.components.FitLogSheetTitle
 import com.example.fitlog.ui.components.SettingsFormCard
 import com.example.fitlog.ui.components.SettingsGroup
 import com.example.fitlog.ui.components.SettingsSectionTitle
-import com.example.fitlog.ui.preview.FitLogPreview
-import com.example.fitlog.ui.preview.FitLogPreviews
 
 /** Connection credentials and model selection remain separate groups with one explicit Save action. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -300,15 +297,3 @@ internal data class AiSettingsActions(
     val changeModel: (String) -> Unit = {},
     val newConnection: (String, String) -> Unit = { _, _ -> },
 )
-
-@FitLogPreviews
-@Composable
-private fun AiSettingsPreview() {
-    val provider = AiProviderConnection("preview-provider", stringResource(R.string.ai_deepseek),
-        AiSettingsViewModel.DEEPSEEK_URL, listOf("deepseek-chat", "deepseek-reasoner"))
-    FitLogPreview {
-        AiSettingsContent(AiSettingsUiState(providers = listOf(provider), providerId = provider.id,
-            name = provider.name, apiKey = "preview-key", modelIds = provider.modelIds, selectedModel = "deepseek-chat",
-            currentSelection = AiModelSelection(provider.id, "deepseek-chat"), canSave = true), AiSettingsActions(), {})
-    }
-}

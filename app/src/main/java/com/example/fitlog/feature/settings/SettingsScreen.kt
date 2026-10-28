@@ -14,8 +14,6 @@ import com.example.fitlog.ui.components.FitLogSettingsPage
 import com.example.fitlog.ui.components.SettingsEntry
 import com.example.fitlog.ui.components.SettingsGroup
 import com.example.fitlog.ui.components.SettingsSectionTitle
-import com.example.fitlog.ui.preview.FitLogPreview
-import com.example.fitlog.ui.preview.FitLogPreviews
 
 @Composable
 internal fun themeModeLabel(mode: ThemeMode): String = stringResource(when (mode) {
@@ -69,11 +67,4 @@ internal fun SettingsScreen(
             }
         }
     }
-}
-
-@FitLogPreviews
-@Composable
-private fun SettingsPreview() {
-    FitLogPreview { SettingsScreen(AppearancePreferences(), true, VaultConfigState.NotConfigured,
-        {}, {}, {}, {}, {}) }
 }

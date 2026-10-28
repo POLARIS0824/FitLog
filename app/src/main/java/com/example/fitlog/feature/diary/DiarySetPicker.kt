@@ -26,7 +26,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,7 +36,6 @@ import com.example.fitlog.ui.components.FitLogConnectedButtonGroup
 import com.example.fitlog.ui.components.FitLogSheetActions
 import com.example.fitlog.ui.components.FitLogSheetDefaults
 import com.example.fitlog.ui.components.FitLogSheetTitle
-import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.ui.training.WeightEditValue
 import com.example.fitlog.ui.training.enteredReps
 import com.example.fitlog.ui.training.enteredWeight
@@ -326,36 +324,4 @@ private fun <T> NumberSnapPicker(values: List<T>, initial: Int, horizontal: Bool
         else LazyColumn(state = list, contentPadding = padding, flingBehavior = fling,
             modifier = Modifier.fillMaxWidth().height(itemHeight * 5), content = content)
     }
-}
-
-@Preview(name = "Weight picker", widthDp = 412, heightDp = 800, locale = "en")
-@Composable
-private fun DiaryWeightPickerReviewPreview() {
-    FitLogPreview {
-        DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 0), 1, DiarySetField.WEIGHT,
-            weight = 60.0, unit = WeightUnit.KG, reps = 8, basis = WeightBasis.TOTAL),
-            onDismiss = {}, onWeight = {}, onReps = {})
-    }
-}
-
-@Preview(name = "Weight picker · Large text", widthDp = 320, heightDp = 1400, fontScale = 2f, locale = "zh")
-@Composable
-private fun DiaryWeightPickerLargeTextReviewPreview() {
-    DiaryWeightPickerReviewPreview()
-}
-
-@Preview(name = "Reps picker", widthDp = 412, heightDp = 800, locale = "en")
-@Composable
-private fun DiaryRepsPickerReviewPreview() {
-    FitLogPreview {
-        DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 0), 1, DiarySetField.REPS,
-            weight = 60.0, unit = WeightUnit.KG, reps = 8, basis = WeightBasis.TOTAL),
-            onDismiss = {}, onWeight = {}, onReps = {})
-    }
-}
-
-@Preview(name = "Reps picker · Large text", widthDp = 320, heightDp = 1400, fontScale = 2f, locale = "zh")
-@Composable
-private fun DiaryRepsPickerLargeTextReviewPreview() {
-    DiaryRepsPickerReviewPreview()
 }

@@ -2,7 +2,6 @@
 
 package com.example.fitlog.feature.vault
 
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -42,8 +41,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -65,8 +64,6 @@ import com.example.fitlog.ui.components.FitLogBackGuard
 import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogLoadingIndicator
 import com.example.fitlog.ui.components.fitLogPagePadding
-import com.example.fitlog.ui.preview.FitLogPreview
-import com.example.fitlog.ui.preview.FitLogPreviews
 
 /**
  * 页面接入层：负责系统选择器、生命周期感知的状态收集与导航衔接。
@@ -588,162 +585,4 @@ private fun capabilityStringRes(status: VaultAccessStatus): Int = when (status) 
     VaultAccessStatus.NeedsReauthorization -> R.string.vault_capability_needs_reauthorization
     VaultAccessStatus.DirectoryUnavailable -> R.string.vault_capability_unavailable
     else -> R.string.vault_setup_error_access_failed
-}
-
-// ======================== Previews ========================
-
-@FitLogPreviews
-@Composable
-private fun VaultSetupLoadingPreview() {
-    FitLogPreview {
-        VaultSetupScreen(
-            uiState = VaultSetupUiState(configState = VaultConfigUiState.Loading),
-            onChooseFolderClick = {},
-            onConfirmClick = {},
-            onRetryClick = {},
-        )
-    }
-}
-
-@FitLogPreviews
-@Composable
-private fun VaultSetupNotConfiguredPreview() {
-    FitLogPreview {
-        VaultSetupScreen(
-            uiState = VaultSetupUiState(
-                configState = VaultConfigUiState.NotConfigured,
-            ),
-            onChooseFolderClick = {},
-            onConfirmClick = {},
-            onRetryClick = {},
-        )
-    }
-}
-
-@FitLogPreviews
-@Composable
-private fun VaultSetupConfiguredPreview() {
-    FitLogPreview {
-        VaultSetupScreen(
-            uiState = VaultSetupUiState(
-                configState = VaultConfigUiState.Configured(
-                    VaultFolderInfo(
-                        uri = Uri.EMPTY,
-                        displayName = "My Workouts",
-                        accessStatus = VaultAccessStatus.Readable,
-                    )
-                ),
-            ),
-            onChooseFolderClick = {},
-            onConfirmClick = {},
-            onRetryClick = {},
-        )
-    }
-}
-
-@FitLogPreviews
-@Composable
-private fun VaultSetupCandidatePreview() {
-    FitLogPreview {
-        VaultSetupScreen(
-            uiState = VaultSetupUiState(
-                configState = VaultConfigUiState.Configured(
-                    VaultFolderInfo(
-                        uri = Uri.EMPTY,
-                        displayName = "Old Vault",
-                        accessStatus = VaultAccessStatus.Readable,
-                    )
-                ),
-                candidateVault = VaultFolderInfo(
-                    uri = Uri.EMPTY,
-                    displayName = "New Obsidian Notes",
-                    accessStatus = VaultAccessStatus.Readable,
-                ),
-            ),
-            onChooseFolderClick = {},
-            onConfirmClick = {},
-            onRetryClick = {},
-        )
-    }
-}
-
-@FitLogPreviews
-@Composable
-private fun VaultSetupReadOnlyAddPreview() {
-    FitLogPreview {
-        VaultSetupScreen(
-            uiState = VaultSetupUiState(
-                configState = VaultConfigUiState.NotConfigured,
-                candidateVault = VaultFolderInfo(
-                    uri = Uri.EMPTY,
-                    displayName = "Read-Only Archive",
-                    accessStatus = VaultAccessStatus.Readable,
-                ),
-                errorResId = R.string.vault_error_read_only,
-            ),
-            onChooseFolderClick = {},
-            onConfirmClick = {},
-            onRetryClick = {},
-        )
-    }
-}
-
-@FitLogPreviews
-@Composable
-private fun VaultSetupCheckingPreview() {
-    FitLogPreview {
-        VaultSetupScreen(
-            uiState = VaultSetupUiState(
-                stage = VaultOperationStage.Checking,
-                candidateVault = VaultFolderInfo(
-                    uri = Uri.EMPTY,
-                    displayName = "Fitness Logs",
-                    accessStatus = VaultAccessStatus.Readable,
-                ),
-            ),
-            onChooseFolderClick = {},
-            onConfirmClick = {},
-            onRetryClick = {},
-        )
-    }
-}
-
-@FitLogPreviews
-@Composable
-private fun VaultSetupSavingPreview() {
-    FitLogPreview {
-        VaultSetupScreen(
-            uiState = VaultSetupUiState(
-                stage = VaultOperationStage.Saving,
-                candidateVault = VaultFolderInfo(
-                    uri = Uri.EMPTY,
-                    displayName = "Fitness Logs",
-                    accessStatus = VaultAccessStatus.Readable,
-                ),
-            ),
-            onChooseFolderClick = {},
-            onConfirmClick = {},
-            onRetryClick = {},
-        )
-    }
-}
-
-@FitLogPreviews
-@Composable
-private fun VaultSetupErrorPreview() {
-    FitLogPreview {
-        VaultSetupScreen(
-            uiState = VaultSetupUiState(
-                candidateVault = VaultFolderInfo(
-                    uri = Uri.EMPTY,
-                    displayName = "Fitness Logs",
-                    accessStatus = VaultAccessStatus.Readable,
-                ),
-                errorResId = R.string.vault_error_save_config_failed,
-            ),
-            onChooseFolderClick = {},
-            onConfirmClick = {},
-            onRetryClick = {},
-        )
-    }
 }

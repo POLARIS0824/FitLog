@@ -4,10 +4,8 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,7 +19,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.model.analysis.DiaryResultFreshness
@@ -33,7 +30,6 @@ import com.example.fitlog.model.analysis.ValidationIssue
 import com.example.fitlog.model.record.TrainingRecordDetails
 import com.example.fitlog.model.record.WeightBasis
 import com.example.fitlog.model.record.WeightUnit
-import com.example.fitlog.ui.preview.FitLogPreview
 import com.example.fitlog.ui.training.weightBasisLabel
 import java.text.NumberFormat
 import kotlin.math.floor
@@ -335,26 +331,4 @@ internal fun LazyListScope.confirmedItems(record: TrainingRecordDetails,
             }
         }
     }
-}
-
-@Preview(name = "Exercise card", widthDp = 412, heightDp = 800, locale = "en")
-@Composable
-private fun DiaryExerciseCardReviewPreview() {
-    FitLogPreview {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
-            DiaryExerciseCard(name = stringResource(R.string.preview_exercise_name), notes = null,
-                evidence = null, issues = emptyList(), canEdit = true,
-                onEdit = {}, onEditExercise = {}, onDeleteExercise = {},
-                sets = listOf(
-                    DiarySetUi(1, 60.0, WeightUnit.KG, WeightBasis.TOTAL, 8, DiarySetAddress(0, 0, 0)),
-                    DiarySetUi(2, null, null, WeightBasis.UNKNOWN, null, DiarySetAddress(0, 0, 1), userEdited = true),
-                ))
-        }
-    }
-}
-
-@Preview(name = "Exercise card · Large text", widthDp = 320, heightDp = 1300, fontScale = 2f, locale = "zh")
-@Composable
-private fun DiaryExerciseCardLargeTextReviewPreview() {
-    DiaryExerciseCardReviewPreview()
 }

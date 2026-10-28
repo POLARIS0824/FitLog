@@ -41,14 +41,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
-import com.example.fitlog.ui.preview.FitLogPreview
-import com.example.fitlog.ui.preview.FitLogPreviews
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -240,13 +237,4 @@ private fun TodayLibrary(
             }
         }
     }
-}
-
-@FitLogPreviews
-@Preview(name = "Small phone", locale = "en", widthDp = 320, heightDp = 640, showBackground = true)
-@Preview(name = "Large text", locale = "en", widthDp = 360, heightDp = 800, fontScale = 2f, showBackground = true)
-@Preview(name = "Wide window", locale = "en", widthDp = 1024, heightDp = 768, showBackground = true)
-@Composable
-private fun TodayPreview() {
-    FitLogPreview { TodayScreen({}, {}, {}, {}) }
 }

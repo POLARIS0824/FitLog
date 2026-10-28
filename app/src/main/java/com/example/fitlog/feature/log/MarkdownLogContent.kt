@@ -36,9 +36,6 @@ import com.example.fitlog.ui.components.FitLogTopAppBar
 import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberDelayedLoading
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
-import com.example.fitlog.ui.preview.FitLogPreview
-import com.example.fitlog.ui.preview.FitLogPreviews
-import com.example.fitlog.ui.preview.PreviewDiary
 
 @Composable
 internal fun MarkdownLogContent(
@@ -270,20 +267,3 @@ internal data class LogActions(
     val cancelAnalysis: () -> Unit = {},
     val openAiSettings: () -> Unit = {},
 )
-
-@FitLogPreviews
-@Composable
-private fun LogPreview() {
-    val files = listOf(PreviewDiary.file)
-    FitLogPreview {
-        LogContent(LogUiState(vault = PreviewDiary.VAULT_URI,
-            files = files, visibleFiles = files, scanStatus = IndexedScan.COMPLETE),
-            LogActions(), { _, _ -> }, {}, {})
-    }
-}
-
-@FitLogPreviews
-@Composable
-private fun LogEmptyPreview() {
-    FitLogPreview { LogContent(LogUiState(), LogActions(), { _, _ -> }, {}, {}) }
-}

@@ -23,8 +23,6 @@ import com.example.fitlog.ui.components.FitLogSettingsPage
 import com.example.fitlog.ui.components.SettingsFormCard
 import com.example.fitlog.ui.components.SettingsGroup
 import com.example.fitlog.ui.components.SettingsSectionTitle
-import com.example.fitlog.ui.preview.FitLogPreview
-import com.example.fitlog.ui.preview.FitLogPreviews
 
 @Composable
 internal fun AppearanceScreen(vm: AppearanceViewModel, onBack: () -> Unit) {
@@ -98,10 +96,4 @@ internal fun AppearanceContent(
             }
         }
     }
-}
-
-@FitLogPreviews
-@Composable
-private fun AppearancePreview() {
-    FitLogPreview { AppearanceContent(AppearancePreferences(), true, false, null, {}, {}, {}, {}) }
 }

@@ -1,22 +1,10 @@
 package com.example.fitlog.feature.vault
 
-import android.net.Uri
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.fitlog.data.vault.VaultAccessStatus
-import com.example.fitlog.data.vault.VaultFolderInfo
-import com.example.fitlog.ui.theme.FitLogTheme
 
 /**
  * 全局卡片配色切换锚点。
@@ -108,95 +96,5 @@ fun vaultCardPalette(
                 color = if (pending) c.primary else c.outlineVariant,
             ),
         )
-    }
-}
-
-// ======================== 配色方案对比 Preview ========================
-
-private val mockSampleFolder = VaultFolderInfo(
-    uri = Uri.EMPTY,
-    displayName = "FitLog Obsidian Vault",
-    accessStatus = VaultAccessStatus.Readable,
-)
-
-@Preview(name = "1. Primary Tonal", showBackground = true)
-@Composable
-private fun PreviewPrimaryTonal() {
-    FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = true, style = VaultCardStyle.PrimaryTonal)
-    }
-}
-
-@Preview(name = "2. Secondary Tonal", showBackground = true)
-@Composable
-private fun PreviewSecondaryTonal() {
-    FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = true, style = VaultCardStyle.SecondaryTonal)
-    }
-}
-
-@Preview(name = "3. Tertiary Tonal", showBackground = true)
-@Composable
-private fun PreviewTertiaryTonal() {
-    FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = true, style = VaultCardStyle.TertiaryTonal)
-    }
-}
-
-@Preview(name = "4. State Aware (Pending)", showBackground = true)
-@Composable
-private fun PreviewStateAwarePending() {
-    FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = true, style = VaultCardStyle.StateAware)
-    }
-}
-
-@Preview(name = "4. State Aware (Current)", showBackground = true)
-@Composable
-private fun PreviewStateAwareCurrent() {
-    FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = false, style = VaultCardStyle.StateAware)
-    }
-}
-
-@Preview(name = "5. Outlined (Pending)", showBackground = true)
-@Composable
-private fun PreviewOutlinedPending() {
-    FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = true, style = VaultCardStyle.Outlined)
-    }
-}
-
-@Preview(name = "5. Outlined (Current)", showBackground = true)
-@Composable
-private fun PreviewOutlinedCurrent() {
-    FitLogTheme {
-        VaultCard(folder = mockSampleFolder, pending = false, style = VaultCardStyle.Outlined)
-    }
-}
-
-@Preview(name = "All 5 Styles Gallery", showBackground = true, heightDp = 1600)
-@Composable
-private fun PreviewAllStylesGallery() {
-    FitLogTheme {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            VaultCardStyle.entries.forEach { style ->
-                Text(
-                    text = "方案: ${style.name}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                VaultCard(
-                    folder = mockSampleFolder,
-                    pending = true,
-                    style = style,
-                )
-            }
-        }
     }
 }

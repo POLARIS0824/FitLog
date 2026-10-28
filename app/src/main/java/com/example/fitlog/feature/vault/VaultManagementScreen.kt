@@ -13,8 +13,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
-import com.example.fitlog.data.vault.VaultAccessStatus
-import com.example.fitlog.data.vault.VaultFolderInfo
 import com.example.fitlog.ui.components.FitLogBackGuard
 import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogLoadingIndicator
@@ -22,8 +20,6 @@ import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogTopAppBar
 import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
-import com.example.fitlog.ui.preview.FitLogPreview
-import com.example.fitlog.ui.preview.FitLogPreviews
 
 @Composable
 internal fun VaultManagementScreen(vm: VaultManagementViewModel, onConnect: () -> Unit, onBack: () -> Unit) {
@@ -96,11 +92,3 @@ private data class VaultManagementActions(
     val cancelDisconnect: () -> Unit = {},
     val disconnect: () -> Unit = {},
 )
-
-@FitLogPreviews
-@Composable
-private fun VaultManagementPreview() {
-    val folder = VaultFolderInfo(android.net.Uri.EMPTY, stringResource(R.string.preview_vault_name),
-        com.example.fitlog.data.vault.VaultAccessStatus.Readable)
-    FitLogPreview { VaultManagementContent(VaultManagementUiState(folder = folder), VaultManagementActions(), {}, {}) }
-}

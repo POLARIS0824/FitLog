@@ -19,8 +19,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
 import com.example.fitlog.domain.analysis.diaryDateFromFileName
-import com.example.fitlog.feature.diary.navigation.DiaryDetailNavKey
-import com.example.fitlog.model.analysis.DiaryParseRecords
 import com.example.fitlog.model.analysis.DiaryResultFreshness
 import com.example.fitlog.model.analysis.ParseRunStatus
 import com.example.fitlog.model.record.WeightBasis
@@ -34,9 +32,6 @@ import com.example.fitlog.ui.components.FitLogTopAppBar
 import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberDelayedLoading
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
-import com.example.fitlog.ui.preview.FitLogPreview
-import com.example.fitlog.ui.preview.FitLogPreviews
-import com.example.fitlog.ui.preview.PreviewDiary
 import com.example.fitlog.ui.training.WeightEditValue
 import java.text.DateFormat
 import java.util.Date
@@ -400,54 +395,3 @@ internal data class DiaryDetailActions(
 )
 
 private data class DiaryReviewRemoval(val title: Int, val draft: DiaryReviewDraft, val apply: () -> Unit)
-
-@FitLogPreviews
-@Composable
-private fun DiaryOriginalPreview() {
-    val original = PreviewDiary.snapshot()
-    FitLogPreview { DiaryDetailContent(DiaryDetailUiState(previewDiaryRoute, original = original), DiaryDetailActions(), {}, {}) }
-}
-
-@FitLogPreviews
-@Composable
-private fun DiaryAnalysisPreview() {
-    val candidate = PreviewDiary.candidate()
-    FitLogPreview {
-        DiaryDetailContent(DiaryDetailUiState(previewDiaryRoute, tab = DiaryDetailTab.ANALYSIS,
-            parses = DiaryParseRecords(listOf(candidate.attempt), candidate), candidateStatus = DiaryResultFreshness.CURRENT, canReview = true),
-            DiaryDetailActions(), {}, {})
-    }
-}
-
-@FitLogPreviews
-@Composable
-private fun DiaryAnalysisEmptyPreview() {
-    FitLogPreview { DiaryDetailContent(DiaryDetailUiState(previewDiaryRoute, tab = DiaryDetailTab.ANALYSIS), DiaryDetailActions(), {}, {}) }
-}
-
-@FitLogPreviews
-@Composable
-private fun DiaryWeightPickerPreview() {
-    FitLogPreview { DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 1), 2, DiarySetField.WEIGHT, 60.0, WeightUnit.KG, 8), {}, {}, {}) }
-}
-
-@FitLogPreviews
-@Composable
-private fun DiaryPoundsPickerPreview() {
-    FitLogPreview { DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 1), 2, DiarySetField.WEIGHT, 100.0, WeightUnit.LB, 8), {}, {}, {}) }
-}
-
-@FitLogPreviews
-@Composable
-private fun DiaryUnspecifiedUnitPickerPreview() {
-    FitLogPreview { DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 1), 2, DiarySetField.WEIGHT, 60.0, null, 8), {}, {}, {}) }
-}
-
-@FitLogPreviews
-@Composable
-private fun DiaryRepsPickerPreview() {
-    FitLogPreview { DiarySetPickerContent(DiarySetEdit(DiarySetAddress(0, 0, 1), 2, DiarySetField.REPS, 60.0, WeightUnit.KG, 8), {}, {}, {}) }
-}
-
-private val previewDiaryRoute = DiaryDetailNavKey(PreviewDiary.VAULT_URI, PreviewDiary.VAULT_ID,
-    PreviewDiary.DOCUMENT, PreviewDiary.PATH, PreviewDiary.VAULT_URI, PreviewDiary.FILE_NAME)
