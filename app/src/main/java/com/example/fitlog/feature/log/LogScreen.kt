@@ -15,6 +15,12 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.fitlog.data.settings.UiLook
+import com.example.fitlog.ui.glass.LocalUiLook
+import androidx.compose.ui.graphics.Color
+import com.example.fitlog.ui.glass.glassSurface
+import com.example.fitlog.ui.glass.LookSurface
+import com.example.fitlog.ui.glass.glassPageSource
 import com.example.fitlog.R
 import com.example.fitlog.data.vault.MarkdownFile
 import com.example.fitlog.model.record.RecordKind
@@ -50,12 +56,12 @@ internal fun LogScreen(vm: LogViewModel,
         }
         if (markdown) MarkdownLogContent(vm, onOpenMarkdown, onConnect, onManage,
             modifier = Modifier.weight(1f), onReview = onReview, onAiSettings = onAiSettings, showAppBar = false, listState = markdownListState)
-        else LazyColumn(state = nativeListState, modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().weight(1f),
+        else LazyColumn(state = nativeListState, modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().weight(1f).glassPageSource(),
             contentPadding = PaddingValues(start = pagePadding, top = 16.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 val empty = !error && !state.recordsLoading && records.isEmpty()
-                Surface(shape = if (empty) MaterialTheme.shapes.extraLarge else RectangleShape,
+                LookSurface(shape = if (empty) MaterialTheme.shapes.extraLarge else RectangleShape,
                     color = if (empty) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface) {
                     Column(Modifier.fillMaxWidth().then(if (empty) Modifier.padding(24.dp) else Modifier),
                         verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -80,7 +86,10 @@ internal fun LogScreen(vm: LogViewModel,
             }
             items(records, key = { it.diary.id }) { record ->
                 Surface(onClick = { onOpenNative(record.diary.id) }, shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                    modifier = if (LocalUiLook.current == UiLook.LIQUID_GLASS)
+                        Modifier.glassSurface(MaterialTheme.shapes.large) else Modifier,
+                    color = if (LocalUiLook.current == UiLook.LIQUID_GLASS)
+                        Color.Transparent else MaterialTheme.colorScheme.surfaceContainerLow) {
                     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(record.diary.date, style = MaterialTheme.typography.titleLargeEmphasized)
                         val names = record.sessions.flatMap { it.exercises }.map { it.exercise.rawName.trim() }.filter { it.isNotEmpty() }

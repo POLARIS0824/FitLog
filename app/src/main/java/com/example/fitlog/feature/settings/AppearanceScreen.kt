@@ -18,6 +18,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
 import com.example.fitlog.data.settings.AppearancePreferences
 import com.example.fitlog.data.settings.ThemeMode
+import com.example.fitlog.data.settings.UiLook
+import com.example.fitlog.ui.glass.GlassLookPicker
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogSettingsPage
 import com.example.fitlog.ui.components.SettingsFormCard
@@ -28,7 +30,8 @@ import com.example.fitlog.ui.components.SettingsSectionTitle
 internal fun AppearanceScreen(vm: AppearanceViewModel, onBack: () -> Unit) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     AppearanceContent(state.preferences, state.canEdit, state.loading || state.saving, state.message,
-        vm::changeThemeMode, vm::changeDynamicColor, vm::reload, onBack)
+        vm::changeThemeMode, vm::changeDynamicColor, vm::reload, onBack,
+        onLook = vm::changeLook, onLiquidGlass = vm::changeLiquidGlass)
 }
 
 @Composable
@@ -42,6 +45,8 @@ internal fun AppearanceContent(
     onRetry: () -> Unit,
     onBack: () -> Unit,
     dynamicColorSupported: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+    onLook: (UiLook) -> Unit = {},
+    onLiquidGlass: (Boolean) -> Unit = {},
 ) {
     FitLogSettingsPage(stringResource(R.string.appearance_title), onBack, loading = busy) {
         message?.let { item {
@@ -53,6 +58,25 @@ internal fun AppearanceContent(
             }
         } }
         item {
+            SettingsSectionTitle(stringResource(R.string.look_heading))
+            GlassLookPicker(preferences.look, canEdit, onLook)
+        }
+        if (preferences.look == UiLook.LIQUID_GLASS) item {
+            SettingsGroup {
+                Row(Modifier.fillMaxWidth().toggleable(value = preferences.liquidGlass,
+                    enabled = canEdit && dynamicColorSupported, role = Role.Switch, onValueChange = onLiquidGlass)
+                    .padding(20.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(stringResource(R.string.look_effect_title), style = MaterialTheme.typography.titleMediumEmphasized)
+                        Text(stringResource(if (dynamicColorSupported) R.string.look_effect_description else R.string.look_effect_unsupported),
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(preferences.liquidGlass, onCheckedChange = null, enabled = canEdit && dynamicColorSupported)
+                }
+            }
+        }
+        if (preferences.look == UiLook.CLASSIC) item {
             SettingsSectionTitle(stringResource(R.string.appearance_theme_heading))
             Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
                 ThemeMode.entries.forEach { mode ->
@@ -78,7 +102,7 @@ internal fun AppearanceContent(
                 }
             }
         }
-        item {
+        if (preferences.look == UiLook.CLASSIC) item {
             SettingsSectionTitle(stringResource(R.string.appearance_colors_heading))
             SettingsGroup {
                 Row(Modifier.fillMaxWidth().toggleable(value = preferences.dynamicColor,

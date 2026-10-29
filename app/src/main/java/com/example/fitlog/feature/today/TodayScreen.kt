@@ -49,6 +49,9 @@ import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import com.example.fitlog.data.settings.UiLook
+import com.example.fitlog.ui.glass.LocalUiLook
+import com.example.fitlog.ui.glass.GlassTodayScreen
 
 @Composable
 fun TodayScreen(
@@ -62,6 +65,10 @@ fun TodayScreen(
     val date = LocalDate.now().format(
         DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale)
     )
+    if (LocalUiLook.current == UiLook.LIQUID_GLASS) {
+        GlassTodayScreen(date, onSettings, onOpenToday, onOpenLog, onImportFolder, modifier)
+        return
+    }
     val behavior = rememberFitLogTopAppBarBehavior(scrollAway = true)
     val windowSize = LocalWindowInfo.current.containerSize
     val windowWidth = with(LocalDensity.current) { windowSize.width.toDp() }

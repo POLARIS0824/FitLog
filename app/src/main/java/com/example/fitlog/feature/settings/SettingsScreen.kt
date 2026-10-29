@@ -9,6 +9,7 @@ import androidx.compose.ui.res.stringResource
 import com.example.fitlog.R
 import com.example.fitlog.data.settings.AppearancePreferences
 import com.example.fitlog.data.settings.ThemeMode
+import com.example.fitlog.data.settings.UiLook
 import com.example.fitlog.data.vault.VaultConfigState
 import com.example.fitlog.ui.components.FitLogSettingsPage
 import com.example.fitlog.ui.components.SettingsEntry
@@ -38,7 +39,8 @@ internal fun SettingsScreen(
             SettingsSectionTitle(stringResource(R.string.settings_personalization_heading))
             SettingsGroup {
                 SettingsEntry(R.drawable.palette_24px, stringResource(R.string.appearance_title),
-                    if (appearanceReady) stringResource(R.string.appearance_summary, themeModeLabel(appearance.themeMode),
+                    if (appearanceReady && appearance.look == UiLook.LIQUID_GLASS) stringResource(R.string.look_liquid)
+                    else if (appearanceReady) stringResource(R.string.appearance_summary, themeModeLabel(appearance.themeMode),
                         stringResource(if (appearance.dynamicColor && Build.VERSION.SDK_INT >= 31)
                             R.string.appearance_dynamic_on else R.string.appearance_dynamic_off))
                     else stringResource(R.string.appearance_summary_unavailable), onAppearance, tone = 2)

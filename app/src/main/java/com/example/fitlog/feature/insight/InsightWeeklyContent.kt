@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fitlog.ui.glass.glassPageSource
 import com.example.fitlog.R
 import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.fitLogPagePadding
@@ -50,7 +51,7 @@ internal fun InsightWeeklyContent(
     listState: LazyListState,
 ) {
     val padding = fitLogPagePadding()
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize(),
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().glassPageSource(),
         contentPadding = PaddingValues(start = padding, end = padding, bottom = FitLogDimens.NavigationBottomPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item(key = "view") {

@@ -24,6 +24,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.fitlog.ui.glass.LocalUiLook
+import com.example.fitlog.data.settings.UiLook
+import com.example.fitlog.ui.glass.GlassSearchField
+import com.example.fitlog.ui.glass.glassPageSource
 import com.example.fitlog.R
 import com.example.fitlog.data.settings.LogSortOrder
 import com.example.fitlog.data.vault.MarkdownFile
@@ -89,12 +93,13 @@ internal fun LogContent(
         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxSize(),
+                modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxSize().glassPageSource(),
                 contentPadding = PaddingValues(start = pagePadding, top = 16.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
             ) {
                 if (state.vault != null) item(key = "header") {
-                    OutlinedTextField(
+                    if (LocalUiLook.current == UiLook.LIQUID_GLASS) GlassSearchField(searchFieldState)
+                    else OutlinedTextField(
                         state = searchFieldState, lineLimits = TextFieldLineLimits.SingleLine,
                         label = { Text(stringResource(R.string.log_search)) },
                         shape = CircleShape,

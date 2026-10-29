@@ -12,9 +12,14 @@ import kotlinx.coroutines.flow.map
 
 internal enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/** A separate look, independent of the existing Material theme preferences. */
+internal enum class UiLook { CLASSIC, LIQUID_GLASS }
+
 internal data class AppearancePreferences(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
+    val look: UiLook = UiLook.CLASSIC,
+    val liquidGlass: Boolean = true,
 )
 
 internal interface AppearanceSettingsStore {
@@ -30,6 +35,8 @@ internal class AppearancePreferencesStore(private val dataStore: DataStore<Prefe
         AppearancePreferences(
             themeMode = values[THEME_MODE]?.let(ThemeMode::valueOf) ?: ThemeMode.SYSTEM,
             dynamicColor = values[DYNAMIC_COLOR] ?: true,
+            look = UiLook.entries.firstOrNull { it.name == values[UI_LOOK] } ?: UiLook.CLASSIC,
+            liquidGlass = values[LIQUID_GLASS] ?: true,
         )
     }
 
@@ -37,11 +44,15 @@ internal class AppearancePreferencesStore(private val dataStore: DataStore<Prefe
         dataStore.edit {
             it[THEME_MODE] = settings.themeMode.name
             it[DYNAMIC_COLOR] = settings.dynamicColor
+            it[UI_LOOK] = settings.look.name
+            it[LIQUID_GLASS] = settings.liquidGlass
         }
     }
 
     private companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val UI_LOOK = stringPreferencesKey("ui_look")
+        val LIQUID_GLASS = booleanPreferencesKey("liquid_glass")
     }
 }

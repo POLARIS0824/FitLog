@@ -1,0 +1,35 @@
+Liquid Glass rendering and navigation adapted from Myspoti at
+320ba2a8fef4019b6c9da85c7f618399c6e4064a (https://github.com/kota-zo/myspoti).
+Myspoti adapts BitChord edc1e6f (https://github.com/kushagrasinghx/BitChord)
+and Echo-Music (https://github.com/EchoMusicApp/Echo-Music).
+LiquidGlass.kt, FloatingTabBar.kt and GlassSelectionPill.kt retain GPL-3.0-or-later
+headers. See liquid-glass-GPL-3.0.txt for the license.
+FitLog modifications: package and logging adapters; native FitLog destinations,
+accessibility tab semantics, and DataStore-backed opt-in look.
+
+FloatingTabBar v1.0.1 by Elyes Mansour
+https://github.com/elyesmansour/compose-floating-tab-bar
+Apache License 2.0 (backdrop-Apache-2.0.txt).
+
+The selection pill's motion follows liquid_glass_easy 4.3.4
+https://pub.dev/packages/liquid_glass_easy
+Copyright (c) 2025 Ahmed Gamil
+MIT License:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

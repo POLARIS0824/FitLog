@@ -17,6 +17,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.example.fitlog.data.settings.UiLook
+import com.example.fitlog.ui.glass.LocalUiLook
+import com.example.fitlog.ui.glass.LookSurface
+import com.example.fitlog.ui.glass.glassPageSource
 
 /** The app owns system insets; this frame owns the app bar and one scrolling content list. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,14 +35,15 @@ internal fun FitLogSettingsPage(
 ) {
     val behavior = rememberFitLogTopAppBarBehavior()
     val pagePadding = fitLogPagePadding()
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLow)
+    Column(Modifier.fillMaxSize().background(if (LocalUiLook.current == UiLook.LIQUID_GLASS)
+        androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surfaceContainerLow)
         .nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
         FitLogTopAppBar(title, behavior, maxContentWidth = FitLogDimens.ContentWidth,
             onBack = onBack, backEnabled = backEnabled, actions = actions)
 
         Box(Modifier.weight(1f).widthIn(max = FitLogDimens.ContentWidth).fillMaxWidth().imePadding()) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().glassPageSource(),
                 contentPadding = PaddingValues(start = pagePadding, end = pagePadding, top = 16.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
                 content = content,
@@ -58,7 +63,7 @@ internal fun SettingsSectionTitle(title: String) {
 /** Continuous groups and thin dividers intentionally follow the supplied reference image. */
 @Composable
 internal fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
-    Surface(shape = MaterialTheme.shapes.extraLargeIncreased,
+    LookSurface(shape = MaterialTheme.shapes.extraLargeIncreased,
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
         modifier = Modifier.fillMaxWidth()) {
         Column(content = content)

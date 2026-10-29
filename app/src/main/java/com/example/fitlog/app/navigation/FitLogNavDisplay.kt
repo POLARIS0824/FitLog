@@ -10,6 +10,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import com.example.fitlog.data.settings.UiLook
+import com.example.fitlog.ui.glass.LocalUiLook
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -27,7 +30,10 @@ import kotlin.math.roundToInt
 internal fun FitLogNavDisplay(navigationState: FitLogNavigationState, onBack: () -> Unit,
     entryProvider: (NavKey, NavKey) -> NavEntry<NavKey>, modifier: Modifier = Modifier) {
     val surface = remember {
-        NavEntryDecorator<NavKey> { entry -> Surface(Modifier.fillMaxSize()) { entry.Content() } }
+        NavEntryDecorator<NavKey> { entry ->
+            Surface(Modifier.fillMaxSize(), color = if (LocalUiLook.current == UiLook.LIQUID_GLASS)
+                Color.Transparent else MaterialTheme.colorScheme.surface) { entry.Content() }
+        }
     }
     val motion = MaterialTheme.motionScheme
     val previewMargin = with(LocalDensity.current) { 8.dp.toPx() }
