@@ -49,6 +49,7 @@
     <string name="ai_parse_saved">Extraction saved as an AI candidate. Review it before confirmation.</string>
     <string name="ai_parse_save_failed">The extraction result could not be saved. The request may have been charged. Retry only when you choose to.</string>
     <string name="settings_analysis_heading">Diary analysis</string>
+    <string name="settings_data_analysis_heading">Data and analysis</string>
     <string name="settings_personalization_heading">Personalization</string>
     <string name="settings_vault_heading">Vault</string>
     <string name="settings_vault_description">Manage a read-only Markdown source</string>

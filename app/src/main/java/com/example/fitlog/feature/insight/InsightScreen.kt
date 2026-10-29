@@ -119,17 +119,16 @@ internal fun InsightDashboardContent(
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { notices() }
         item { InsightRangePicker(range, onSelectRange, enabled = rangeEnabled) }
-        item { InsightSummary(overview) }
-        if (overview.totals.sessions == 0) item {
-            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(stringResource(R.string.insight_empty_training), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.insight_empty_training_hint), style = MaterialTheme.typography.bodyMedium)
-                    FilledTonalButton(onClick = onOpenLog, shapes = ButtonDefaults.shapes()) {
-                        Text(stringResource(R.string.insight_open_log))
-                    }
-                }
+        item { InsightSummary(overview, onOpenLog) }
+        if (data.diaries.isEmpty()) {
+            item { Text(stringResource(R.string.record_coverage), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            if (data.sources.isNotEmpty()) item {
+                InsightRow(stringResource(R.string.insight_sources_title),
+                    stringResource(R.string.insight_sources_summary,
+                        data.sources.count { it.status == InsightSourceStatus.CURRENT }, data.sources.size), { onSheet("sources") })
             }
+            return@LazyColumn
         }
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,

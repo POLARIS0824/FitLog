@@ -45,15 +45,10 @@ internal fun SettingsScreen(
             }
         }
         item {
-            SettingsSectionTitle(stringResource(R.string.settings_analysis_heading))
+            SettingsSectionTitle(stringResource(R.string.settings_data_analysis_heading))
             SettingsGroup {
                 SettingsEntry(R.drawable.auto_awesome_24px, stringResource(R.string.ai_settings_title),
                     stringResource(R.string.settings_ai_description), onAiSettings)
-            }
-        }
-        item {
-            SettingsSectionTitle(stringResource(R.string.settings_vault_heading))
-            SettingsGroup {
                 SettingsEntry(R.drawable.folder_open_24px, stringResource(R.string.vault_management_title),
                     stringResource(when (config) {
                         VaultConfigState.Loading -> R.string.vault_setup_loading_config

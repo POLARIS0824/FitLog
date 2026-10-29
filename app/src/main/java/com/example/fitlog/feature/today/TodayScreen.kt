@@ -112,50 +112,50 @@ private fun TodayTrainingCard(
     showIllustration: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Surface(
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                if (showIllustration) TodayTrainingIllustration()
-                Text(
-                    text = stringResource(R.string.today_hero_title),
-                    style = MaterialTheme.typography.displaySmallEmphasized,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.semantics { heading() },
-                )
-                Text(
-                    text = stringResource(R.string.today_hero_description),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        val largeText = LocalDensity.current.fontScale >= 1.3f
-        val height = ButtonDefaults.MediumContainerHeight
-        Button(
-            onClick = onOpenToday,
-            shapes = ButtonDefaults.shapesFor(height),
-            contentPadding = if (largeText) PaddingValues(16.dp)
-                else ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight),
-            modifier = Modifier.fillMaxWidth().heightIn(min = height),
-        ) {
-            if (!largeText) {
-                Icon(
-                    painter = painterResource(R.drawable.note_add_24px),
-                    contentDescription = null,
-                    modifier = Modifier.size(ButtonDefaults.iconSizeFor(height)),
-                )
-                Spacer(Modifier.width(ButtonDefaults.iconSpacingFor(height)))
-            }
+            if (showIllustration) TodayTrainingIllustration()
             Text(
-                text = stringResource(R.string.today_write),
-                style = MaterialTheme.typography.titleMediumEmphasized,
+                text = stringResource(R.string.today_hero_title),
+                style = MaterialTheme.typography.displaySmallEmphasized,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.semantics { heading() },
             )
+            Text(
+                text = stringResource(R.string.today_hero_description),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            val largeText = LocalDensity.current.fontScale >= 1.3f
+            val height = ButtonDefaults.MediumContainerHeight
+            Button(
+                onClick = onOpenToday,
+                shapes = ButtonDefaults.shapesFor(height),
+                contentPadding = if (largeText) PaddingValues(16.dp)
+                    else ButtonDefaults.contentPaddingFor(height),
+                modifier = Modifier.fillMaxWidth().heightIn(min = height),
+            ) {
+                if (!largeText) {
+                    Icon(
+                        painter = painterResource(R.drawable.note_add_24px),
+                        contentDescription = null,
+                        modifier = Modifier.size(ButtonDefaults.iconSizeFor(height)),
+                    )
+                    Spacer(Modifier.width(ButtonDefaults.iconSpacingFor(height)))
+                }
+                Text(
+                    text = stringResource(R.string.today_write),
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                )
+            }
         }
     }
 }
@@ -198,20 +198,15 @@ private fun TodayLibrary(
                 onClick = onOpenLog,
                 shapes = ListItemDefaults.segmentedShapes(0, 2),
                 colors = ListItemDefaults.segmentedColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                 ),
                 leadingContent = {
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = MaterialTheme.shapes.medium,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.list_alt_24px),
-                            contentDescription = null,
-                            modifier = Modifier.padding(12.dp).size(24.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                    }
+                    Icon(
+                        painter = painterResource(R.drawable.list_alt_24px),
+                        contentDescription = null,
+                        modifier = Modifier.padding(12.dp).size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 },
                 supportingContent = { Text(stringResource(R.string.today_browse_description)) },
             ) {
@@ -221,7 +216,7 @@ private fun TodayLibrary(
                 onClick = onImportFolder,
                 shapes = ListItemDefaults.segmentedShapes(1, 2),
                 colors = ListItemDefaults.segmentedColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                 ),
                 leadingContent = {
                     Icon(

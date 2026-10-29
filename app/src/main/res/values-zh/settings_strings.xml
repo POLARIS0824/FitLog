@@ -49,6 +49,7 @@
     <string name="ai_parse_saved">解析结果已保存为 AI 候选，请审阅后再确认。</string>
     <string name="ai_parse_save_failed">解析结果未能保存，请求可能已计费。由你决定是否重新解析。</string>
     <string name="settings_analysis_heading">日记分析</string>
+    <string name="settings_data_analysis_heading">数据与分析</string>
     <string name="settings_personalization_heading">个性化</string>
     <string name="settings_vault_heading">资料库</string>
     <string name="settings_vault_description">管理只读 Markdown 数据源</string>

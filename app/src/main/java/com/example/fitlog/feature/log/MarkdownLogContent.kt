@@ -93,7 +93,7 @@ internal fun LogContent(
                 contentPadding = PaddingValues(start = pagePadding, top = 16.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
             ) {
-                item(key = "header") {
+                if (state.vault != null) item(key = "header") {
                     OutlinedTextField(
                         state = searchFieldState, lineLimits = TextFieldLineLimits.SingleLine,
                         label = { Text(stringResource(R.string.log_search)) },
@@ -106,7 +106,8 @@ internal fun LogContent(
                             }
                         },
                     )
-                    TextButton(onClick = { toolsExpanded = !toolsExpanded }, shapes = ButtonDefaults.shapes()) {
+                    OutlinedButton(onClick = { toolsExpanded = !toolsExpanded }, shapes = ButtonDefaults.shapes(),
+                        modifier = Modifier.padding(top = 12.dp).heightIn(min = 48.dp)) {
                         Text(stringResource(if (toolsExpanded) R.string.log_hide_tools else R.string.log_show_tools,
                             stringResource(state.statusFilter.label)))
                     }
@@ -132,7 +133,7 @@ internal fun LogContent(
                     }
                     }
                     Text(stringResource(when {
-                        showLoading && state.vault != null -> R.string.index_scanning
+                        showLoading -> R.string.index_scanning
                         state.scanStatus == IndexedScan.COMPLETE -> R.string.index_complete
                         state.scanStatus == IndexedScan.PARTIAL -> R.string.index_partial
                         state.scanStatus == IndexedScan.FAILED -> R.string.index_failed
@@ -176,10 +177,10 @@ internal fun LogContent(
                                     state.vault == null -> R.string.log_no_vault
                                     state.files.isEmpty() -> R.string.log_empty
                                     else -> R.string.log_no_matches
-                                }), style = MaterialTheme.typography.titleMedium)
+                                }), style = MaterialTheme.typography.headlineSmallEmphasized)
                                 if (state.vault == null) Button(onClick = onConnect,
                                     shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
-                                    modifier = Modifier.heightIn(min = ButtonDefaults.MediumContainerHeight),
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = ButtonDefaults.MediumContainerHeight),
                                     contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)) {
                                     Text(stringResource(R.string.log_connect), style = MaterialTheme.typography.titleMediumEmphasized)
                                 }

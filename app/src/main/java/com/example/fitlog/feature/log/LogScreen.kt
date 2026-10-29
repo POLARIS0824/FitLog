@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -52,48 +53,55 @@ internal fun LogScreen(vm: LogViewModel,
         else LazyColumn(state = nativeListState, modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(start = pagePadding, top = 16.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Text(stringResource(R.string.record_ui_list_subtitle), style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item {
-                Button(onClick = { onOpenNative(null) },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = ButtonDefaults.MediumContainerHeight),
-                    shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
-                    contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)) {
-                    Icon(painterResource(R.drawable.add_24px), null, Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MediumContainerHeight)))
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(stringResource(R.string.record_new), style = MaterialTheme.typography.titleMediumEmphasized)
+                val empty = !error && !state.recordsLoading && records.isEmpty()
+                Surface(shape = if (empty) MaterialTheme.shapes.extraLarge else RectangleShape,
+                    color = if (empty) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface) {
+                    Column(Modifier.fillMaxWidth().then(if (empty) Modifier.padding(24.dp) else Modifier),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        if (empty) Text(stringResource(R.string.record_no_records),
+                            style = MaterialTheme.typography.headlineSmallEmphasized)
+                        Text(stringResource(R.string.record_ui_list_subtitle), style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(onClick = { onOpenNative(null) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = ButtonDefaults.MediumContainerHeight),
+                            shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
+                            contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)) {
+                            Icon(painterResource(R.drawable.add_24px), null, Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MediumContainerHeight)))
+                            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                            Text(stringResource(R.string.record_new), style = MaterialTheme.typography.titleMediumEmphasized)
+                        }
+                    }
                 }
             }
             if (error) item {
                 FitLogNotice(stringResource(R.string.record_read_failed), error = true)
                 TextButton(onClick = vm::retryRecords, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_retry)) }
             }
-            if (!error && !state.recordsLoading && records.isEmpty()) item { FitLogNotice(stringResource(R.string.record_no_records)) }
             items(records, key = { it.diary.id }) { record ->
                 Surface(onClick = { onOpenNative(record.diary.id) }, shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerLow) {
                     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(record.diary.date, style = MaterialTheme.typography.titleLargeEmphasized)
-                        Text(stringResource(R.string.record_source_native), style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                         val names = record.sessions.flatMap { it.exercises }.map { it.exercise.rawName.trim() }.filter { it.isNotEmpty() }
+                        val validSets = record.sessions.flatMap { it.exercises }.sumOf { exercise ->
+                            if (exercise.exercise.rawName.isBlank()) 0 else exercise.sets.count { (it.reps ?: 0) > 0 }
+                        }
                         Text(when {
                             record.diary.kind == RecordKind.REST -> stringResource(R.string.record_rest)
                             names.isEmpty() -> stringResource(R.string.record_incomplete)
                             else -> names.joinToString(stringResource(R.string.record_name_separator))
                         }, style = MaterialTheme.typography.bodyLarge)
                         if (record.diary.kind == RecordKind.TRAINING) {
-                            val validSets = record.sessions.flatMap { it.exercises }.sumOf { exercise ->
-                                if (exercise.exercise.rawName.isBlank()) 0 else exercise.sets.count { (it.reps ?: 0) > 0 }
-                            }
                             if (validSets > 0) Text(pluralStringResource(R.plurals.record_ui_completed_sets, validSets, validSets),
                                 style = MaterialTheme.typography.labelLargeEmphasized,
                                 color = MaterialTheme.colorScheme.primary)
                         }
-                        if (record.diary.kind == RecordKind.TRAINING && record.sessions.flatMap { it.exercises }
-                                .none { it.exercise.rawName.isNotBlank() && it.sets.any { set -> (set.reps ?: 0) > 0 } }) {
+                        if (record.diary.kind == RecordKind.TRAINING && names.isNotEmpty() && validSets == 0) {
                             Text(stringResource(R.string.record_incomplete), style = MaterialTheme.typography.bodySmall)
                         }
+                        Text(stringResource(R.string.record_source_native), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

@@ -25,20 +25,26 @@ import com.example.fitlog.domain.insight.InsightWeek
 import com.example.fitlog.model.record.WeightBasis
 
 @Composable
-internal fun InsightSummary(overview: InsightOverview) {
+internal fun InsightSummary(overview: InsightOverview, onOpenLog: () -> Unit = {}) {
     Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(stringResource(R.string.insight_overview_label), style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(if (overview.improvedExercises > 0) pluralStringResource(R.plurals.insight_improved_exercises,
+            val empty = overview.totals.sessions == 0
+            Text(if (empty) stringResource(R.string.insight_empty_training)
+                else if (overview.improvedExercises > 0) pluralStringResource(R.plurals.insight_improved_exercises,
                 overview.improvedExercises, overview.improvedExercises)
                 else stringResource(R.string.insight_overview_title), style = MaterialTheme.typography.headlineMediumEmphasized)
+            Text(stringResource(if (empty) R.string.insight_empty_training_hint else R.string.insight_overview_label),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (overview.improvedExercises > 0) Text(stringResource(R.string.insight_progress_basis),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 InsightMetric(overview.totals.days, stringResource(R.string.insight_training_days))
                 InsightMetric(overview.totals.sets, stringResource(R.string.insight_recorded_set_count))
                 InsightMetric(overview.totals.sessions, stringResource(R.string.insight_session_count))
+            }
+            if (empty) FilledTonalButton(onClick = onOpenLog, shapes = ButtonDefaults.shapes(),
+                modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.insight_open_log))
             }
         }
     }
