@@ -10,7 +10,7 @@ import com.example.fitlog.ui.components.FitLogTopAppBar
 
 @Composable
 internal fun TodayHeader(onSettings: () -> Unit, date: String, scrollBehavior: TopAppBarScrollBehavior, maxContentWidth: Dp) {
-    FitLogTopAppBar(stringResource(R.string.today_title), scrollBehavior, expanded = true, subtitle = date, maxContentWidth = maxContentWidth,
+    FitLogTopAppBar(stringResource(R.string.today_title), scrollBehavior, editorial = true, subtitle = date, maxContentWidth = maxContentWidth,
         actions = {
             FilledTonalIconButton(onClick = onSettings, shapes = IconButtonDefaults.shapes()) {
                 Icon(painterResource(R.drawable.settings_24px), stringResource(R.string.settings_title))

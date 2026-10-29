@@ -25,6 +25,8 @@ internal data class InsightPresentation(
     val progress: InsightExerciseProgress?,
     val series: List<InsightSeries>,
     val recordTitles: Map<String, String>,
+    val dashboard: InsightDashboard,
+    val weekly: InsightWeeklyReport,
 )
 
 internal fun prepareInsight(data: InsightData, range: InsightRange, focusedKeys: Set<String>? = null,
@@ -38,7 +40,8 @@ internal fun prepareInsight(data: InsightData, range: InsightRange, focusedKeys:
         data.diaries(range).filter { it.sessions.isNotEmpty() }.take(3),
         data.activity().toSortedMap(compareByDescending { it }), exercise,
         overview.progress.firstOrNull { it.exercise.nameKey == canonical },
-        exercise?.let(::exerciseSeries).orEmpty(), data.diaries.associate { it.key to it.title })
+        exercise?.let(::exerciseSeries).orEmpty(), data.diaries.associate { it.key to it.title },
+        prepareDashboard(data, range, overview), prepareWeeklyReport(data))
 }
 
 internal sealed interface InsightRecordDestination {

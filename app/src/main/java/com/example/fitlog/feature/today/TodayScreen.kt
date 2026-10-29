@@ -62,7 +62,7 @@ fun TodayScreen(
     val date = LocalDate.now().format(
         DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale)
     )
-    val behavior = rememberFitLogTopAppBarBehavior(expanded = true)
+    val behavior = rememberFitLogTopAppBarBehavior(scrollAway = true)
     val windowSize = LocalWindowInfo.current.containerSize
     val windowWidth = with(LocalDensity.current) { windowSize.width.toDp() }
     val fontScale = LocalDensity.current.fontScale

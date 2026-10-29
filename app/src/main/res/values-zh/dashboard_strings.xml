@@ -1,0 +1,30 @@
+<resources>
+    <string name="dashboard_glance">训练一览</string>
+    <string name="dashboard_weekday_pattern">每周训练规律</string>
+    <string name="dashboard_weekday_description">这段时间里，你在%1$s记录的训练最多，共 %2$d 次。</string>
+    <string name="dashboard_today">今日训练次数</string>
+    <string name="dashboard_current_streak">当前连续天数</string>
+    <string name="dashboard_best_streak">最长连续天数</string>
+    <string name="dashboard_range_note">连续天数、训练天数和组数按所选时间范围统计。没有记录的日期不代表休息日。</string>
+    <string name="dashboard_consistency">训练连续性</string>
+    <string name="dashboard_consistency_description">最近 6 个月记录的训练次数</string>
+    <string name="dashboard_grid">网格</string>
+    <string name="dashboard_bars">柱状</string>
+    <string name="dashboard_line">折线</string>
+    <string name="dashboard_less">少</string>
+    <string name="dashboard_more">多</string>
+    <string name="dashboard_calendar_description">最近六个月的训练，从上到下为周一至周日。共 %1$d 天有训练记录。点击按日查看可打开记录。</string>
+    <string name="dashboard_calendar_note">颜色深浅分别表示 0、1、2、3 次及以上训练。左右滑动查看更早日期。</string>
+    <string name="dashboard_weekly_description">最近六个月的每周训练：共 %1$d 次，单周最多 %2$d 次。点击按日查看可打开记录。</string>
+    <string name="dashboard_weekly_max">单周最多 %1$d 次</string>
+    <string name="dashboard_ranking">动作排行</string>
+    <string name="dashboard_ranking_description">按动作出现天数占所选范围训练天数的比例排序</string>
+    <string name="dashboard_rank_detail">%1$d 天训练 · %2$d 组</string>
+    <string name="dashboard_balance">训练分布</string>
+    <string name="dashboard_balance_description">所选范围内，训练组数最多的 5 个动作</string>
+    <string name="dashboard_balance_item">%1$s：%2$d 组</string>
+    <string name="dashboard_matrix">活动矩阵</string>
+    <string name="dashboard_matrix_description">你通常何时训练？按星期和周次查看训练次数</string>
+    <string name="dashboard_matrix_cell">%1$s：记录了 %2$d 次训练</string>
+    <string name="dashboard_matrix_note">显示所选范围内最近 4 周的记录，每列从标注的日期开始。圆点越大，训练次数越多。</string>
+</resources>

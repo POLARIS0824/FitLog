@@ -81,7 +81,7 @@ internal fun LogContent(
     var sortExpanded by remember { mutableStateOf(false) }
     var toolsExpanded by rememberSaveable { mutableStateOf(false) }
     val showLoading = rememberDelayedLoading(state.refreshing || state.loading)
-    val behavior = rememberFitLogTopAppBarBehavior(expanded = true)
+    val behavior = rememberFitLogTopAppBarBehavior(scrollAway = true)
     val pagePadding = fitLogPagePadding()
     val files = state.visibleFiles
     Column(modifier.fillMaxSize().then(if (showAppBar) Modifier.nestedScroll(behavior.nestedScrollConnection) else Modifier), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -235,7 +235,7 @@ internal fun LogTopAppBar(
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
-    FitLogTopAppBar(stringResource(R.string.log_title), scrollBehavior, expanded = true,
+    FitLogTopAppBar(stringResource(R.string.log_title), scrollBehavior, editorial = true,
         actions = {
             if (markdown) {
                 FilledTonalIconButton(onClick = onRefresh, enabled = !refreshing, shapes = IconButtonDefaults.shapes()) {

@@ -56,7 +56,7 @@ internal fun insightDate(value: LocalDate): String = value.format(DateTimeFormat
 
 @Composable
 internal fun InsightRangePicker(range: InsightRange, onSelect: (InsightRange) -> Unit, enabled: Boolean = true) {
-    FitLogConnectedButtonGroup(InsightRange.entries, range, enabled = enabled, onSelect = onSelect,
+    FitLogConnectedButtonGroup(InsightRange.entries, range, enabled = enabled, onSelect = onSelect, prominentSelection = true,
         label = { stringResource(when (it) {
             InsightRange.THIRTY -> R.string.insight_range_thirty
             InsightRange.NINETY -> R.string.insight_range_ninety

@@ -23,6 +23,7 @@ internal fun <T> FitLogConnectedButtonGroup(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    prominentSelection: Boolean = false,
     canSelect: (T) -> Boolean = { true },
 ) {
     if (choices.isEmpty()) return
@@ -37,8 +38,8 @@ internal fun <T> FitLogConnectedButtonGroup(
     val colors = FilledTonalToggleButtonDefaults.colors(
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        checkedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-        checkedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        checkedContainerColor = if (prominentSelection) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+        checkedContentColor = if (prominentSelection) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
     )
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val spacing = ButtonGroupDefaults.ConnectedSpaceBetween

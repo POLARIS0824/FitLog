@@ -1,0 +1,40 @@
+<resources>
+    <string name="weekly_overview_tab">Overview</string>
+    <string name="weekly_tab">Weekly</string>
+    <string name="weekly_report">Weekly report</string>
+    <string name="weekly_frequency">Training frequency</string>
+    <string name="weekly_days_recorded">Days with training: %1$d of %2$d so far.</string>
+    <string name="weekly_totals">%1$s · %2$s</string>
+    <string name="weekly_no_comparison">No training recorded in the same days last week</string>
+    <string name="weekly_frequency_up">%1$s percentage points above last week</string>
+    <string name="weekly_frequency_down">%1$s percentage points below last week</string>
+    <string name="weekly_frequency_same">Same training frequency as last week</string>
+    <string name="weekly_analysis">Period analysis</string>
+    <string name="weekly_most_recorded">Most recorded</string>
+    <string name="weekly_exercise_totals">%1$s · %2$s</string>
+    <string name="weekly_share_description">Share of this week’s recorded sets</string>
+    <string name="weekly_less_recorded">Fewer recorded sets</string>
+    <string name="weekly_set_change">Sets: %1$d → %2$d</string>
+    <string name="weekly_no_decrease">No exercises have fewer recorded sets than last week.</string>
+    <string name="weekly_comparison_span">Compared with %1$s – %2$s last week</string>
+    <string name="weekly_no_records">Record a workout this week to see your weekly analysis.</string>
+    <string name="weekly_activity">Weekly activity</string>
+    <string name="weekly_activity_description">Recorded sessions day by day</string>
+    <string name="weekly_future_day">%1$s has not arrived yet</string>
+    <string name="weekly_day_description">%1$s. Sessions: %2$d. Sets: %3$d.</string>
+    <string name="weekly_not_yet">—</string>
+    <string name="weekly_balance_description">Recorded sets across your 5 most trained exercises this week</string>
+    <string name="weekly_recorded_only">Only recorded training is counted. A date without a record does not mean a rest day.</string>
+    <plurals name="weekly_session_count">
+        <item quantity="one">%1$d session</item>
+        <item quantity="other">%1$d sessions</item>
+    </plurals>
+    <plurals name="weekly_set_count">
+        <item quantity="one">%1$d recorded set</item>
+        <item quantity="other">%1$d recorded sets</item>
+    </plurals>
+    <plurals name="weekly_training_days">
+        <item quantity="one">%1$d training day</item>
+        <item quantity="other">%1$d training days</item>
+    </plurals>
+</resources>

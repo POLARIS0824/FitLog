@@ -1,0 +1,30 @@
+<resources>
+    <string name="dashboard_glance">At a glance</string>
+    <string name="dashboard_weekday_pattern">Weekday pattern</string>
+    <string name="dashboard_weekday_description">%1$s has your most recorded training, with %2$d sessions in this range.</string>
+    <string name="dashboard_today">Sessions today</string>
+    <string name="dashboard_current_streak">Current streak · days</string>
+    <string name="dashboard_best_streak">Best streak · days</string>
+    <string name="dashboard_range_note">Streaks, training days and sets use your selected range. An empty date does not mean a rest day.</string>
+    <string name="dashboard_consistency">Consistency</string>
+    <string name="dashboard_consistency_description">Your recorded sessions over the last 6 months</string>
+    <string name="dashboard_grid">Grid</string>
+    <string name="dashboard_bars">Bars</string>
+    <string name="dashboard_line">Line</string>
+    <string name="dashboard_less">Less</string>
+    <string name="dashboard_more">More</string>
+    <string name="dashboard_calendar_description">Six months of training, Monday to Sunday from top to bottom. %1$d days with recorded sessions. View by day opens the records.</string>
+    <string name="dashboard_calendar_note">Shades show 0, 1, 2 or 3+ sessions. Scroll horizontally for earlier dates.</string>
+    <string name="dashboard_weekly_description">Weekly sessions over 6 months: %1$d total, up to %2$d in one week. View by day opens the records.</string>
+    <string name="dashboard_weekly_max">Up to %1$d / week</string>
+    <string name="dashboard_ranking">Exercise ranking</string>
+    <string name="dashboard_ranking_description">By share of recorded training days in this range</string>
+    <string name="dashboard_rank_detail">%1$d training days · %2$d sets</string>
+    <string name="dashboard_balance">Training balance</string>
+    <string name="dashboard_balance_description">Recorded sets across your 5 most trained exercises in this range</string>
+    <string name="dashboard_balance_item">%1$s: %2$d sets</string>
+    <string name="dashboard_matrix">Activity matrix</string>
+    <string name="dashboard_matrix_description">When do you train? Sessions by weekday and week</string>
+    <string name="dashboard_matrix_cell">%1$s: %2$d recorded sessions</string>
+    <string name="dashboard_matrix_note">Last 4 weeks, within your selected range. Columns start on the dates shown. Larger dots mean more sessions.</string>
+</resources>

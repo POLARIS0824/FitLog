@@ -1,0 +1,37 @@
+<resources>
+    <string name="weekly_overview_tab">概览</string>
+    <string name="weekly_tab">周报</string>
+    <string name="weekly_report">本周报告</string>
+    <string name="weekly_frequency">训练天数占比</string>
+    <string name="weekly_days_recorded">本周已过去 %2$d 天，其中 %1$d 天记录了训练。</string>
+    <string name="weekly_totals">%1$s · %2$s</string>
+    <string name="weekly_no_comparison">上周同期没有训练记录</string>
+    <string name="weekly_frequency_up">比上周同期高 %1$s 个百分点</string>
+    <string name="weekly_frequency_down">比上周同期低 %1$s 个百分点</string>
+    <string name="weekly_frequency_same">训练记录天数占比与上周同期相同</string>
+    <string name="weekly_analysis">周期分析</string>
+    <string name="weekly_most_recorded">记录最多的动作</string>
+    <string name="weekly_exercise_totals">%1$s · %2$s</string>
+    <string name="weekly_share_description">该动作组数占本周记录总组数的比例</string>
+    <string name="weekly_less_recorded">记录组数减少的动作</string>
+    <string name="weekly_set_change">%1$d → %2$d 组</string>
+    <string name="weekly_no_decrease">没有动作的记录组数少于上周同期。</string>
+    <string name="weekly_comparison_span">与上周 %1$s 至 %2$s 的同期记录比较</string>
+    <string name="weekly_no_records">本周记录一次训练后，即可查看周报分析。</string>
+    <string name="weekly_activity">本周活动</string>
+    <string name="weekly_activity_description">逐日查看记录的训练次数</string>
+    <string name="weekly_future_day">%1$s 尚未到来</string>
+    <string name="weekly_day_description">%1$s：记录了 %2$d 次训练，共 %3$d 组</string>
+    <string name="weekly_not_yet">—</string>
+    <string name="weekly_balance_description">本周训练组数最多的 5 个动作</string>
+    <string name="weekly_recorded_only">仅统计已记录的训练。没有记录的日期不代表休息日。</string>
+    <plurals name="weekly_session_count">
+        <item quantity="other">%1$d 次训练</item>
+    </plurals>
+    <plurals name="weekly_set_count">
+        <item quantity="other">%1$d 组记录</item>
+    </plurals>
+    <plurals name="weekly_training_days">
+        <item quantity="other">%1$d 天训练</item>
+    </plurals>
+</resources>

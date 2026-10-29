@@ -24,6 +24,7 @@ import com.example.fitlog.domain.insight.InsightSeries
 import com.example.fitlog.domain.insight.buildInsightData
 import com.example.fitlog.feature.insight.InsightChart
 import com.example.fitlog.feature.insight.InsightDashboardContent
+import com.example.fitlog.feature.insight.InsightDashboardView
 import com.example.fitlog.feature.insight.prepareInsight
 import com.example.fitlog.model.record.ConfirmedExercise
 import com.example.fitlog.model.record.ConfirmedExerciseRecord
@@ -43,6 +44,10 @@ import java.time.LocalDate
 import java.util.UUID
 
 @Preview(locale = "en", widthDp = 412, heightDp = 892, showBackground = true)
+@Preview(name = "Insight · Full dashboard", locale = "en", widthDp = 412, heightDp = 3000, showBackground = true)
+@Preview(name = "Insight · Chinese · 200%", locale = "zh", widthDp = 320, heightDp = 1100, fontScale = 2f, showBackground = true)
+@Preview(name = "Insight · Dark", locale = "en", widthDp = 412, heightDp = 892,
+    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES, showBackground = true)
 @Composable
 private fun InsightDashboardReviewPreview() {
     FitLogPreview { InsightDashboardContent(prepareInsight(previewInsightData(), InsightRange.THIRTY), InsightRange.THIRTY) }
@@ -52,6 +57,23 @@ private fun InsightDashboardReviewPreview() {
 @Composable
 private fun InsightDashboardEmptyReviewPreview() {
     FitLogPreview { InsightDashboardContent(prepareInsight(previewInsightData(empty = true), InsightRange.THIRTY), InsightRange.THIRTY) }
+}
+
+@Preview(name = "Weekly · Full", locale = "en", widthDp = 412, heightDp = 1880, showBackground = true)
+@Preview(name = "Weekly · Dark", locale = "en", widthDp = 412, heightDp = 1100,
+    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Preview(name = "Weekly · Chinese · 200%", locale = "zh", widthDp = 320, heightDp = 1600, fontScale = 2f, showBackground = true)
+@Composable
+private fun InsightWeeklyReviewPreview() {
+    FitLogPreview { InsightDashboardContent(prepareInsight(previewInsightData(daily = true), InsightRange.THIRTY),
+        InsightRange.THIRTY, view = InsightDashboardView.WEEKLY) }
+}
+
+@Preview(name = "Weekly · Empty", locale = "en", widthDp = 412, heightDp = 1580, showBackground = true)
+@Composable
+private fun InsightWeeklyEmptyReviewPreview() {
+    FitLogPreview { InsightDashboardContent(prepareInsight(previewInsightData(empty = true), InsightRange.THIRTY),
+        InsightRange.THIRTY, view = InsightDashboardView.WEEKLY) }
 }
 
 @Preview(locale = "en", widthDp = 412, heightDp = 892, showBackground = true)
@@ -82,13 +104,13 @@ private fun ExerciseChartReviewContent() {
 }
 
 @Composable
-private fun previewInsightData(empty: Boolean = false): InsightData {
+private fun previewInsightData(empty: Boolean = false, daily: Boolean = false): InsightData {
     val today = LocalDate.parse(PreviewDiary.DATE)
     val name = stringResource(R.string.preview_exercise_name)
     val records = if (empty) emptyList() else (0..72).map { day ->
         val id = UUID.nameUUIDFromBytes("insight-ui-preview-$day".toByteArray()).toString()
         TrainingRecordDetails(
-            TrainingRecord(id, null, null, today.minusDays(day * 5L).toString(), null, null, null,
+            TrainingRecord(id, null, null, today.minusDays(day * if (daily) 1L else 5L).toString(), null, null, null,
                 PreviewDiary.TIMESTAMP, false, origin = RecordOrigin.NATIVE),
             (0..(day % 4)).map { session ->
                 val sessionId = "$id-session-$session"

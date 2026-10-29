@@ -24,6 +24,7 @@ import com.example.fitlog.R
 import com.example.fitlog.domain.insight.InsightRange
 import com.example.fitlog.domain.insight.InsightSourceStatus
 import com.example.fitlog.ui.components.FitLogDimens
+import com.example.fitlog.ui.components.FitLogConnectedButtonGroup
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogSectionTitle
 import com.example.fitlog.ui.components.FitLogSheetActions
@@ -34,10 +35,14 @@ import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
 import java.time.LocalDate
 
+internal enum class InsightDashboardView { OVERVIEW, WEEKLY }
+
 @Composable
 internal fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: (String) -> Unit,
     onExercise: (String) -> Unit, modifier: Modifier = Modifier) {
     val listState = rememberLazyListState()
+    val weeklyListState = rememberLazyListState()
+    var view by rememberSaveable { mutableStateOf(InsightDashboardView.OVERVIEW) }
     val state by vm.uiState.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.resumed() }
     var sheet by rememberSaveable(state.data?.vaultId) { mutableStateOf<String?>(null) }
@@ -57,7 +62,8 @@ internal fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: 
             onManageFocus = { vm.clearFocusError(); sheet = "focus" }, onExercise, onOpen, onOpenLog,
             onSheet = { sheet = it }, headerActions = { InsightRefreshAction(state, vm::refresh) },
             rangeEnabled = !state.rangeSaving,
-            notices = { InsightCoverage(state, showScanTime = false) }, listState = listState)
+            notices = { InsightCoverage(state, showScanTime = false) }, listState = listState,
+            view = view, onSelectView = { view = it }, weeklyListState = weeklyListState)
     }
     if (sheet == "focus" && data != null) {
         InsightFocusSheet(state, requireNotNull(presentation), vm::saveFocus, onDismiss = { sheet = null })
@@ -77,10 +83,11 @@ private fun InsightPage(
     headerActions: @Composable RowScope.() -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val behavior = rememberFitLogTopAppBarBehavior(expanded = true)
+    val behavior = rememberFitLogTopAppBarBehavior(scrollAway = true)
     Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
-        FitLogTopAppBar(stringResource(R.string.insight_title), behavior, expanded = true, actions = headerActions)
-        Box(Modifier.weight(1f).widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth()) { content() }
+        FitLogTopAppBar(stringResource(R.string.insight_title), behavior, editorial = true,
+            maxContentWidth = FitLogDimens.ContentWidth, actions = headerActions)
+        Box(Modifier.weight(1f).widthIn(max = FitLogDimens.ContentWidth).fillMaxWidth()) { content() }
     }
 }
 
@@ -109,75 +116,61 @@ internal fun InsightDashboardContent(
     rangeEnabled: Boolean = true,
     notices: @Composable () -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
+    view: InsightDashboardView = InsightDashboardView.OVERVIEW,
+    onSelectView: (InsightDashboardView) -> Unit = {},
+    weeklyListState: LazyListState = rememberLazyListState(),
 ) = InsightPage(headerActions) {
+    val viewPicker: @Composable () -> Unit = {
+        FitLogConnectedButtonGroup(InsightDashboardView.entries, view,
+            label = { stringResource(if (it == InsightDashboardView.OVERVIEW) R.string.weekly_overview_tab else R.string.weekly_tab) },
+            onSelect = onSelectView, prominentSelection = true)
+    }
+    if (view == InsightDashboardView.WEEKLY) {
+        InsightWeeklyContent(presentation.weekly, onExercise, onOpenLog, onViewDays = { onSheet("weekly-days") },
+            viewPicker = viewPicker, notices = notices, listState = weeklyListState)
+        return@InsightPage
+    }
     val pagePadding = fitLogPagePadding()
     val data = presentation.data
     val overview = presentation.overview
     val focused = presentation.focused
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = pagePadding, top = 24.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
+        contentPadding = PaddingValues(start = pagePadding, top = 0.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { notices() }
-        item { InsightRangePicker(range, onSelectRange, enabled = rangeEnabled) }
-        item { InsightSummary(overview, onOpenLog) }
-        if (data.diaries.isEmpty()) {
-            item { Text(stringResource(R.string.record_coverage), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            if (data.sources.isNotEmpty()) item {
-                InsightRow(stringResource(R.string.insight_sources_title),
-                    stringResource(R.string.insight_sources_summary,
-                        data.sources.count { it.status == InsightSourceStatus.CURRENT }, data.sources.size), { onSheet("sources") })
+        item(key = "view") { viewPicker() }
+        item(key = "range") {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                InsightRangePicker(range, onSelectRange, enabled = rangeEnabled)
+                notices()
             }
-            return@LazyColumn
         }
-        item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.weight(1f)) { FitLogSectionTitle(stringResource(R.string.insight_focus_title)) }
+        item(key = "glance") { InsightAtAGlance(presentation, onOpenLog) }
+        item(key = "consistency") { InsightConsistency(presentation) { onSheet("days") } }
+        item(key = "ranking") { InsightExerciseRanking(presentation.dashboard, onExercise) { onSheet("exercises") } }
+        item(key = "balance") { InsightTrainingBalance(presentation.dashboard) }
+        item(key = "matrix") { InsightActivityMatrix(presentation.dashboard, data.today) { onSheet("days") } }
+        if (data.diaries.isNotEmpty()) item(key = "focus") {
+            InsightDashboardCard(stringResource(R.string.insight_focus_title),
+                stringResource(if (focusedKeys == null) R.string.insight_focus_automatic else R.string.insight_focus_selected)) {
                 FilledTonalButton(onClick = onManageFocus, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.insight_focus_choose))
                 }
-            }
-            Text(stringResource(if (focusedKeys == null) R.string.insight_focus_automatic else R.string.insight_focus_selected),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (focused.isEmpty()) item {
-            Text(stringResource(R.string.insight_focus_empty), style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        items(focused, key = { "focus-${it.exercise.nameKey}" }) { progress ->
-            InsightProgressCard(progress) { onExercise(progress.exercise.nameKey) }
-        }
-        item { FitLogSectionTitle(stringResource(R.string.insight_recent_records)) }
-        if (overview.achievements.isEmpty()) item {
-            Text(stringResource(R.string.insight_records_empty), style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else item {
-            val shown = overview.achievements.take(3)
-            Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
-                shown.forEachIndexed { index, achievement ->
-                    InsightAchievementRow(achievement, index, shown.size) { onOpen(achievement.performance.recordId) }
-                }
-                if (overview.achievements.size > shown.size) FilledTonalButton(onClick = { onSheet("records") },
-                    modifier = Modifier.padding(top = 12.dp), shapes = ButtonDefaults.shapes()) {
-                    Text(stringResource(R.string.insight_all_records))
-                }
+                if (focused.isEmpty()) Text(stringResource(R.string.insight_focus_empty),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                focused.forEach { progress -> InsightProgressCard(progress) { onExercise(progress.exercise.nameKey) } }
             }
         }
-        item { FitLogSectionTitle(stringResource(R.string.insight_weekly_title)) }
-        item { InsightWeeklyTrends(overview.weeks) }
-        if (overview.exercises.isNotEmpty()) {
-            item { FitLogSectionTitle(stringResource(R.string.insight_distribution_title)) }
-            item { InsightDistribution(overview.exercises, onExercise) { onSheet("exercises") } }
-        }
-        item { FitLogSectionTitle(stringResource(R.string.insight_activity)) }
-        item {
-            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    InsightHeatmap(data, presentation.activity)
-                    FilledTonalButton(onClick = { onSheet("days") }, shapes = ButtonDefaults.shapes()) {
-                        Text(stringResource(R.string.insight_view_days))
+        if (data.diaries.isNotEmpty()) item(key = "records") {
+            InsightDashboardCard(stringResource(R.string.insight_recent_records)) {
+                if (overview.achievements.isEmpty()) Text(stringResource(R.string.insight_records_empty),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else {
+                    val shown = overview.achievements.take(3)
+                    shown.forEachIndexed { index, achievement ->
+                        InsightAchievementRow(achievement, index, shown.size) { onOpen(achievement.performance.recordId) }
                     }
+                    if (overview.achievements.size > shown.size) TextButton(onClick = { onSheet("records") },
+                        shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.insight_all_records)) }
                 }
             }
         }
@@ -218,6 +211,14 @@ private fun InsightSourceSheet(presentation: InsightPresentation, selection: Str
                 status != null -> sourceStatusLabel(status); day != null -> insightDate(day)
                 else -> stringResource(R.string.insight_view_days) }) }
             when {
+                selection == "weekly-days" -> {
+                    val days = presentation.weekly.days.filter { it.sessions > 0 }
+                    if (days.isEmpty()) item { Text(stringResource(R.string.weekly_no_records)) }
+                    items(days, key = { it.date.toString() }) { entry ->
+                        InsightRow(insightDate(entry.date), stringResource(R.string.insight_exercise_summary,
+                            entry.sessions, entry.sets), { onDay(entry.date) })
+                    }
+                }
                 selection == "sources" -> {
                     item { coverage() }
                     items(InsightSourceStatus.entries.filter { status -> data.sources.any { it.status == status } }) { sourceStatus ->
