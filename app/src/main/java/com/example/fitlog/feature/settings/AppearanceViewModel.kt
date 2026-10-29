@@ -6,6 +6,7 @@ import com.example.fitlog.R
 import com.example.fitlog.data.settings.AppearancePreferences
 import com.example.fitlog.data.settings.AppearanceSettingsStore
 import com.example.fitlog.data.settings.ThemeMode
+import com.example.fitlog.data.settings.UiLook
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,6 +56,8 @@ internal class AppearanceViewModel(private val store: AppearanceSettingsStore) :
 
     fun changeThemeMode(mode: ThemeMode) = save(preferences.copy(themeMode = mode))
     fun changeDynamicColor(enabled: Boolean) = save(preferences.copy(dynamicColor = enabled))
+    fun changeLook(look: UiLook) = save(preferences.copy(look = look))
+    fun changeLiquidGlass(enabled: Boolean) = save(preferences.copy(liquidGlass = enabled))
 
     private fun save(next: AppearancePreferences) {
         if (!canEdit || next == preferences) return

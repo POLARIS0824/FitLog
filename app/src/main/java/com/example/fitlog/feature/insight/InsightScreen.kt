@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.fitlog.ui.glass.glassPageSource
 import com.example.fitlog.R
 import com.example.fitlog.domain.insight.InsightRange
 import com.example.fitlog.domain.insight.InsightSourceStatus
@@ -54,7 +55,7 @@ internal fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: 
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         if (data == null) {
             InsightPage(headerActions = { InsightRefreshAction(state, vm::refresh) }) {
-                Column(Modifier.fillMaxWidth().padding(fitLogPagePadding()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.fillMaxWidth().glassPageSource().padding(fitLogPagePadding()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     InsightReadState(state, vm::refresh)
                 }
             }
@@ -134,7 +135,7 @@ internal fun InsightDashboardContent(
     val data = presentation.data
     val overview = presentation.overview
     val focused = presentation.focused
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize(),
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().glassPageSource(),
         contentPadding = PaddingValues(start = pagePadding, top = 0.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item(key = "view") { viewPicker() }

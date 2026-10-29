@@ -8,12 +8,14 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import com.example.fitlog.ui.glass.GlassTokens
 
 @Composable
 fun FitLogTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
+    liquidLook: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -27,7 +29,7 @@ fun FitLogTheme(
     }
 
     MaterialExpressiveTheme(
-        colorScheme = colorScheme,
+        colorScheme = if (liquidLook) GlassTokens.Colors else colorScheme,
         typography = Typography,
         motionScheme = MotionScheme.expressive(),
         content = content

@@ -2,6 +2,7 @@ package com.example.fitlog.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +51,9 @@ import com.example.fitlog.feature.settings.AppearanceUiState
 import com.example.fitlog.feature.settings.AppearanceViewModel
 import com.example.fitlog.feature.today.navigation.TodayNavKey
 import com.example.fitlog.ui.components.FitLogNavigationToolbar
+import com.example.fitlog.data.settings.UiLook
+import com.example.fitlog.ui.glass.*
+import com.example.fitlog.ui.glass.backdrop.backdrops.layerBackdrop
 
 /**
  * 负责整个 App 的 UI 框架
@@ -90,12 +95,29 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
         currentRoute == InsightNavKey
 
     var fabMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var glassMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    val liquidLook = appearanceState.preferences.look == UiLook.LIQUID_GLASS
+    val scene = rememberImmersiveBackdrop()
+    val page = rememberImmersiveBackdrop()
+    val glassActive = rememberLiquidGlassActive(liquidLook && appearanceState.preferences.liquidGlass)
+    val recordGlass = liquidLook && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    LaunchedEffect(liquidLook, currentRoute) {
+        if (!showNavigationToolbar || !liquidLook) glassMenuExpanded = false
+    }
 
+    // Keep the navigation host at one stable location when the look changes, like Myspoti.
+    CompositionLocalProvider(
+        LocalGlassScene provides if (recordGlass) scene else null,
+        LocalGlassPage provides if (recordGlass) page else null,
+        LocalImmersiveBackdrop provides if (glassActive) page else null,
+    ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         Box(Modifier.fillMaxSize()) {
+            if (liquidLook) GlassBackdropBackground(Modifier.matchParentSize()
+                .then(if (recordGlass) Modifier.layerBackdrop(scene) else Modifier))
             FitLogInsetContent(innerPadding) {
                 if (analysisRun.active && currentRoute != LogNavKey) {
                     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -127,7 +149,7 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
             }
 
             AnimatedVisibility(
-                visible = showNavigationToolbar && fabMenuExpanded,
+                visible = showNavigationToolbar && if (liquidLook) glassMenuExpanded else fabMenuExpanded,
                 enter = fadeIn(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec()),
                 exit = fadeOut(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec()),
                 modifier = Modifier.matchParentSize(),
@@ -141,11 +163,22 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
                             interactionSource = null,
                             indication = null,
                             onClickLabel = stringResource(R.string.cd_close_menu),
-                        ) { fabMenuExpanded = false }
+                        ) { if (liquidLook) glassMenuExpanded = false else fabMenuExpanded = false }
                 )
             }
 
-            if (showNavigationToolbar) {
+            if (showNavigationToolbar && liquidLook) {
+                GlassNavigationBar(
+                    currentRoute = currentRoute,
+                    expanded = glassMenuExpanded,
+                    onExpanded = { glassMenuExpanded = it },
+                    onDestination = { vaultFlow.navigateTo(it.route) },
+                    onNewRecord = vaultFlow::openTodayLog,
+                    onImport = vaultFlow::importFolder,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(innerPadding),
+                )
+            }
+            if (showNavigationToolbar && !liquidLook) {
                 FitLogNavigationToolbar(
                     // The menu supplies its own bottom spacing; only add Scaffold's safe insets.
                     modifier = Modifier.align(Alignment.BottomCenter).padding(innerPadding),
@@ -158,5 +191,6 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
                 )
             }
         }
+    }
     }
 }

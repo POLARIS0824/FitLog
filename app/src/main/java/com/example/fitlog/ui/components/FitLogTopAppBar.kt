@@ -16,6 +16,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
+import com.example.fitlog.data.settings.UiLook
+import com.example.fitlog.ui.glass.LocalUiLook
+import com.example.fitlog.ui.glass.GlassTopAppBar
 
 @Composable
 internal fun rememberFitLogTopAppBarBehavior(expanded: Boolean = false, scrollAway: Boolean = false): TopAppBarScrollBehavior =
@@ -38,6 +41,14 @@ internal fun FitLogTopAppBar(
     editorial: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    if (LocalUiLook.current == UiLook.LIQUID_GLASS) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Box(Modifier.widthIn(max = maxContentWidth).fillMaxWidth()) {
+                GlassTopAppBar(title, subtitle, onBack, backEnabled, actions)
+            }
+        }
+        return
+    }
     val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
     val containerColor = if (editorial) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLow
     val colors = TopAppBarDefaults.topAppBarColors(

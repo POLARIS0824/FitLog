@@ -13,6 +13,9 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import com.example.fitlog.data.settings.UiLook
+import com.example.fitlog.ui.glass.LocalUiLook
+import com.example.fitlog.ui.glass.GlassSegmentedControl
 
 /** Single selection with measured labels; narrow layouts scroll instead of truncating choices. */
 @Composable
@@ -28,6 +31,10 @@ internal fun <T> FitLogConnectedButtonGroup(
 ) {
     if (choices.isEmpty()) return
     val labels = choices.map { label(it) }
+    if (LocalUiLook.current == UiLook.LIQUID_GLASS) {
+        GlassSegmentedControl(choices, selected, labels, onSelect, modifier, enabled, canSelect)
+        return
+    }
     val selectedStyle = MaterialTheme.typography.labelLargeEmphasized
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current

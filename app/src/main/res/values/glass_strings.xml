@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="look_heading">Interface</string>
+    <string name="look_classic">Material Expressive</string>
+    <string name="look_classic_description">Your original interface, toolbar and action menu.</string>
+    <string name="look_liquid">Liquid Glass</string>
+    <string name="look_liquid_description">A dark interface with floating glass surfaces.</string>
+    <string name="look_effect_title">Liquid Glass effects</string>
+    <string name="look_effect_description">Live blur and refraction. Turn off for frosted surfaces. Reduced motion also uses frost.</string>
+    <string name="look_effect_unsupported">Frosted surfaces on this Android version. Live glass requires Android 12 or later.</string>
+</resources>

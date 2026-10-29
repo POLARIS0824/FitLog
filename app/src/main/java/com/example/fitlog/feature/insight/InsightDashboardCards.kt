@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import com.example.fitlog.ui.glass.LookSurface
 import com.example.fitlog.R
 import com.example.fitlog.ui.components.FitLogConnectedButtonGroup
 import java.text.NumberFormat
@@ -50,7 +51,7 @@ internal fun InsightDashboardCard(
     subtitle: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Surface(shape = DashboardShape, color = MaterialTheme.colorScheme.surfaceContainerLowest,
+    LookSurface(shape = DashboardShape, color = MaterialTheme.colorScheme.surfaceContainerLowest,
         modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
