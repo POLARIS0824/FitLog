@@ -85,7 +85,7 @@ internal fun LogContent(
     var sortExpanded by remember { mutableStateOf(false) }
     var toolsExpanded by rememberSaveable { mutableStateOf(false) }
     val showLoading = rememberDelayedLoading(state.refreshing || state.loading)
-    val behavior = rememberFitLogTopAppBarBehavior(scrollAway = true)
+    val behavior = rememberFitLogTopAppBarBehavior()
     val pagePadding = fitLogPagePadding()
     val files = state.visibleFiles
     Column(modifier.fillMaxSize().then(if (showAppBar) Modifier.nestedScroll(behavior.nestedScrollConnection) else Modifier), horizontalAlignment = Alignment.CenterHorizontally) {

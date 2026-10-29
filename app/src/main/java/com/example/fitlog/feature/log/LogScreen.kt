@@ -40,7 +40,7 @@ internal fun LogScreen(vm: LogViewModel,
     val state by vm.uiState.collectAsStateWithLifecycle()
     val records = state.nativeRecords
     val error = state.recordsReadFailed
-    val behavior = rememberFitLogTopAppBarBehavior(scrollAway = true)
+    val behavior = rememberFitLogTopAppBarBehavior()
     val pagePadding = fitLogPagePadding()
     Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
         RecordsLogHeader(markdown, state.refreshing, onMarkdown, { vm.refresh() }, onConnect, onManage, behavior)
@@ -121,7 +121,7 @@ internal fun LogScreen(vm: LogViewModel,
 @Composable
 private fun RecordsLogHeader(markdown: Boolean, refreshing: Boolean, onMarkdown: (Boolean) -> Unit,
     onRefresh: () -> Unit, onConnect: () -> Unit, onManage: () -> Unit,
-    scrollBehavior: TopAppBarScrollBehavior = rememberFitLogTopAppBarBehavior(scrollAway = true)) {
+    scrollBehavior: TopAppBarScrollBehavior = rememberFitLogTopAppBarBehavior()) {
     LogTopAppBar(markdown, refreshing, onRefresh, onConnect, onManage, scrollBehavior)
     RecordSourceSelector(markdown, onMarkdown)
 }

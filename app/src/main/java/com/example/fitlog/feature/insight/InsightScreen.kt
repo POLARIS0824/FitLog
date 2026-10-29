@@ -84,7 +84,7 @@ private fun InsightPage(
     headerActions: @Composable RowScope.() -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val behavior = rememberFitLogTopAppBarBehavior(scrollAway = true)
+    val behavior = rememberFitLogTopAppBarBehavior()
     Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
         FitLogTopAppBar(stringResource(R.string.insight_title), behavior, editorial = true,
             maxContentWidth = FitLogDimens.ContentWidth, actions = headerActions)

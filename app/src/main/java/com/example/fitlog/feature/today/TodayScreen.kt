@@ -70,7 +70,7 @@ fun TodayScreen(
         GlassTodayScreen(date, onSettings, onOpenToday, onOpenLog, onImportFolder, modifier)
         return
     }
-    val behavior = rememberFitLogTopAppBarBehavior(scrollAway = true)
+    val behavior = rememberFitLogTopAppBarBehavior()
     val windowSize = LocalWindowInfo.current.containerSize
     val windowWidth = with(LocalDensity.current) { windowSize.width.toDp() }
     val fontScale = LocalDensity.current.fontScale
