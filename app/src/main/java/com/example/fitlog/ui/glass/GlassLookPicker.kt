@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -20,6 +21,7 @@ import com.example.fitlog.data.settings.UiLook
 
 @Composable
 internal fun GlassLookPicker(selected: UiLook, enabled: Boolean, onSelect: (UiLook) -> Unit) {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         UiLook.entries.forEach { look ->
             val checked = selected == look
@@ -30,15 +32,20 @@ internal fun GlassLookPicker(selected: UiLook, enabled: Boolean, onSelect: (UiLo
                 Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large)
                     .selectable(checked, enabled = enabled, role = Role.RadioButton, onClick = { onSelect(look) })
                     .padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    val gradient = when {
+                        fullLook -> if (dark) listOf(Color(0xFF242C4D), Color(0xFF60547A)) else listOf(Color(0xFFD6DBF8), Color(0xFFE8DCFA))
+                        else -> listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.surfaceContainer)
+                    }
                     Box(Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)).background(
-                        Brush.linearGradient(if (fullLook) listOf(Color(0xFF242C4D), Color(0xFF60547A)) else
-                            listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.surfaceContainer))),
+                        Brush.linearGradient(gradient)),
                         contentAlignment = Alignment.BottomCenter) {
+                        val pillBg = if (liquid) (if (dark) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.65f))
+                            else MaterialTheme.colorScheme.secondaryContainer
+                        val dotBg = if (liquid) (if (dark) Color.White.copy(alpha = 0.60f) else MaterialTheme.colorScheme.primary)
+                            else MaterialTheme.colorScheme.primary
                         Row(Modifier.padding(8.dp).fillMaxWidth().height(16.dp)
-                            .background(if (liquid) Color.White.copy(alpha = 0.20f) else MaterialTheme.colorScheme.secondaryContainer,
-                                RoundedCornerShape(50)).padding(3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            repeat(3) { Box(Modifier.size(10.dp).background(if (liquid) Color.White.copy(alpha = 0.60f)
-                                else MaterialTheme.colorScheme.primary, RoundedCornerShape(50))) }
+                            .background(pillBg, RoundedCornerShape(50)).padding(3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            repeat(3) { Box(Modifier.size(10.dp).background(dotBg, RoundedCornerShape(50))) }
                         }
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {

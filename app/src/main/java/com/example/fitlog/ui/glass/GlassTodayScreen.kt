@@ -40,19 +40,21 @@ internal fun GlassTodayScreen(date: String, onSettings: () -> Unit, onOpenToday:
             }
             item {
                 GlassCard(Modifier.fillMaxWidth()) {
+                    val primary = MaterialTheme.colorScheme.primary
+                    val plateColor = MaterialTheme.colorScheme.primaryContainer
                     Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                         Canvas(Modifier.fillMaxWidth().height(112.dp).clearAndSetSemantics {}) {
                             val center = Offset(size.width * 0.78f, size.height * 0.52f)
-                            drawCircle(Brush.radialGradient(listOf(GlassTokens.Accent.copy(alpha = 0.26f), Color.Transparent),
+                            drawCircle(Brush.radialGradient(listOf(primary.copy(alpha = 0.26f), Color.Transparent),
                                 center = center, radius = size.height), size.height, center)
                             val unit = size.height / 100f
                             val x = center.x; val y = center.y
-                            drawLine(GlassTokens.Accent, Offset(x - 48 * unit, y + 13 * unit), Offset(x + 48 * unit, y - 13 * unit),
+                            drawLine(primary, Offset(x - 48 * unit, y + 13 * unit), Offset(x + 48 * unit, y - 13 * unit),
                                 strokeWidth = 7 * unit, cap = StrokeCap.Round)
                             for (side in listOf(-1f, 1f)) {
                                 val at = x + side * 31 * unit
                                 val cy = y - side * 9 * unit
-                                drawLine(Color(0xFFD2D6FF), Offset(at - 6 * unit, cy - 21 * unit), Offset(at + 6 * unit, cy + 21 * unit),
+                                drawLine(plateColor, Offset(at - 6 * unit, cy - 21 * unit), Offset(at + 6 * unit, cy + 21 * unit),
                                     strokeWidth = 13 * unit, cap = StrokeCap.Round)
                             }
                         }

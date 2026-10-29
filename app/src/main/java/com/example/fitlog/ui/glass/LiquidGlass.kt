@@ -16,13 +16,14 @@
 package com.example.fitlog.ui.glass
 
 import android.os.Build
-import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -31,10 +32,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.ui.glass.backdrop.Backdrop
@@ -156,7 +157,7 @@ private fun mix(a: Float, b: Float, t: Float) = a + (b - a) * t
 
 /**
  * Liquid Glass over [page]: vibrancy, a live blur and (Android 13+, rounded shapes) lens
- * refraction with a little chromatic aberration, a dark [tint], a rim of light and a soft shadow.
+ * refraction with a little chromatic aberration, a light/dark adaptive [tint], a rim of light and a soft shadow.
  * The blur, the lens depth and the body's opacity follow the surface's size: a thin bar blurs
  * little and bends hard at its edge, a sheet blurs more and is more opaque. Use through
  * [glassSurface]; this one is for surfaces that need a different tint or no lens (the
@@ -169,24 +170,31 @@ private fun mix(a: Float, b: Float, t: Float) = a + (b - a) * t
 internal fun Modifier.immersiveLiquidGlass(
     shape: Shape,
     page: LayerBackdrop,
-    tint: Color = GlassTint,
+    tint: Color = Color.Unspecified,
     lens: Boolean = true,
     rim: Boolean = true,
     press: (() -> Float)? = null,
 ): Modifier {
     val export = LocalGlassExport.current
-    val backdrop = remember(page) { PageBackdrop(page) }
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val effectiveTint = if (tint.isSpecified) tint else GlassTokens.glassTint(dark)
+    val baseColor = MaterialTheme.colorScheme.surface
+    val fallbackColor = GlassTokens.fill(dark)
+    val backdrop = remember(page, baseColor, fallbackColor) { PageBackdrop(page, baseColor, fallbackColor) }
     // The lens only knows rounded rectangles (it throws on anything else).
     val bend = lens && shape is CornerBasedShape && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-    val adaptive = tint == GlassTint
+    val adaptive = !tint.isSpecified || tint == GlassTokens.glassTint(dark) || tint == GlassTint
     // Stable across recompositions: a new lambda per call would rebuild the effect chain.
-    val effects = remember(bend, press) {
+    val effects = remember(bend, press, dark) {
         val block: com.example.fitlog.ui.glass.backdrop.BackdropEffectScope.() -> Unit = {
             val k = GLASS_RESOLUTION_SCALE
             val minDp = size.minDimension / k / density
             val depth = ((minDp - THIN_DP) / (LARGE_DP - THIN_DP)).coerceIn(0f, 1f)
-            // Vibrancy, and a touch darker so a bright cover behind never washes the text out.
-            colorControls(brightness = -0.03f, saturation = 1.6f)
+            if (dark) {
+                colorControls(brightness = -0.03f, saturation = 1.6f)
+            } else {
+                colorControls(brightness = 0.02f, saturation = 1.35f)
+            }
             blur(mix(3.5f, 14f, depth) * density * k)
             if (bend) {
                 val bulge = 1f + PRESS_BULGE * (press?.invoke() ?: 0f)
@@ -202,10 +210,10 @@ internal fun Modifier.immersiveLiquidGlass(
         }
         block
     }
-    val surface = remember(tint, adaptive) {
+    val surface = remember(effectiveTint, adaptive) {
         val block: DrawScope.() -> Unit = {
             val depth = ((size.minDimension / density - THIN_DP) / (LARGE_DP - THIN_DP)).coerceIn(0f, 1f)
-            drawRect(color = if (adaptive) tint.copy(alpha = mix(tint.alpha, LARGE_TINT_ALPHA, depth)) else tint, size = size)
+            drawRect(color = if (adaptive) effectiveTint.copy(alpha = mix(effectiveTint.alpha, LARGE_TINT_ALPHA, depth)) else effectiveTint, size = size)
         }
         block
     }
@@ -219,12 +227,14 @@ internal fun Modifier.immersiveLiquidGlass(
             block
         }
     }
+    val highlightObj = remember(dark) { if (dark) GlassHighlight else Highlight(width = 0.75f.dp, alpha = 0.65f) }
+    val shadowObj = remember(dark) { if (dark) GlassShadow else Shadow(radius = 16.dp, color = Color.Black.copy(alpha = 0.08f)) }
     return drawBackdrop(
         backdrop = backdrop,
         shape = { shape },
         effects = effects,
-        highlight = if (rim) ({ GlassHighlight }) else null,
-        shadow = if (rim) ({ GlassShadow }) else null,
+        highlight = if (rim) ({ highlightObj }) else null,
+        shadow = if (rim) ({ shadowObj }) else null,
         layerBlock = layerBlock,
         onDrawSurface = surface,
         exportedBackdrop = export,
@@ -239,7 +249,10 @@ internal fun Modifier.immersiveLiquidGlass(
  */
 @Composable
 internal fun Modifier.immersivePageFrost(page: LayerBackdrop, tint: Color, blur: Float): Modifier {
-    val backdrop = remember(page) { PageBackdrop(page) }
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val baseColor = MaterialTheme.colorScheme.surface
+    val fallbackColor = GlassTokens.fill(dark)
+    val backdrop = remember(page, baseColor, fallbackColor) { PageBackdrop(page, baseColor, fallbackColor) }
     val effects = remember(blur) {
         val block: com.example.fitlog.ui.glass.backdrop.BackdropEffectScope.() -> Unit = {
             blur(blur * density * GLASS_RESOLUTION_SCALE)
@@ -279,11 +292,15 @@ internal fun rememberGlassPress(source: androidx.compose.foundation.interaction.
 
 /**
  * The page under the glass, laid on the page colour so the blur never runs into transparency
- * (where it does, the sharp page shows through the glass). Draws nothing but [GlassTokens.Fill]
+ * (where it does, the sharp page shows through the glass). Draws nothing but [fallbackColor]
  * when it cannot sample the page: the glass is inside the recorded page itself (it would draw the
  * page into itself). A glass in another window (a sheet) samples the page by screen position.
  */
-internal class PageBackdrop(private val page: LayerBackdrop) : Backdrop {
+internal class PageBackdrop(
+    private val page: LayerBackdrop,
+    private val baseColor: Color = GlassTokens.Page,
+    private val fallbackColor: Color = GlassTokens.Fill,
+) : Backdrop {
     override val isCoordinatesDependent: Boolean = true
 
     override fun DrawScope.drawBackdrop(
@@ -300,7 +317,7 @@ internal class PageBackdrop(private val page: LayerBackdrop) : Backdrop {
         // position on the screen, which is what both windows share.
         val usable = attached && (sameWindow || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
         report(usable, source, coordinates, attached, sameWindow, page)
-        drawRect(if (usable) GlassTokens.Page else GlassTokens.Fill, topLeft = FAR_TOP_LEFT, size = FAR_SIZE)
+        drawRect(if (usable) baseColor else fallbackColor, topLeft = FAR_TOP_LEFT, size = FAR_SIZE)
         if (!usable) return
         if (sameWindow) {
             with(page) { drawBackdrop(density, coordinates, layerBlock) }

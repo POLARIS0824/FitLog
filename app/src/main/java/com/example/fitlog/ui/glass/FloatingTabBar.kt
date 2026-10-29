@@ -93,6 +93,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -550,7 +552,10 @@ internal object FloatingTabBarDefaults {
     @Composable
     fun colors(
         backgroundColor: Color = Color.Transparent,
-        indicatorColor: Color = Color.White.copy(alpha = 0.12f),
+        indicatorColor: Color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f)
+            Color.White.copy(alpha = 0.12f)
+        else
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
     ): FloatingTabBarColors = FloatingTabBarColors(
         backgroundColor = backgroundColor,
         indicatorColor = indicatorColor,

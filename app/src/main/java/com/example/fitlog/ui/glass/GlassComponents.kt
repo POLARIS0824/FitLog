@@ -25,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -37,24 +39,28 @@ import com.example.fitlog.R
 import com.example.fitlog.data.settings.UiLook
 import com.example.fitlog.ui.glass.backdrop.backdrops.LayerBackdrop
 
-/** Uses the same source recording and 0.33-scale blur/lens path as Myspoti. */
+/** Uses the same source recording and 0.33-scale blur/lens path as Myspoti, adapting to light and dark. */
 @Composable
 internal fun Modifier.glassSurface(
     shape: Shape = RoundedCornerShape(28.dp),
     page: LayerBackdrop? = LocalGlassScene.current,
     interaction: MutableInteractionSource? = null,
-    tint: Color = GlassTint,
+    tint: Color = Color.Unspecified,
 ): Modifier {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val effectiveTint = if (tint.isSpecified) tint else GlassTokens.glassTint(dark)
     val press = rememberGlassPress(interaction)
     if (page != null && LocalImmersiveBackdrop.current != null) {
-        return immersiveLiquidGlass(shape, page, tint = tint, press = press)
+        return immersiveLiquidGlass(shape, page, tint = effectiveTint, press = press)
     }
+    val fallbackFill = GlassTokens.fill(dark)
     val frost = if (page != null && Build.VERSION.SDK_INT >= 31)
-        Modifier.immersivePageFrost(page, GlassTokens.Fill.copy(alpha = 0.75f), 24f)
-        else Modifier.background(GlassTokens.Fill)
+        Modifier.immersivePageFrost(page, fallbackFill.copy(alpha = if (dark) 0.75f else 0.85f), 24f)
+        else Modifier.background(fallbackFill)
+    val borderColor = if (dark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.08f)
     return then(if (press == null) Modifier else Modifier.graphicsLayer {
         scaleX = 1f - 0.04f * press(); scaleY = scaleX
-    }).clip(shape).then(frost).border(0.75.dp, Color.White.copy(alpha = 0.18f), shape)
+    }).clip(shape).then(frost).border(0.75.dp, borderColor, shape)
 }
 
 @Composable
@@ -78,21 +84,25 @@ internal fun LookSurface(
 @Composable
 internal fun GlassButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
     @DrawableRes icon: Int? = null, enabled: Boolean = true, accent: Boolean = false) {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val source = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(50)
     val tint = when {
-        LocalUiLook.current == UiLook.GLASS_NAVIGATION -> Color(0xFF1C1C22).copy(alpha = 0.82f)
-        accent -> GlassTokens.Accent.copy(alpha = 0.18f)
-        else -> GlassTint
+        LocalUiLook.current == UiLook.GLASS_NAVIGATION ->
+            if (dark) Color(0xFF1C1C22).copy(alpha = 0.82f) else Color.White.copy(alpha = 0.85f)
+        accent -> MaterialTheme.colorScheme.primary.copy(alpha = if (dark) 0.18f else 0.12f)
+        else -> GlassTokens.glassTint(dark)
     }
+    val iconTint = if (accent) MaterialTheme.colorScheme.primary else if (dark) GlassTokens.Accent else MaterialTheme.colorScheme.primary
+    val textColor = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
     Row(modifier.heightIn(min = 52.dp)
         .glassSurface(shape, interaction = source, tint = tint)
         .clip(shape).clickable(enabled = enabled, role = Role.Button, interactionSource = source,
             indication = null, onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically) {
-        icon?.let { Icon(painterResource(it), null, Modifier.size(22.dp), tint = GlassTokens.Accent) }
-        Text(text, style = MaterialTheme.typography.titleMedium, color = if (enabled) Color.White else Color.Gray)
+        icon?.let { Icon(painterResource(it), null, Modifier.size(22.dp), tint = iconTint) }
+        Text(text, style = MaterialTheme.typography.titleMedium, color = textColor)
     }
 }
 
@@ -100,28 +110,35 @@ internal fun GlassButton(text: String, onClick: () -> Unit, modifier: Modifier =
 internal fun GlassIconButton(@DrawableRes icon: Int, label: String, onClick: () -> Unit,
     modifier: Modifier = Modifier, enabled: Boolean = true) {
     val source = remember { MutableInteractionSource() }
+    val iconColor = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
     Box(modifier.size(48.dp).glassSurface(CircleShape, interaction = source).clip(CircleShape)
         .clickable(enabled = enabled, role = Role.Button, interactionSource = source, indication = null,
             onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(painterResource(icon), label, Modifier.size(22.dp), tint = if (enabled) Color.White else Color.Gray)
+        Icon(painterResource(icon), label, Modifier.size(22.dp), tint = iconColor)
     }
 }
 
 @Composable
 internal fun <T> GlassSegmentedControl(choices: List<T>, selected: T, labels: List<String>,
     onSelect: (T) -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, canSelect: (T) -> Boolean = { true }) {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val itemWidth = maxOf(88.dp, (maxWidth - 8.dp) / choices.size)
         Row(Modifier.glassSurface(RoundedCornerShape(50)).horizontalScroll(rememberScrollState())
             .selectableGroup().padding(4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             choices.forEachIndexed { index, choice ->
                 val checked = choice == selected
+                val checkedBg = if (dark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer
+                val textColor = when {
+                    checked -> if (dark) Color.White else MaterialTheme.colorScheme.onPrimaryContainer
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
                 Box(Modifier.widthIn(min = itemWidth - 2.dp).heightIn(min = 44.dp)
-                    .background(if (checked) Color.White.copy(alpha = 0.15f) else Color.Transparent, CircleShape)
+                    .background(if (checked) checkedBg else Color.Transparent, CircleShape)
                     .clip(CircleShape).selectable(checked, enabled = enabled && canSelect(choice), role = Role.RadioButton,
                         onClick = { onSelect(choice) }).padding(horizontal = 14.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
                     Text(labels[index], style = MaterialTheme.typography.labelLarge,
-                        color = if (checked) Color.White else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        color = textColor, maxLines = 1)
                 }
             }
         }
@@ -135,7 +152,15 @@ internal fun GlassTopAppBar(title: String, subtitle: String?, onBack: (() -> Uni
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            onBack?.let { GlassIconButton(R.drawable.arrow_back_24px, stringResource(R.string.cd_back), it, enabled = backEnabled) }
+            onBack?.let {
+                if (LocalUiLook.current == UiLook.LIQUID_GLASS) {
+                    GlassIconButton(R.drawable.arrow_back_24px, stringResource(R.string.cd_back), it, enabled = backEnabled)
+                } else {
+                    FilledTonalIconButton(onClick = it, enabled = backEnabled, shapes = IconButtonDefaults.shapes()) {
+                        Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
+                    }
+                }
+            }
             Text(title, style = MaterialTheme.typography.headlineMediumEmphasized, maxLines = 2,
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).semantics { heading() })
             actions()
@@ -146,6 +171,8 @@ internal fun GlassTopAppBar(title: String, subtitle: String?, onBack: (() -> Uni
 
 @Composable
 internal fun GlassSearchField(state: TextFieldState, modifier: Modifier = Modifier) {
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val primaryColor = MaterialTheme.colorScheme.primary
     Row(modifier.fillMaxWidth().heightIn(min = 56.dp).glassSurface(CircleShape).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(painterResource(R.drawable.search_24px), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -153,8 +180,8 @@ internal fun GlassSearchField(state: TextFieldState, modifier: Modifier = Modifi
         Box(Modifier.weight(1f)) {
             if (state.text.isEmpty()) Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
             BasicTextField(state = state, lineLimits = TextFieldLineLimits.SingleLine,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White),
-                cursorBrush = androidx.compose.ui.graphics.SolidColor(GlassTokens.Accent),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = textColor),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(primaryColor),
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
                     .semantics { contentDescription = label })
         }

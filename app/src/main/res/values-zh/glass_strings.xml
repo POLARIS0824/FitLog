@@ -4,7 +4,7 @@
     <string name="look_classic">Material Expressive</string>
     <string name="look_classic_description">保留原有界面、工具栏和操作菜单。</string>
     <string name="look_liquid">Liquid Glass</string>
-    <string name="look_liquid_description">深色界面与悬浮玻璃组件。</string>
+    <string name="look_liquid_description">悬浮玻璃质感界面，支持亮色与深色主题。</string>
     <string name="look_effect_title">Liquid Glass 效果</string>
     <string name="look_effect_description">实时模糊与折射。关闭后使用磨砂效果；系统关闭动画时也使用磨砂。</string>
     <string name="look_effect_unsupported">此 Android 版本使用磨砂效果。实时玻璃效果需要 Android 12 或更新版本。</string>

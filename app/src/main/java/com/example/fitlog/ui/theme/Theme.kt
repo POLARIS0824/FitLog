@@ -19,6 +19,7 @@ fun FitLogTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
+        liquidLook -> if (darkTheme) GlassTokens.Colors else GlassTokens.LightColors
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
@@ -29,7 +30,7 @@ fun FitLogTheme(
     }
 
     MaterialExpressiveTheme(
-        colorScheme = if (liquidLook) GlassTokens.Colors else colorScheme,
+        colorScheme = colorScheme,
         typography = Typography,
         motionScheme = MotionScheme.expressive(),
         content = content

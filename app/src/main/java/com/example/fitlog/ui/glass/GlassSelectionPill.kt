@@ -27,6 +27,8 @@ import com.example.fitlog.ui.glass.backdrop.drawBackdrop
 import com.example.fitlog.ui.glass.backdrop.effects.lens
 import com.example.fitlog.ui.glass.backdrop.highlight.Highlight
 import com.example.fitlog.ui.glass.backdrop.shadow.Shadow
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -527,8 +529,13 @@ internal fun LiftedSelectionPill(
     fillColor: Color,
     modifier: Modifier,
 ) {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val shape = remember { RoundedCornerShape(percent = 50) }
-    val liftedBody = remember(fillColor) { Color.White.copy(alpha = LIFTED_BODY_ALPHA) }
+    val liftedBody = remember(fillColor, dark) {
+        if (dark) Color.White.copy(alpha = LIFTED_BODY_ALPHA)
+        else Color.White.copy(alpha = 0.70f)
+    }
+    val rimColor = if (dark) Color.White else MaterialTheme.colorScheme.outlineVariant
     Box(
         modifier
             .graphicsLayer {
@@ -543,7 +550,7 @@ internal fun LiftedSelectionPill(
                 drawOutline(outline, color = body)
                 val rim = motion.material * rimOf(motion.glassPresence)
                 if (rim > 0f) {
-                    drawOutline(outline, color = Color.White.copy(alpha = LIFTED_RIM_ALPHA * rim), style = Stroke(1.dp.toPx()))
+                    drawOutline(outline, color = rimColor.copy(alpha = (if (dark) LIFTED_RIM_ALPHA else 0.45f) * rim), style = Stroke(1.dp.toPx()))
                 }
             },
     )
@@ -575,9 +582,12 @@ internal fun GlassSelectionPill(
     tabRow: LayerBackdrop,
     modifier: Modifier,
 ) {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val baseColor = MaterialTheme.colorScheme.surface
+    val fallbackColor = GlassTokens.fill(dark)
     val shape = remember { RoundedCornerShape(percent = 50) }
-    val backdrop = remember(page, barGlass, tabRow, fillColor) {
-        SelectionPillBackdrop(PageBackdrop(page), barGlass, tabRow) {
+    val backdrop = remember(page, barGlass, tabRow, fillColor, baseColor, fallbackColor) {
+        SelectionPillBackdrop(PageBackdrop(page, baseColor, fallbackColor), barGlass, tabRow) {
             fillColor.copy(alpha = fillColor.alpha * (1f - motion.material))
         }
     }
@@ -596,11 +606,11 @@ internal fun GlassSelectionPill(
             },
             highlight = {
                 val alpha = motion.material * rimOf(motion.glassPresence)
-                if (alpha > 0f) Highlight.Default.copy(alpha = alpha) else null
+                if (alpha > 0f) Highlight.Default.copy(alpha = alpha * (if (dark) 1f else 0.7f)) else null
             },
             shadow = {
                 val alpha = motion.material * rimOf(motion.glassPresence)
-                if (alpha > 0f) PILL_SHADOW.copy(alpha = alpha) else null
+                if (alpha > 0f) PILL_SHADOW.copy(alpha = alpha * (if (dark) 1f else 0.4f)) else null
             },
         ),
     )

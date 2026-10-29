@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
             }
             val appearanceState by appearance.uiState.collectAsStateWithLifecycle()
             val liquidLook = appearanceState.preferences.look == UiLook.LIQUID_GLASS
-            val dark = liquidLook || when (appearanceState.preferences.themeMode) {
+            val dark = when (appearanceState.preferences.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
