@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.map
 internal enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /** A separate look, independent of the existing Material theme preferences. */
-internal enum class UiLook { CLASSIC, LIQUID_GLASS }
+internal enum class UiLook { CLASSIC, LIQUID_GLASS, GLASS_NAVIGATION }
 
 internal data class AppearancePreferences(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,

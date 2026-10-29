@@ -23,14 +23,15 @@ internal fun GlassLookPicker(selected: UiLook, enabled: Boolean, onSelect: (UiLo
     Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         UiLook.entries.forEach { look ->
             val checked = selected == look
-            val liquid = look == UiLook.LIQUID_GLASS
+            val liquid = look != UiLook.CLASSIC
+            val fullLook = look == UiLook.LIQUID_GLASS
             Surface(shape = MaterialTheme.shapes.large,
                 color = if (checked) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLowest) {
                 Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large)
                     .selectable(checked, enabled = enabled, role = Role.RadioButton, onClick = { onSelect(look) })
                     .padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Box(Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)).background(
-                        Brush.linearGradient(if (liquid) listOf(Color(0xFF242C4D), Color(0xFF60547A)) else
+                        Brush.linearGradient(if (fullLook) listOf(Color(0xFF242C4D), Color(0xFF60547A)) else
                             listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.surfaceContainer))),
                         contentAlignment = Alignment.BottomCenter) {
                         Row(Modifier.padding(8.dp).fillMaxWidth().height(16.dp)
@@ -41,8 +42,16 @@ internal fun GlassLookPicker(selected: UiLook, enabled: Boolean, onSelect: (UiLo
                         }
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(stringResource(if (liquid) R.string.look_liquid else R.string.look_classic), style = MaterialTheme.typography.titleMediumEmphasized)
-                        Text(stringResource(if (liquid) R.string.look_liquid_description else R.string.look_classic_description),
+                        Text(stringResource(when (look) {
+                            UiLook.CLASSIC -> R.string.look_classic
+                            UiLook.LIQUID_GLASS -> R.string.look_liquid
+                            UiLook.GLASS_NAVIGATION -> R.string.look_glass_navigation
+                        }), style = MaterialTheme.typography.titleMediumEmphasized)
+                        Text(stringResource(when (look) {
+                            UiLook.CLASSIC -> R.string.look_classic_description
+                            UiLook.LIQUID_GLASS -> R.string.look_liquid_description
+                            UiLook.GLASS_NAVIGATION -> R.string.look_glass_navigation_description
+                        }),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     RadioButton(checked, onClick = null, enabled = enabled)

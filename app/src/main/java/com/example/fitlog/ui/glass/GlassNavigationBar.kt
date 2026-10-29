@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -18,6 +19,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
+import com.example.fitlog.data.settings.UiLook
 import com.example.fitlog.R
 import com.example.fitlog.app.navigation.TopLevelDestination
 import com.example.fitlog.app.navigation.topLevelDestinations
@@ -35,6 +37,10 @@ internal fun GlassNavigationBar(currentRoute: NavKey?, expanded: Boolean, onExpa
     val menuExpanded by rememberUpdatedState(expanded)
     val page = LocalGlassPage.current
     val reduce = rememberReduceMotion()
+    val fullLook = LocalUiLook.current == UiLook.LIQUID_GLASS
+    val tint = if (fullLook) GlassTint else Color(0xFF1C1C22).copy(alpha = 0.82f)
+    val unselectedColor = if (fullLook)
+        MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.70f)
     Column(modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         AnimatedVisibility(expanded, enter = fadeIn(), exit = fadeOut()) {
@@ -57,7 +63,7 @@ internal fun GlassNavigationBar(currentRoute: NavKey?, expanded: Boolean, onExpa
                 tabExpandedContentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp),
                 componentSpacing = 10.dp,
             ),
-            tabBarContentModifier = { Modifier.glassSurface(CircleShape, page = page) },
+            tabBarContentModifier = { Modifier.glassSurface(CircleShape, page = page, tint = tint) },
             contentKey = currentRoute,
         ) {
             topLevelDestinations.forEach { destination ->
@@ -66,11 +72,11 @@ internal fun GlassNavigationBar(currentRoute: NavKey?, expanded: Boolean, onExpa
                     title = {
                         Text(stringResource(destination.labelRes), maxLines = 1, overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (active) GlassTokens.Accent else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (active) GlassTokens.Accent else unselectedColor,
                             modifier = Modifier.semantics { selected = active })
                     },
                     icon = { Icon(painterResource(if (active) destination.selectedIconRes else destination.unselectedIconRes),
-                        null, Modifier.size(24.dp), tint = if (active) GlassTokens.Accent else MaterialTheme.colorScheme.onSurfaceVariant) },
+                        null, Modifier.size(24.dp), tint = if (active) GlassTokens.Accent else unselectedColor) },
                     onClick = { expandClick(false); destinationClick(destination) })
             }
             standaloneTab("actions", icon = {

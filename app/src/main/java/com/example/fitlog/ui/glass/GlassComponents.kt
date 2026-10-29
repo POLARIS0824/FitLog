@@ -80,8 +80,13 @@ internal fun GlassButton(text: String, onClick: () -> Unit, modifier: Modifier =
     @DrawableRes icon: Int? = null, enabled: Boolean = true, accent: Boolean = false) {
     val source = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(50)
+    val tint = when {
+        LocalUiLook.current == UiLook.GLASS_NAVIGATION -> Color(0xFF1C1C22).copy(alpha = 0.82f)
+        accent -> GlassTokens.Accent.copy(alpha = 0.18f)
+        else -> GlassTint
+    }
     Row(modifier.heightIn(min = 52.dp)
-        .glassSurface(shape, interaction = source, tint = if (accent) GlassTokens.Accent.copy(alpha = 0.18f) else GlassTint)
+        .glassSurface(shape, interaction = source, tint = tint)
         .clip(shape).clickable(enabled = enabled, role = Role.Button, interactionSource = source,
             indication = null, onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),

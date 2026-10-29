@@ -8,4 +8,6 @@
     <string name="look_effect_title">Liquid Glass effects</string>
     <string name="look_effect_description">Live blur and refraction. Turn off for frosted surfaces. Reduced motion also uses frost.</string>
     <string name="look_effect_unsupported">Frosted surfaces on this Android version. Live glass requires Android 12 or later.</string>
+    <string name="look_glass_navigation">Liquid Glass navigation only</string>
+    <string name="look_glass_navigation_description">Keep the Material interface and use a glass navigation bar.</string>
 </resources>

@@ -97,18 +97,19 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
     var fabMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var glassMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val liquidLook = appearanceState.preferences.look == UiLook.LIQUID_GLASS
+    val glassNavigation = appearanceState.preferences.look != UiLook.CLASSIC
     val scene = rememberImmersiveBackdrop()
     val page = rememberImmersiveBackdrop()
-    val glassActive = rememberLiquidGlassActive(liquidLook && appearanceState.preferences.liquidGlass)
-    val recordGlass = liquidLook && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    LaunchedEffect(liquidLook, currentRoute) {
-        if (!showNavigationToolbar || !liquidLook) glassMenuExpanded = false
+    val glassActive = rememberLiquidGlassActive(glassNavigation && appearanceState.preferences.liquidGlass)
+    val recordGlass = glassNavigation && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    LaunchedEffect(glassNavigation, currentRoute) {
+        if (!showNavigationToolbar || !glassNavigation) glassMenuExpanded = false
     }
 
     // Keep the navigation host at one stable location when the look changes, like Myspoti.
     CompositionLocalProvider(
-        LocalGlassScene provides if (recordGlass) scene else null,
-        LocalGlassPage provides if (recordGlass) page else null,
+        LocalGlassScene provides if (recordGlass) { if (liquidLook) scene else page } else null,
+        LocalGlassPage provides if (recordGlass && (liquidLook || showNavigationToolbar)) page else null,
         LocalImmersiveBackdrop provides if (glassActive) page else null,
     ) {
     Scaffold(
@@ -149,7 +150,7 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
             }
 
             AnimatedVisibility(
-                visible = showNavigationToolbar && if (liquidLook) glassMenuExpanded else fabMenuExpanded,
+                visible = showNavigationToolbar && if (glassNavigation) glassMenuExpanded else fabMenuExpanded,
                 enter = fadeIn(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec()),
                 exit = fadeOut(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec()),
                 modifier = Modifier.matchParentSize(),
@@ -163,11 +164,11 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
                             interactionSource = null,
                             indication = null,
                             onClickLabel = stringResource(R.string.cd_close_menu),
-                        ) { if (liquidLook) glassMenuExpanded = false else fabMenuExpanded = false }
+                        ) { if (glassNavigation) glassMenuExpanded = false else fabMenuExpanded = false }
                 )
             }
 
-            if (showNavigationToolbar && liquidLook) {
+            if (showNavigationToolbar && glassNavigation) {
                 GlassNavigationBar(
                     currentRoute = currentRoute,
                     expanded = glassMenuExpanded,
@@ -178,7 +179,7 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
                     modifier = Modifier.align(Alignment.BottomCenter).padding(innerPadding),
                 )
             }
-            if (showNavigationToolbar && !liquidLook) {
+            if (showNavigationToolbar && !glassNavigation) {
                 FitLogNavigationToolbar(
                     // The menu supplies its own bottom spacing; only add Scaffold's safe insets.
                     modifier = Modifier.align(Alignment.BottomCenter).padding(innerPadding),

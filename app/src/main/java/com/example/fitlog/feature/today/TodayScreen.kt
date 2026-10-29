@@ -52,6 +52,7 @@ import java.time.format.FormatStyle
 import com.example.fitlog.data.settings.UiLook
 import com.example.fitlog.ui.glass.LocalUiLook
 import com.example.fitlog.ui.glass.GlassTodayScreen
+import com.example.fitlog.ui.glass.glassPageSource
 
 @Composable
 fun TodayScreen(
@@ -83,7 +84,7 @@ fun TodayScreen(
             val showSupportingColumn = maxWidth >= FitLogDimens.WideContentWidth && fontScale < 1.5f
             val showIllustration = maxHeight >= 600.dp
             LazyColumn(
-                modifier = Modifier.widthIn(max = if (showSupportingColumn) FitLogDimens.WideContentWidth else FitLogDimens.ContentWidth).fillMaxSize(),
+                modifier = Modifier.widthIn(max = if (showSupportingColumn) FitLogDimens.WideContentWidth else FitLogDimens.ContentWidth).fillMaxSize().glassPageSource(),
                 contentPadding = PaddingValues(
                     start = horizontalPadding,
                     top = 16.dp,

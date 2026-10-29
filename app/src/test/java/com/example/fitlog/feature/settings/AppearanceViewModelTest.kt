@@ -45,6 +45,27 @@ class AppearanceViewModelTest {
         assertEquals(initial, reopened.uiState.value.preferences)
     }
 
+    @Test fun navigationOnlyLookPersistsAndKeepsMaterialPreferences() = runTest(main.dispatcher) {
+        val initial = AppearancePreferences(themeMode = ThemeMode.LIGHT, dynamicColor = false, liquidGlass = false)
+        val persisted = MutableStateFlow(initial)
+        val store = object : AppearanceSettingsStore {
+            override val settings = persisted
+            override suspend fun save(settings: AppearancePreferences) { persisted.value = settings }
+        }
+        val vm = main.own(AppearanceViewModel(store))
+        runCurrent()
+        vm.changeLook(UiLook.GLASS_NAVIGATION)
+        runCurrent()
+        val expected = initial.copy(look = UiLook.GLASS_NAVIGATION)
+        assertEquals(expected, vm.uiState.value.preferences)
+        val reopened = main.own(AppearanceViewModel(store))
+        runCurrent()
+        assertEquals(expected, reopened.uiState.value.preferences)
+        reopened.changeLook(UiLook.CLASSIC)
+        runCurrent()
+        assertEquals(initial, reopened.uiState.value.preferences)
+    }
+
     @Test fun failedLookSwitchKeepsCurrentInterface() = runTest(main.dispatcher) {
         val initial = AppearancePreferences(themeMode = ThemeMode.DARK, liquidGlass = false)
         val store = object : AppearanceSettingsStore {

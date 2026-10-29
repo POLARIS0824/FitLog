@@ -40,6 +40,7 @@ internal fun SettingsScreen(
             SettingsGroup {
                 SettingsEntry(R.drawable.palette_24px, stringResource(R.string.appearance_title),
                     if (appearanceReady && appearance.look == UiLook.LIQUID_GLASS) stringResource(R.string.look_liquid)
+                    else if (appearanceReady && appearance.look == UiLook.GLASS_NAVIGATION) stringResource(R.string.look_glass_navigation)
                     else if (appearanceReady) stringResource(R.string.appearance_summary, themeModeLabel(appearance.themeMode),
                         stringResource(if (appearance.dynamicColor && Build.VERSION.SDK_INT >= 31)
                             R.string.appearance_dynamic_on else R.string.appearance_dynamic_off))

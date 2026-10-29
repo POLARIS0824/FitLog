@@ -61,7 +61,7 @@ internal fun AppearanceContent(
             SettingsSectionTitle(stringResource(R.string.look_heading))
             GlassLookPicker(preferences.look, canEdit, onLook)
         }
-        if (preferences.look == UiLook.LIQUID_GLASS) item {
+        if (preferences.look != UiLook.CLASSIC) item {
             SettingsGroup {
                 Row(Modifier.fillMaxWidth().toggleable(value = preferences.liquidGlass,
                     enabled = canEdit && dynamicColorSupported, role = Role.Switch, onValueChange = onLiquidGlass)
@@ -76,7 +76,7 @@ internal fun AppearanceContent(
                 }
             }
         }
-        if (preferences.look == UiLook.CLASSIC) item {
+        if (preferences.look != UiLook.LIQUID_GLASS) item {
             SettingsSectionTitle(stringResource(R.string.appearance_theme_heading))
             Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
                 ThemeMode.entries.forEach { mode ->
@@ -102,7 +102,7 @@ internal fun AppearanceContent(
                 }
             }
         }
-        if (preferences.look == UiLook.CLASSIC) item {
+        if (preferences.look != UiLook.LIQUID_GLASS) item {
             SettingsSectionTitle(stringResource(R.string.appearance_colors_heading))
             SettingsGroup {
                 Row(Modifier.fillMaxWidth().toggleable(value = preferences.dynamicColor,

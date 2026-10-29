@@ -8,4 +8,6 @@
     <string name="look_effect_title">Liquid Glass 效果</string>
     <string name="look_effect_description">实时模糊与折射。关闭后使用磨砂效果；系统关闭动画时也使用磨砂。</string>
     <string name="look_effect_unsupported">此 Android 版本使用磨砂效果。实时玻璃效果需要 Android 12 或更新版本。</string>
+    <string name="look_glass_navigation">仅导航栏使用 Liquid Glass</string>
+    <string name="look_glass_navigation_description">保留 Material 界面，使用玻璃导航栏。</string>
 </resources>

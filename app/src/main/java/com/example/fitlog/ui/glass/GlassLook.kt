@@ -6,6 +6,7 @@ import android.os.Looper
 import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -75,6 +76,10 @@ internal fun GlassBackdropBackground(modifier: Modifier = Modifier) {
 @Composable
 internal fun Modifier.glassPageSource(): Modifier {
     val page = LocalGlassPage.current
-    return if (LocalUiLook.current == UiLook.LIQUID_GLASS && page != null)
-        layerBackdrop(page).drawBehind { drawGlassBackground() } else this
+    if (page == null) return this
+    val fullLook = LocalUiLook.current == UiLook.LIQUID_GLASS
+    val pageColor = MaterialTheme.colorScheme.surface
+    return layerBackdrop(page).drawBehind {
+        if (fullLook) drawGlassBackground() else drawRect(pageColor)
+    }
 }
