@@ -23,7 +23,7 @@ class SourceIndexRegressionTest {
         val scans = mutableListOf<IndexedScan>()
         var rows = emptyList<IndexedSource>()
         override fun observe(vaultId: String) = flowOf(SourceIndexSnapshot(rows, scans.lastOrNull()))
-        override suspend fun sources(vaultId: String) = rows
+        override suspend fun sources(vaultId: String) = rows.filter { it.vaultId == vaultId }
         override suspend fun commit(sources: List<IndexedSource>, scan: IndexedScan?) {
             val updated = rows.associateByTo(linkedMapOf()) { it.vaultId to it.uri }
             sources.forEach { updated[it.vaultId to it.uri] = it }
@@ -137,7 +137,7 @@ class SourceIndexRegressionTest {
         scanStarted.await()
         val queuedRead = backgroundScope.launch { repo.recordRead(vault, file.path, older) }
         runCurrent()
-        assertFalse(queuedRead.isCompleted)
+        assertTrue("A source read must finish before the unrelated scan", queuedRead.isCompleted)
         continueScan.complete(Unit)
         scan.join()
         queuedRead.join()
@@ -147,6 +147,131 @@ class SourceIndexRegressionTest {
         val newer = MarkdownSnapshot(file, "version C", "C", false, readAt = scannedOrder + 1)
         repo.recordRead(vault, file.path, newer)
         assertEquals(ContentTextSnapshot.fromRawText(newer.text).hash, store.rows.single().contentHash)
+    }
+
+    @Test fun aScanCannotOverwriteANewerReadCommittedWhileItWasReading() = runTest {
+        val file = MarkdownFile("content://test/diary", "diary.md", "diary.md", false)
+        val scanned = MarkdownSnapshot(file, "old", "old", false)
+        val store = Store().apply { rows = listOf(IndexedSource(vault, file.uri, file.name, file.path, null, false)) }
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val source = object : MarkdownDocuments {
+            override suspend fun scan(vault: String) = MarkdownScan(listOf(file), partial = false)
+            override suspend fun read(uri: String): MarkdownSnapshot {
+                started.complete(Unit)
+                release.await()
+                return scanned
+            }
+        }
+        val repo = SourceIndexRepository(source, store, computationDispatcher = StandardTestDispatcher(testScheduler),
+            scope = backgroundScope, resolveVaultUri = { "content://test/vault" })
+        val scan = repo.refresh(vault)
+        started.await()
+        val newer = MarkdownSnapshot(file, "new", "new", false)
+        val read = backgroundScope.launch { repo.recordRead(vault, file.path, newer) }
+        runCurrent()
+        assertTrue("The newer read must finish while the scan is suspended", read.isCompleted)
+        release.complete(Unit)
+        scan.join()
+        assertEquals(ContentTextSnapshot.fromRawText(newer.text).hash, store.rows.single().contentHash)
+        assertEquals(newer.readAt, store.rows.single().observedAt)
+    }
+
+    @Test fun aSlowFailedScanReadCannotReplaceALaterSuccessfulRead() = runTest {
+        val file = MarkdownFile("content://test/diary", "diary.md", "diary.md", false)
+        val store = Store().apply { rows = listOf(IndexedSource(vault, file.uri, file.name, file.path, null, false)) }
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val source = object : MarkdownDocuments {
+            override suspend fun scan(vault: String) = MarkdownScan(listOf(file), partial = false)
+            override suspend fun read(uri: String): MarkdownSnapshot {
+                started.complete(Unit)
+                release.await()
+                error("provider read failed")
+            }
+        }
+        val repo = SourceIndexRepository(source, store, computationDispatcher = StandardTestDispatcher(testScheduler),
+            scope = backgroundScope, resolveVaultUri = { "content://test/vault" })
+        val scan = repo.refresh(vault)
+        started.await()
+        val newer = MarkdownSnapshot(file, "read succeeded", "new", false)
+        val read = backgroundScope.launch { repo.recordRead(vault, file.path, newer) }
+        runCurrent()
+        assertTrue("The successful read must finish while the failing read is suspended", read.isCompleted)
+        release.complete(Unit)
+        scan.join()
+        assertEquals(IndexedSource.AVAILABLE, store.rows.single().status)
+        assertEquals(newer.readAt, store.rows.single().observedAt)
+        assertEquals(IndexedScan.PARTIAL, store.scans.single().status)
+    }
+
+    @Test fun aCompleteScanDoesNotMarkASourceMissingAfterANewerRead() = runTest {
+        val file = MarkdownFile("content://test/diary", "diary.md", "diary.md", false)
+        val store = Store().apply { rows = listOf(IndexedSource(vault, file.uri, file.name, file.path, null, false)) }
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val source = object : MarkdownDocuments {
+            override suspend fun scan(vault: String): MarkdownScan {
+                started.complete(Unit)
+                release.await()
+                return MarkdownScan(emptyList(), partial = false)
+            }
+            override suspend fun read(uri: String): MarkdownSnapshot = error("not reached")
+        }
+        val repo = SourceIndexRepository(source, store, computationDispatcher = StandardTestDispatcher(testScheduler),
+            scope = backgroundScope, resolveVaultUri = { "content://test/vault" })
+        val scan = repo.refresh(vault)
+        started.await()
+        val newer = MarkdownSnapshot(file, "still available", "new", false)
+        val read = backgroundScope.launch { repo.recordRead(vault, file.path, newer) }
+        runCurrent()
+        assertTrue("The successful read must finish while directory discovery is suspended", read.isCompleted)
+        release.complete(Unit)
+        scan.join()
+        assertEquals(IndexedSource.AVAILABLE, store.rows.single().status)
+        assertEquals(newer.readAt, store.rows.single().observedAt)
+        assertEquals(IndexedScan.COMPLETE, store.scans.single().status)
+    }
+
+    @Test fun aPartialScanKeepsUnseenSourcesAvailable() = runTest {
+        val file = MarkdownFile("content://test/diary", "diary.md", "diary.md", false)
+        val store = Store().apply { rows = listOf(IndexedSource(vault, file.uri, file.name, file.path, null, false)) }
+        val source = object : MarkdownDocuments {
+            override suspend fun scan(vault: String) = MarkdownScan(emptyList(), partial = true)
+            override suspend fun read(uri: String): MarkdownSnapshot = error("not reached")
+        }
+        val repo = SourceIndexRepository(source, store, computationDispatcher = StandardTestDispatcher(testScheduler),
+            scope = backgroundScope, resolveVaultUri = { "content://test/vault" })
+        repo.refresh(vault).join()
+        assertEquals(IndexedSource.AVAILABLE, store.rows.single().status)
+        assertEquals(IndexedScan.PARTIAL, store.scans.single().status)
+    }
+
+    @Test fun switchingVaultsCancelsTheOldScanWithoutPublishingItsRows() = runTest {
+        val otherVault = "00000000-0000-0000-0000-000000000002"
+        val file = MarkdownFile("content://test/other", "other.md", "other.md", false)
+        val started = CompletableDeferred<Unit>()
+        val store = Store()
+        val source = object : MarkdownDocuments {
+            override suspend fun scan(vault: String): MarkdownScan {
+                if (vault == this@SourceIndexRegressionTest.vault) {
+                    started.complete(Unit)
+                    awaitCancellation()
+                }
+                return MarkdownScan(listOf(file), partial = false)
+            }
+            override suspend fun read(uri: String) = MarkdownSnapshot(file, "other", "other", false)
+        }
+        val repo = SourceIndexRepository(source, store, computationDispatcher = StandardTestDispatcher(testScheduler),
+            scope = backgroundScope, resolveVaultUri = { it })
+        repo.activate(vault)
+        started.await()
+        repo.activate(otherVault)
+        repo.refresh(otherVault).join()
+        assertEquals(listOf(otherVault), store.rows.map { it.vaultId })
+        assertEquals(listOf(otherVault), store.scans.map { it.vaultId })
+        assertFalse(repo.observe(otherVault).first().refreshing)
+        assertFalse(repo.observe(vault).first().refreshFailed)
     }
 
 }
