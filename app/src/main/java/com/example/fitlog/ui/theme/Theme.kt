@@ -31,7 +31,7 @@ fun FitLogTheme(
 
     MaterialExpressiveTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = FitLogType.typography,
         motionScheme = MotionScheme.expressive(),
         content = content
     )

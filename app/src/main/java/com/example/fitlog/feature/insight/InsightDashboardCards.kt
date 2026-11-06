@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.example.fitlog.ui.glass.LookSurface
 import com.example.fitlog.R
 import com.example.fitlog.ui.components.FitLogConnectedButtonGroup
+import com.example.fitlog.ui.theme.FitLogType
 import java.text.NumberFormat
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -113,8 +114,7 @@ private fun DashboardMetric(value: String, label: String, modifier: Modifier) {
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 16.dp).semantics(mergeDescendants = true) {},
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(value, style = MaterialTheme.typography.headlineMediumEmphasized.copy(fontFeatureSettings = "tnum"),
-                color = MaterialTheme.colorScheme.primary)
+            Text(value, style = FitLogType.metricNumber, color = MaterialTheme.colorScheme.primary)
             Text(label, style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }

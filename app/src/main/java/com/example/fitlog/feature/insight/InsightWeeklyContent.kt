@@ -27,11 +27,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.fitlog.ui.glass.glassPageSource
 import com.example.fitlog.R
 import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.fitLogPagePadding
+import com.example.fitlog.ui.theme.FitLogType
 import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -81,7 +81,6 @@ private fun WeeklyReportHero(report: InsightWeeklyReport, onOpenLog: () -> Unit)
     val primary = MaterialTheme.colorScheme.primary
     val foreground = MaterialTheme.colorScheme.onPrimary
     val end = reportGradientEnd(primary, MaterialTheme.colorScheme.primaryContainer, foreground)
-    val largeText = LocalDensity.current.fontScale >= 1.5f
     Surface(shape = RoundedCornerShape(32.dp), color = primary, contentColor = foreground) {
         Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(primary, end))).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -93,9 +92,7 @@ private fun WeeklyReportHero(report: InsightWeeklyReport, onOpenLog: () -> Unit)
                     style = MaterialTheme.typography.bodyMedium)
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(percent, style = MaterialTheme.typography.displayLargeEmphasized.copy(
-                    fontSize = if (largeText) 48.sp else 72.sp,
-                    lineHeight = if (largeText) 56.sp else 80.sp, fontFeatureSettings = "tnum"))
+                Text(percent, style = FitLogType.heroNumber())
                 Text(stringResource(R.string.weekly_frequency), style = MaterialTheme.typography.titleLarge)
                 Text(stringResource(R.string.weekly_days_recorded, report.trainingDays, report.elapsedDays),
                     style = MaterialTheme.typography.bodyLarge)

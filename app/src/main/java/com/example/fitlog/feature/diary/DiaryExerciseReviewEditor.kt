@@ -32,6 +32,7 @@ import com.example.fitlog.model.record.ReviewedExercise
 import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogSheetActions
 import com.example.fitlog.ui.components.FitLogSheetTitle
+import com.example.fitlog.ui.theme.FitLogType
 
 internal data class DiaryExerciseAddress(val session: Int, val exercise: Int)
 internal data class DiaryExerciseEdit(val address: DiaryExerciseAddress, val exercise: ReviewedExercise?,
@@ -115,7 +116,7 @@ internal fun DiaryExerciseReviewEditorContent(address: DiaryExerciseAddress, exe
 private fun ExerciseSetCount(count: String, onCount: (String) -> Unit, knownCount: Int?) {
     val caption = stringResource(R.string.detail_review_set_count)
     val focus = LocalFocusManager.current
-    val numberStyle = MaterialTheme.typography.headlineMediumEmphasized.copy(textAlign = TextAlign.Center)
+    val numberStyle = FitLogType.centeredNumber
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val numberWidth = with(density) { measurer.measure("1000", numberStyle, maxLines = 1).size.width.toDp() } + 32.dp
