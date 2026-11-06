@@ -84,7 +84,7 @@ internal fun rememberReduceMotion(): Boolean {
     return reduced
 }
 
-private fun DrawScope.drawGlassBackground(dark: Boolean = true) {
+internal fun DrawScope.drawGlassBackground(dark: Boolean = true) {
     val base = if (dark) GlassTokens.Page else GlassTokens.LightPage
     drawRect(base)
     val radius = size.maxDimension * 0.70f

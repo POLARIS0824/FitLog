@@ -2,19 +2,24 @@ package com.example.fitlog.app.navigation
 
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import com.example.fitlog.data.settings.UiLook
+import com.example.fitlog.ui.glass.LocalReduceMotion
 import com.example.fitlog.ui.glass.LocalUiLook
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
+import com.example.fitlog.ui.glass.drawGlassBackground
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavEntryDecorator
@@ -22,21 +27,49 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import androidx.navigationevent.NavigationEvent
-import kotlin.math.roundToInt
 
 /** Shared rendering and lifecycle boundary for every app destination. */
 @Composable
 internal fun FitLogNavDisplay(navigationState: FitLogNavigationState, onBack: () -> Unit,
     entryProvider: (NavKey, NavKey) -> NavEntry<NavKey>, modifier: Modifier = Modifier) {
-    val surface = remember {
+    val look = LocalUiLook.current
+    val surface = remember(look) {
         NavEntryDecorator<NavKey> { entry ->
-            Surface(Modifier.fillMaxSize(), color = if (LocalUiLook.current == UiLook.LIQUID_GLASS)
-                Color.Transparent else MaterialTheme.colorScheme.surface) { entry.Content() }
+            val isLiquid = look == UiLook.LIQUID_GLASS
+            val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (isLiquid) Modifier.drawBehind { drawGlassBackground(dark) }
+                        else Modifier
+                    ),
+                color = if (isLiquid) Color.Transparent else MaterialTheme.colorScheme.surface
+            ) { entry.Content() }
         }
     }
     val motion = MaterialTheme.motionScheme
-    val previewMargin = with(LocalDensity.current) { 8.dp.toPx() }
+    val reduceMotion = LocalReduceMotion.current == true
+    // NavDisplay decorates entry keys, so tab changes are tracked from the state they come from.
+    val lastTab = remember { mutableStateOf(navigationState.currentTab) }
+    val switchingTabs = lastTab.value != navigationState.currentTab
+    SideEffect { lastTab.value = navigationState.currentTab }
+    // Top-level destinations fade; lateral motion belongs to the deeper hierarchy.
+    val fade = ContentTransform(
+        targetContentEnter = fadeIn(animationSpec = motion.defaultEffectsSpec()),
+        initialContentExit = fadeOut(animationSpec = motion.defaultEffectsSpec()),
+    )
+    val forward = ContentTransform(
+        targetContentEnter = slideInHorizontally(animationSpec = motion.slowSpatialSpec()) { it },
+        initialContentExit = slideOutHorizontally(animationSpec = motion.slowSpatialSpec()) { -it / 3 },
+        targetContentZIndex = 1f,
+    )
+    val backward = ContentTransform(
+        targetContentEnter = slideInHorizontally(animationSpec = motion.slowSpatialSpec()) { -it / 3 },
+        initialContentExit = slideOutHorizontally(animationSpec = motion.slowSpatialSpec()) { it },
+        targetContentZIndex = -1f,
+    )
+
     // Retain decorators for inactive stacks as well as the currently displayed entries.
     val stacks = navigationState.backStacks.mapValues { (root, stack) ->
         rememberDecoratedNavEntries(backStack = stack, entryProvider = { key -> scopedNavEntry(root, key, entryProvider(root, key)) },
@@ -44,23 +77,20 @@ internal fun FitLogNavDisplay(navigationState: FitLogNavigationState, onBack: ()
     }
     val activeRoots = if (navigationState.currentTab == navigationState.startTab) listOf(navigationState.startTab)
         else listOf(navigationState.startTab, navigationState.currentTab)
-    NavDisplay(entries = activeRoots.flatMap { stacks.getValue(it) }, modifier = modifier, onBack = onBack,
-        predictivePopTransitionSpec = { swipeEdge ->
-            // Navigation3's default scales to 70% around the center, ignoring the swipe edge.
-            // Use Android's 90% preview with an 8dp far-edge margin and physical (not RTL) direction.
-            val direction = when (swipeEdge) {
-                NavigationEvent.EDGE_LEFT -> 1
-                NavigationEvent.EDGE_RIGHT -> -1
-                else -> 0
-            }
-            // DeferredAnimatedContent holds incoming content at its initial values during the gesture.
-            // Keep an explicit opaque alpha track: None leaves the previous scene invisible here.
-            ContentTransform(fadeIn(initialAlpha = 1f, animationSpec = motion.defaultEffectsSpec()),
-                scaleOut(targetScale = .9f, animationSpec = motion.slowSpatialSpec()) +
-                    slideOutHorizontally(animationSpec = motion.slowSpatialSpec()) { width ->
-                        (direction * (width * .05f - previewMargin).coerceAtLeast(0f)).roundToInt()
-                    })
-        })
+    NavDisplay(
+        entries = activeRoots.flatMap { stacks.getValue(it) },
+        modifier = modifier,
+        onBack = onBack,
+        transitionSpec = {
+            if (reduceMotion || switchingTabs) fade else forward
+        },
+        popTransitionSpec = {
+            if (reduceMotion || switchingTabs) fade else backward
+        },
+        predictivePopTransitionSpec = {
+            if (reduceMotion) fade else backward
+        },
+    )
 }
 
 /** A common destination can occur in different tabs without sharing its entry storage. */
