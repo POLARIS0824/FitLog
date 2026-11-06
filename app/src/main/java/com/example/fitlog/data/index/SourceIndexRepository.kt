@@ -65,41 +65,47 @@ class SourceIndexRepository(
             val job = currentCoroutineContext().job
             var failed = false
             try {
-                gate.withLock {
-                    activity.value = Activity(vaultId, busy = true)
-                    try {
-                        val treeUri = resolveVaultUri(vaultId)
-                        val previous = store.sources(vaultId)
-                        val discovered = documents.scan(treeUri)
-                        currentCoroutineContext().ensureActive()
-                        var readFailed = false
-                        val updates = discovered.files.map { file ->
-                            currentCoroutineContext().ensureActive()
-                            val snapshot = try { documents.read(file.uri) } catch (e: Exception) {
-                                if (e is CancellationException) throw e
-                                readFailed = true
-                                null
-                            }
-                            val version = snapshot?.let { contentVersion(it) }
-                            IndexedSource(vaultId, file.uri, snapshot?.file?.name ?: file.name,
-                                file.path, file.directory, snapshot?.file?.writable ?: file.writable,
-                                if (snapshot != null) IndexedSource.AVAILABLE else IndexedSource.READ_FAILED,
-                                version?.hash, version?.hashVersion, observedAt = snapshot?.readAt ?: nextMarkdownReadOrder())
-                        }.toMutableList()
-                        val complete = !discovered.partial && !readFailed
-                        if (complete) {
-                            val seen = updates.mapTo(mutableSetOf()) { it.uri }
-                            previous.filter { it.uri !in seen }.forEach {
-                                updates += it.copy(status = IndexedSource.MISSING, observedAt = nextMarkdownReadOrder())
-                            }
-                        }
-                        currentCoroutineContext().ensureActive()
-                        store.commit(updates, IndexedScan(vaultId,
-                            if (complete) IndexedScan.COMPLETE else IndexedScan.PARTIAL, now()))
-                    } catch (e: Exception) {
+                activity.value = Activity(vaultId, busy = true)
+                val treeUri = resolveVaultUri(vaultId)
+                val scanStartedAt = nextMarkdownReadOrder()
+                val discovered = documents.scan(treeUri)
+                currentCoroutineContext().ensureActive()
+                var readFailed = false
+                val updates = discovered.files.map { file ->
+                    currentCoroutineContext().ensureActive()
+                    val readStartedAt = nextMarkdownReadOrder()
+                    val snapshot = try { documents.read(file.uri) } catch (e: Exception) {
                         if (e is CancellationException) throw e
-                        failed = true
-                        withContext(NonCancellable) {
+                        readFailed = true
+                        null
+                    }
+                    val version = snapshot?.let { contentVersion(it) }
+                    IndexedSource(vaultId, file.uri, snapshot?.file?.name ?: file.name,
+                        file.path, file.directory, snapshot?.file?.writable ?: file.writable,
+                        if (snapshot != null) IndexedSource.AVAILABLE else IndexedSource.READ_FAILED,
+                        version?.hash, version?.hashVersion, observedAt = snapshot?.readAt ?: readStartedAt)
+                }.toMutableList()
+                val complete = !discovered.partial && !readFailed
+                gate.withLock {
+                    currentCoroutineContext().ensureActive()
+                    val previous = store.sources(vaultId).associateBy { it.uri }
+                    if (complete) {
+                        val seen = updates.mapTo(mutableSetOf()) { it.uri }
+                        previous.values.filter { it.uri !in seen }.forEach {
+                            updates += it.copy(status = IndexedSource.MISSING, observedAt = scanStartedAt)
+                        }
+                    }
+                    val currentUpdates = updates.filter { it.observedAt >= (previous[it.uri]?.observedAt ?: Long.MIN_VALUE) }
+                    currentCoroutineContext().ensureActive()
+                    store.commit(currentUpdates, IndexedScan(vaultId,
+                        if (complete) IndexedScan.COMPLETE else IndexedScan.PARTIAL, now()))
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                failed = true
+                withContext(NonCancellable) {
+                    gate.withLock {
+                        if (job.isActive && synchronized(this@SourceIndexRepository) { scanJob == job }) {
                             runCatching { store.commit(emptyList(), IndexedScan(vaultId, IndexedScan.FAILED, now())) }
                         }
                     }

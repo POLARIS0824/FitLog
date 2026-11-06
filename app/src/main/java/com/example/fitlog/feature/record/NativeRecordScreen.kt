@@ -73,7 +73,7 @@ internal fun NativeRecordContent(state: NativeRecordUiState, actions: NativeReco
     val scope = rememberCoroutineScope()
     val behavior = rememberFitLogTopAppBarBehavior()
     val pagePadding = fitLogPagePadding()
-    FitLogBackGuard(enabled = state.hasChanges || state.deleting) { actions.requestLeave() }
+    FitLogBackGuard(enabled = state.hasChanges || state.state == RecordSaveState.SAVING || state.deleting) { actions.requestLeave() }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.fillMaxSize().imePadding().nestedScroll(behavior.nestedScrollConnection),
             horizontalAlignment = Alignment.CenterHorizontally) {

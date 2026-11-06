@@ -183,7 +183,7 @@ internal class NativeRecordViewModel(private val recordId: String?, private val 
     }
     fun requestLeave() {
         if (deleting || leaveJob?.isActive == true) return
-        if (!hasChanges) { updateState { it.copy(closeRequested = true) }; return }
+        if (!hasChanges && writer?.isActive != true) { updateState { it.copy(closeRequested = true) }; return }
         if (state == RecordSaveState.FAILED) { updateState { it.copy(leaveRequested = true) }; return }
         saveLatest()
         leaveJob = viewModelScope.launch {

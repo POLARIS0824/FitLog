@@ -23,6 +23,8 @@
 .aider*
 .codebuddy/
 .zcodeignore
+.audit
+graphify-out/
 .impeccable/
 
 # 构建产物与临时日志
