@@ -12,6 +12,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.toArgb
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitlog.data.settings.ThemeMode
@@ -27,8 +28,12 @@ import com.example.fitlog.ui.theme.FitLogTheme
  */
 class MainActivity : ComponentActivity() {
 
+    private var appearanceReady = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        splashScreen.setKeepOnScreenCondition { !appearanceReady }
         enableEdgeToEdge()
 
         val container = (application as FitLogApplication).container
@@ -37,6 +42,12 @@ class MainActivity : ComponentActivity() {
                 container.appearance()
             }
             val appearanceState by appearance.uiState.collectAsStateWithLifecycle()
+            // Preferences load from DataStore after the first frame. Keep the launch splash until
+            // the real theme is known so the app never renders once in the system theme.
+            val ready = appearanceState.initialized || !appearanceState.loading
+            SideEffect { appearanceReady = ready }
+            if (!ready) return@setContent
+
             val liquidLook = appearanceState.preferences.look == UiLook.LIQUID_GLASS
             val dark = when (appearanceState.preferences.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
