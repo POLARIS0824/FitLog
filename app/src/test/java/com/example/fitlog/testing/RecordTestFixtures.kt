@@ -35,6 +35,7 @@ internal class FakeRecords : TrainingRecords {
     val rows = MutableStateFlow<List<TrainingRecordDetails>>(emptyList())
     var readsFail = false
     var writesFail = false
+    var failOnNotes: String? = null
     var saveGate: CompletableDeferred<Unit>? = null
     val savedNotes = mutableListOf<String?>()
     var readers = 0
@@ -49,6 +50,7 @@ internal class FakeRecords : TrainingRecords {
     override suspend fun saveNative(id: String, date: LocalDate, sessions: List<ReviewedSession>, kind: RecordKind) {
         if (writesFail) error("storage unavailable")
         saveGate?.await()
+        if (failOnNotes != null && sessions.single().notes == failOnNotes) error("storage unavailable")
         savedNotes += sessions.single().notes
         val row = TrainingRecordDetails(TrainingRecord(id, null, null, date.toString(), null, null, null,
             1, false, RecordOrigin.NATIVE, kind), sessions.mapIndexed { index, session ->

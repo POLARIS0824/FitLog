@@ -79,6 +79,61 @@ class NativeRecordViewModelTest {
         assertTrue(vm.uiState.value.closeRequested)
     }
 
+    @Test fun revertingDuringSaveWaitsForFinalWriteAndKeepsFailedInputForRetry() = runTest(main.dispatcher) {
+        val records = FakeRecords()
+        val vm = native(records)
+        runCurrent()
+        vm.notes("A")
+        runCurrent()
+        val gate = CompletableDeferred<Unit>()
+        records.saveGate = gate
+        records.failOnNotes = "A"
+        vm.notes("B")
+        runCurrent()
+        vm.notes("A")
+        vm.requestLeave()
+        runCurrent()
+        try {
+            assertFalse("Leaving must wait for the pending write", vm.uiState.value.closeRequested)
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals("B", records.rows.value.single().sessions.single().session.notes)
+            assertEquals("A", vm.uiState.value.input.notes)
+            assertEquals(RecordSaveState.FAILED, vm.uiState.value.state)
+            assertTrue(vm.uiState.value.canEdit)
+            assertTrue(vm.uiState.value.leaveRequested)
+            assertFalse(vm.uiState.value.closeRequested)
+            records.failOnNotes = null
+            vm.retryAndLeave()
+            runCurrent()
+            assertEquals("A", records.rows.value.single().sessions.single().session.notes)
+            assertTrue(vm.uiState.value.closeRequested)
+        } finally { gate.complete(Unit); runCurrent() }
+    }
+
+    @Test fun revertingDuringSaveClosesOnlyAfterTheFinalInputIsStored() = runTest(main.dispatcher) {
+        val records = FakeRecords()
+        val vm = native(records)
+        runCurrent()
+        vm.notes("A")
+        runCurrent()
+        val gate = CompletableDeferred<Unit>()
+        records.saveGate = gate
+        vm.notes("B")
+        runCurrent()
+        vm.notes("A")
+        vm.requestLeave()
+        runCurrent()
+        try {
+            assertFalse("Leaving must wait for the pending write", vm.uiState.value.closeRequested)
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals("A", records.rows.value.single().sessions.single().session.notes)
+            assertEquals(RecordSaveState.SAVED, vm.uiState.value.state)
+            assertTrue(vm.uiState.value.closeRequested)
+        } finally { gate.complete(Unit); runCurrent() }
+    }
+
     @Test fun deletePublishesAConsumableCompletionAndDisablesFurtherEdits() = runTest(main.dispatcher) {
         val records = FakeRecords()
         val vm = native(records)
