@@ -31,6 +31,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.ui.glass.LookSurface
 import com.example.fitlog.R
+import com.example.fitlog.feature.insight.components.insightDate
+import com.example.fitlog.feature.insight.components.insightNumber
 import com.example.fitlog.ui.components.FitLogConnectedButtonGroup
 import com.example.fitlog.ui.theme.FitLogType
 import java.text.NumberFormat

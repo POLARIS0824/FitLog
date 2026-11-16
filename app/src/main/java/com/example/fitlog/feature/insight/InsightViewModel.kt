@@ -6,7 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
-import com.example.fitlog.data.record.TrainingRecords
+import com.example.fitlog.domain.record.TrainingRecords
 import com.example.fitlog.data.settings.ExerciseAliasStore
 import com.example.fitlog.data.settings.InsightPreferences
 import com.example.fitlog.data.vault.VaultConfigState

@@ -1,6 +1,5 @@
 package com.example.fitlog.domain.record
 
-import com.example.fitlog.data.record.TrainingRecords
 import com.example.fitlog.model.record.RecordKind
 import com.example.fitlog.model.record.ReviewedSession
 import java.time.LocalDate

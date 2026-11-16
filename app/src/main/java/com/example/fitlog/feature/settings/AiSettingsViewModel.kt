@@ -3,7 +3,7 @@ package com.example.fitlog.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
-import com.example.fitlog.data.ai.AiConfigurationException
+import com.example.fitlog.domain.ai.AiConfigurationException
 import com.example.fitlog.data.ai.AiModelSelection
 import com.example.fitlog.data.ai.AiOperations
 import com.example.fitlog.data.ai.AiProviderConnection

@@ -2,15 +2,15 @@
 
 package com.example.fitlog.domain.analysis
 
-import com.example.fitlog.data.analysis.DiaryConfirmations
-import com.example.fitlog.data.analysis.DiaryParseInput
-import com.example.fitlog.data.analysis.from
+import com.example.fitlog.domain.analysis.DiaryConfirmations
+import com.example.fitlog.domain.analysis.DiaryParseInput
+import com.example.fitlog.domain.analysis.from
 import com.example.fitlog.data.index.SourceIndexRepository
 import com.example.fitlog.data.index.SourceIndexStore
-import com.example.fitlog.data.vault.MarkdownDocuments
-import com.example.fitlog.data.vault.MarkdownFile
-import com.example.fitlog.data.vault.MarkdownScan
-import com.example.fitlog.data.vault.MarkdownSnapshot
+import com.example.fitlog.domain.source.MarkdownDocuments
+import com.example.fitlog.model.source.MarkdownFile
+import com.example.fitlog.model.source.MarkdownScan
+import com.example.fitlog.model.source.MarkdownSnapshot
 import com.example.fitlog.model.analysis.ConfirmationFailure
 import com.example.fitlog.model.analysis.DiaryAnalysisSummary
 import com.example.fitlog.model.analysis.DiaryConfirmation

@@ -8,10 +8,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
-import com.example.fitlog.data.analysis.DiaryVaultAnalysisReader
+import com.example.fitlog.domain.analysis.DiaryVaultAnalysisReader
 import com.example.fitlog.data.index.SourceIndex
 import com.example.fitlog.data.index.file
-import com.example.fitlog.data.record.TrainingRecords
+import com.example.fitlog.domain.record.TrainingRecords
 import com.example.fitlog.data.settings.LogSettingsStore
 import com.example.fitlog.data.settings.LogSortOrder
 import com.example.fitlog.data.vault.VaultConfigState

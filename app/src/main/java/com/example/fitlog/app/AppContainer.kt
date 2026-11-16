@@ -3,9 +3,9 @@ package com.example.fitlog.app
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import com.example.fitlog.R
-import com.example.fitlog.app.analysis.AnalysisRuntimeViewModel
-import com.example.fitlog.app.analysis.DiaryAnalysisController
-import com.example.fitlog.app.analysis.IndexWarning
+import com.example.fitlog.app.runtime.AnalysisRuntimeViewModel
+import com.example.fitlog.domain.analysis.DiaryAnalysisController
+import com.example.fitlog.domain.analysis.IndexWarning
 import com.example.fitlog.data.ai.AiProviderDiagnostics
 import com.example.fitlog.data.ai.AiProviderRepository
 import com.example.fitlog.data.ai.aiDataStore

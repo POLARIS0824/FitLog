@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.ui.glass.glassPageSource
 import com.example.fitlog.R
+import com.example.fitlog.feature.insight.components.insightNumber
 import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.theme.FitLogType

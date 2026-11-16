@@ -1,7 +1,5 @@
 package com.example.fitlog.feature.log
 
-
-
 internal data class BatchReviewUiState(
     val items: List<BatchReviewItem> = emptyList(),
     val selected: Set<String> = emptySet(),

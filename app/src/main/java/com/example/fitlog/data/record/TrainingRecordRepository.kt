@@ -1,5 +1,7 @@
 package com.example.fitlog.data.record
 
+import com.example.fitlog.domain.record.TrainingRecords
+
 import androidx.room.withTransaction
 import com.example.fitlog.data.local.FitLogDao
 import com.example.fitlog.data.local.FitLogDatabase

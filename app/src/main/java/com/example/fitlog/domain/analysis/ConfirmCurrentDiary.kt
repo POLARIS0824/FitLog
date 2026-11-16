@@ -1,9 +1,8 @@
 package com.example.fitlog.domain.analysis
 
-import com.example.fitlog.data.analysis.DiaryConfirmations
-import com.example.fitlog.data.hash.ContentTextSnapshot
-import com.example.fitlog.data.vault.MarkdownDocuments
-import com.example.fitlog.data.vault.MarkdownSnapshot
+import com.example.fitlog.domain.source.ContentTextSnapshot
+import com.example.fitlog.domain.source.MarkdownDocuments
+import com.example.fitlog.model.source.MarkdownSnapshot
 import com.example.fitlog.domain.record.validateRecordValues
 import com.example.fitlog.model.analysis.BatchReviewEligibility
 import com.example.fitlog.model.analysis.ConfirmationFailure

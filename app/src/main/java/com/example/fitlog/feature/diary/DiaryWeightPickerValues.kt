@@ -19,8 +19,6 @@ internal fun numericWeightBasis(basis: WeightBasis?) =
 internal fun reviewWeightUnit(weight: Double?, unit: WeightUnit?) =
     if (weight != null && unit != WeightUnit.KG && unit != WeightUnit.LB) WeightUnit.KG else unit
 
-
-
 internal fun defaultWeightStep(unit: WeightUnit?) = if (unit == WeightUnit.LB) 5.0 else 2.5
 
 // These are shortcuts, not limits. Keep exact values and a bounded window around the current load.
@@ -33,6 +31,5 @@ internal fun weightOptions(current: Double?, step: Double = 2.5): List<Double?> 
         .filter { it.isFinite() }
     return listOf(null) + (values + 0.0 + listOfNotNull(current)).distinct().sorted()
 }
-
 
 internal fun enteredWeightStep(text: String): Double? = enteredWeight(text)?.takeIf { it > 0 }

@@ -1,6 +1,6 @@
 package com.example.fitlog.feature.diary
 
-import com.example.fitlog.data.vault.MarkdownSnapshot
+import com.example.fitlog.model.source.MarkdownSnapshot
 import com.example.fitlog.domain.analysis.confirmationFreshness
 import com.example.fitlog.domain.analysis.resultFreshness
 import com.example.fitlog.feature.diary.navigation.DiaryDetailNavKey

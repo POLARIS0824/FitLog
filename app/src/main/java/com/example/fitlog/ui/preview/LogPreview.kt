@@ -7,7 +7,7 @@ import com.example.fitlog.feature.log.BatchConfirmationProgress
 import com.example.fitlog.feature.log.BatchReviewContent
 import com.example.fitlog.feature.log.BatchReviewItem
 import com.example.fitlog.feature.log.LogActions
-import com.example.fitlog.feature.log.LogContent
+import com.example.fitlog.feature.log.components.LogContent
 import com.example.fitlog.feature.log.LogUiState
 import com.example.fitlog.feature.log.indexedVersion
 import com.example.fitlog.model.analysis.DiaryAnalysisSummary

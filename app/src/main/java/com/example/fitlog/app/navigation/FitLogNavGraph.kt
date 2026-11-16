@@ -8,8 +8,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import com.example.fitlog.app.AppContainer
-import com.example.fitlog.app.analysis.AnalysisRuntimeViewModel
-import com.example.fitlog.app.analysis.AppRuntimeUiState
+import com.example.fitlog.app.runtime.AnalysisRuntimeViewModel
+import com.example.fitlog.app.runtime.AppRuntimeUiState
 import com.example.fitlog.feature.diary.DiaryDetailScreen
 import com.example.fitlog.feature.diary.DiaryDetailViewModel
 import com.example.fitlog.feature.diary.navigation.DiaryDetailNavKey

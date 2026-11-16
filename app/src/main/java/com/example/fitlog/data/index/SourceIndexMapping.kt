@@ -1,6 +1,6 @@
 package com.example.fitlog.data.index
 
-import com.example.fitlog.data.vault.MarkdownFile
+import com.example.fitlog.model.source.MarkdownFile
 import com.example.fitlog.model.source.IndexedScan
 import com.example.fitlog.model.source.IndexedSource
 

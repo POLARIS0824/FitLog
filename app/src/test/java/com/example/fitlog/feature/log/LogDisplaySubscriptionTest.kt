@@ -8,10 +8,10 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.text.TextRange
 import androidx.lifecycle.SavedStateHandle
 import com.example.fitlog.data.index.SourceIndex
-import com.example.fitlog.data.record.TrainingRecords
+import com.example.fitlog.domain.record.TrainingRecords
 import com.example.fitlog.data.settings.LogSettingsStore
 import com.example.fitlog.data.settings.LogSortOrder
-import com.example.fitlog.data.vault.MarkdownSnapshot
+import com.example.fitlog.model.source.MarkdownSnapshot
 import com.example.fitlog.data.vault.VaultConfigState
 import com.example.fitlog.model.source.SourceIndexSnapshot
 import com.example.fitlog.testing.FakeRecords
@@ -203,7 +203,7 @@ class LogDisplaySubscriptionTest {
             override fun activate(vaultId: String?) = Unit
             override fun observe(vaultId: String): Flow<SourceIndexSnapshot> = error("no vault")
             override fun refresh(vaultId: String): Job = error("no vault")
-            override suspend fun recordRead(vaultId: String, path: String, snapshot: com.example.fitlog.data.vault.MarkdownSnapshot) = Unit
+            override suspend fun recordRead(vaultId: String, path: String, snapshot: com.example.fitlog.model.source.MarkdownSnapshot) = Unit
         }
         val settings = object : LogSettingsStore {
             override suspend fun readSort() = LogSortOrder.Descending

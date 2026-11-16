@@ -1,7 +1,7 @@
 package com.example.fitlog.data.analysis.adapter
 
-import com.example.fitlog.data.analysis.DiaryParseInput
-import com.example.fitlog.data.hash.normalizeLineEndings
+import com.example.fitlog.domain.analysis.DiaryParseInput
+import com.example.fitlog.domain.source.normalizeLineEndings
 import com.example.fitlog.model.analysis.CandidateOrigin
 import com.example.fitlog.model.analysis.CandidateValue
 import com.example.fitlog.model.analysis.DiaryAnalysis

@@ -1,9 +1,5 @@
 package com.example.fitlog.domain.analysis
 
-import com.example.fitlog.data.analysis.DiaryAnalysisSession
-import com.example.fitlog.data.analysis.StoredDiaryParse
-import com.example.fitlog.data.analysis.from
-import com.example.fitlog.data.analysis.toAiRequestFailure
 import com.example.fitlog.model.analysis.AnalysisIssue
 import com.example.fitlog.model.analysis.AnalysisItemOutcome
 import com.example.fitlog.model.analysis.AnalysisItemResult
@@ -44,4 +40,19 @@ internal class AnalyzeDiary(private val readSummary: suspend (SourceKey) -> Diar
     }
 }
 
-internal fun stopsBatch(reason: DiaryParseFailure) = reason.toAiRequestFailure()?.isFatal == true
+internal fun stopsBatch(reason: DiaryParseFailure): Boolean = when (reason) {
+    DiaryParseFailure.TIMEOUT,
+    DiaryParseFailure.NETWORK_ERROR,
+    DiaryParseFailure.AUTHENTICATION_ERROR,
+    DiaryParseFailure.PERMISSION_DENIED,
+    DiaryParseFailure.RATE_LIMITED,
+    DiaryParseFailure.REQUEST_REJECTED,
+    DiaryParseFailure.SERVICE_UNAVAILABLE -> true
+    DiaryParseFailure.MALFORMED_JSON,
+    DiaryParseFailure.INVALID_TOP_LEVEL,
+    DiaryParseFailure.UNSUPPORTED_SCHEMA,
+    DiaryParseFailure.MODEL_REFUSAL,
+    DiaryParseFailure.EMPTY_RESPONSE,
+    DiaryParseFailure.TRUNCATED_RESPONSE,
+    DiaryParseFailure.INVALID_RESPONSE -> false
+}

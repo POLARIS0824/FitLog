@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
-import com.example.fitlog.data.record.TrainingRecords
+import com.example.fitlog.domain.record.TrainingRecords
 import com.example.fitlog.domain.record.SaveNativeRecord
 import com.example.fitlog.model.record.RecordKind
 import com.example.fitlog.model.record.RecordOrigin

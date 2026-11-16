@@ -1,6 +1,6 @@
 package com.example.fitlog.feature.diary
 
-import com.example.fitlog.data.analysis.DiaryParseInput
+import com.example.fitlog.domain.analysis.DiaryParseInput
 import com.example.fitlog.domain.analysis.suggestDiaryDate
 import com.example.fitlog.model.analysis.DiaryContentVersion
 import com.example.fitlog.model.analysis.IssueSeverity

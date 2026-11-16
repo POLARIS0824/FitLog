@@ -2,7 +2,7 @@ package com.example.fitlog.feature.log
 
 import com.example.fitlog.data.index.file
 import com.example.fitlog.data.settings.LogSortOrder
-import com.example.fitlog.data.vault.MarkdownFile
+import com.example.fitlog.model.source.MarkdownFile
 import com.example.fitlog.model.analysis.AnalysisItemOutcome
 import com.example.fitlog.model.analysis.AnalysisItemResult
 import com.example.fitlog.model.analysis.AnalysisProblem

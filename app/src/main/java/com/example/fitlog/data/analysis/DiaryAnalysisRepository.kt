@@ -1,5 +1,11 @@
 package com.example.fitlog.data.analysis
 
+import com.example.fitlog.domain.analysis.DiaryParseInput
+import com.example.fitlog.domain.analysis.DiaryConfirmations
+import com.example.fitlog.domain.analysis.from
+import com.example.fitlog.domain.analysis.DiaryAnalysisStorageException
+import com.example.fitlog.domain.analysis.StoredDiaryParse
+
 import androidx.room.withTransaction
 import com.example.fitlog.data.analysis.adapter.RecordingDiaryParser
 import com.example.fitlog.data.local.FitLogDatabase
@@ -30,8 +36,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
-class DiaryAnalysisStorageException(cause: Exception) : IOException("Diary analysis persistence failed", cause)
-data class StoredDiaryParse(val parseRunId: String, val result: DiaryParseResult)
 
 /** Confirmation data is independent of index rebuilds and the currently connected vault. */
 class DiaryAnalysisRepository internal constructor(

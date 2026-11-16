@@ -1,7 +1,5 @@
 package com.example.fitlog.feature.record
 
-
-
 internal data class NativeRecordUiState(
     val input: NativeRecordInput = NativeRecordInput(java.time.LocalDate.now().toString()),
     val loading: Boolean = true,

@@ -1,6 +1,6 @@
 package com.example.fitlog.data.analysis.adapter
 
-import com.example.fitlog.data.analysis.DiaryParseInput
+import com.example.fitlog.domain.analysis.DiaryParseInput
 import com.example.fitlog.model.analysis.DiaryParseResult
 
 /**

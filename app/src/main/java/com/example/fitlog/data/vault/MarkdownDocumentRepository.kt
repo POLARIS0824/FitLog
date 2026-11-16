@@ -1,5 +1,11 @@
 package com.example.fitlog.data.vault
 
+import com.example.fitlog.model.source.MarkdownFile
+import com.example.fitlog.model.source.MarkdownSnapshot
+import com.example.fitlog.model.source.MarkdownScan
+import com.example.fitlog.model.source.nextMarkdownReadOrder
+import com.example.fitlog.domain.source.MarkdownDocuments
+
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
@@ -8,30 +14,11 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.security.MessageDigest
-import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-
-data class MarkdownFile(val uri: String, val name: String, val path: String, val writable: Boolean,
-    val directory: String? = null, val lastModified: Long? = null, val size: Long? = null)
-data class MarkdownSnapshot(val file: MarkdownFile, val text: String, val fingerprint: String, val bom: Boolean,
-    /** Logical read order, allocated before I/O; distinct even within the same millisecond. */
-    val readAt: Long = nextMarkdownReadOrder())
-data class MarkdownScan(val files: List<MarkdownFile>, val partial: Boolean)
-
-private val lastMarkdownReadOrder = AtomicLong()
-
-/** A process-wide order that continues increasing if the wall clock repeats or moves backwards. */
-internal fun nextMarkdownReadOrder(now: Long = System.currentTimeMillis()): Long =
-    lastMarkdownReadOrder.updateAndGet { previous -> maxOf(now, previous + 1) }
-
-interface MarkdownDocuments {
-    suspend fun scan(vault: String): MarkdownScan
-    suspend fun read(uri: String): MarkdownSnapshot
-}
 
 /** All SAF operations stay on document URIs, never filesystem paths. */
 class MarkdownDocumentRepository(context: Context,

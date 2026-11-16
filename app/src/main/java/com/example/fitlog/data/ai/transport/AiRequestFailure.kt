@@ -9,19 +9,17 @@ package com.example.fitlog.data.ai.transport
  * (diary extraction today, agent answers next). Feature-specific shape errors are deliberately
  * absent: a diary JSON schema violation belongs to the diary feature, not to the protocol.
  *
- * [isFatal] marks the failures that make every following request in the same run pointless (no
- * network, bad credential, rate limit). One unparsable answer is not fatal.
  */
-internal enum class AiRequestFailure(val isFatal: Boolean) {
-    TIMEOUT(true),
-    NETWORK_ERROR(true),
-    AUTHENTICATION_ERROR(true),
-    PERMISSION_DENIED(true),
-    RATE_LIMITED(true),
-    REQUEST_REJECTED(true),
-    SERVICE_UNAVAILABLE(true),
-    EMPTY_RESPONSE(false),
-    INVALID_RESPONSE(false),
-    TRUNCATED_RESPONSE(false),
-    MODEL_REFUSAL(false),
+internal enum class AiRequestFailure {
+    TIMEOUT,
+    NETWORK_ERROR,
+    AUTHENTICATION_ERROR,
+    PERMISSION_DENIED,
+    RATE_LIMITED,
+    REQUEST_REJECTED,
+    SERVICE_UNAVAILABLE,
+    EMPTY_RESPONSE,
+    INVALID_RESPONSE,
+    TRUNCATED_RESPONSE,
+    MODEL_REFUSAL,
 }

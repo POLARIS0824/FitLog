@@ -41,7 +41,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitlog.R
-import com.example.fitlog.app.analysis.AnalysisRuntimeViewModel
+import com.example.fitlog.app.runtime.AnalysisRuntimeViewModel
 import com.example.fitlog.app.navigation.FitLogNavGraph
 import com.example.fitlog.app.navigation.FitLogNavigator
 import com.example.fitlog.app.navigation.rememberFitLogNavigationState

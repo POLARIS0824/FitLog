@@ -1,5 +1,7 @@
 package com.example.fitlog.data.ai
 
+import com.example.fitlog.domain.ai.AiConfigurationException
+
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -29,8 +31,6 @@ data class AiModelSelection(val providerId: String, val modelId: String)
 data class AiSettings(val providers: List<AiProviderConnection> = emptyList(), val selection: AiModelSelection? = null)
 
 
-class AiConfigurationException(val reason: AiConfigurationFailure, cause: Exception? = null) :
-    IOException("AI configuration: ${reason.name}", cause)
 
 /** One request snapshot. Ordinary identity-based toString intentionally does not print the key. */
 class AiSelectedModel(val provider: AiProviderConnection, val modelId: String, val apiKey: String)

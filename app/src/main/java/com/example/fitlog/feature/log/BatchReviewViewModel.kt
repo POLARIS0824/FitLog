@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitlog.R
-import com.example.fitlog.data.analysis.DiaryVaultAnalysisReader
+import com.example.fitlog.domain.analysis.DiaryVaultAnalysisReader
 import com.example.fitlog.data.vault.VaultConfigState
 import com.example.fitlog.domain.analysis.assessBatchReview
 import com.example.fitlog.feature.log.navigation.BatchReviewNavKey

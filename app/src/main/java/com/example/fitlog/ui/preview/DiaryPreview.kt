@@ -9,7 +9,7 @@ import com.example.fitlog.feature.diary.DiaryDetailUiState
 import com.example.fitlog.feature.diary.DiarySetAddress
 import com.example.fitlog.feature.diary.DiarySetEdit
 import com.example.fitlog.feature.diary.DiarySetField
-import com.example.fitlog.feature.diary.DiarySetPickerContent
+import com.example.fitlog.feature.diary.components.DiarySetPickerContent
 import com.example.fitlog.feature.diary.navigation.DiaryDetailNavKey
 import com.example.fitlog.model.analysis.DiaryParseRecords
 import com.example.fitlog.model.analysis.DiaryResultFreshness

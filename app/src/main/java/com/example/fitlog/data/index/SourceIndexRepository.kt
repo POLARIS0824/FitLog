@@ -1,9 +1,9 @@
 package com.example.fitlog.data.index
 
-import com.example.fitlog.data.hash.ContentTextSnapshot
-import com.example.fitlog.data.vault.MarkdownDocuments
-import com.example.fitlog.data.vault.MarkdownSnapshot
-import com.example.fitlog.data.vault.nextMarkdownReadOrder
+import com.example.fitlog.domain.source.ContentTextSnapshot
+import com.example.fitlog.domain.source.MarkdownDocuments
+import com.example.fitlog.model.source.MarkdownSnapshot
+import com.example.fitlog.model.source.nextMarkdownReadOrder
 import com.example.fitlog.model.source.IndexedScan
 import com.example.fitlog.model.source.IndexedSource
 import com.example.fitlog.model.source.SourceIndexSnapshot

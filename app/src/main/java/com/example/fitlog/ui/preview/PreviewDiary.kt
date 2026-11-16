@@ -3,8 +3,8 @@ package com.example.fitlog.ui.preview
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.example.fitlog.R
-import com.example.fitlog.data.vault.MarkdownFile
-import com.example.fitlog.data.vault.MarkdownSnapshot
+import com.example.fitlog.model.source.MarkdownFile
+import com.example.fitlog.model.source.MarkdownSnapshot
 import com.example.fitlog.model.analysis.CandidateOrigin
 import com.example.fitlog.model.analysis.CandidateValue
 import com.example.fitlog.model.analysis.DiaryAnalysis

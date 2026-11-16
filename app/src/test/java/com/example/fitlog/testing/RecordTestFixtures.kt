@@ -4,7 +4,7 @@ package com.example.fitlog.testing
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
-import com.example.fitlog.data.record.TrainingRecords
+import com.example.fitlog.domain.record.TrainingRecords
 import com.example.fitlog.model.record.ConfirmedSession
 import com.example.fitlog.model.record.ConfirmedSessionRecord
 import com.example.fitlog.model.record.RecordKind

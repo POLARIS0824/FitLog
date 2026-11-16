@@ -22,9 +22,9 @@ import com.example.fitlog.domain.insight.InsightPoint
 import com.example.fitlog.domain.insight.InsightRange
 import com.example.fitlog.domain.insight.InsightSeries
 import com.example.fitlog.domain.insight.buildInsightData
-import com.example.fitlog.feature.insight.InsightChart
-import com.example.fitlog.feature.insight.InsightDashboardContent
 import com.example.fitlog.feature.insight.InsightDashboardView
+import com.example.fitlog.feature.insight.components.InsightChart
+import com.example.fitlog.feature.insight.components.InsightDashboardContent
 import com.example.fitlog.feature.insight.prepareInsight
 import com.example.fitlog.model.record.ConfirmedExercise
 import com.example.fitlog.model.record.ConfirmedExerciseRecord
