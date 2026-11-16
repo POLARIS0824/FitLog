@@ -1,31 +1,28 @@
 package com.example.fitlog.data.vault
 
+import com.example.fitlog.model.source.MarkdownFile
+import com.example.fitlog.model.source.MarkdownSnapshot
+import com.example.fitlog.model.source.MarkdownScan
+import com.example.fitlog.model.source.nextMarkdownReadOrder
+import com.example.fitlog.domain.source.MarkdownDocuments
+
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
+import androidx.core.net.toUri
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.security.MessageDigest
-import androidx.core.net.toUri
-
-data class MarkdownFile(val uri: String, val name: String, val path: String, val writable: Boolean,
-    val directory: String? = null, val lastModified: Long? = null, val size: Long? = null)
-data class MarkdownSnapshot(val file: MarkdownFile, val text: String, val fingerprint: String, val bom: Boolean)
-data class MarkdownScan(val files: List<MarkdownFile>, val partial: Boolean)
-
-interface MarkdownDocuments {
-    suspend fun scan(vault: String): MarkdownScan
-    suspend fun read(uri: String): MarkdownSnapshot
-}
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 
 /** All SAF operations stay on document URIs, never filesystem paths. */
-class MarkdownDocumentRepository(context: Context) : MarkdownDocuments {
+class MarkdownDocumentRepository(context: Context,
+    private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO) : MarkdownDocuments {
     private val appContext = context.applicationContext
     private val resolver = appContext.contentResolver
 
@@ -64,7 +61,7 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments {
         } ?: throw IOException()
     }
 
-    override suspend fun scan(vault: String): MarkdownScan = withContext(Dispatchers.IO) {
+    override suspend fun scan(vault: String): MarkdownScan = withContext(ioDispatcher) {
         val scanContext = currentCoroutineContext()
         val found = linkedMapOf<String, MarkdownFile>()
         val visited = mutableSetOf<String>()
@@ -103,7 +100,9 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments {
             size = if (cursor.isNull(3)) null else cursor.getLong(3).takeIf { it >= 0 })
     } ?: throw IOException()
 
-    override suspend fun read(uri: String): MarkdownSnapshot = withContext(Dispatchers.IO) {
+    override suspend fun read(uri: String): MarkdownSnapshot = withContext(ioDispatcher) {
+        // Observation time is taken before the read: a slow read of older bytes must not look newer.
+        val observedAt = nextMarkdownReadOrder()
         val document = Uri.parse(uri)
         val file = metadata(document)
         val bytes = resolver.openInputStream(document)?.use { it.readBytes() } ?: throw IOException()
@@ -111,7 +110,7 @@ class MarkdownDocumentRepository(context: Context) : MarkdownDocuments {
         val text = Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
             .onUnmappableCharacter(CodingErrorAction.REPORT)
             .decode(ByteBuffer.wrap(bytes, if (bom) 3 else 0, bytes.size - if (bom) 3 else 0)).toString()
-        MarkdownSnapshot(file, text, fingerprint(bytes), bom)
+        MarkdownSnapshot(file, text, fingerprint(bytes), bom, observedAt)
     }
 
 

@@ -1,0 +1,32 @@
+{
+  "formatVersion": 2,
+  "analysis": {
+    "parseKey": {
+      "sourceKey": {"vaultId": "00000000-0000-0000-0000-000000000001", "relPath": "2026-10-22.md"},
+      "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "hashVersion": 1,
+      "extractorVersion": "fixture"
+    },
+    "sessions": [{
+      "path": "sessions[0]", "date": "2026-10-22", "notes": null,
+      "exercises": [{
+        "path": "sessions[0].exercises[0]",
+        "candidate": {
+          "rawName": "Squat", "evidence": {"segmentId": "diary", "quote": "Squat 60kg 8x1"},
+          "groups": [{"rawText": "60kg 8x1", "weight": 60.0, "unit": "KG", "basis": "TOTAL", "reps": 8, "count": 1, "repsList": null, "inferredFields": []}],
+          "notes": null
+        },
+        "evidence": {"segmentId": "diary", "quote": "Squat 60kg 8x1"},
+        "sets": [{
+          "groupIndex": 0, "setInGroup": 0,
+          "weight": {"value": 60.0, "origin": "EXPLICIT", "inheritedFromGroup": null, "inferred": false},
+          "unit": {"value": "KG", "origin": "EXPLICIT", "inheritedFromGroup": null, "inferred": false},
+          "basis": {"value": "TOTAL", "origin": "EXPLICIT", "inheritedFromGroup": null, "inferred": false},
+          "reps": {"value": 8, "origin": "EXPLICIT", "inheritedFromGroup": null, "inferred": false},
+          "countOrigin": "EXPLICIT", "weightKg": 60.0
+        }]
+      }]
+    }],
+    "modelIssues": [], "issues": []
+  }
+}

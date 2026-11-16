@@ -3,40 +3,12 @@ package com.example.fitlog.ui.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
-
-/** Editorial heading for scrolling pages; the app Scaffold owns the system insets. */
-@Composable
-internal fun FitLogPageHeader(
-    title: String,
-    subtitle: String? = null,
-    onBack: (() -> Unit)? = null,
-    backEnabled: Boolean = true,
-    actions: @Composable RowScope.() -> Unit = {},
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (onBack != null) IconButton(onClick = onBack, enabled = backEnabled,
-                shapes = IconButtonDefaults.shapes()) {
-                Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.cd_back))
-            }
-            Spacer(Modifier.weight(1f))
-            actions()
-        }
-        Text(title, style = MaterialTheme.typography.headlineLargeEmphasized,
-            modifier = Modifier.semantics { heading() })
-        subtitle?.let {
-            Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
 
 @Composable
 internal fun FitLogSectionTitle(text: String) {

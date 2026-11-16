@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+            android:name=".app.FitLogApplication"
             android:allowBackup="true"
             android:dataExtractionRules="@xml/data_extraction_rules"
             android:fullBackupContent="@xml/backup_rules"
@@ -15,10 +16,10 @@
             android:supportsRtl="true"
             android:theme="@style/Theme.fitLog">
         <activity
-                android:name=".MainActivity"
+                android:name=".app.MainActivity"
                 android:exported="true"
                 android:enableOnBackInvokedCallback="true"
-                android:theme="@style/Theme.fitLog"
+                android:theme="@style/Theme.fitLog.Starting"
                 android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -1,8 +1,8 @@
-name: UI APK packages
+name: APK packages
 
 on:
   push:
-    tags: ['ui-*']
+    tags: ['ui-*', 'agent-*']
 
 permissions:
   contents: write
@@ -51,39 +51,53 @@ jobs:
           }
           EOF
 
-      - name: Build Debug and Release APKs and run lint
+      - name: Run JVM tests, build Debug and Release APKs, and run lint
         run: >-
-          bash ./gradlew :app:assembleDebug :app:assembleRelease :app:lint
+          bash ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:lintDebug
           --init-script "$RUNNER_TEMP/fitlog-repositories.gradle"
           --no-daemon --no-parallel --max-workers=1
-          -Dorg.gradle.jvmargs='-Xmx2048m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+          -Dorg.gradle.jvmargs='-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
           -Pkotlin.compiler.execution.strategy=in-process
-          --refresh-dependencies --info --console=plain
+          --console=plain
 
       - name: Prepare packages
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/FitLog-ui-debug.apk
-          cp app/build/outputs/apk/release/app-release.apk dist/FitLog-ui-release.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/FitLog-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk dist/FitLog-release.apk
           cd dist
-          sha256sum FitLog-ui-debug.apk FitLog-ui-release.apk > SHA256SUMS.txt
-          cat > release-notes.md <<EOF
-          Built from the ui branch at commit ${GITHUB_SHA}.
+          sha256sum FitLog-debug.apk FitLog-release.apk > SHA256SUMS.txt
+          python3 - <<'PYMETA'
+          import json, os, pathlib, tomllib
+          version = tomllib.loads(pathlib.Path('../gradle/libs.versions.toml').read_text())['versions']['okhttpBom']
+          metadata = {'commit': os.environ['GITHUB_SHA'], 'tag': os.environ['GITHUB_REF_NAME'], 'okhttp': version}
+          pathlib.Path('build-info.json').write_text(json.dumps(metadata, indent=2) + '\n')
+          pathlib.Path('release-notes.md').write_text(
+              f"Built from {metadata['tag']} at commit {metadata['commit']}.\n\n"
+              f"OkHttp: {version}.\n\n"
+              "Packages: FitLog-debug.apk and FitLog-release.apk.\n"
+              "Validation: JVM test task, Debug and Release builds, and lint completed.\n"
+              "Release uses the project's configured debug signing key, with R8 and resource shrinking enabled.\n"
+              "Device testing has not been performed.\n"
+          )
+          PYMETA
 
-          - Move the Insight title and refresh button into the top app bar.
-          - Preserve the selected Insight time range across navigation and app restarts.
-
-          Packages: FitLog-ui-debug.apk and FitLog-ui-release.apk.
-          Release uses the project's configured debug signing key, with R8 and resource shrinking enabled.
-          Both builds and lint passed. Device testing has not been performed.
-          EOF
+      - name: Upload validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ github.ref_name }}
+          path: |
+            app/build/reports/
+            app/build/test-results/
+          if-no-files-found: ignore
 
       - name: Publish GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            dist/FitLog-ui-debug.apk dist/FitLog-ui-release.apk dist/SHA256SUMS.txt \
+            dist/FitLog-debug.apk dist/FitLog-release.apk dist/SHA256SUMS.txt dist/build-info.json \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --title "FitLog UI ${GITHUB_REF_NAME#ui-}" \
+            --title "FitLog ${GITHUB_REF_NAME}" \
             --notes-file dist/release-notes.md --prerelease --latest=false

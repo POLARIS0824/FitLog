@@ -1,5 +1,6 @@
 package com.example.fitlog.data.analysis
 
+import com.example.fitlog.model.analysis.DiaryAnalysis
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json

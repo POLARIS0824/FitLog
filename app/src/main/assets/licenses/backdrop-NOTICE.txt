@@ -1,0 +1,7 @@
+Backdrop v2.0.0 — Copyright 2025 Kyant0
+https://github.com/Kyant0/backdrop
+Apache License 2.0.
+Vendored from Myspoti 320ba2a8 (via BitChord edc1e6f), retaining source headers.
+FitLog: package renamed; Android diagnostic logging adapted; shader API guard added;
+page alpha read during drawing so changes to its CompositionLocal are observed.
+Includes the resolution scale, exported layer and multi-source recording extensions.

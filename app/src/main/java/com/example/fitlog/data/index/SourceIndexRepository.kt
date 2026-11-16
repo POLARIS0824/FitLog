@@ -1,38 +1,35 @@
 package com.example.fitlog.data.index
 
-import android.content.Context
-import android.net.Uri
-import com.example.fitlog.data.vault.MarkdownDocumentRepository
-import com.example.fitlog.data.vault.MarkdownDocuments
-import com.example.fitlog.data.vault.MarkdownSnapshot
-import com.example.fitlog.data.vault.VaultPreferences
-import com.example.fitlog.data.vault.requireVaultId
-import com.example.fitlog.data.hash.ContentTextSnapshot
+import com.example.fitlog.domain.source.ContentTextSnapshot
+import com.example.fitlog.domain.source.MarkdownDocuments
+import com.example.fitlog.model.source.MarkdownSnapshot
+import com.example.fitlog.model.source.nextMarkdownReadOrder
+import com.example.fitlog.model.source.IndexedScan
+import com.example.fitlog.model.source.IndexedSource
+import com.example.fitlog.model.source.SourceIndexSnapshot
+import com.example.fitlog.model.source.requireVaultId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+interface SourceIndex {
+    fun activate(vaultId: String?)
+    fun observe(vaultId: String): kotlinx.coroutines.flow.Flow<SourceIndexSnapshot>
+    fun refresh(vaultId: String): Job
+    suspend fun recordRead(vaultId: String, path: String, snapshot: MarkdownSnapshot)
+}
+
 /** One app-owned scan; explicit source reads share its commit gate. */
 class SourceIndexRepository(
     private val documents: MarkdownDocuments,
     private val store: SourceIndexStore,
+    private val computationDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val now: () -> Long = System::currentTimeMillis,
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-    private val resolveVaultUri: suspend (vaultId: String) -> Uri,
-) {
-    companion object {
-        @Volatile private var instance: SourceIndexRepository? = null
-        fun get(context: Context): SourceIndexRepository = instance ?: synchronized(this) {
-            instance ?: SourceIndexRepository(
-                MarkdownDocumentRepository(context.applicationContext),
-                RoomSourceIndexStore(SourceIndexDatabase.get(context.applicationContext)),
-                resolveVaultUri = VaultPreferences(context.applicationContext)::getVaultUri,
-            ).also { instance = it }
-        }
-    }
-
+    private val scope: CoroutineScope,
+    private val resolveVaultUri: suspend (vaultId: String) -> String,
+) : SourceIndex {
     private data class Activity(val vaultId: String? = null, val busy: Boolean = false, val failed: Boolean = false)
     private val activity = MutableStateFlow(Activity())
     private val gate = Mutex()
@@ -41,19 +38,19 @@ class SourceIndexRepository(
     private var opened = false
 
     /** Called by the app configuration observer, never by page navigation. */
-    @Synchronized fun activate(vaultId: String?) {
+    @Synchronized override fun activate(vaultId: String?) {
         vaultId?.let(::requireVaultId)
         if (activeVault != vaultId) {
             scanJob?.cancel()
             activeVault = vaultId
         }
-        if (!opened) {
+        if (!opened && vaultId != null) {
             opened = true
-            vaultId?.let(::refresh)
+            refresh(vaultId)
         }
     }
 
-    fun observe(vaultId: String) = combine(store.observe(requireVaultId(vaultId)), activity) { value, current ->
+    override fun observe(vaultId: String) = combine(store.observe(requireVaultId(vaultId)), activity) { value, current ->
         value.copy(
             refreshing = current.vaultId == vaultId && current.busy,
             refreshFailed = current.vaultId == vaultId && current.failed,
@@ -61,48 +58,56 @@ class SourceIndexRepository(
     }
 
     /** Explicit refreshes share the active scan; no follow-up scan is queued. */
-    @Synchronized fun refresh(vaultId: String): Job {
+    @Synchronized override fun refresh(vaultId: String): Job {
         requireVaultId(vaultId)
         scanJob?.takeIf { it.isActive }?.let { return it }
         val task = scope.launch(start = CoroutineStart.LAZY) {
             val job = currentCoroutineContext().job
             var failed = false
             try {
+                activity.value = Activity(vaultId, busy = true)
+                val treeUri = resolveVaultUri(vaultId)
+                val scanStartedAt = nextMarkdownReadOrder()
+                val discovered = documents.scan(treeUri)
+                currentCoroutineContext().ensureActive()
+                var readFailed = false
+                val updates = discovered.files.map { file ->
+                    currentCoroutineContext().ensureActive()
+                    val readStartedAt = nextMarkdownReadOrder()
+                    val snapshot = try { documents.read(file.uri) } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        readFailed = true
+                        null
+                    }
+                    val version = snapshot?.let { contentVersion(it) }
+                    IndexedSource(vaultId, file.uri, snapshot?.file?.name ?: file.name,
+                        file.path, file.directory, snapshot?.file?.writable ?: file.writable,
+                        if (snapshot != null) IndexedSource.AVAILABLE else IndexedSource.READ_FAILED,
+                        version?.hash, version?.hashVersion, observedAt = snapshot?.readAt ?: readStartedAt)
+                }.toMutableList()
+                val complete = !discovered.partial && !readFailed
                 gate.withLock {
-                    activity.value = Activity(vaultId, busy = true)
-                    try {
-                        val treeUri = resolveVaultUri(vaultId).toString()
-                        val previous = store.sources(vaultId)
-                        val discovered = documents.scan(treeUri)
-                        currentCoroutineContext().ensureActive()
-                        var readFailed = false
-                        val updates = discovered.files.map { file ->
-                            currentCoroutineContext().ensureActive()
-                            val snapshot = try { documents.read(file.uri) } catch (e: Exception) {
-                                if (e is CancellationException) throw e
-                                readFailed = true
-                                null
-                            }
-                            val version = snapshot?.let { contentVersion(it) }
-                            IndexedSource(vaultId, file.uri, snapshot?.file?.name ?: file.name,
-                                file.path, file.directory, snapshot?.file?.writable ?: file.writable,
-                                if (snapshot != null) IndexedSource.AVAILABLE else IndexedSource.READ_FAILED,
-                                version?.hash, version?.hashVersion)
-                        }.toMutableList()
-                        val complete = !discovered.partial && !readFailed
-                        if (complete) {
-                            val seen = updates.mapTo(mutableSetOf()) { it.uri }
-                            previous.filter { it.uri !in seen }.forEach { updates += it.copy(status = IndexedSource.MISSING) }
+                    currentCoroutineContext().ensureActive()
+                    val previous = store.sources(vaultId).associateBy { it.uri }
+                    if (complete) {
+                        val seen = updates.mapTo(mutableSetOf()) { it.uri }
+                        previous.values.filter { it.uri !in seen }.forEach {
+                            updates += it.copy(status = IndexedSource.MISSING, observedAt = scanStartedAt)
                         }
-                        currentCoroutineContext().ensureActive()
-                        store.commit(updates, IndexedScan(vaultId,
-                            if (complete) IndexedScan.COMPLETE else IndexedScan.PARTIAL, now()))
-                    } catch (e: Exception) {
-                        failed = true
-                        withContext(NonCancellable) {
+                    }
+                    val currentUpdates = updates.filter { it.observedAt >= (previous[it.uri]?.observedAt ?: Long.MIN_VALUE) }
+                    currentCoroutineContext().ensureActive()
+                    store.commit(currentUpdates, IndexedScan(vaultId,
+                        if (complete) IndexedScan.COMPLETE else IndexedScan.PARTIAL, now()))
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                failed = true
+                withContext(NonCancellable) {
+                    gate.withLock {
+                        if (job.isActive && synchronized(this@SourceIndexRepository) { scanJob == job }) {
                             runCatching { store.commit(emptyList(), IndexedScan(vaultId, IndexedScan.FAILED, now())) }
                         }
-                        if (e is CancellationException) throw e
                     }
                 }
             } finally {
@@ -119,16 +124,19 @@ class SourceIndexRepository(
         return task
     }
 
-    suspend fun recordRead(vaultId: String, path: String, snapshot: MarkdownSnapshot) {
+    override suspend fun recordRead(vaultId: String, path: String, snapshot: MarkdownSnapshot) {
         requireVaultId(vaultId)
         val version = contentVersion(snapshot)
         gate.withLock {
             val old = store.sources(vaultId).firstOrNull { it.uri == snapshot.file.uri && it.path == path } ?: return@withLock
+            // A scan may have observed this source later than the caller did; never commit the older view.
+            if (snapshot.readAt <= old.observedAt) return@withLock
             store.commit(listOf(old.copy(status = IndexedSource.AVAILABLE, writable = snapshot.file.writable,
-                contentHash = version.hash, hashVersion = version.hashVersion)))
+                contentHash = version.hash, hashVersion = version.hashVersion, observedAt = snapshot.readAt)))
         }
     }
 
-    private fun contentVersion(snapshot: MarkdownSnapshot) =
+    private suspend fun contentVersion(snapshot: MarkdownSnapshot) = withContext(computationDispatcher) {
         ContentTextSnapshot.fromRawText((if (snapshot.bom) "\uFEFF" else "") + snapshot.text)
+    }
 }

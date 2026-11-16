@@ -4,11 +4,13 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.net.toUri
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.MutablePreferences
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.fitlog.model.source.requireVaultId
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -17,7 +19,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.util.UUID
 
 internal val Context.vaultDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "vault_preferences"
@@ -44,9 +45,17 @@ sealed interface VaultConfigState {
     data class Failed(val cause: Throwable) : VaultConfigState
 }
 
+interface VaultSettings {
+    val vaultConfig: Flow<VaultConfigState>
+    suspend fun getVaultConfig(): VaultConfigState
+    suspend fun setVaultUri(uri: Uri): Result<Unit>
+    suspend fun clearVaultUri(): Result<Unit>
+    suspend fun getVaultUri(vaultId: String): Uri
+}
+
 class VaultPreferences(
     private val dataStore: DataStore<Preferences>,
-) {
+) : VaultSettings {
     /**
      * 供生产环境调用的便捷构造函数，复用 Context 单例 DataStore
      */
@@ -59,7 +68,7 @@ class VaultPreferences(
      * 2. 读取成功时，按键值是否存在发出 [VaultConfigState.NotConfigured] 或 [VaultConfigState.Configured]。
      * 3. 读取异常时发出 [VaultConfigState.Failed]，不再通过 emptyPreferences() 伪装为未配置。
      */
-    val vaultConfig: Flow<VaultConfigState> =
+    override val vaultConfig: Flow<VaultConfigState> =
         dataStore.data
             .map<Preferences, VaultConfigState> { preferences ->
                 val uriString = preferences[VAULT_URI]
@@ -82,7 +91,7 @@ class VaultPreferences(
     /**
      * 单次挂起获取当前的 Vault 配置（自动过滤 Loading 中间态）。
      */
-    suspend fun getVaultConfig(): VaultConfigState {
+    override suspend fun getVaultConfig(): VaultConfigState {
         return vaultConfig.first { it !is VaultConfigState.Loading }
     }
 
@@ -92,7 +101,7 @@ class VaultPreferences(
      * @param uri 用户通过 SAF 选择并持久化授权的目录 Uri
      * @return [Result.success] 表示保存成功；[Result.failure] 明确向调用方返回错误，避免静默失败
      */
-    suspend fun setVaultUri(uri: Uri): Result<Unit> {
+    override suspend fun setVaultUri(uri: Uri): Result<Unit> {
         return try {
             dataStore.edit { preferences ->
                 preferences[VAULT_ID] = identityFor(preferences, uri.toString())
@@ -115,7 +124,7 @@ class VaultPreferences(
      *
      * @return [Result.success] 表示清除成功；[Result.failure] 表示写入失败。
      */
-    suspend fun clearVaultUri(): Result<Unit> {
+    override suspend fun clearVaultUri(): Result<Unit> {
         return try {
             dataStore.edit { preferences ->
                 preferences.remove(VAULT_URI)
@@ -129,7 +138,7 @@ class VaultPreferences(
         }
     }
 
-    suspend fun getVaultUri(vaultId: String): Uri {
+    override suspend fun getVaultUri(vaultId: String): Uri {
         requireVaultId(vaultId)
         return requireNotNull(identities(dataStore.data.first()).entries.singleOrNull { it.value == vaultId }) {
             "Unknown vault identity"

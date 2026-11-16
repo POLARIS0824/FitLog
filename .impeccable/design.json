@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-28T15:33:37Z",
+  "title": "Design System: FitLog",
+  "extensions": {
+    "typographyMeta": {
+      "display": { "displayName": "Rounded display", "purpose": "Native Material display roles with bundled Google Sans Flex overrides; sizes and line heights remain inherited." },
+      "headline": { "displayName": "Rounded headline", "purpose": "Native summary and empty-state headings; Android fallback handles unsupported scripts." },
+      "title": { "displayName": "Neutral title", "purpose": "Destinations, record names, and actions using native Material title roles." },
+      "body": { "displayName": "Reading text", "purpose": "Descriptions and record content using inherited Material body metrics." },
+      "label": { "displayName": "Control label", "purpose": "Connected choices, compact actions, and status text using inherited Material label metrics." }
+    },
+    "motion": [
+      { "name": "expressive", "value": "MotionScheme.expressive()", "purpose": "Native Compose theme motion; no fixed CSS easing or duration is defined by the app." },
+      { "name": "app-bar-snap", "value": "MaterialTheme.motionScheme.defaultSpatialSpec()", "purpose": "Expanded app-bar snapping." },
+      { "name": "markdown-status-spatial", "value": "MaterialTheme.motionScheme.fastSpatialSpec()", "purpose": "Markdown status expansion and contraction." },
+      { "name": "markdown-status-effects", "value": "MaterialTheme.motionScheme.fastEffectsSpec()", "purpose": "Markdown status fades." }
+    ],
+    "breakpoints": [
+      { "name": "expanded-page-gutter", "value": "600dp" },
+      { "name": "today-supporting-column-width", "value": "840dp" },
+      { "name": "today-illustration-content-height", "value": "600dp" }
+    ]
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "Native Android training",
+    "overview": "This names the existing identity confirmed in PRODUCT.md, rather than a new visual direction. FitLog uses Material 3 Expressive, bundled Google Sans Flex, wallpaper-derived color, and paired light/dark themes. Rounded headings and tactile native controls give training records emphasis while supporting text stays quieter.\n\nThe system is implemented in Jetpack Compose. Frontmatter records the app's explicit overrides and a selected set of reused static fallback colors. Native dimensions use dp; they are not CSS pixels. Material defaults remain owned by the installed Compose library, including typography sizes, line heights, shape geometry, control states, and spring parameters. This document does not freeze those defaults into a second implementation.",
+    "keyCharacteristics": [
+      "Native semantic color pairs that adapt to appearance preferences.",
+      "Rounded display and headline text, with neutral reading text.",
+      "Tonal containers, connected choices, and expressive press feedback.",
+      "Centered content widths with gutters that respond to window size."
+    ],
+    "rules": [
+      { "name": "The Semantic Pair Rule", "body": "Read each container and its corresponding on-color from `MaterialTheme.colorScheme`; preserve those relationships in both themes.", "section": "colors" },
+      { "name": "The Native Scale Rule", "body": "Extend the existing Material typography roles and font overrides; allow system font scaling and Android script fallback to determine rendered text metrics.", "section": "typography" }
+    ],
+    "dos": [
+      "Do use the native semantic color pairs in both light and dark appearance.",
+      "Do reuse the bundled type overrides, shared page dimensions, and existing business components.",
+      "Do keep English and Chinese interface strings in Android resources and allow their text to wrap or scroll as the component supports.",
+      "Do keep Log's app bar above its source selector, search, filters, and records."
+    ],
+    "donts": [
+      "Don't turn wallpaper-derived screenshot colors into fixed brand hex values.",
+      "Don't replace native Material size, shape, motion, or state specifications with invented web equivalents.",
+      "Don't change the bottom toolbar or FAB menu without the author's explicit request."
+    ]
+  }
+}
