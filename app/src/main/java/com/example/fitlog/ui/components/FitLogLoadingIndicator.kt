@@ -7,15 +7,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import com.example.fitlog.ui.theme.FitLogTheme
 import kotlinx.coroutines.delay
 
 /** Each operation gets its own delay; completion cancels a pending hint immediately. */
 @Composable
 internal fun rememberDelayedLoading(loading: Boolean): Boolean {
+    val delayMillis = FitLogTheme.dimens.components.loadingHintDelayMillis
     var ready by remember(loading) { mutableStateOf(false) }
     LaunchedEffect(loading) {
         if (loading) {
-            delay(300L)
+            delay(delayMillis)
             ready = true
         }
     }

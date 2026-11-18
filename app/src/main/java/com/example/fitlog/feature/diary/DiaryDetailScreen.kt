@@ -17,8 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -26,13 +24,15 @@ import com.example.fitlog.R
 import com.example.fitlog.domain.analysis.diaryDateFromFileName
 import com.example.fitlog.model.record.WeightBasis
 import com.example.fitlog.ui.components.FitLogBackGuard
-import com.example.fitlog.ui.components.FitLogDimens
+import com.example.fitlog.ui.components.FitLogConnectedButtonGroup
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogProgressFeedback
 import com.example.fitlog.ui.components.FitLogTopAppBar
-import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberDelayedLoading
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.FitLogType
+import com.example.fitlog.ui.theme.fitLogPagePadding
 import com.example.fitlog.ui.training.WeightEditValue
 import java.text.DateFormat
 import java.util.Date
@@ -107,22 +107,21 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
                         }
                     }
                 })
-            PrimaryTabRow(selectedTabIndex = state.tab.ordinal, modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth()) {
+            PrimaryTabRow(selectedTabIndex = state.tab.ordinal, modifier = Modifier.widthIn(max = FitLogTheme.dimens.page.wideContentWidth).fillMaxWidth()) {
                 DiaryDetailTab.entries.forEach { tab ->
                     Tab(selected = state.tab == tab, onClick = { actions.selectTab(tab) }, text = {
                         Text(stringResource(if (tab == DiaryDetailTab.ORIGINAL) R.string.detail_original else R.string.detail_analysis))
                     })
                 }
             }
-            Box(Modifier.weight(1f).widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth()) {
+            Box(Modifier.weight(1f).widthIn(max = FitLogTheme.dimens.page.wideContentWidth).fillMaxWidth()) {
                 if (state.tab == DiaryDetailTab.ORIGINAL) {
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(fitLogPagePadding()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(fitLogPagePadding()), verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.l)) {
                         if (state.sourceReadFailed) item { FitLogNotice(stringResource(R.string.detail_source_failed), error = true) }
                         state.original?.let { snapshot ->
                             if (!snapshot.file.writable) item { Text(stringResource(R.string.detail_read_only)) }
                             item { if (snapshot.text.isEmpty()) Text(stringResource(R.string.detail_original_empty))
-                                else SelectionContainer { Text(snapshot.text, fontFamily = FontFamily.Monospace,
-                                    style = MaterialTheme.typography.bodyLarge) } }
+                                else SelectionContainer { Text(snapshot.text, style = FitLogType.data) } }
                         }
                     }
                 } else AnalysisContent(state, actions, Modifier.fillMaxSize(), showParsesLoading, showConfirmationLoading,
@@ -172,7 +171,7 @@ internal fun DiaryDetailContent(state: DiaryDetailUiState, actions: DiaryDetailA
             confirmButton = { TextButton(onClick = {
                 if (actions.draftForReview() == target.draft) target.apply()
                 removal = null
-            }, enabled = unchanged, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
+            }, enabled = unchanged, shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.detail_delete_review_confirm))
             } }, dismissButton = { TextButton(onClick = { removal = null }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_cancel)) } })
     }
@@ -193,9 +192,9 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
     // Show that metadata together with the candidate, rather than inserting it above visible sets.
     val initialConfirmationRead = state.confirmationLoading && state.confirmed == null && state.review == null
     Column(modifier) {
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(fitLogPagePadding()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(fitLogPagePadding()), verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.xl)) {
             item(key = "status") {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.m)) {
                     Text(stringResource(R.string.detail_review_help), style = MaterialTheme.typography.bodyMedium)
                     AnalysisStatusCard(state, actions, showParsesLoading, showConfirmationLoading)
                     if (state.sourceReadFailed) FitLogNotice(stringResource(R.string.detail_source_failed), error = true)
@@ -210,12 +209,9 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
                     state.reviewMessage?.let { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium,
                         color = if (it == R.string.detail_review_saved) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error) }
                     if (state.confirmed != null && state.parses.latestCandidate != null) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(selected = !candidateSelected, onClick = { actions.selectResult(false) },
-                                enabled = state.review == null && !state.reviewSaving, label = { Text(stringResource(R.string.detail_confirmed_result)) })
-                            FilterChip(selected = candidateSelected, onClick = { actions.selectResult(true) },
-                                enabled = state.review == null && !state.reviewSaving, label = { Text(stringResource(R.string.detail_candidate_result)) })
-                        }
+                        FitLogConnectedButtonGroup(listOf(false, true), candidateSelected,
+                            label = { candidate -> stringResource(if (candidate) R.string.detail_candidate_result else R.string.detail_confirmed_result) },
+                            onSelect = actions.selectResult, enabled = state.review == null && !state.reviewSaving)
                     }
                 }
             }
@@ -245,12 +241,14 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
                     else requireNotNull(state.confirmed).sessions.map { it.exercises.size }
                 sessions.ifEmpty { listOf(0) }.forEachIndexed { session, exerciseCount ->
                     item(key = "add-exercise:$session") {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { onEditExercise(DiaryExerciseAddress(session, exerciseCount)) }, enabled = state.canReview, shapes = ButtonDefaults.shapes()) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s)) {
+                            OutlinedButton(onClick = { onEditExercise(DiaryExerciseAddress(session, exerciseCount)) }, enabled = state.canReview, shapes = ButtonDefaults.shapes()) {
+                                Icon(painterResource(R.drawable.add_24px), null, Modifier.size(ButtonDefaults.IconSize))
+                                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                                 Text(stringResource(if (sessions.size > 1) R.string.detail_add_session_exercise else R.string.detail_add_exercise, session + 1))
                             }
                             if (session in sessions.indices) TextButton(onClick = { onDeleteSession(session) }, enabled = state.canReview,
-                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
+                                shapes = ButtonDefaults.shapes()) {
                                 Text(stringResource(R.string.detail_delete_session, session + 1))
                             }
                         }
@@ -258,7 +256,7 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
                 }
                 if (sessions.any { it > 0 }) item(key = "clear-training") {
                     TextButton(onClick = onClearTraining, enabled = state.canReview,
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
+                        shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.detail_clear_training))
                     }
                 }
@@ -266,12 +264,13 @@ private fun AnalysisContent(state: DiaryDetailUiState, actions: DiaryDetailActio
         }
         if (state.canReview || state.reviewSaving) Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
             Button(onClick = onConfirm, enabled = state.canReview,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = fitLogPagePadding(), vertical = 8.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = fitLogPagePadding(), vertical = FitLogTheme.spacing.s)
                     .heightIn(min = ButtonDefaults.MediumContainerHeight),
                 shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
                 contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)) {
-                Icon(painterResource(R.drawable.check_24px), null)
-                Spacer(Modifier.width(8.dp))
+                Icon(painterResource(R.drawable.check_24px), null,
+                    Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MediumContainerHeight)))
+                Spacer(Modifier.width(ButtonDefaults.iconSpacingFor(ButtonDefaults.MediumContainerHeight)))
                 Text(stringResource(if (state.review == null) R.string.detail_confirm_save else R.string.detail_save_corrections),
                     style = MaterialTheme.typography.titleMediumEmphasized)
             }

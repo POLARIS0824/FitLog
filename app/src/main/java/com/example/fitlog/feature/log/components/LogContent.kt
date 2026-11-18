@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
@@ -27,8 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.ui.glass.LocalUiLook
 import com.example.fitlog.data.settings.UiLook
 import com.example.fitlog.ui.glass.GlassSearchField
@@ -38,13 +35,15 @@ import com.example.fitlog.data.settings.LogSortOrder
 import com.example.fitlog.model.source.MarkdownFile
 import com.example.fitlog.model.source.IndexedScan
 import com.example.fitlog.model.source.IndexedSource
-import com.example.fitlog.ui.components.FitLogDimens
+import com.example.fitlog.ui.components.FitLogConnectedButtonGroup
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogProgressFeedback
 import com.example.fitlog.ui.components.FitLogTopAppBar
-import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberDelayedLoading
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.fitLogPagePadding
 
 @Composable
 internal fun LogContent(
@@ -58,83 +57,73 @@ internal fun LogContent(
     listState: LazyListState = rememberLazyListState(),
     searchFieldState: TextFieldState = rememberTextFieldState(initialText = state.query),
 ) {
-    var sortExpanded by remember { mutableStateOf(false) }
     var toolsExpanded by rememberSaveable { mutableStateOf(false) }
     val showLoading = rememberDelayedLoading(state.refreshing || state.loading)
     val behavior = rememberFitLogTopAppBarBehavior()
     val pagePadding = fitLogPagePadding()
+    val spacing = FitLogTheme.spacing
+    val page = FitLogTheme.dimens.page
+    val logDimens = FitLogTheme.dimens.log
     val files = state.visibleFiles
     Column(modifier.fillMaxSize().then(if (showAppBar) Modifier.nestedScroll(behavior.nestedScrollConnection) else Modifier), horizontalAlignment = Alignment.CenterHorizontally) {
         if (showAppBar) LogTopAppBar(true, state.refreshing, actions.refresh, onConnect, onManage, behavior)
         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxSize().glassPageSource(),
-                contentPadding = PaddingValues(start = pagePadding, top = 16.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
+                modifier = Modifier.widthIn(max = page.wideContentWidth).fillMaxSize().glassPageSource(),
+                contentPadding = PaddingValues(start = pagePadding, top = spacing.l, end = pagePadding, bottom = page.navigationBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
             ) {
                 if (state.vault != null) item(key = "header") {
-                    if (LocalUiLook.current == UiLook.LIQUID_GLASS) GlassSearchField(searchFieldState)
-                    else OutlinedTextField(
-                        state = searchFieldState, lineLimits = TextFieldLineLimits.SingleLine,
-                        label = { Text(stringResource(R.string.log_search)) },
-                        shape = CircleShape,
-                        leadingIcon = { Icon(painterResource(R.drawable.search_24px), null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        trailingIcon = {
-                            if (searchFieldState.text.isNotEmpty()) IconButton(onClick = searchFieldState::clearText, shapes = IconButtonDefaults.shapes()) {
-                                Icon(painterResource(R.drawable.close_24px), stringResource(R.string.log_clear_search))
-                            }
-                        },
-                    )
-                    OutlinedButton(onClick = { toolsExpanded = !toolsExpanded }, shapes = ButtonDefaults.shapes(),
-                        modifier = Modifier.padding(top = 12.dp).heightIn(min = 48.dp)) {
-                        Text(stringResource(if (toolsExpanded) R.string.log_hide_tools else R.string.log_show_tools,
-                            stringResource(state.statusFilter.label)))
-                    }
-                    if (toolsExpanded) {
-                    LogAnalysisControls(state, actions, onReview)
-                    Spacer(Modifier.height(12.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Box {
-                            OutlinedButton(onClick = { sortExpanded = true }, enabled = !state.sortBusy, shapes = ButtonDefaults.shapes()) {
-                                Text(stringResource(if (state.sort == LogSortOrder.Ascending) R.string.log_sort_ascending else R.string.log_sort_descending))
-                            }
-                            DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
-                                LogSortOrder.entries.forEach { order ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(if (order == LogSortOrder.Ascending) R.string.log_sort_ascending else R.string.log_sort_descending)) },
-                                        onClick = { sortExpanded = false; actions.changeSort(order) },
-                                    )
+                    Column(Modifier.fillMaxWidth().padding(bottom = spacing.s), verticalArrangement = Arrangement.spacedBy(spacing.m)) {
+                        if (LocalUiLook.current == UiLook.LIQUID_GLASS) GlassSearchField(searchFieldState)
+                        else OutlinedTextField(
+                            state = searchFieldState, lineLimits = TextFieldLineLimits.SingleLine,
+                            label = { Text(stringResource(R.string.log_search)) },
+                            leadingIcon = { Icon(painterResource(R.drawable.search_24px), null) },
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                if (searchFieldState.text.isNotEmpty()) IconButton(onClick = searchFieldState::clearText, shapes = IconButtonDefaults.shapes()) {
+                                    Icon(painterResource(R.drawable.close_24px), stringResource(R.string.log_clear_search))
                                 }
+                            },
+                        )
+                        OutlinedToggleButton(checked = toolsExpanded, onCheckedChange = { toolsExpanded = it }) {
+                            Text(stringResource(if (toolsExpanded) R.string.log_hide_tools else R.string.log_show_tools,
+                                stringResource(state.statusFilter.label)))
+                        }
+                        if (toolsExpanded) {
+                            LogAnalysisControls(state, actions, onReview)
+                            FitLogConnectedButtonGroup(LogSortOrder.entries, state.sort,
+                                label = { stringResource(if (it == LogSortOrder.Ascending) R.string.log_sort_ascending else R.string.log_sort_descending) },
+                                onSelect = actions.changeSort, enabled = !state.sortBusy)
+                            FilterChip(selected = state.showMissing, onClick = actions.toggleMissing,
+                                label = { Text(stringResource(R.string.index_show_missing)) })
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
+                            Text(stringResource(when {
+                                showLoading -> R.string.index_scanning
+                                state.scanStatus == IndexedScan.COMPLETE -> R.string.index_complete
+                                state.scanStatus == IndexedScan.PARTIAL -> R.string.index_partial
+                                state.scanStatus == IndexedScan.FAILED -> R.string.index_failed
+                                else -> R.string.index_not_scanned
+                            }), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = state.files.isNotEmpty() &&
+                                    (showLoading || state.error != null || state.scanStatus != IndexedScan.COMPLETE),
+                                enter = expandVertically(
+                                    animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+                                    expandFrom = Alignment.Top,
+                                ) + fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()),
+                                exit = shrinkVertically(
+                                    animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+                                    shrinkTowards = Alignment.Top,
+                                ) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
+                            ) {
+                                Text(stringResource(R.string.index_cached), style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        FilterChip(selected = state.showMissing, onClick = actions.toggleMissing,
-                            label = { Text(stringResource(R.string.index_show_missing)) })
-                    }
-                    }
-                    Text(stringResource(when {
-                        showLoading -> R.string.index_scanning
-                        state.scanStatus == IndexedScan.COMPLETE -> R.string.index_complete
-                        state.scanStatus == IndexedScan.PARTIAL -> R.string.index_partial
-                        state.scanStatus == IndexedScan.FAILED -> R.string.index_failed
-                        else -> R.string.index_not_scanned
-                    }), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 8.dp))
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = state.files.isNotEmpty() &&
-                            (showLoading || state.error != null || state.scanStatus != IndexedScan.COMPLETE),
-                        enter = expandVertically(
-                            animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
-                            expandFrom = Alignment.Top,
-                        ) + fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()),
-                        exit = shrinkVertically(
-                            animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
-                            shrinkTowards = Alignment.Top,
-                        ) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
-                    ) {
-                        Text(stringResource(R.string.index_cached), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 if (state.summariesReadFailed) item(key = "analysis-error") {
@@ -149,11 +138,10 @@ internal fun LogContent(
                 if (state.partial) item { FitLogNotice(stringResource(R.string.log_partial)) }
                 if (!state.loading && state.error == null && (state.vault == null || state.files.isEmpty() || files.isEmpty())) {
                     item(key = "empty") {
-                        Surface(shape = MaterialTheme.shapes.extraLarge,
-                            color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                Icon(painterResource(R.drawable.folder_open_24px), null, tint = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(48.dp))
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(spacing.l), verticalArrangement = Arrangement.spacedBy(spacing.l)) {
+                                Icon(painterResource(R.drawable.folder_open_24px), null, tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(logDimens.emptyIllustrationSize))
                                 Text(stringResource(when {
                                     state.vault == null -> R.string.log_no_vault
                                     state.files.isEmpty() -> R.string.log_empty
@@ -176,18 +164,18 @@ internal fun LogContent(
                         onClick = { state.vault?.let { onOpen(it, file) } },
                         enabled = status != IndexedSource.MISSING,
                         shapes = ListItemDefaults.segmentedShapes(index = index, count = files.size),
-                        colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                        colors = FitLogContainment.pageListItemColors(),
                         leadingContent = {
-                            Icon(painterResource(R.drawable.list_alt_24px), null, modifier = Modifier.size(24.dp),
+                            Icon(painterResource(R.drawable.list_alt_24px), null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         },
                         supportingContent = { Column {
                             file.path.substringBeforeLast('/', "").takeIf { it.isNotBlank() }?.let { parent ->
                                 Text(parent)
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
                                 Icon(painterResource(if (work == LogDiaryStatus.CONFIRMED) R.drawable.check_24px else R.drawable.list_alt_24px),
-                                    null, modifier = Modifier.size(16.dp))
+                                    null, modifier = Modifier.size(logDimens.inlineStatusIconSize))
                                 Text(stringResource(work.label), color = if (work in setOf(LogDiaryStatus.FAILED, LogDiaryStatus.READ_FAILED))
                                     MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -200,7 +188,7 @@ internal fun LogContent(
                 }
             }
             FitLogProgressFeedback(showLoading,
-                Modifier.align(Alignment.TopCenter).widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().padding(horizontal = pagePadding))
+                Modifier.align(Alignment.TopCenter).widthIn(max = page.wideContentWidth).fillMaxWidth().padding(horizontal = pagePadding))
         }
     }
 }

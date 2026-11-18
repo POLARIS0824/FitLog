@@ -11,16 +11,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
 import com.example.fitlog.ui.components.FitLogBackGuard
-import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogLoadingIndicator
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogTopAppBar
-import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.fitLogPagePadding
 
 @Composable
 internal fun VaultManagementScreen(vm: VaultManagementViewModel, onConnect: () -> Unit, onBack: () -> Unit) {
@@ -41,13 +40,15 @@ internal fun VaultManagementScreen(vm: VaultManagementViewModel, onConnect: () -
 private fun VaultManagementContent(state: VaultManagementUiState, actions: VaultManagementActions, onConnect: () -> Unit, onBack: () -> Unit) {
     val behavior = rememberFitLogTopAppBarBehavior()
     val pagePadding = fitLogPagePadding()
+    val spacing = FitLogTheme.spacing
+    val contentWidth = FitLogTheme.dimens.page.contentWidth
     Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection)) {
       FitLogTopAppBar(stringResource(R.string.vault_management_title), behavior,
-          maxContentWidth = FitLogDimens.ContentWidth, onBack = onBack, backEnabled = !state.busy)
+          maxContentWidth = contentWidth, onBack = onBack, backEnabled = !state.busy)
       Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Column(
-            Modifier.widthIn(max = FitLogDimens.ContentWidth).fillMaxSize().verticalScroll(rememberScrollState()).padding(pagePadding),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            Modifier.widthIn(max = contentWidth).fillMaxSize().verticalScroll(rememberScrollState()).padding(pagePadding),
+            verticalArrangement = Arrangement.spacedBy(spacing.xl),
         ) {
             Text(stringResource(R.string.vault_management_description), style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -65,18 +66,20 @@ private fun VaultManagementContent(state: VaultManagementUiState, actions: Vault
             ) {
                 Text(stringResource(R.string.vault_switch_reauthorize), style = MaterialTheme.typography.titleMediumEmphasized)
             }
-            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Secondary, low-emphasis information on the page: an outlined card.
+            OutlinedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(spacing.l), verticalArrangement = Arrangement.spacedBy(spacing.m)) {
                     Text(stringResource(R.string.vault_disconnect_message), style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedButton(onClick = actions.requestDisconnect, enabled = !state.busy && folder != null, shapes = ButtonDefaults.shapes()) {
-                        Text(stringResource(R.string.vault_disconnect), color = MaterialTheme.colorScheme.error)
+                    OutlinedButton(onClick = actions.requestDisconnect, enabled = !state.busy && folder != null,
+                        shapes = ButtonDefaults.shapes(),) {
+                        Text(stringResource(R.string.vault_disconnect))
                     }
                 }
             }
         }
         FitLogLoadingIndicator(state.loading || state.busy,
-            Modifier.align(Alignment.TopCenter).widthIn(max = FitLogDimens.ContentWidth).fillMaxWidth().padding(horizontal = pagePadding))
+            Modifier.align(Alignment.TopCenter).widthIn(max = contentWidth).fillMaxWidth().padding(horizontal = pagePadding))
       }
     }
     if (state.confirmDisconnect) AlertDialog(onDismissRequest = actions.cancelDisconnect,

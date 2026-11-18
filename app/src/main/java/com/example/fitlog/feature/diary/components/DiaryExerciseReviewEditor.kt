@@ -28,13 +28,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.model.record.ReviewedExercise
-import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogSheetActions
 import com.example.fitlog.ui.components.FitLogSheetTitle
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
 import com.example.fitlog.ui.theme.FitLogType
 
 /** Structural corrections are explicit user input; new sets start with unknown values. */
@@ -60,11 +59,13 @@ internal fun DiaryExerciseReviewEditorContent(address: DiaryExerciseAddress, exe
     val total = knownCount?.plus(fragmentCounts.values.sumOf { it ?: 0 })
     val valid = name.isNotBlank() && knownCount != null && fragmentCounts.values.all { it != null && it in 0..1000 } &&
         total != null && total <= 1000
+    val spacing = FitLogTheme.spacing
+    val sheetPadding = FitLogTheme.dimens.page.sheetPadding
     Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding()) {
-      Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = FitLogDimens.SheetPadding).padding(top = 8.dp),
-          verticalArrangement = Arrangement.spacedBy(20.dp)) {
+      Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = sheetPadding).padding(top = spacing.s),
+          verticalArrangement = Arrangement.spacedBy(spacing.l)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
                 FitLogSheetTitle(stringResource(if (exercise == null) R.string.detail_add_exercise else R.string.detail_edit_exercise_title))
                 Text(stringResource(R.string.detail_exercise_review_subtitle), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -74,14 +75,14 @@ internal fun DiaryExerciseReviewEditorContent(address: DiaryExerciseAddress, exe
             }
         }
         TextField(name, { name = it }, label = { Text(stringResource(R.string.detail_exercise_name)) },
-            modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.large,
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
             isError = name.isNotEmpty() && name.isBlank(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
         ExerciseSetCount(count, { count = it }, knownCount)
         if (knownCount != null && exercise != null && knownCount < exercise.sets.size) {
-            Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer) {
-                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(painterResource(R.drawable.warning_24px), null, Modifier.size(20.dp))
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer)) {
+                Row(Modifier.padding(spacing.l), horizontalArrangement = Arrangement.spacedBy(spacing.m)) {
+                    Icon(painterResource(R.drawable.warning_24px), null)
                     Text(pluralStringResource(R.plurals.detail_remove_sets_warning, exercise.sets.size - knownCount,
                         exercise.sets.size - knownCount), style = MaterialTheme.typography.bodyMedium)
                 }
@@ -95,7 +96,7 @@ internal fun DiaryExerciseReviewEditorContent(address: DiaryExerciseAddress, exe
                 supportingText = { Text(stringResource(R.string.detail_fragment_count_help,
                     weightLabel(fragment.weight, fragment.unit, basis = fragment.basis), fragment.reps?.toString()
                         ?: stringResource(R.string.detail_value_unknown))) },
-                modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
                 isError = counts[fragment.group].orEmpty().isNotBlank() && fragmentCounts[fragment.group]?.let { it in 0..1000 } != true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
         }
@@ -106,7 +107,7 @@ internal fun DiaryExerciseReviewEditorContent(address: DiaryExerciseAddress, exe
       }
       FitLogSheetActions(onDismiss, enabled = valid,
           confirmLabel = stringResource(R.string.detail_apply_correction),
-          modifier = Modifier.padding(horizontal = FitLogDimens.SheetPadding).padding(top = 12.dp, bottom = FitLogDimens.SheetPadding),
+          modifier = Modifier.padding(horizontal = sheetPadding).padding(top = spacing.m, bottom = sheetPadding),
           onConfirm = { onSave(name.trim(), requireNotNull(knownCount), fragmentCounts.mapValues { requireNotNull(it.value) }) })
     }
 }
@@ -118,37 +119,42 @@ private fun ExerciseSetCount(count: String, onCount: (String) -> Unit, knownCoun
     val numberStyle = FitLogType.centeredNumber
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val numberWidth = with(density) { measurer.measure("1000", numberStyle, maxLines = 1).size.width.toDp() } + 32.dp
+    val spacing = FitLogTheme.spacing
+    // TextField insets its text by 16dp on each side.
+    val numberWidth = with(density) { measurer.measure("1000", numberStyle, maxLines = 1).size.width.toDp() } + spacing.l * 2
+    val stepperSize = IconButtonDefaults.mediumContainerSize()
     val input: @Composable (Modifier) -> Unit = { modifier ->
-        TextField(count, onCount, singleLine = true, textStyle = numberStyle, shape = MaterialTheme.shapes.large,
+        // Default filled-field shape (extraSmall top) already fits the card's 12dp corner minus its 16dp inset.
+        // The fill is set because the default field color equals the filled card's.
+        TextField(count, onCount, singleLine = true, textStyle = numberStyle,
             modifier = modifier.semantics { contentDescription = caption }, isError = count.isNotBlank() && knownCount == null,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
-            colors = TextFieldDefaults.colors(focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow))
+            colors = TextFieldDefaults.colors(focusedContainerColor = FitLogContainment.nestedColor,
+                unfocusedContainerColor = FitLogContainment.nestedColor))
     }
     val remove: @Composable () -> Unit = {
         FilledTonalIconButton(onClick = { onCount((requireNotNull(knownCount) - 1).toString()) },
-            enabled = knownCount != null && knownCount > 0, modifier = Modifier.size(48.dp), shapes = IconButtonDefaults.shapes()) {
+            enabled = knownCount != null && knownCount > 0, modifier = Modifier.size(stepperSize), shapes = IconButtonDefaults.shapes()) {
             Icon(painterResource(R.drawable.remove_24px), stringResource(R.string.detail_remove_one_set))
         }
     }
     val add: @Composable () -> Unit = {
         FilledTonalIconButton(onClick = { onCount(((knownCount ?: 0) + 1).toString()) },
-            enabled = count.isBlank() || (knownCount != null && knownCount < 1000), modifier = Modifier.size(48.dp), shapes = IconButtonDefaults.shapes()) {
+            enabled = count.isBlank() || (knownCount != null && knownCount < 1000), modifier = Modifier.size(stepperSize), shapes = IconButtonDefaults.shapes()) {
             Icon(painterResource(R.drawable.add_24px), stringResource(R.string.detail_add_one_set))
         }
     }
-    Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(spacing.l), verticalArrangement = Arrangement.spacedBy(spacing.m)) {
             Text(caption, style = MaterialTheme.typography.titleMediumEmphasized)
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                if (maxWidth >= numberWidth + 112.dp) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                if (maxWidth >= numberWidth + (stepperSize.width + spacing.s) * 2) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(spacing.s),
                         verticalAlignment = Alignment.CenterVertically) {
                         remove(); input(Modifier.weight(1f)); add()
                     }
-                } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                } else Column(verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                     input(Modifier.fillMaxWidth())
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { remove(); add() }
                 }
@@ -162,20 +168,23 @@ private fun ExerciseSetCount(count: String, onCount: (String) -> Unit, knownCoun
 @Composable
 private fun ExerciseOriginalNote(quote: String) {
     var expanded by remember { mutableStateOf(false) }
-    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-        Column {
-            TextButton(onClick = { expanded = !expanded }, modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp), shapes = ButtonDefaults.shapes()) {
-                Text(stringResource(R.string.detail_original_note), Modifier.weight(1f), textAlign = TextAlign.Start)
-                val rotation by animateFloatAsState(if (expanded) 270f else 90f,
-                    MaterialTheme.motionScheme.fastSpatialSpec(), label = "exerciseOriginalNote")
-                Icon(painterResource(R.drawable.chevron_right_24px), null, Modifier.rotate(rotation))
-            }
-            AnimatedVisibility(expanded,
-                enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()),
-                exit = shrinkVertically(MaterialTheme.motionScheme.defaultSpatialSpec())) {
-                SelectionContainer { Text(quote, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                    style = MaterialTheme.typography.bodyMedium) }
+    val itemColors = FitLogContainment.sheetListItemColors()
+    val segments = if (expanded) 2 else 1
+    // The toggle and the revealed note form one segmented group.
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+        val rotation by animateFloatAsState(if (expanded) 270f else 90f,
+            MaterialTheme.motionScheme.fastSpatialSpec(), label = "exerciseOriginalNote")
+        SegmentedListItem(onClick = { expanded = !expanded }, shapes = ListItemDefaults.segmentedShapes(0, segments),
+            colors = itemColors,
+            trailingContent = { Icon(painterResource(R.drawable.chevron_right_24px), null, Modifier.rotate(rotation)) }) {
+            Text(stringResource(R.string.detail_original_note))
+        }
+        AnimatedVisibility(expanded,
+            enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()),
+            exit = shrinkVertically(MaterialTheme.motionScheme.defaultSpatialSpec())) {
+            Surface(Modifier.fillMaxWidth(), shape = ListItemDefaults.segmentedShapes(1, 2).shape,
+                color = itemColors.containerColor, contentColor = itemColors.contentColor) {
+                SelectionContainer { Text(quote, Modifier.padding(FitLogTheme.spacing.l), style = MaterialTheme.typography.bodyMedium) }
             }
         }
     }

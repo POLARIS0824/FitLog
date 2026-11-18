@@ -17,18 +17,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
 import com.example.fitlog.model.record.RecordKind
 import com.example.fitlog.model.record.ReviewedSet
 import com.example.fitlog.model.record.WeightBasis
 import com.example.fitlog.ui.components.FitLogBackGuard
-import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogTopAppBar
-import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.FitLogType
+import com.example.fitlog.ui.theme.fitLogPagePadding
 import com.example.fitlog.ui.training.WeightEditValue
 import java.time.Instant
 import java.time.LocalDate
@@ -74,6 +74,8 @@ internal fun NativeRecordContent(state: NativeRecordUiState, actions: NativeReco
     val scope = rememberCoroutineScope()
     val behavior = rememberFitLogTopAppBarBehavior()
     val pagePadding = fitLogPagePadding()
+    val spacing = FitLogTheme.spacing
+    val wideContentWidth = FitLogTheme.dimens.page.wideContentWidth
     FitLogBackGuard(enabled = state.hasChanges || state.state == RecordSaveState.SAVING || state.deleting) { actions.requestLeave() }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.fillMaxSize().imePadding().nestedScroll(behavior.nestedScrollConnection),
@@ -81,26 +83,26 @@ internal fun NativeRecordContent(state: NativeRecordUiState, actions: NativeReco
             FitLogTopAppBar(stringResource(R.string.record_title), behavior,
                 onBack = { actions.requestLeave() }, backEnabled = !state.deleting, actions = {
                     TextButton(onClick = { deleting = true }, enabled = state.canEdit && (state.exists || state.input.hasContent),
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
+                        shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.record_delete))
                     }
                 })
             NativeRecordSaveFeedback(state, actions)
-            LazyColumn(Modifier.weight(1f).widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth(), state = listState, contentPadding = PaddingValues(pagePadding),
-                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            LazyColumn(Modifier.weight(1f).widthIn(max = wideContentWidth).fillMaxWidth(), state = listState, contentPadding = PaddingValues(pagePadding),
+                verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                       Text(stringResource(R.string.record_ui_date), style = MaterialTheme.typography.labelLarge,
                           color = MaterialTheme.colorScheme.onSurfaceVariant)
                       OutlinedButton(onClick = { datePicker = true }, enabled = state.canEdit,
                           shapes = ButtonDefaults.shapes()) {
-                          Text(state.input.date, style = MaterialTheme.typography.titleMediumEmphasized)
+                          Text(state.input.date, style = FitLogType.dataEmphasized)
                       }
                     }
                 }
                 if (state.input.kind == RecordKind.REST) item { FitLogNotice(stringResource(R.string.record_rest)) }
                 if (state.input.exercises.isEmpty() && state.input.kind != RecordKind.REST) item {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.m)) {
                         Text(stringResource(R.string.record_ui_empty_title), style = MaterialTheme.typography.headlineSmallEmphasized)
                         Text(stringResource(R.string.record_empty), style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -126,7 +128,7 @@ internal fun NativeRecordContent(state: NativeRecordUiState, actions: NativeReco
                     color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             if (state.canUndoRemoval) Snackbar(
-                modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().padding(horizontal = pagePadding),
+                modifier = Modifier.widthIn(max = wideContentWidth).fillMaxWidth().padding(horizontal = pagePadding),
                 action = { TextButton(onClick = actions.undoRemoval, enabled = state.canEdit,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inversePrimary), shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.record_undo))
@@ -135,15 +137,15 @@ internal fun NativeRecordContent(state: NativeRecordUiState, actions: NativeReco
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.inverseOnSurface), shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_dismiss)) } }) {
                 Text(stringResource(R.string.record_removed))
             }
-            Surface(modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainer) {
-                FilledTonalButton(onClick = {
+            Surface(modifier = Modifier.widthIn(max = wideContentWidth).fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainer) {
+                Button(onClick = {
                     actions.addExercise()
                     scope.launch { listState.animateScrollToItem(state.input.exercises.size) }
-                }, enabled = state.canEdit, modifier = Modifier.fillMaxWidth().padding(horizontal = pagePadding, vertical = 8.dp)
+                }, enabled = state.canEdit, modifier = Modifier.fillMaxWidth().padding(horizontal = pagePadding, vertical = spacing.s)
                     .heightIn(min = ButtonDefaults.MediumContainerHeight),
                     shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
                     contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)) {
-                    Icon(painterResource(R.drawable.add_24px), null)
+                    Icon(painterResource(R.drawable.add_24px), null, Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MediumContainerHeight)))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Text(stringResource(R.string.record_add_exercise), style = MaterialTheme.typography.titleMediumEmphasized)
                 }

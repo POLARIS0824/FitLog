@@ -26,7 +26,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.model.analysis.DiaryResultFreshness
 import com.example.fitlog.model.analysis.EvidenceQuote
@@ -37,6 +36,9 @@ import com.example.fitlog.model.analysis.ValidationIssue
 import com.example.fitlog.model.record.TrainingRecordDetails
 import com.example.fitlog.model.record.WeightBasis
 import com.example.fitlog.model.record.WeightUnit
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.FitLogType
 import com.example.fitlog.ui.training.weightBasisLabel
 
 internal data class DiarySetUi(val number: Int?, val weight: Double?, val unit: WeightUnit?, val basis: WeightBasis?,
@@ -57,37 +59,45 @@ private fun DiaryExerciseCard(name: String, notes: String?, evidence: EvidenceQu
     var expanded by remember { mutableStateOf(false) }
     val knownSets = sets.count { it.number != null }
     val commonBasis = sets.map { it.basis ?: WeightBasis.UNKNOWN }.distinct().singleOrNull()
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val spacing = FitLogTheme.spacing
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.s)) {
         Text(name, style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.semantics { heading() })
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.s)) {
             TextButton(onClick = onEditExercise, enabled = canEdit, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.detail_edit_exercise)) }
             if (onDeleteExercise != null) TextButton(onClick = onDeleteExercise, enabled = canEdit,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shapes = ButtonDefaults.shapes()) {
+                shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.detail_delete_exercise))
             }
         }
         Text(stringResource(if (sets.any { it.number == null }) R.string.detail_set_summary_partial else R.string.detail_set_summary,
             knownSets, stringResource(if (commonBasis == null && sets.isNotEmpty()) R.string.detail_basis_varies else weightBasisLabel(commonBasis))), style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-            Column(Modifier.padding(horizontal = 16.dp)) {
-                if (sets.isEmpty()) Text(stringResource(R.string.detail_no_sets), Modifier.padding(vertical = 16.dp))
-                sets.forEachIndexed { index, set ->
-                    if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        // Sets, the sources toggle and the expanded sources are one segmented group on the page, separated by gaps.
+        val itemColors = FitLogContainment.pageListItemColors()
+        val segmentColor = itemColors.containerColor
+        val rows = sets.size.coerceAtLeast(1)
+        val segments = rows + 1 + if (expanded) 1 else 0
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+            if (sets.isEmpty()) Surface(Modifier.fillMaxWidth(), shape = ListItemDefaults.segmentedShapes(0, segments).shape, color = segmentColor) {
+                Text(stringResource(R.string.detail_no_sets), Modifier.padding(spacing.l))
+            }
+            sets.forEachIndexed { index, set ->
+                Surface(Modifier.fillMaxWidth(), shape = ListItemDefaults.segmentedShapes(index, segments).shape, color = segmentColor) {
                     DiarySetRow(set, commonBasis, canEdit, onEdit)
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                val turn by animateFloatAsState(if (expanded) 90f else 0f, MaterialTheme.motionScheme.fastSpatialSpec(), label = "sourceExpand")
-                TextButton(onClick = { expanded = !expanded }, modifier = Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) {
-                    Text(if (issues.isEmpty()) stringResource(R.string.detail_sources)
-                        else stringResource(R.string.detail_sources_issues, issues.size), modifier = Modifier.weight(1f))
-                    Icon(painterResource(R.drawable.chevron_right_24px), null, modifier = Modifier.graphicsLayer { rotationZ = turn })
-                }
-                AnimatedVisibility(expanded,
-                    enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
-                    exit = shrinkVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec())) {
-                    Column(Modifier.padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            }
+            val turn by animateFloatAsState(if (expanded) 90f else 0f, MaterialTheme.motionScheme.fastSpatialSpec(), label = "sourceExpand")
+            SegmentedListItem(onClick = { expanded = !expanded }, shapes = ListItemDefaults.segmentedShapes(rows, segments),
+                colors = itemColors,
+                trailingContent = { Icon(painterResource(R.drawable.chevron_right_24px), null, Modifier.graphicsLayer { rotationZ = turn }) }) {
+                Text(if (issues.isEmpty()) stringResource(R.string.detail_sources)
+                    else stringResource(R.string.detail_sources_issues, issues.size))
+            }
+            AnimatedVisibility(expanded,
+                enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+                exit = shrinkVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec())) {
+                Surface(Modifier.fillMaxWidth(), shape = ListItemDefaults.segmentedShapes(rows + 1, rows + 2).shape, color = segmentColor) {
+                    Column(Modifier.padding(spacing.l), verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                         notes?.takeIf { it.isNotBlank() }?.let { Text(it) }
                         evidence?.quote?.takeIf { it.isNotBlank() }?.let { quote ->
                             Text(stringResource(R.string.detail_model_excerpt), style = MaterialTheme.typography.labelLarge)
@@ -123,36 +133,39 @@ private fun DiarySetRow(set: DiarySetUi, commonBasis: WeightBasis?, canEdit: Boo
     val weightDescription = stringResource(R.string.detail_edit_value, label, stringResource(R.string.detail_weight), weightLabel(set.weight, displayUnit, basis = set.basis))
     val repsDescription = stringResource(R.string.detail_edit_value, label, stringResource(R.string.detail_reps), reps)
     val enabled = canEdit && set.address != null
+    val spacing = FitLogTheme.spacing
+    val valueMinHeight = FitLogTheme.dimens.diary.setValueMinHeight
+    // Weight and reps are the same kind of control: one neutral fill a step above the segment, no accent per row.
+    val valueColor = if (enabled) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainerHigh
+    val valueContentColor = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
     val controls: @Composable RowScope.() -> Unit = {
         Surface(onClick = { set.address?.let { onEdit(DiarySetEdit(it, requireNotNull(set.number), DiarySetField.WEIGHT, set.weight, set.unit, set.reps, set.basis)) } },
-            enabled = enabled, shape = CircleShape,
-            color = if (enabled) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = if (enabled) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = weightDescription }) {
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.Center,
+            enabled = enabled, shape = CircleShape, color = valueColor, contentColor = valueContentColor,
+            modifier = Modifier.weight(1f).heightIn(min = valueMinHeight).semantics { contentDescription = weightDescription }) {
+            Row(Modifier.padding(horizontal = spacing.m, vertical = spacing.s), horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(weight, style = MaterialTheme.typography.titleMediumEmphasized)
+                Text(weight, style = FitLogType.dataEmphasized)
             }
         }
         Surface(onClick = { set.address?.let { onEdit(DiarySetEdit(it, requireNotNull(set.number), DiarySetField.REPS, set.weight, set.unit, set.reps, set.basis)) } },
-            enabled = enabled, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = repsDescription }) {
-            Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.Center,
+            enabled = enabled, shape = CircleShape, color = valueColor, contentColor = valueContentColor,
+            modifier = Modifier.weight(1f).heightIn(min = valueMinHeight).semantics { contentDescription = repsDescription }) {
+            Row(Modifier.padding(horizontal = spacing.m, vertical = spacing.s), horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(reps, style = MaterialTheme.typography.titleLargeEmphasized)
+                Text(reps, style = FitLogType.dataEmphasized)
             }
         }
     }
-    Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (LocalDensity.current.fontScale > 1.3f || set.number == null || set.weight == null || set.reps == null) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+    Column(Modifier.padding(horizontal = spacing.l, vertical = spacing.m), verticalArrangement = Arrangement.spacedBy(spacing.s)) {
+        if (LocalDensity.current.fontScale > FitLogTheme.dimens.diary.setRowStackFontScale || set.number == null || set.weight == null || set.reps == null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.s)) {
+                Text(label, Modifier.weight(1f), style = FitLogType.data)
                 EditedSetLabel(set.userEdited)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), content = controls)
-        } else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(spacing.m), content = controls)
+        } else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.m)) {
             Column(Modifier.weight(.8f)) {
-                Text(label, style = MaterialTheme.typography.bodyMedium)
+                Text(label, style = FitLogType.data)
                 EditedSetLabel(set.userEdited)
             }
             controls()

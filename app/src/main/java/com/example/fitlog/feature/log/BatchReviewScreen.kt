@@ -18,20 +18,19 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.state.ToggleableState
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
 import com.example.fitlog.model.analysis.BatchReviewEligibility
 import com.example.fitlog.model.source.IndexedSource
-import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogProgressFeedback
 import com.example.fitlog.ui.components.FitLogTopAppBar
-import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberDelayedLoading
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.fitLogPagePadding
 
 @Composable
 internal fun BatchReviewScreen(vm: BatchReviewViewModel, onOpen: (IndexedSource) -> Unit, onBack: () -> Unit) {
@@ -55,19 +54,21 @@ internal fun BatchReviewContent(items: List<BatchReviewItem>, selected: Set<Stri
     val readyState = when { checked == 0 -> ToggleableState.Off; checked == ready.size -> ToggleableState.On; else -> ToggleableState.Indeterminate }
     val behavior = rememberFitLogTopAppBarBehavior()
     val pagePadding = fitLogPagePadding()
+    val spacing = FitLogTheme.spacing
+    val wideContentWidth = FitLogTheme.dimens.page.wideContentWidth
     Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
         FitLogTopAppBar(stringResource(R.string.batch_review_title), behavior, onBack = onBack,
             backEnabled = !saving, actions = { IconButton(onClick = onRefresh, enabled = !saving, shapes = IconButtonDefaults.shapes()) {
                 Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.log_refresh))
             } })
-        Box(Modifier.weight(1f).widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth()) {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(pagePadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.weight(1f).widthIn(max = wideContentWidth).fillMaxWidth()) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(pagePadding), verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                 item(key = "selection") {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                         Text(stringResource(R.string.batch_review_explanation), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (ready.isNotEmpty()) {
                             val canSelectReady = !saving && !readFailed && activeVault
-                            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).triStateToggleable(state = readyState,
+                            Row(Modifier.fillMaxWidth().heightIn(min = LocalMinimumInteractiveComponentSize.current).triStateToggleable(state = readyState,
                                 enabled = canSelectReady, role = Role.Checkbox, onClick = onToggleReady),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 TriStateCheckbox(state = readyState, onClick = null, enabled = canSelectReady)
@@ -80,7 +81,7 @@ internal fun BatchReviewContent(items: List<BatchReviewItem>, selected: Set<Stri
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         if (readFailed) FitLogNotice(stringResource(R.string.detail_analysis_failed), error = true)
-                        if (!activeVault && !loading) FitLogNotice(stringResource(R.string.batch_review_vault_changed), error = true)
+                        if (!activeVault && !loading) FitLogNotice(stringResource(R.string.batch_review_vault_changed))
                         message?.let { FitLogNotice(stringResource(it), error = true) }
                         if (indexWarning) FitLogNotice(stringResource(R.string.log_analysis_index_warning), error = true)
                         if (progress.total > 0) Text(stringResource(R.string.batch_review_progress,
@@ -107,12 +108,13 @@ internal fun BatchReviewContent(items: List<BatchReviewItem>, selected: Set<Stri
                     }
                 }
             }
-            FitLogProgressFeedback(rememberDelayedLoading(loading || saving), Modifier.fillMaxWidth().padding(horizontal = 16.dp))
+            FitLogProgressFeedback(rememberDelayedLoading(loading || saving), Modifier.fillMaxWidth().padding(horizontal = pagePadding))
         }
         Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
             Button(onClick = onSubmit, enabled = selected.isNotEmpty() && !saving && !loading && !readFailed && activeVault,
                 shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
-                modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth().navigationBarsPadding().padding(16.dp)
+                modifier = Modifier.widthIn(max = wideContentWidth).fillMaxWidth().navigationBarsPadding()
+                    .padding(horizontal = pagePadding, vertical = spacing.l)
                     .heightIn(min = ButtonDefaults.MediumContainerHeight)) {
                 Text(stringResource(if (saving) R.string.batch_review_saving else R.string.batch_review_confirm, selected.size),
                     style = MaterialTheme.typography.titleMediumEmphasized)

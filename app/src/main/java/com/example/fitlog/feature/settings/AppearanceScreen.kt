@@ -2,7 +2,6 @@ package com.example.fitlog.feature.settings
 
 import android.os.Build
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.*
@@ -10,10 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
 import com.example.fitlog.data.settings.AppearancePreferences
@@ -22,9 +19,10 @@ import com.example.fitlog.data.settings.UiLook
 import com.example.fitlog.ui.glass.GlassLookPicker
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogSettingsPage
-import com.example.fitlog.ui.components.SettingsFormCard
 import com.example.fitlog.ui.components.SettingsGroup
 import com.example.fitlog.ui.components.SettingsSectionTitle
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
 
 @Composable
 internal fun AppearanceScreen(vm: AppearanceViewModel, onBack: () -> Unit) {
@@ -49,8 +47,9 @@ internal fun AppearanceContent(
     onLiquidGlass: (Boolean) -> Unit = {},
 ) {
     FitLogSettingsPage(stringResource(R.string.appearance_title), onBack, loading = busy) {
+        // The error notice is its own card on the page; wrapping it in a group would nest equal corners.
         message?.let { item {
-            SettingsFormCard {
+            Column(verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s)) {
                 FitLogNotice(stringResource(it), error = true)
                 if (!canEdit) TextButton(onClick = onRetry, enabled = !busy, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.log_retry))
@@ -63,41 +62,34 @@ internal fun AppearanceContent(
         }
         if (preferences.look != UiLook.CLASSIC) item {
             SettingsGroup {
-                Row(Modifier.fillMaxWidth().toggleable(value = preferences.liquidGlass,
-                    enabled = canEdit && dynamicColorSupported, role = Role.Switch, onValueChange = onLiquidGlass)
-                    .padding(20.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(stringResource(R.string.look_effect_title), style = MaterialTheme.typography.titleMediumEmphasized)
-                        Text(stringResource(if (dynamicColorSupported) R.string.look_effect_description else R.string.look_effect_unsupported),
-                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Switch(preferences.liquidGlass, onCheckedChange = null, enabled = canEdit && dynamicColorSupported)
-                }
+                SettingsSwitchRow(
+                    title = stringResource(R.string.look_effect_title),
+                    description = stringResource(if (dynamicColorSupported) R.string.look_effect_description
+                        else R.string.look_effect_unsupported),
+                    checked = preferences.liquidGlass,
+                    enabled = canEdit && dynamicColorSupported,
+                    onCheckedChange = onLiquidGlass,
+                )
             }
         }
         if (preferences.look != UiLook.LIQUID_GLASS) item {
             SettingsSectionTitle(stringResource(R.string.appearance_theme_heading))
             Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
-                ThemeMode.entries.forEach { mode ->
+                ThemeMode.entries.forEachIndexed { index, mode ->
                     val selected = preferences.themeMode == mode
-                    Surface(
-                        shape = MaterialTheme.shapes.large,
-                        color = if (selected) MaterialTheme.colorScheme.secondaryContainer
-                            else MaterialTheme.colorScheme.surfaceContainerLowest,
-                        contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
-                            else MaterialTheme.colorScheme.onSurface,
-                    ) {
-                        Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).selectable(selected = selected,
-                            enabled = canEdit, role = Role.RadioButton, onClick = { onMode(mode) })
-                            .padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    SegmentedListItem(
+                        selected = selected,
+                        onClick = { onMode(mode) },
+                        shapes = ListItemDefaults.segmentedShapes(index, ThemeMode.entries.size),
+                        enabled = canEdit,
+                        colors = FitLogContainment.pageListItemColors(),
+                        leadingContent = {
                             RadioButton(selected = selected, onClick = null, enabled = canEdit,
                                 colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.secondary))
-                            Text(themeModeLabel(mode), style = if (selected) MaterialTheme.typography.titleMediumEmphasized
-                                else MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.weight(1f))
-                        }
+                        },
+                    ) {
+                        Text(themeModeLabel(mode), style = if (selected) MaterialTheme.typography.titleMediumEmphasized
+                            else MaterialTheme.typography.titleMedium)
                     }
                 }
             }
@@ -105,19 +97,36 @@ internal fun AppearanceContent(
         if (preferences.look != UiLook.LIQUID_GLASS) item {
             SettingsSectionTitle(stringResource(R.string.appearance_colors_heading))
             SettingsGroup {
-                Row(Modifier.fillMaxWidth().toggleable(value = preferences.dynamicColor,
-                    enabled = canEdit && dynamicColorSupported, role = Role.Switch, onValueChange = onDynamicColor)
-                    .padding(20.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(stringResource(R.string.appearance_dynamic_color), style = MaterialTheme.typography.titleMediumEmphasized)
-                        Text(stringResource(if (dynamicColorSupported) R.string.appearance_dynamic_description else R.string.appearance_dynamic_unsupported),
-                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Switch(checked = preferences.dynamicColor, onCheckedChange = null,
-                        enabled = canEdit && dynamicColorSupported)
-                }
+                SettingsSwitchRow(
+                    title = stringResource(R.string.appearance_dynamic_color),
+                    description = stringResource(if (dynamicColorSupported) R.string.appearance_dynamic_description
+                        else R.string.appearance_dynamic_unsupported),
+                    checked = preferences.dynamicColor,
+                    enabled = canEdit && dynamicColorSupported,
+                    onCheckedChange = onDynamicColor,
+                )
             }
         }
+    }
+}
+
+/** One on/off setting; the whole row toggles, and the switch only shows state. */
+@Composable
+private fun SettingsSwitchRow(
+    title: String,
+    description: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val spacing = FitLogTheme.spacing
+    Row(Modifier.fillMaxWidth().toggleable(value = checked, enabled = enabled, role = Role.Switch,
+        onValueChange = onCheckedChange).padding(spacing.l), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.l)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
+            Text(title, style = MaterialTheme.typography.titleMediumEmphasized)
+            Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }

@@ -35,7 +35,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -54,6 +53,8 @@ import com.example.fitlog.ui.components.FitLogNavigationToolbar
 import com.example.fitlog.data.settings.UiLook
 import com.example.fitlog.ui.glass.*
 import com.example.fitlog.ui.glass.backdrop.backdrops.layerBackdrop
+import com.example.fitlog.ui.theme.FitLogAlpha
+import com.example.fitlog.ui.theme.FitLogTheme
 
 /**
  * 负责整个 App 的 UI 框架
@@ -123,11 +124,12 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
                 if (analysisRun.active && currentRoute != LogNavKey) {
                     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            Modifier.fillMaxWidth().padding(horizontal = FitLogTheme.spacing.l),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s),
                         ) {
-                            Text(stringResource(R.string.log_batch_running, analysisRun.items.size, analysisRun.total), Modifier.weight(1f))
+                            Text(stringResource(R.string.log_batch_running, analysisRun.items.size, analysisRun.total), Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium)
                             TextButton(onClick = analysisRuntime::cancelAnalysis, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.ai_cancel_request)) }
                         }
                     }
@@ -159,7 +161,7 @@ internal fun FitLogApp(container: AppContainer, appearance: AppearanceViewModel,
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = FitLogAlpha.SCRIM))
                         .clickable(
                             interactionSource = null,
                             indication = null,

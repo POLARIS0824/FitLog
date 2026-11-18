@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -41,11 +41,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.data.vault.VaultAccessStatus
 import com.example.fitlog.data.vault.VaultFolderInfo
 import com.example.fitlog.ui.components.FitLogLoadingIndicator
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
 
 internal enum class SetupMode { Loading, LoadFailed, Candidate, Current, Empty }
 
@@ -61,7 +62,7 @@ internal fun SetupHeader(modifier: Modifier = Modifier) {
             modifier = Modifier.semantics { heading() },
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(FitLogTheme.spacing.m))
 
         Text(
             text = stringResource(R.string.vault_setup_description),
@@ -78,13 +79,13 @@ internal fun LoadingBody(loading: Boolean, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 48.dp),
+            .padding(vertical = FitLogTheme.spacing.xxxl),
         contentAlignment = Alignment.Center,
     ) {
         FitLogLoadingIndicator(loading) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 LoadingIndicator()
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(FitLogTheme.spacing.l))
                 Text(
                     text = stringResource(R.string.vault_setup_loading_config),
                     style = MaterialTheme.typography.bodyMedium,
@@ -102,41 +103,39 @@ internal fun VaultCard(
     pending: Boolean,
     modifier: Modifier = Modifier,
     previous: VaultFolderInfo? = null,
-    style: VaultCardStyle = VaultCardStyle.StateAware,
 ) {
-    val palette = vaultCardPalette(pending = pending, style = style)
+    val palette = vaultCardPalette(pending = pending)
+    val spacing = FitLogTheme.spacing
 
     Card(
-        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = palette.container,
             contentColor = palette.content,
         ),
-        border = palette.border,
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(spacing.l),
+            verticalArrangement = Arrangement.spacedBy(spacing.m),
         ) {
             Surface(
                 color = palette.pillContainer,
                 contentColor = palette.pillContent,
-                shape = CircleShape,
+                shape = FitLogContainment.nestedShape,
             ) {
                 Text(
                     text = stringResource(
                         if (pending) R.string.vault_label_pending else R.string.vault_label_current
                     ),
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelLargeEmphasized,
+                    modifier = Modifier.padding(horizontal = spacing.m, vertical = spacing.xs),
                 )
             }
 
             Text(
                 text = folder.displayName?.ifBlank { null }
                     ?: stringResource(R.string.vault_folder_unnamed),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineSmallEmphasized,
                 color = palette.content,
             )
 
@@ -151,7 +150,7 @@ internal fun VaultCard(
                 Text(
                     text = stringResource(R.string.settings_ui_previous_folder,
                         previous.displayName?.ifBlank { null } ?: stringResource(R.string.vault_folder_unnamed)),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = palette.content,
                 )
             }
@@ -164,8 +163,8 @@ internal fun VaultCard(
 internal fun StatusChip(
     status: VaultAccessStatus,
     modifier: Modifier = Modifier,
-    okContainer: Color = MaterialTheme.colorScheme.primaryContainer,
-    okContent: Color = MaterialTheme.colorScheme.onPrimaryContainer,
+    okContainer: Color = FitLogContainment.nestedColor,
+    okContent: Color = MaterialTheme.colorScheme.onSurface,
 ) {
     val container: Color
     val content: Color
@@ -185,19 +184,21 @@ internal fun StatusChip(
     Surface(
         color = container,
         contentColor = content,
-        shape = MaterialTheme.shapes.medium,
+        shape = FitLogContainment.nestedShape,
         modifier = modifier,
     ) {
         Row(
-            modifier = Modifier.padding(start = 10.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
+            modifier = Modifier
+                .heightIn(min = AssistChipDefaults.Height)
+                .padding(start = FitLogTheme.spacing.s, end = FitLogTheme.spacing.l),
+            horizontalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(AssistChipDefaults.IconSize),
             )
-            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = stringResource(capabilityStringRes(status)),
                 style = MaterialTheme.typography.labelLarge,
@@ -214,20 +215,23 @@ internal fun MessageBanner(
     showRetry: Boolean = false,
     onRetryClick: () -> Unit = {},
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.errorContainer,
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        shape = MaterialTheme.shapes.large,
+    // An error status card: errorContainer has a job here; the shape stays the card default.
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        ),
         modifier = modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
+        Column(modifier = Modifier.padding(FitLogTheme.spacing.l)) {
+            Row(
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.m),
+            ) {
                 Icon(
                     painter = painterResource(R.drawable.warning_24px),
                     contentDescription = null,
-                    modifier = Modifier.size(24.dp),
                 )
-                Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = text,
                     style = MaterialTheme.typography.bodyMedium,
@@ -238,6 +242,7 @@ internal fun MessageBanner(
                 TextButton(
                     onClick = onRetryClick,
                     modifier = Modifier.align(Alignment.End), shapes = ButtonDefaults.shapes(),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onErrorContainer),
                 ) {
                     Text(stringResource(R.string.vault_setup_btn_retry))
                 }
@@ -335,8 +340,10 @@ private fun SetupButtonPair(
     val horizontalPadding = padding.calculateLeftPadding(layoutDirection) + padding.calculateRightPadding(layoutDirection)
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
+    val spacing = FitLogTheme.spacing
+    val progressSize = FitLogTheme.dimens.vault.buttonProgressSize
     val primaryMinimum = with(density) { measurer.measure(primaryText, style, maxLines = 1).size.width.toDp() } +
-        horizontalPadding + 24.dp
+        horizontalPadding + spacing.s + progressSize
     val secondaryMinimum = with(density) { measurer.measure(secondaryText, style, maxLines = 1).size.width.toDp() } +
         horizontalPadding
     val secondary: @Composable (Modifier) -> Unit = { buttonModifier ->
@@ -360,13 +367,13 @@ private fun SetupButtonPair(
         )
     }
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        if (maxWidth < primaryMinimum + secondaryMinimum + 8.dp) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (maxWidth < primaryMinimum + secondaryMinimum + spacing.s) {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                 primary(Modifier.fillMaxWidth())
                 secondary(Modifier.fillMaxWidth())
             }
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(spacing.s), verticalAlignment = Alignment.CenterVertically) {
                 secondary(Modifier.width(secondaryMinimum))
                 primary(Modifier.weight(1f))
             }
@@ -384,6 +391,7 @@ private fun SetupPrimaryButton(
     busy: Boolean = false,
 ) {
     val height = ButtonDefaults.MediumContainerHeight
+    val progressSize = FitLogTheme.dimens.vault.buttonProgressSize
 
     Button(
         onClick = onClick,
@@ -393,17 +401,16 @@ private fun SetupPrimaryButton(
         modifier = modifier.heightIn(min = height),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center) {
+            horizontalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s, Alignment.CenterHorizontally)) {
             Text(
                 text = text,
                 style = ButtonDefaults.textStyleFor(height),
                 maxLines = 1,
                 softWrap = false,
             )
-            Spacer(Modifier.width(8.dp))
-            Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(progressSize), contentAlignment = Alignment.Center) {
                 FitLogLoadingIndicator(busy) {
-                    LoadingIndicator(Modifier.size(16.dp), color = LocalContentColor.current)
+                    LoadingIndicator(Modifier.size(progressSize), color = LocalContentColor.current)
                 }
             }
         }

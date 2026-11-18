@@ -33,8 +33,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
 
 @Composable
 internal fun TodayTrainingCard(
@@ -42,15 +43,16 @@ internal fun TodayTrainingCard(
     showIllustration: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val spacing = FitLogTheme.spacing
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = FitLogContainment.heroShape,
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(spacing.l),
         ) {
             if (showIllustration) TodayTrainingIllustration()
             Text(
@@ -64,12 +66,12 @@ internal fun TodayTrainingCard(
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
-            val largeText = LocalDensity.current.fontScale >= 1.3f
+            val largeText = LocalDensity.current.fontScale >= FitLogTheme.dimens.today.compactButtonFontScale
             val height = ButtonDefaults.MediumContainerHeight
             Button(
                 onClick = onOpenToday,
                 shapes = ButtonDefaults.shapesFor(height),
-                contentPadding = if (largeText) PaddingValues(16.dp)
+                contentPadding = if (largeText) PaddingValues(spacing.l)
                     else ButtonDefaults.contentPaddingFor(height),
                 modifier = Modifier.fillMaxWidth().heightIn(min = height),
             ) {
@@ -95,7 +97,9 @@ internal fun TodayTrainingCard(
 private fun TodayTrainingIllustration() {
     val plates = MaterialTheme.colorScheme.primary
     val bar = MaterialTheme.colorScheme.secondary
-    Canvas(Modifier.size(width = 84.dp, height = 56.dp).clearAndSetSemantics {}) {
+    val dimens = FitLogTheme.dimens.today
+    Canvas(Modifier.size(width = dimens.illustrationWidth, height = dimens.illustrationHeight).clearAndSetSemantics {}) {
+        // Drawing coordinates live in a 120 x 80 artboard scaled to the canvas.
         scale(scaleX = size.width / 120f, scaleY = size.height / 80f, pivot = Offset.Zero) {
             rotate(degrees = -15f, pivot = Offset(60f, 40f)) {
                 drawLine(bar, Offset(8f, 40f), Offset(112f, 40f), strokeWidth = 8f, cap = StrokeCap.Round)
@@ -116,43 +120,37 @@ internal fun TodayLibrary(
     onImportFolder: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.l)) {
         Text(
             text = stringResource(R.string.today_library),
             style = MaterialTheme.typography.titleMediumEmphasized,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 8.dp).semantics { heading() },
+            modifier = Modifier.padding(horizontal = FitLogTheme.spacing.s).semantics { heading() },
         )
         Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
             SegmentedListItem(
                 onClick = onOpenLog,
                 shapes = ListItemDefaults.segmentedShapes(0, 2),
-                colors = ListItemDefaults.segmentedColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                ),
+                colors = FitLogContainment.pageListItemColors(),
                 leadingContent = {
                     Icon(
                         painter = painterResource(R.drawable.list_alt_24px),
                         contentDescription = null,
-                        modifier = Modifier.padding(12.dp).size(24.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
                 supportingContent = { Text(stringResource(R.string.today_browse_description)) },
             ) {
-                Text(stringResource(R.string.today_browse), style = MaterialTheme.typography.titleMediumEmphasized)
+                Text(stringResource(R.string.today_browse), style = MaterialTheme.typography.titleMedium)
             }
             SegmentedListItem(
                 onClick = onImportFolder,
                 shapes = ListItemDefaults.segmentedShapes(1, 2),
-                colors = ListItemDefaults.segmentedColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                ),
+                colors = FitLogContainment.pageListItemColors(),
                 leadingContent = {
                     Icon(
                         painter = painterResource(R.drawable.drive_folder_upload_24px),
                         contentDescription = null,
-                        modifier = Modifier.padding(12.dp).size(24.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },

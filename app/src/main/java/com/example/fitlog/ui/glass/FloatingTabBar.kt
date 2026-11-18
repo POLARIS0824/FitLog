@@ -70,7 +70,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -94,7 +93,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -105,19 +103,12 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.dp
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.GlassColors
 import kotlin.math.roundToInt
 
 /** Hoisted so the default is one stable lambda rather than a new one per call. */
 private val DefaultTabBarContentModifier: @Composable () -> Modifier = { Modifier }
-
-/**
- * The spring the selection glyphs travel on.
- *
- * Damping 0.72 rather than half-damped: it settles on the second approach — one soft pass
- * beyond the mark and done — which is the difference between bouncy and alive.
- */
-private val GlassSpring = spring<Float>(dampingRatio = 0.72f, stiffness = 320f)
 
 /**
  * A floating tab bar: a pill of tabs, and optionally one standalone tab in a circle of its own
@@ -231,7 +222,14 @@ private fun ExpandedTabs(
     val currentSelectedTabIndex by rememberUpdatedState(selectedTabIndex)
     // The drag handler outlives the scope it was started with (a tab change builds a new one).
     val currentScope by rememberUpdatedState(scope)
-    val selectionSpec: AnimationSpec<Float> = if (reduceMotion) snap() else GlassSpring
+    val glass = FitLogTheme.dimens.glass
+    // The spring the selection glyphs travel on. Damping 0.72 rather than half-damped: it settles on
+    // the second approach — one soft pass beyond the mark and done — which is the difference between
+    // bouncy and alive.
+    val tabIconSpring = remember(glass) {
+        spring<Float>(dampingRatio = glass.tabIconSpringDampingRatio, stiffness = glass.tabIconSpringStiffness)
+    }
+    val selectionSpec: AnimationSpec<Float> = if (reduceMotion) snap() else tabIconSpring
     val haptics = LocalHapticFeedback.current
 
     val coroutineScope = rememberCoroutineScope()
@@ -264,7 +262,7 @@ private fun ExpandedTabs(
     }
     pill.stepDp = tabStepPx / density.density
 
-    // The pill rests in its tab's cell and lifts to stand [PILL_GROW_HEIGHT]
+    // The pill rests in its tab's cell and lifts to stand [GlassDimens.selectionPillLiftHeight]
     // taller than the whole bar, keeping the cell's proportions as it grows.
     val contentPadding = sizes.tabBarContentPadding
     val padLeftPx = with(density) { contentPadding.calculateLeftPadding(layoutDirection).toPx() }
@@ -273,7 +271,7 @@ private fun ExpandedTabs(
     val rowHeightPx = rowSize.height.toFloat()
     val restSize = Size(tabWidthPx, rowHeightPx)
     val liftedHeightPx = rowHeightPx + padTopPx + padBottomPx +
-        with(density) { PILL_GROW_HEIGHT.toPx() }
+        with(density) { glass.selectionPillLiftHeight.toPx() }
     val liftedSize = if (rowHeightPx > 0f) {
         Size(liftedHeightPx * tabWidthPx / rowHeightPx, liftedHeightPx)
     } else {
@@ -376,7 +374,7 @@ private fun ExpandedTabs(
                 scope.tabs.forEach { tab ->
                     val isSelected = tab.key == selectedTabKey
                     val iconScale by animateFloatAsState(
-                        targetValue = if (isSelected) 1.08f else 1f,
+                        targetValue = if (isSelected) glass.selectedTabIconScale else 1f,
                         animationSpec = selectionSpec,
                         label = "immersiveTabScale",
                     )
@@ -552,10 +550,10 @@ internal object FloatingTabBarDefaults {
     @Composable
     fun colors(
         backgroundColor: Color = Color.Transparent,
-        indicatorColor: Color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f)
-            Color.White.copy(alpha = 0.12f)
-        else
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+        indicatorColor: Color = GlassColors.tabIndicator(
+            dark = GlassColors.isDark(MaterialTheme.colorScheme.surface),
+            primary = MaterialTheme.colorScheme.primary,
+        ),
     ): FloatingTabBarColors = FloatingTabBarColors(
         backgroundColor = backgroundColor,
         indicatorColor = indicatorColor,
@@ -568,8 +566,8 @@ internal object FloatingTabBarDefaults {
      */
     @Composable
     fun shapes(
-        tabBarShape: Shape = RoundedCornerShape(100),
-        tabShape: Shape = RoundedCornerShape(100),
+        tabBarShape: Shape = CircleShape,
+        tabShape: Shape = CircleShape,
         standaloneTabShape: Shape = CircleShape,
     ): FloatingTabBarShapes = FloatingTabBarShapes(
         tabBarShape = tabBarShape,
@@ -585,10 +583,13 @@ internal object FloatingTabBarDefaults {
      */
     @Composable
     fun sizes(
-        tabBarContentPadding: PaddingValues = PaddingValues(vertical = 4.dp, horizontal = 4.dp),
-        tabExpandedContentPadding: PaddingValues = PaddingValues(vertical = 6.dp, horizontal = 20.dp),
-        componentSpacing: Dp = 8.dp,
-        tabSpacing: Dp = 0.dp,
+        tabBarContentPadding: PaddingValues = PaddingValues(FitLogTheme.spacing.xs),
+        tabExpandedContentPadding: PaddingValues = PaddingValues(
+            vertical = FitLogTheme.dimens.glass.defaultTabVerticalPadding,
+            horizontal = FitLogTheme.dimens.glass.defaultTabHorizontalPadding,
+        ),
+        componentSpacing: Dp = FitLogTheme.spacing.s,
+        tabSpacing: Dp = FitLogTheme.spacing.none,
     ): FloatingTabBarSizes = FloatingTabBarSizes(
         tabBarContentPadding = tabBarContentPadding,
         tabExpandedContentPadding = tabExpandedContentPadding,

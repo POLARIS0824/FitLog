@@ -1,68 +1,84 @@
 package com.example.fitlog.ui.glass
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.data.settings.UiLook
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.GlassColors
 
+/** Single-select list of UI looks, built like the theme-mode list: a segmented list group. */
 @Composable
 internal fun GlassLookPicker(selected: UiLook, enabled: Boolean, onSelect: (UiLook) -> Unit) {
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        UiLook.entries.forEach { look ->
+    val dark = GlassColors.isDark(MaterialTheme.colorScheme.surface)
+    val glass = FitLogTheme.dimens.glass
+    val spacing = FitLogTheme.spacing
+    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+        UiLook.entries.forEachIndexed { index, look ->
             val checked = selected == look
             val liquid = look != UiLook.CLASSIC
             val fullLook = look == UiLook.LIQUID_GLASS
-            Surface(shape = MaterialTheme.shapes.large,
-                color = if (checked) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLowest) {
-                Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large)
-                    .selectable(checked, enabled = enabled, role = Role.RadioButton, onClick = { onSelect(look) })
-                    .padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    val gradient = when {
-                        fullLook -> if (dark) listOf(Color(0xFF242C4D), Color(0xFF60547A)) else listOf(Color(0xFFD6DBF8), Color(0xFFE8DCFA))
-                        else -> listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.surfaceContainer)
-                    }
-                    Box(Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)).background(
-                        Brush.linearGradient(gradient)),
+            SegmentedListItem(
+                selected = checked,
+                onClick = { onSelect(look) },
+                shapes = ListItemDefaults.segmentedShapes(index, UiLook.entries.size),
+                enabled = enabled,
+                colors = FitLogContainment.pageListItemColors(),
+                leadingContent = {
+                    val gradient = if (fullLook) GlassColors.lookPreviewGradient(dark)
+                        else listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.surfaceContainerHighest)
+                    // The preview thumbnail sits inside a list item: a smaller, nested corner.
+                    Box(Modifier.size(glass.lookPreviewSize).clip(MaterialTheme.shapes.small).background(Brush.linearGradient(gradient)),
                         contentAlignment = Alignment.BottomCenter) {
-                        val pillBg = if (liquid) (if (dark) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.65f))
-                            else MaterialTheme.colorScheme.secondaryContainer
-                        val dotBg = if (liquid) (if (dark) Color.White.copy(alpha = 0.60f) else MaterialTheme.colorScheme.primary)
+                        val pillBg = if (liquid) GlassColors.lookPreviewBar(dark) else MaterialTheme.colorScheme.secondaryContainer
+                        val dotBg = if (liquid) GlassColors.lookPreviewDot(dark, MaterialTheme.colorScheme.primary)
                             else MaterialTheme.colorScheme.primary
-                        Row(Modifier.padding(8.dp).fillMaxWidth().height(16.dp)
-                            .background(pillBg, RoundedCornerShape(50)).padding(3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            repeat(3) { Box(Modifier.size(10.dp).background(dotBg, RoundedCornerShape(50))) }
+                        Row(Modifier.padding(spacing.s).fillMaxWidth().height(glass.lookPreviewBarHeight)
+                            .background(pillBg, CircleShape).padding(glass.lookPreviewBarPadding),
+                            horizontalArrangement = Arrangement.SpaceBetween) {
+                            repeat(3) { Box(Modifier.size(glass.lookPreviewDotSize).background(dotBg, CircleShape)) }
                         }
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(stringResource(when (look) {
-                            UiLook.CLASSIC -> R.string.look_classic
-                            UiLook.LIQUID_GLASS -> R.string.look_liquid
-                            UiLook.GLASS_NAVIGATION -> R.string.look_glass_navigation
-                        }), style = MaterialTheme.typography.titleMediumEmphasized)
-                        Text(stringResource(when (look) {
-                            UiLook.CLASSIC -> R.string.look_classic_description
-                            UiLook.LIQUID_GLASS -> R.string.look_liquid_description
-                            UiLook.GLASS_NAVIGATION -> R.string.look_glass_navigation_description
-                        }),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    RadioButton(checked, onClick = null, enabled = enabled)
-                }
+                },
+                supportingContent = {
+                    Text(stringResource(when (look) {
+                        UiLook.CLASSIC -> R.string.look_classic_description
+                        UiLook.LIQUID_GLASS -> R.string.look_liquid_description
+                        UiLook.GLASS_NAVIGATION -> R.string.look_glass_navigation_description
+                    }), style = MaterialTheme.typography.bodySmall)
+                },
+                trailingContent = {
+                    RadioButton(checked, onClick = null, enabled = enabled,
+                        colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.secondary))
+                },
+            ) {
+                Text(stringResource(when (look) {
+                    UiLook.CLASSIC -> R.string.look_classic
+                    UiLook.LIQUID_GLASS -> R.string.look_liquid
+                    UiLook.GLASS_NAVIGATION -> R.string.look_glass_navigation
+                }), style = if (checked) MaterialTheme.typography.titleMediumEmphasized else MaterialTheme.typography.titleMedium)
             }
         }
     }

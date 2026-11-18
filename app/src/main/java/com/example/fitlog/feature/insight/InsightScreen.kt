@@ -15,19 +15,15 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.ui.glass.glassPageSource
 import com.example.fitlog.R
-import com.example.fitlog.ui.components.FitLogDimens
-import com.example.fitlog.ui.components.FitLogTopAppBar
-import com.example.fitlog.ui.components.fitLogPagePadding
-import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.fitLogPagePadding
 
 internal enum class InsightDashboardView { OVERVIEW, WEEKLY }
 
@@ -48,7 +44,7 @@ internal fun InsightScreen(vm: InsightViewModel, onOpenLog: () -> Unit, onOpen: 
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         if (data == null) {
             InsightPage(headerActions = { InsightRefreshAction(state, vm::refresh) }) {
-                Column(Modifier.fillMaxWidth().glassPageSource().padding(fitLogPagePadding()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.fillMaxWidth().glassPageSource().padding(fitLogPagePadding()), verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.l)) {
                     InsightReadState(state, vm::refresh)
                 }
             }

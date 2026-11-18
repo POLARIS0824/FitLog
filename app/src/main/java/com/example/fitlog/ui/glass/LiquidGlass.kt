@@ -15,8 +15,12 @@
  */
 package com.example.fitlog.ui.glass
 
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.GlassColors
+
 import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.material3.MaterialTheme
@@ -33,11 +37,9 @@ import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.isSpecified
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.ui.glass.backdrop.Backdrop
 import com.example.fitlog.ui.glass.backdrop.backdrops.LayerBackdrop
 import com.example.fitlog.ui.glass.backdrop.backdrops.rememberLayerBackdrop
@@ -127,31 +129,13 @@ fun rememberImmersiveBackdrop(): LayerBackdrop = rememberLayerBackdrop()
  */
 internal val LocalGlassExport = compositionLocalOf<LayerBackdrop?> { null }
 
-/**
- * Resolution the glass records and processes its backdrop at: a third, as BitChord (nine times
- * fewer pixels through the colour matrix, the blur and the lens; the blur hides the upscale).
+/*
+ * The glass reads its values from `FitLogTheme.dimens.glass` and `GlassColors`: the backdrop is
+ * recorded and processed at `resolutionScale` (a third, as BitChord: nine times fewer pixels through
+ * the colour matrix, the blur and the lens; the blur hides the upscale), surfaces between
+ * `thinSurfaceSize` and `largeSurfaceSize` interpolate from bar glass to sheet glass, and the rim is
+ * brighter and thicker than the library's default, like iOS 26's glass edge.
  */
-private const val GLASS_RESOLUTION_SCALE = 0.33f
-
-/** Surfaces up to this size (dp, smaller side) are "thin" glass: bars, pills, buttons. */
-private const val THIN_DP = 56f
-
-/** From this size on a surface is "large" glass: a sheet or a card, whose text must stay readable. */
-private const val LARGE_DP = 200f
-
-/** The glass's own body over the refracted page: dark, so white text holds on any artwork. */
-internal val GlassTint = Color(0xFF1C1C22).copy(alpha = 0.42f)
-
-/** Alpha of the body on large glass: more opaque, there is text on it. */
-private const val LARGE_TINT_ALPHA = 0.60f
-
-private val GlassShadow = Shadow(radius = 18.dp, color = Color.Black.copy(alpha = 0.22f))
-
-/** A brighter, thicker specular rim than the library's default, like iOS 26's glass edge. */
-private val GlassHighlight = Highlight(width = 0.75f.dp, alpha = 0.9f)
-
-/** How much the lens bulges while the glass is pressed (fraction of its refraction). */
-private const val PRESS_BULGE = 0.35f
 
 private fun mix(a: Float, b: Float, t: Float) = a + (b - a) * t
 
@@ -176,30 +160,35 @@ internal fun Modifier.immersiveLiquidGlass(
     press: (() -> Float)? = null,
 ): Modifier {
     val export = LocalGlassExport.current
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val effectiveTint = if (tint.isSpecified) tint else GlassTokens.glassTint(dark)
+    val glass = FitLogTheme.dimens.glass
+    val dark = GlassColors.isDark(MaterialTheme.colorScheme.surface)
+    val effectiveTint = if (tint.isSpecified) tint else GlassColors.glassTint(dark)
     val baseColor = MaterialTheme.colorScheme.surface
-    val fallbackColor = GlassTokens.fill(dark)
+    val fallbackColor = GlassColors.fill(dark)
     val backdrop = remember(page, baseColor, fallbackColor) { PageBackdrop(page, baseColor, fallbackColor) }
     // The lens only knows rounded rectangles (it throws on anything else).
     val bend = lens && shape is CornerBasedShape && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-    val adaptive = !tint.isSpecified || tint == GlassTokens.glassTint(dark) || tint == GlassTint
+    val adaptive = !tint.isSpecified || tint == GlassColors.glassTint(dark) || tint == GlassColors.glassTint(dark = true)
     // Stable across recompositions: a new lambda per call would rebuild the effect chain.
-    val effects = remember(bend, press, dark) {
+    val effects = remember(bend, press, dark, glass) {
         val block: com.example.fitlog.ui.glass.backdrop.BackdropEffectScope.() -> Unit = {
-            val k = GLASS_RESOLUTION_SCALE
+            val k = glass.resolutionScale
             val minDp = size.minDimension / k / density
-            val depth = ((minDp - THIN_DP) / (LARGE_DP - THIN_DP)).coerceIn(0f, 1f)
+            val depth = ((minDp - glass.thinSurfaceSize) / (glass.largeSurfaceSize - glass.thinSurfaceSize)).coerceIn(0f, 1f)
             if (dark) {
-                colorControls(brightness = -0.03f, saturation = 1.6f)
+                colorControls(brightness = glass.darkBrightness, saturation = glass.darkSaturation)
             } else {
-                colorControls(brightness = 0.02f, saturation = 1.35f)
+                colorControls(brightness = glass.lightBrightness, saturation = glass.lightSaturation)
             }
-            blur(mix(3.5f, 14f, depth) * density * k)
+            blur(mix(glass.thinBlurRadius, glass.largeBlurRadius, depth) * density * k)
             if (bend) {
-                val bulge = 1f + PRESS_BULGE * (press?.invoke() ?: 0f)
-                val height = mix((minDp * 0.42f).coerceAtMost(22f), 30f, depth)
-                val amount = height * mix(1.7f, 1.2f, depth) * bulge
+                val bulge = 1f + glass.pressBulge * (press?.invoke() ?: 0f)
+                val height = mix(
+                    (minDp * glass.thinLensHeightFraction).coerceAtMost(glass.thinLensMaxHeight),
+                    glass.largeLensHeight,
+                    depth,
+                )
+                val amount = height * mix(glass.thinLensAmountRatio, glass.largeLensAmountRatio, depth) * bulge
                 lens(
                     refractionHeight = height * density * k,
                     refractionAmount = amount * density * k,
@@ -210,25 +199,31 @@ internal fun Modifier.immersiveLiquidGlass(
         }
         block
     }
-    val surface = remember(effectiveTint, adaptive) {
+    val surface = remember(effectiveTint, adaptive, glass) {
         val block: DrawScope.() -> Unit = {
-            val depth = ((size.minDimension / density - THIN_DP) / (LARGE_DP - THIN_DP)).coerceIn(0f, 1f)
-            drawRect(color = if (adaptive) effectiveTint.copy(alpha = mix(effectiveTint.alpha, LARGE_TINT_ALPHA, depth)) else effectiveTint, size = size)
+            val depth = ((size.minDimension / density - glass.thinSurfaceSize) /
+                (glass.largeSurfaceSize - glass.thinSurfaceSize)).coerceIn(0f, 1f)
+            drawRect(color = if (adaptive) effectiveTint.copy(alpha = mix(effectiveTint.alpha, GlassColors.LargeTintAlpha, depth)) else effectiveTint, size = size)
         }
         block
     }
-    val layerBlock = remember(press) {
+    val layerBlock = remember(press, glass) {
         press?.let { p ->
             val block: GraphicsLayerScope.() -> Unit = {
-                val s = 1f - 0.04f * p()
+                val s = 1f - glass.pressScaleDepth * p()
                 scaleX = s
                 scaleY = s
             }
             block
         }
     }
-    val highlightObj = remember(dark) { if (dark) GlassHighlight else Highlight(width = 0.75f.dp, alpha = 0.65f) }
-    val shadowObj = remember(dark) { if (dark) GlassShadow else Shadow(radius = 16.dp, color = Color.Black.copy(alpha = 0.08f)) }
+    val highlightObj = remember(dark, glass) { Highlight(width = glass.rimWidth, alpha = GlassColors.rimAlpha(dark)) }
+    val shadowObj = remember(dark, glass) {
+        Shadow(
+            radius = if (dark) glass.darkShadowRadius else glass.lightShadowRadius,
+            color = GlassColors.surfaceShadow(dark),
+        )
+    }
     return drawBackdrop(
         backdrop = backdrop,
         shape = { shape },
@@ -238,7 +233,7 @@ internal fun Modifier.immersiveLiquidGlass(
         layerBlock = layerBlock,
         onDrawSurface = surface,
         exportedBackdrop = export,
-        backdropScale = GLASS_RESOLUTION_SCALE,
+        backdropScale = glass.resolutionScale,
     )
 }
 
@@ -249,13 +244,14 @@ internal fun Modifier.immersiveLiquidGlass(
  */
 @Composable
 internal fun Modifier.immersivePageFrost(page: LayerBackdrop, tint: Color, blur: Float): Modifier {
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val glass = FitLogTheme.dimens.glass
+    val dark = GlassColors.isDark(MaterialTheme.colorScheme.surface)
     val baseColor = MaterialTheme.colorScheme.surface
-    val fallbackColor = GlassTokens.fill(dark)
+    val fallbackColor = GlassColors.fill(dark)
     val backdrop = remember(page, baseColor, fallbackColor) { PageBackdrop(page, baseColor, fallbackColor) }
-    val effects = remember(blur) {
+    val effects = remember(blur, glass) {
         val block: com.example.fitlog.ui.glass.backdrop.BackdropEffectScope.() -> Unit = {
-            blur(blur * density * GLASS_RESOLUTION_SCALE)
+            blur(blur * density * glass.resolutionScale)
         }
         block
     }
@@ -270,7 +266,7 @@ internal fun Modifier.immersivePageFrost(page: LayerBackdrop, tint: Color, blur:
         highlight = null,
         shadow = null,
         onDrawSurface = surface,
-        backdropScale = GLASS_RESOLUTION_SCALE,
+        backdropScale = glass.resolutionScale,
     )
 }
 
@@ -281,10 +277,15 @@ internal fun Modifier.immersivePageFrost(page: LayerBackdrop, tint: Color, blur:
 @Composable
 internal fun rememberGlassPress(source: androidx.compose.foundation.interaction.InteractionSource?): (() -> Float)? {
     if (source == null || rememberReduceMotion()) return null
+    val glass = FitLogTheme.dimens.glass
     val pressed by source.collectIsPressedAsState()
     val progress = animateFloatAsState(
         targetValue = if (pressed) 1f else 0f,
-        animationSpec = if (pressed) androidx.compose.animation.core.spring<Float>(stiffness = 900f) else androidx.compose.animation.core.spring<Float>(dampingRatio = 0.62f, stiffness = 1500f),
+        animationSpec = if (pressed) {
+            spring(stiffness = glass.pressSpringStiffness)
+        } else {
+            spring(dampingRatio = glass.releaseSpringDampingRatio, stiffness = glass.releaseSpringStiffness)
+        },
         label = "glassPress",
     )
     return remember(progress) { { progress.value } }
@@ -298,8 +299,8 @@ internal fun rememberGlassPress(source: androidx.compose.foundation.interaction.
  */
 internal class PageBackdrop(
     private val page: LayerBackdrop,
-    private val baseColor: Color = GlassTokens.Page,
-    private val fallbackColor: Color = GlassTokens.Fill,
+    private val baseColor: Color = GlassColors.Page,
+    private val fallbackColor: Color = GlassColors.Fill,
 ) : Backdrop {
     override val isCoordinatesDependent: Boolean = true
 

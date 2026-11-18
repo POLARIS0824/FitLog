@@ -10,14 +10,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.fitlog.R
 import com.example.fitlog.ui.components.FitLogBackGuard
@@ -25,6 +23,7 @@ import com.example.fitlog.ui.components.FitLogSettingsPage
 import com.example.fitlog.ui.components.SettingsFormCard
 import com.example.fitlog.ui.components.SettingsGroup
 import com.example.fitlog.ui.components.SettingsSectionTitle
+import com.example.fitlog.ui.theme.FitLogTheme
 
 /** Connection credentials and model selection remain separate groups with one explicit Save action. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,6 +60,7 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
     var providerExpanded by rememberSaveable { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    val spacing = FitLogTheme.spacing
     val deepSeek = stringResource(R.string.ai_deepseek)
     val custom = stringResource(R.string.ai_custom_connection)
 
@@ -70,7 +70,7 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
         actions = {
             if (state.requestRunning) IconButton(onClick = actions.cancelRequest, shapes = IconButtonDefaults.shapes()) {
                 Icon(painterResource(R.drawable.close_24px), stringResource(R.string.ai_cancel_request))
-            } else Spacer(Modifier.size(48.dp))
+            } else Spacer(Modifier.minimumInteractiveComponentSize())
         }) {
         item {
             val active = state.currentSelection
@@ -82,10 +82,13 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         state.message?.let { message -> item {
-            SettingsFormCard {
-                Text(stringResource(message), style = MaterialTheme.typography.bodyMedium)
-                if (!state.initialized) TextButton(onClick = actions.reload, enabled = !state.loading, shapes = ButtonDefaults.shapes()) {
-                    Text(stringResource(R.string.log_retry))
+            // A status line, not a settings group: a low-emphasis outlined card on the page.
+            OutlinedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(spacing.l), verticalArrangement = Arrangement.spacedBy(spacing.m)) {
+                    Text(stringResource(message), style = MaterialTheme.typography.bodyMedium)
+                    if (!state.initialized) TextButton(onClick = actions.reload, enabled = !state.loading, shapes = ButtonDefaults.shapes()) {
+                        Text(stringResource(R.string.log_retry))
+                    }
                 }
             }
         } }
@@ -94,24 +97,24 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
             SettingsGroup {
                 Row(Modifier.fillMaxWidth().clickable(enabled = state.canEdit, role = Role.Button,
                     onClickLabel = stringResource(R.string.ai_choose_connection), onClick = { providerExpanded = true })
-                    .padding(20.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    .padding(spacing.l), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.l)) {
                     ConnectionIcon(state.baseUrl)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
                         Text(state.name.ifBlank { stringResource(R.string.ai_new_connection) },
                             style = MaterialTheme.typography.titleMediumEmphasized)
                         Text(stringResource(R.string.ai_editing_connection), style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Icon(painterResource(R.drawable.chevron_right_24px), null, modifier = Modifier.rotate(90f))
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.padding(start = spacing.l, end = spacing.l, bottom = spacing.l),
+                    verticalArrangement = Arrangement.spacedBy(spacing.m)) {
                     OutlinedTextField(state.name, actions.changeName, label = { Text(stringResource(R.string.ai_connection_name)) },
                         enabled = state.canEdit, singleLine = true, modifier = Modifier.fillMaxWidth())
                     if (state.providers.any { it.id == state.providerId }) {
-                        TextButton(onClick = { confirmDelete = true }, enabled = state.canEdit && !state.requestRunning, shapes = ButtonDefaults.shapes()) {
-                            Text(stringResource(R.string.ai_delete_connection), color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = { confirmDelete = true }, enabled = state.canEdit && !state.requestRunning,
+                            shapes = ButtonDefaults.shapes(),) {
+                            Text(stringResource(R.string.ai_delete_connection))
                         }
                     }
                 }
@@ -137,7 +140,8 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
         item {
             SettingsSectionTitle(stringResource(R.string.ai_models_heading))
             SettingsFormCard {
-                Text(stringResource(R.string.ai_models_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.ai_models_description), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.ai_model_count, state.modelIds.size), style = MaterialTheme.typography.labelLarge)
                 ExposedDropdownMenuBox(expanded = modelExpanded,
                     onExpandedChange = { if (state.canEdit) modelExpanded = it }) {
@@ -152,7 +156,7 @@ internal fun AiSettingsContent(state: AiSettingsUiState, actions: AiSettingsActi
                         }
                     }
                 }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.s), verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                     FilledTonalButton(onClick = actions.addModel,
                         enabled = state.canEdit && state.selectedModel.isNotBlank() && state.selectedModel.trim() !in state.modelIds, shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.ai_add_model))

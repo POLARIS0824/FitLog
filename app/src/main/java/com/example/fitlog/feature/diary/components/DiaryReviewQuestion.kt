@@ -12,18 +12,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.model.analysis.CandidateIssue
 import com.example.fitlog.model.analysis.StoredDiaryCandidate
+import com.example.fitlog.ui.theme.FitLogTheme
 
 @Composable
 internal fun DiaryReviewQuestion(issue: CandidateIssue, candidate: StoredDiaryCandidate, draft: DiaryReviewDraft?, canEdit: Boolean,
     onEdit: (DiarySetEdit) -> Unit, onEditExercise: (DiaryExerciseAddress) -> Unit) {
     val sessions = draft?.sessions ?: DiaryReviewDraft.fromCandidate(candidate, null).sessions
     val target = questionTarget(issue, sessions)
-    Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.medium) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(FitLogTheme.spacing.l), verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s)) {
             Text(issue.question, style = MaterialTheme.typography.bodyLarge)
             if (questionWasRemoved(issue, draft, candidate)) Text(stringResource(R.string.detail_question_removed),
                 style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
@@ -31,11 +31,11 @@ internal fun DiaryReviewQuestion(issue: CandidateIssue, candidate: StoredDiaryCa
                 style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
             if (target != null) {
                 val exercise = sessions[target.exercise.session].exercises[target.exercise.exercise]
-                Text(exercise.rawName, style = MaterialTheme.typography.labelLarge)
+                Text(exercise.rawName, style = MaterialTheme.typography.titleSmallEmphasized)
                 exercise.evidence?.quote?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 val set = target.set?.let { exercise.sets.getOrNull(it.set) }
                 if (target.set != null && set != null) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s)) {
                         (target.field?.let { listOf(it) } ?: DiarySetField.entries).forEach { field ->
                             TextButton(onClick = { onEdit(DiarySetEdit(target.set, target.set.set + 1, field,
                                 set.weight, set.unit, set.reps, set.basis)) }, enabled = canEdit, shapes = ButtonDefaults.shapes()) {

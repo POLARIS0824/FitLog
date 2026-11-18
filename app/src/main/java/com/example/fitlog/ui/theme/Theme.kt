@@ -7,9 +7,16 @@ import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalContext
-import com.example.fitlog.ui.glass.GlassTokens
 
+/**
+ * FitLog's UI theme. Material owns color, typography, shapes and motion
+ * (`MaterialTheme.colorScheme` / `.typography` / `.shapes` / `.motionScheme`);
+ * FitLog adds spacing and component dimensions through [FitLogTheme.spacing] and
+ * [FitLogTheme.dimens], and number voices through [FitLogType].
+ */
 @Composable
 fun FitLogTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -19,7 +26,7 @@ fun FitLogTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
-        liquidLook -> if (darkTheme) GlassTokens.Colors else GlassTokens.LightColors
+        liquidLook -> if (darkTheme) GlassColors.DarkScheme else GlassColors.LightScheme
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
@@ -29,10 +36,28 @@ fun FitLogTheme(
         else -> FitLogLightColors
     }
 
-    MaterialExpressiveTheme(
-        colorScheme = colorScheme,
-        typography = FitLogType.typography,
-        motionScheme = MotionScheme.expressive(),
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalFitLogSpacing provides DefaultSpacing,
+        LocalFitLogDimens provides DefaultDimens,
+    ) {
+        MaterialExpressiveTheme(
+            colorScheme = colorScheme,
+            typography = FitLogType.typography,
+            shapes = FitLogShapes,
+            motionScheme = MotionScheme.expressive(),
+            content = content
+        )
+    }
+}
+
+private val DefaultSpacing = FitLogSpacing()
+private val DefaultDimens = FitLogDimens()
+
+/** Read FitLog's tokens inside a composable: `FitLogTheme.spacing.l`, `FitLogTheme.dimens.page.contentWidth`. */
+object FitLogTheme {
+    val spacing: FitLogSpacing
+        @Composable @ReadOnlyComposable get() = LocalFitLogSpacing.current
+
+    val dimens: FitLogDimens
+        @Composable @ReadOnlyComposable get() = LocalFitLogDimens.current
 }

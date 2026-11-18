@@ -8,11 +8,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.data.settings.UiLook
 import com.example.fitlog.ui.glass.LocalUiLook
 import com.example.fitlog.ui.glass.GlassSegmentedControl
@@ -38,10 +38,11 @@ internal fun <T> FitLogConnectedButtonGroup(
     val selectedStyle = MaterialTheme.typography.labelLargeEmphasized
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val labelPadding = 16.dp
+    val layoutDirection = LocalLayoutDirection.current
+    val contentPadding = FilledTonalToggleButtonDefaults.contentPaddingFor(FilledTonalToggleButtonDefaults.size)
     val minimumWidth = labels.maxOf {
         with(density) { measurer.measure(it, selectedStyle, maxLines = 1).size.width.toDp() }
-    } + labelPadding * 2
+    } + contentPadding.calculateStartPadding(layoutDirection) + contentPadding.calculateEndPadding(layoutDirection)
     val colors = FilledTonalToggleButtonDefaults.colors(
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -55,7 +56,7 @@ internal fun <T> FitLogConnectedButtonGroup(
             horizontalArrangement = Arrangement.spacedBy(spacing)) {
             choices.forEachIndexed { index, choice ->
                 FilledTonalToggleButton(checked = choice == selected, onCheckedChange = { onSelect(choice) },
-                    enabled = enabled && canSelect(choice), colors = colors,
+                    enabled = enabled && canSelect(choice), colors = colors, contentPadding = contentPadding,
                     modifier = Modifier.width(width).heightIn(min = ButtonDefaults.MinHeight).semantics { role = Role.RadioButton },
                     shapes = when (index) {
                         0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()

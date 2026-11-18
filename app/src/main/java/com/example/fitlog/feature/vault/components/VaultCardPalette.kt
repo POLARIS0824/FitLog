@@ -1,101 +1,47 @@
 package com.example.fitlog.feature.vault.components
 
-
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
+import com.example.fitlog.ui.theme.FitLogContainment
 
 /**
- * 全局卡片配色切换锚点。
- * 在此处修改枚举值即可切换全局卡片风格。
+ * Color roles of a vault card. A pending choice is the user's selection (`secondaryContainer`);
+ * the current folder is a plain filled card whose label is a status (`tertiaryContainer`). The
+ * readable-status tile is a nested tile on either card. The screen's one strong fill stays the
+ * primary action button.
  */
-var ActiveVaultCardStyle: VaultCardStyle = VaultCardStyle.PrimaryTonal
-
-enum class VaultCardStyle {
-    PrimaryTonal,
-    SecondaryTonal,
-    TertiaryTonal,
-    StateAware,
-    Outlined,
-}
-
-data class VaultCardPalette(
+internal data class VaultCardPalette(
     val container: Color,
     val content: Color,
     val pillContainer: Color,
     val pillContent: Color,
     val chipContainer: Color,
     val chipContent: Color,
-    val border: BorderStroke? = null,
 )
 
 @Composable
-fun vaultCardPalette(
-    pending: Boolean,
-    style: VaultCardStyle = ActiveVaultCardStyle,
-): VaultCardPalette {
+internal fun vaultCardPalette(pending: Boolean): VaultCardPalette {
     val c = MaterialTheme.colorScheme
-    return when (style) {
-        VaultCardStyle.PrimaryTonal -> VaultCardPalette(
-            container = c.primaryContainer,
-            content = c.onPrimaryContainer,
-            pillContainer = c.primary,
-            pillContent = c.onPrimary,
-            chipContainer = c.surface,
-            chipContent = c.onSurface,
-        )
-
-        VaultCardStyle.SecondaryTonal -> VaultCardPalette(
+    return if (pending) {
+        VaultCardPalette(
             container = c.secondaryContainer,
             content = c.onSecondaryContainer,
             pillContainer = c.secondary,
             pillContent = c.onSecondary,
-            chipContainer = c.surface,
+            chipContainer = FitLogContainment.nestedColor,
             chipContent = c.onSurface,
         )
-
-        VaultCardStyle.TertiaryTonal -> VaultCardPalette(
-            container = c.tertiaryContainer,
-            content = c.onTertiaryContainer,
-            pillContainer = c.tertiary,
-            pillContent = c.onTertiary,
-            chipContainer = c.surface,
+    } else {
+        val card = CardDefaults.cardColors()
+        VaultCardPalette(
+            container = card.containerColor,
+            content = card.contentColor,
+            pillContainer = c.tertiaryContainer,
+            pillContent = c.onTertiaryContainer,
+            chipContainer = FitLogContainment.nestedColor,
             chipContent = c.onSurface,
-        )
-
-        VaultCardStyle.StateAware -> if (pending) {
-            VaultCardPalette(
-                container = c.primaryContainer,
-                content = c.onPrimaryContainer,
-                pillContainer = c.primary,
-                pillContent = c.onPrimary,
-                chipContainer = c.surface,
-                chipContent = c.onSurface,
-            )
-        } else {
-            VaultCardPalette(
-                container = c.surfaceContainerHigh,
-                content = c.onSurface,
-                pillContainer = c.secondaryContainer,
-                pillContent = c.onSecondaryContainer,
-                chipContainer = c.surfaceContainerHighest,
-                chipContent = c.onSurface,
-            )
-        }
-
-        VaultCardStyle.Outlined -> VaultCardPalette(
-            container = c.surface,
-            content = c.onSurface,
-            pillContainer = if (pending) c.primary else c.secondaryContainer,
-            pillContent = if (pending) c.onPrimary else c.onSecondaryContainer,
-            chipContainer = c.surfaceContainerHighest,
-            chipContent = c.onSurface,
-            border = BorderStroke(
-                width = if (pending) 2.dp else 1.dp,
-                color = if (pending) c.primary else c.outlineVariant,
-            ),
         )
     }
 }

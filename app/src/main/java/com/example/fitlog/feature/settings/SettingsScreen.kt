@@ -44,7 +44,7 @@ internal fun SettingsScreen(
                     else if (appearanceReady) stringResource(R.string.appearance_summary, themeModeLabel(appearance.themeMode),
                         stringResource(if (appearance.dynamicColor && Build.VERSION.SDK_INT >= 31)
                             R.string.appearance_dynamic_on else R.string.appearance_dynamic_off))
-                    else stringResource(R.string.appearance_summary_unavailable), onAppearance, tone = 2)
+                    else stringResource(R.string.appearance_summary_unavailable), onAppearance)
             }
         }
         item {
@@ -58,10 +58,12 @@ internal fun SettingsScreen(
                         VaultConfigState.NotConfigured -> R.string.log_no_vault
                         is VaultConfigState.Configured -> R.string.settings_ui_vault_connected
                         is VaultConfigState.Failed -> R.string.vault_error_load_config_failed
-                    }), onVaultManagement, tone = 1)
-                if (config is VaultConfigState.Failed) TextButton(onClick = onRetryVault, shapes = ButtonDefaults.shapes()) {
-                    Text(stringResource(R.string.log_retry))
-                }
+                    }), onVaultManagement,
+                    trailing = {
+                        if (config is VaultConfigState.Failed) TextButton(onClick = onRetryVault, shapes = ButtonDefaults.shapes()) {
+                            Text(stringResource(R.string.log_retry))
+                        }
+                    })
             }
         }
     }

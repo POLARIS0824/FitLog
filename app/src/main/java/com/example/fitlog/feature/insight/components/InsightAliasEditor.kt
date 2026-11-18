@@ -15,16 +15,16 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.domain.insight.InsightData
 import com.example.fitlog.model.record.ExerciseAliasGroup
-import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogSectionTitle
 import com.example.fitlog.ui.components.FitLogSheetActions
 import com.example.fitlog.ui.components.FitLogSheetDefaults
 import com.example.fitlog.ui.components.FitLogSheetTitle
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
 
 @Composable
 internal fun AliasEditor(state: InsightUiState, data: InsightData, nameKey: String,
@@ -35,14 +35,21 @@ internal fun AliasEditor(state: InsightUiState, data: InsightData, nameKey: Stri
     val names = data.names + mapOf(nameKey to (data.names[nameKey] ?: nameKey))
     val options = names.entries.sortedBy { it.value }
     val dismiss = { if (!state.aliasSaving) onDismiss() }
+    val spacing = FitLogTheme.spacing
+    val sheetPadding = FitLogTheme.dimens.page.sheetPadding
     ModalBottomSheet(onDismissRequest = dismiss, sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
         enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
         confirmValueChange = { !state.aliasSaving || it != SheetValue.Hidden })) {
-        Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().heightIn(max = FitLogTheme.dimens.insight.formSheetMaxHeight).navigationBarsPadding()) {
             LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), contentPadding = FitLogSheetDefaults.ContentPadding,
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { FitLogSheetTitle(stringResource(R.string.insight_manage_aliases))
-                    Text(stringResource(R.string.insight_alias_help), style = MaterialTheme.typography.bodyMedium) }
+                verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                item {
+                    Column(Modifier.padding(bottom = spacing.m), verticalArrangement = Arrangement.spacedBy(spacing.m)) {
+                        FitLogSheetTitle(stringResource(R.string.insight_manage_aliases))
+                        Text(stringResource(R.string.insight_alias_help), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
                 itemsIndexed(options, key = { _, entry -> "member-${entry.key}" }) { index, (key, name) ->
                     val owner = data.aliases.groupFor(key)
                     val occupied = owner != null && owner.primaryKey != existing?.primaryKey
@@ -51,23 +58,23 @@ internal fun AliasEditor(state: InsightUiState, data: InsightData, nameKey: Stri
                         chosen = changed
                         if (primary !in changed) primary = changed.first()
                     }, enabled = !state.aliasSaving && !occupied && !(chosen.size == 1 && key in chosen),
-                        colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                        colors = FitLogContainment.sheetListItemColors(),
                         content = { Text(name) }, supportingContent = {
                             if (occupied) Text(stringResource(R.string.insight_alias_owned, requireNotNull(owner).primaryName))
                         }, trailingContent = { Checkbox(key in chosen, onCheckedChange = null, enabled = !occupied && !state.aliasSaving) })
                 }
-                item { FitLogSectionTitle(stringResource(R.string.insight_alias_primary)) }
+                item { Box(Modifier.padding(top = spacing.m)) { FitLogSectionTitle(stringResource(R.string.insight_alias_primary)) } }
                 itemsIndexed(chosen.toList(), key = { _, key -> "primary-$key" }) { index, key ->
                     SegmentedListItem(onClick = { primary = key }, enabled = !state.aliasSaving,
                         shapes = ListItemDefaults.segmentedShapes(index, chosen.size),
                         modifier = Modifier.semantics { role = Role.RadioButton; selected = primary == key },
-                        colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                        colors = FitLogContainment.sheetListItemColors(),
                         content = { Text(names[key] ?: key) },
                         trailingContent = { RadioButton(primary == key, onClick = null, enabled = !state.aliasSaving) })
                 }
             }
-            Column(Modifier.fillMaxWidth().padding(horizontal = FitLogDimens.SheetPadding).padding(top = 12.dp, bottom = FitLogDimens.SheetPadding),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = sheetPadding).padding(top = spacing.m, bottom = sheetPadding),
+                verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                 state.aliasError?.let { FitLogNotice(stringResource(it), error = true) }
                 FitLogSheetActions(dismiss, onConfirm = { onSave(existing?.primaryKey,
                     ExerciseAliasGroup(names[primary] ?: primary, chosen.sorted())) },

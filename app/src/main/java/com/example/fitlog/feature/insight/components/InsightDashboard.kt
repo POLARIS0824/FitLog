@@ -6,6 +6,7 @@ import com.example.fitlog.feature.insight.InsightActivityMatrix
 import com.example.fitlog.feature.insight.InsightAtAGlance
 import com.example.fitlog.feature.insight.InsightConsistency
 import com.example.fitlog.feature.insight.InsightDashboardCard
+import com.example.fitlog.feature.insight.InsightDashboardSection
 import com.example.fitlog.feature.insight.InsightDashboardView
 import com.example.fitlog.feature.insight.InsightExerciseRanking
 import com.example.fitlog.feature.insight.InsightPresentation
@@ -15,7 +16,6 @@ import com.example.fitlog.feature.insight.InsightWeeklyContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
@@ -25,21 +25,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.domain.insight.InsightRange
 import com.example.fitlog.domain.insight.InsightSourceStatus
 import com.example.fitlog.ui.components.FitLogConnectedButtonGroup
-import com.example.fitlog.ui.components.FitLogDimens
 import com.example.fitlog.ui.components.FitLogNotice
 import com.example.fitlog.ui.components.FitLogSectionTitle
 import com.example.fitlog.ui.components.FitLogSheetActions
 import com.example.fitlog.ui.components.FitLogSheetDefaults
 import com.example.fitlog.ui.components.FitLogSheetTitle
 import com.example.fitlog.ui.components.FitLogTopAppBar
-import com.example.fitlog.ui.components.fitLogPagePadding
 import com.example.fitlog.ui.components.rememberFitLogTopAppBarBehavior
 import com.example.fitlog.ui.glass.glassPageSource
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.fitLogPagePadding
 import java.time.LocalDate
 
 @Composable
@@ -48,10 +48,11 @@ internal fun InsightPage(
     content: @Composable () -> Unit,
 ) {
     val behavior = rememberFitLogTopAppBarBehavior()
+    val contentWidth = FitLogTheme.dimens.page.contentWidth
     Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
         FitLogTopAppBar(stringResource(R.string.insight_title), behavior, editorial = true,
-            maxContentWidth = FitLogDimens.ContentWidth, actions = headerActions)
-        Box(Modifier.weight(1f).widthIn(max = FitLogDimens.ContentWidth).fillMaxWidth()) { content() }
+            maxContentWidth = contentWidth, actions = headerActions)
+        Box(Modifier.weight(1f).widthIn(max = contentWidth).fillMaxWidth()) { content() }
     }
 }
 
@@ -86,15 +87,17 @@ internal fun InsightDashboardContent(
         return@InsightPage
     }
     val pagePadding = fitLogPagePadding()
+    val spacing = FitLogTheme.spacing
     val data = presentation.data
     val overview = presentation.overview
     val focused = presentation.focused
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().glassPageSource(),
-        contentPadding = PaddingValues(start = pagePadding, top = 0.dp, end = pagePadding, bottom = FitLogDimens.NavigationBottomPadding),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        contentPadding = PaddingValues(start = pagePadding, top = spacing.none, end = pagePadding,
+            bottom = FitLogTheme.dimens.page.navigationBottomPadding),
+        verticalArrangement = Arrangement.spacedBy(spacing.s)) {
         item(key = "view") { viewPicker() }
         item(key = "range") {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.m)) {
                 InsightRangePicker(range, onSelectRange, enabled = rangeEnabled)
                 notices()
             }
@@ -116,13 +119,17 @@ internal fun InsightDashboardContent(
             }
         }
         if (data.diaries.isNotEmpty()) item(key = "records") {
-            InsightDashboardCard(stringResource(R.string.insight_recent_records)) {
+            // Achievements are a segmented list, so they sit on the page under a title rather than in a card.
+            InsightDashboardSection(stringResource(R.string.insight_recent_records)) {
                 if (overview.achievements.isEmpty()) Text(stringResource(R.string.insight_records_empty),
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 else {
                     val shown = overview.achievements.take(3)
-                    shown.forEachIndexed { index, achievement ->
-                        InsightAchievementRow(achievement, index, shown.size) { onOpen(achievement.performance.recordId) }
+                    Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                        shown.forEachIndexed { index, achievement ->
+                            InsightAchievementRow(achievement, index, shown.size) { onOpen(achievement.performance.recordId) }
+                        }
                     }
                     if (overview.achievements.size > shown.size) TextButton(onClick = { onSheet("records") },
                         shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.insight_all_records)) }
@@ -130,13 +137,20 @@ internal fun InsightDashboardContent(
             }
         }
         val recent = presentation.recent
-        if (recent.isNotEmpty()) item { FitLogSectionTitle(stringResource(R.string.insight_recent)) }
-        items(recent, key = { "recent-${it.key}" }) { diary ->
-            InsightRow(insightDate(diary.date), stringResource(R.string.insight_diary_summary,
-                diary.title, diary.sessions.size, diary.setCount), { onOpen(diary.key) })
+        if (recent.isNotEmpty()) item(key = "recent") {
+            Column {
+                FitLogSectionTitle(stringResource(R.string.insight_recent))
+                Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                    recent.forEachIndexed { index, diary ->
+                        InsightRow(insightDate(diary.date), stringResource(R.string.insight_diary_summary,
+                            diary.title, diary.sessions.size, diary.setCount), { onOpen(diary.key) },
+                            index = index, count = recent.size)
+                    }
+                }
+            }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.m)) {
                 Text(stringResource(R.string.record_coverage), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (data.sources.isNotEmpty()) InsightRow(stringResource(R.string.insight_sources_title),
@@ -155,12 +169,16 @@ internal fun InsightSourceSheet(presentation: InsightPresentation, selection: St
     val status = InsightSourceStatus.entries.firstOrNull { it.name == selection }
     val day = runCatching { LocalDate.parse(selection) }.getOrNull()
     val achievements = presentation.overview.achievements
+    val spacing = FitLogTheme.spacing
+    // Rows in a sheet sit one tonal step above the sheet so they don't vanish into it.
+    val itemColors = FitLogContainment.sheetListItemColors()
     ModalBottomSheet(onDismissRequest = onDismiss,
         sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
             enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))) {
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp), contentPadding = FitLogSheetDefaults.ContentPadding,
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { FitLogSheetTitle(when { selection == "sources" -> stringResource(R.string.insight_coverage)
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = FitLogTheme.dimens.insight.listSheetMaxHeight),
+            contentPadding = FitLogSheetDefaults.ContentPadding,
+            verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+            item { FitLogSheetTitle(modifier = Modifier.padding(bottom = spacing.m), title = when { selection == "sources" -> stringResource(R.string.insight_coverage)
                 selection == "exercises" -> stringResource(R.string.insight_exercises)
                 selection == "records" -> stringResource(R.string.insight_recent_records)
                 status != null -> sourceStatusLabel(status); day != null -> insightDate(day)
@@ -169,43 +187,55 @@ internal fun InsightSourceSheet(presentation: InsightPresentation, selection: St
                 selection == "weekly-days" -> {
                     val days = presentation.weekly.days.filter { it.sessions > 0 }
                     if (days.isEmpty()) item { Text(stringResource(R.string.weekly_no_records)) }
-                    items(days, key = { it.date.toString() }) { entry ->
+                    itemsIndexed(days, key = { _, entry -> entry.date.toString() }) { index, entry ->
                         InsightRow(insightDate(entry.date), stringResource(R.string.insight_exercise_summary,
-                            entry.sessions, entry.sets), { onDay(entry.date) })
+                            entry.sessions, entry.sets), { onDay(entry.date) }, index = index, count = days.size, colors = itemColors)
                     }
                 }
                 selection == "sources" -> {
-                    item { coverage() }
-                    items(InsightSourceStatus.entries.filter { status -> data.sources.any { it.status == status } }) { sourceStatus ->
+                    item { Box(Modifier.padding(bottom = spacing.m)) { coverage() } }
+                    val statuses = InsightSourceStatus.entries.filter { status -> data.sources.any { it.status == status } }
+                    itemsIndexed(statuses) { index, sourceStatus ->
                         InsightRow(sourceStatusLabel(sourceStatus),
                             stringResource(R.string.insight_source_count, data.sources.count { it.status == sourceStatus }),
-                            { onSelect(sourceStatus.name) })
+                            { onSelect(sourceStatus.name) }, index = index, count = statuses.size, colors = itemColors)
                     }
                 }
-                selection == "exercises" -> items(presentation.exercises, key = { it.nameKey }) { exercise ->
+                selection == "exercises" -> itemsIndexed(presentation.exercises, key = { _, exercise -> exercise.nameKey }) { index, exercise ->
                     InsightRow(exercise.name, stringResource(R.string.insight_exercise_summary,
                         exercise.occurrences.map { it.sessionId }.distinct().size,
-                        exercise.occurrences.sumOf { it.exercise.sets.size }), { onExercise(exercise.nameKey) })
+                        exercise.occurrences.sumOf { it.exercise.sets.size }), { onExercise(exercise.nameKey) },
+                        index = index, count = presentation.exercises.size, colors = itemColors)
                 }
                 selection == "records" -> {
                     itemsIndexed(achievements) { index, achievement ->
-                        InsightAchievementRow(achievement, index, achievements.size) { onOpen(achievement.performance.recordId) }
+                        InsightAchievementRow(achievement, index, achievements.size, colors = itemColors) { onOpen(achievement.performance.recordId) }
                     }
                 }
-                status != null -> items(data.sources.filter { it.status == status }, key = { it.key }) { source ->
-                    InsightRow(source.key.relPath, sourceStatusLabel(source.status),
-                        data.diaries.firstOrNull { it.sourceKey == source.key }?.let { diary -> ({ onOpen(diary.key) }) } ?: onOpenLog)
+                status != null -> {
+                    val sources = data.sources.filter { it.status == status }
+                    itemsIndexed(sources, key = { _, source -> source.key }) { index, source ->
+                        InsightRow(source.key.relPath, sourceStatusLabel(source.status),
+                            data.diaries.firstOrNull { it.sourceKey == source.key }?.let { diary -> ({ onOpen(diary.key) }) } ?: onOpenLog,
+                            index = index, count = sources.size, colors = itemColors)
+                    }
                 }
-                day != null -> items(presentation.activity[day].orEmpty(), key = { it.key }) { diary ->
-                    InsightRow(diary.title, stringResource(R.string.insight_exercise_summary, diary.sessions.size, diary.setCount), { onOpen(diary.key) })
+                day != null -> {
+                    val diaries = presentation.activity[day].orEmpty()
+                    itemsIndexed(diaries, key = { _, diary -> diary.key }) { index, diary ->
+                        InsightRow(diary.title, stringResource(R.string.insight_exercise_summary, diary.sessions.size, diary.setCount),
+                            { onOpen(diary.key) }, index = index, count = diaries.size, colors = itemColors)
+                    }
                 }
                 else -> {
                     val activity = presentation.activity
                     if (activity.isEmpty()) item { Text(stringResource(R.string.insight_empty)) }
-                    items(activity.keys.toList(), key = { it.toString() }) { date ->
+                    val dates = activity.keys.toList()
+                    itemsIndexed(dates, key = { _, date -> date.toString() }) { index, date ->
                         val diaries = activity.getValue(date)
                         InsightRow(insightDate(date), stringResource(R.string.insight_exercise_summary,
-                            diaries.sumOf { it.sessions.size }, diaries.sumOf { it.setCount }), { onDay(date) })
+                            diaries.sumOf { it.sessions.size }, diaries.sumOf { it.setCount }), { onDay(date) },
+                            index = index, count = dates.size, colors = itemColors)
                     }
                 }
             }
@@ -224,8 +254,8 @@ internal fun InsightFocusSheet(state: InsightUiState, presentation: InsightPrese
     ModalBottomSheet(onDismissRequest = { if (!state.focusSaving) onDismiss() },
         sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
             enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))) {
-        Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).navigationBarsPadding().padding(FitLogSheetDefaults.ContentPadding),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.fillMaxWidth().heightIn(max = FitLogTheme.dimens.insight.formSheetMaxHeight).navigationBarsPadding()
+            .padding(FitLogSheetDefaults.ContentPadding), verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.l)) {
             FitLogSheetTitle(stringResource(R.string.insight_focus_title))
             Text(stringResource(R.string.insight_focus_help), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -238,6 +268,7 @@ internal fun InsightFocusSheet(state: InsightUiState, presentation: InsightPrese
                             chosen = if (selected) chosen + exercise.nameKey else chosen - exercise.nameKey
                         }, enabled = !state.focusSaving && (checked || chosen.size < 3),
                         shapes = ListItemDefaults.segmentedShapes(index, options.size),
+                        colors = FitLogContainment.sheetListItemColors(),
                         content = { Text(exercise.name) },
                         trailingContent = { Checkbox(checked, onCheckedChange = null,
                             enabled = !state.focusSaving && (checked || chosen.size < 3)) })

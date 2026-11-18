@@ -40,8 +40,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.fitlog.R
 import com.example.fitlog.model.record.WeightBasis
 import com.example.fitlog.model.record.WeightUnit
@@ -49,6 +47,7 @@ import com.example.fitlog.ui.components.FitLogConnectedButtonGroup
 import com.example.fitlog.ui.components.FitLogSheetActions
 import com.example.fitlog.ui.components.FitLogSheetDefaults
 import com.example.fitlog.ui.components.FitLogSheetTitle
+import com.example.fitlog.ui.theme.FitLogTheme
 import com.example.fitlog.ui.training.WeightEditValue
 import com.example.fitlog.ui.training.enteredReps
 import com.example.fitlog.ui.training.enteredWeight
@@ -92,7 +91,7 @@ internal fun DiarySetPickerContent(edit: DiarySetEdit, onDismiss: () -> Unit,
     }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().navigationBarsPadding()
         .padding(FitLogSheetDefaults.ContentPadding),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.m)) {
         FitLogSheetTitle(stringResource(R.string.detail_picker_title, edit.number, fieldLabel))
         if (edit.field == DiarySetField.WEIGHT) {
             FitLogConnectedButtonGroup(DiaryWeightType.entries, type,
@@ -144,7 +143,9 @@ internal fun DiarySetPickerContent(edit: DiarySetEdit, onDismiss: () -> Unit,
                     val options = remember { weightOptions(initialWeight, step) }
                     val precision = maxOf(3, BigDecimal.valueOf(step).stripTrailingZeros().scale())
                     val emptyLabel = stringResource(R.string.detail_weight_unfilled)
-                    val tagWidth = (maxOf(weightNumberLabel(initialWeight, precision).length, emptyLabel.length) * 14 + 40).dp.coerceAtLeast(112.dp)
+                    val dimens = FitLogTheme.dimens.diary
+                    val tagWidth = (dimens.pickerCharWidth * maxOf(weightNumberLabel(initialWeight, precision).length, emptyLabel.length) +
+                        dimens.pickerLabelInset).coerceAtLeast(dimens.pickerItemMinWidth)
                     NumberSnapPicker(options, options.indexOf(initialWeight), horizontal = true,
                         minimumItemWidth = tagWidth, suffix = weightUnitLabel(unit),
                         label = { value -> if (value == null) emptyLabel else weightNumberLabel(value, precision) },
@@ -190,10 +191,10 @@ private fun DiaryBasisPickerContent(edit: DiarySetEdit, onDismiss: () -> Unit, o
     var basis by remember(edit) { mutableStateOf(edit.basis ?: WeightBasis.UNKNOWN) }
     var applyToExercise by remember(edit) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
-        .padding(FitLogSheetDefaults.ContentPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        .padding(FitLogSheetDefaults.ContentPadding), verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.m)) {
         FitLogSheetTitle(stringResource(R.string.detail_picker_title, edit.number, stringResource(R.string.detail_basis)))
         Text(stringResource(R.string.detail_basis_question, weightLabel(edit.weight, edit.unit, basis = edit.basis)))
-        FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s)) {
             WeightBasis.entries.forEach { choice -> FilterChip(selected = basis == choice, onClick = { basis = choice },
                 modifier = Modifier.semantics { role = Role.RadioButton },
                 label = { Text(stringResource(if (choice == WeightBasis.UNKNOWN) R.string.detail_keep_unknown else weightBasisLabel(choice))) }) }
@@ -221,7 +222,7 @@ private fun WeightStepControl(step: Double, unit: WeightUnit?, onSelect: (Double
     var custom by remember(unit) { mutableStateOf(false) }
     val options = listOf(2.5, 5.0, 10.0)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s)) {
         Box {
             TextButton(onClick = { menu = true }, shapes = ButtonDefaults.shapes()) {
                 Text(stringResource(R.string.detail_weight_step, weightLabel(step, unit)))
@@ -243,12 +244,12 @@ private fun WeightStepControl(step: Double, unit: WeightUnit?, onSelect: (Double
         if (custom) {
             var input by remember { mutableStateOf(step.toString()) }
             val value = enteredWeightStep(input)
-            Column(Modifier.fillMaxWidth().testTag("weight-step-editor"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.fillMaxWidth().testTag("weight-step-editor"), verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s)) {
                 OutlinedTextField(input, { input = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.detail_weight_step_input)) }, suffix = { Text(weightUnitLabel(unit)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), isError = value == null,
                     supportingText = { Text(stringResource(R.string.detail_weight_step_help)) })
-                Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s)) {
                     TextButton(onClick = { custom = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.record_cancel)) }
                     TextButton(onClick = { value?.let(onSelect); custom = false }, enabled = value != null, shapes = ButtonDefaults.shapes()) {
                         Text(stringResource(R.string.detail_weight_step_apply))
@@ -261,7 +262,7 @@ private fun WeightStepControl(step: Double, unit: WeightUnit?, onSelect: (Double
 
 @Composable
 private fun <T> NumberSnapPicker(values: List<T>, initial: Int, horizontal: Boolean,
-    suffix: String? = null, minimumItemWidth: Dp = 112.dp, description: (@Composable (T) -> String)? = null,
+    suffix: String? = null, minimumItemWidth: Dp = FitLogTheme.dimens.diary.pickerItemMinWidth, description: (@Composable (T) -> String)? = null,
     label: @Composable (T) -> String, onSelected: (T) -> Unit) {
     val list = rememberLazyListState(initialFirstVisibleItemIndex = initial.coerceAtLeast(0))
     val scope = rememberCoroutineScope()
@@ -276,18 +277,22 @@ private fun <T> NumberSnapPicker(values: List<T>, initial: Int, horizontal: Bool
         snapshotFlow { selected }.collect { index -> if (index in values.indices) select(values[index]) }
     }
     val density = LocalDensity.current
-    val itemHeight = with(density) { 40.sp.toDp() + 16.dp }.coerceAtLeast(56.dp)
+    val spacing = FitLogTheme.spacing
+    val dimens = FitLogTheme.dimens.diary
+    // Tall enough for the largest selected label (headlineLarge) plus its inset.
+    val selectedLineHeight = MaterialTheme.typography.headlineLargeEmphasized.lineHeight
+    val itemHeight = with(density) { selectedLineHeight.toDp() + spacing.l }.coerceAtLeast(dimens.pickerItemMinHeight)
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val itemWidth = (minimumItemWidth * density.fontScale).coerceAtMost(maxWidth - 24.dp)
+        val itemWidth = (minimumItemWidth * density.fontScale).coerceAtMost(maxWidth - spacing.xl)
         val padding = if (horizontal) PaddingValues(horizontal = (maxWidth - itemWidth) / 2)
-            else PaddingValues(vertical = itemHeight * 2)
+            else PaddingValues(vertical = itemHeight * (dimens.pickerVisibleRows / 2))
         val fling = rememberSnapFlingBehavior(list)
         val content: LazyListScope.() -> Unit = {
             itemsIndexed(values) { index, value ->
                 val chosen = index == selected
                 val semanticLabel = description?.invoke(value)
                 val textSemantics = if (semanticLabel == null) Modifier else Modifier.clearAndSetSemantics {}
-                val scale by animateFloatAsState(if (chosen) 1f else .88f,
+                val scale by animateFloatAsState(if (chosen) 1f else dimens.pickerUnselectedScale,
                     MaterialTheme.motionScheme.fastSpatialSpec(), label = "pickerScale")
                 val color by animateColorAsState(when {
                     chosen -> MaterialTheme.colorScheme.secondaryContainer
@@ -311,15 +316,15 @@ private fun <T> NumberSnapPicker(values: List<T>, initial: Int, horizontal: Bool
                             chosen -> MaterialTheme.typography.headlineSmallEmphasized
                             else -> MaterialTheme.typography.titleMedium
                         })
-                        if ((horizontal || chosen) && suffix != null && value != null) Text(suffix, textSemantics.padding(start = 8.dp).alignByBaseline(),
+                        if ((horizontal || chosen) && suffix != null && value != null) Text(suffix, textSemantics.padding(start = spacing.s).alignByBaseline(),
                             style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }
         }
         if (horizontal) LazyRow(state = list, contentPadding = padding, flingBehavior = fling,
-            horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().height(itemHeight + 16.dp), content = content)
+            horizontalArrangement = Arrangement.spacedBy(spacing.s), modifier = Modifier.fillMaxWidth().height(itemHeight + spacing.l), content = content)
         else LazyColumn(state = list, contentPadding = padding, flingBehavior = fling,
-            modifier = Modifier.fillMaxWidth().height(itemHeight * 5), content = content)
+            modifier = Modifier.fillMaxWidth().height(itemHeight * dimens.pickerVisibleRows), content = content)
     }
 }

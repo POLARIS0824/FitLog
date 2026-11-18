@@ -15,6 +15,9 @@
  */
 package com.example.fitlog.ui.glass
 
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.GlassColors
+
 import android.os.Build
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -28,10 +31,9 @@ import com.example.fitlog.ui.glass.backdrop.effects.lens
 import com.example.fitlog.ui.glass.backdrop.highlight.Highlight
 import com.example.fitlog.ui.glass.backdrop.shadow.Shadow
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -51,16 +53,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.roundToInt
 import kotlin.math.sign
-
-/** How much taller than the bar the pill stands while it is lifted. */
-internal val PILL_GROW_HEIGHT = 9.dp
 
 /**
  * The selection pill's physics, owned by the tab bar and handed to whichever
@@ -511,8 +509,7 @@ internal fun FlatSelectionPill(
     color: Color,
     modifier: Modifier,
 ) {
-    val shape = remember { RoundedCornerShape(percent = 50) }
-    Box(modifier.background(color, shape))
+    Box(modifier.background(color, CircleShape))
 }
 
 /**
@@ -529,18 +526,17 @@ internal fun LiftedSelectionPill(
     fillColor: Color,
     modifier: Modifier,
 ) {
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val shape = remember { RoundedCornerShape(percent = 50) }
-    val liftedBody = remember(fillColor, dark) {
-        if (dark) Color.White.copy(alpha = LIFTED_BODY_ALPHA)
-        else Color.White.copy(alpha = 0.70f)
-    }
-    val rimColor = if (dark) Color.White else MaterialTheme.colorScheme.outlineVariant
+    val glass = FitLogTheme.dimens.glass
+    val dark = GlassColors.isDark(MaterialTheme.colorScheme.surface)
+    val shape = CircleShape
+    val liftedBody = GlassColors.liftedPillBody(dark)
+    val rimColor = GlassColors.liftedPillRim(dark, MaterialTheme.colorScheme.outlineVariant)
+    val rimAlpha = GlassColors.liftedPillRimAlpha(dark)
     Box(
         modifier
             .graphicsLayer {
                 val rim = motion.material * rimOf(motion.glassPresence)
-                shadowElevation = rim * LIFTED_SHADOW.toPx()
+                shadowElevation = rim * glass.liftedPillShadowElevation.toPx()
                 this.shape = shape
                 clip = false
             }
@@ -550,7 +546,7 @@ internal fun LiftedSelectionPill(
                 drawOutline(outline, color = body)
                 val rim = motion.material * rimOf(motion.glassPresence)
                 if (rim > 0f) {
-                    drawOutline(outline, color = rimColor.copy(alpha = (if (dark) LIFTED_RIM_ALPHA else 0.45f) * rim), style = Stroke(1.dp.toPx()))
+                    drawOutline(outline, color = rimColor.copy(alpha = rimAlpha * rim), style = Stroke(glass.liftedPillRimWidth.toPx()))
                 }
             },
     )
@@ -558,10 +554,6 @@ internal fun LiftedSelectionPill(
 
 /** The rim and its shadow are gone by the time the hand-off is 55% through. */
 private fun rimOf(presence: Float): Float = ((presence - 0.45f) / 0.55f).coerceIn(0f, 1f)
-
-private val LIFTED_SHADOW = 10.dp
-private const val LIFTED_BODY_ALPHA = 0.20f
-private const val LIFTED_RIM_ALPHA = 0.38f
 
 /**
  * The lifted pill with Liquid Glass on (BitChord's GlassSelectionPill): a lens over the tab bar
@@ -582,10 +574,20 @@ internal fun GlassSelectionPill(
     tabRow: LayerBackdrop,
     modifier: Modifier,
 ) {
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val glass = FitLogTheme.dimens.glass
+    val dark = GlassColors.isDark(MaterialTheme.colorScheme.surface)
     val baseColor = MaterialTheme.colorScheme.surface
-    val fallbackColor = GlassTokens.fill(dark)
-    val shape = remember { RoundedCornerShape(percent = 50) }
+    val fallbackColor = GlassColors.fill(dark)
+    val shape = CircleShape
+    val highlightAlpha = GlassColors.selectionPillHighlightAlpha(dark)
+    val shadowAlpha = GlassColors.selectionPillShadowAlpha(dark)
+    val pillShadow = remember(glass) {
+        Shadow(
+            radius = glass.selectionPillShadowRadius,
+            offset = DpOffset.Zero.copy(y = glass.selectionPillShadowOffsetY),
+            color = GlassColors.SelectionPillShadow,
+        )
+    }
     val backdrop = remember(page, barGlass, tabRow, fillColor, baseColor, fallbackColor) {
         SelectionPillBackdrop(PageBackdrop(page, baseColor, fallbackColor), barGlass, tabRow) {
             fillColor.copy(alpha = fillColor.alpha * (1f - motion.material))
@@ -598,32 +600,24 @@ internal fun GlassSelectionPill(
             effects = {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     lens(
-                        refractionHeight = LENS_HEIGHT.toPx() * motion.glassPresence,
-                        refractionAmount = LENS_AMOUNT.toPx() * motion.material,
+                        refractionHeight = glass.selectionLensHeight.toPx() * motion.glassPresence,
+                        refractionAmount = glass.selectionLensAmount.toPx() * motion.material,
                         chromaticAberration = true,
                     )
                 }
             },
             highlight = {
                 val alpha = motion.material * rimOf(motion.glassPresence)
-                if (alpha > 0f) Highlight.Default.copy(alpha = alpha * (if (dark) 1f else 0.7f)) else null
+                if (alpha > 0f) Highlight.Default.copy(alpha = alpha * highlightAlpha) else null
             },
             shadow = {
                 val alpha = motion.material * rimOf(motion.glassPresence)
-                if (alpha > 0f) PILL_SHADOW.copy(alpha = alpha * (if (dark) 1f else 0.4f)) else null
+                if (alpha > 0f) pillShadow.copy(alpha = alpha * shadowAlpha) else null
             },
         ),
     )
 }
 
-private val LENS_HEIGHT = 12.dp
-private val LENS_AMOUNT = 14.dp
-
-private val PILL_SHADOW = Shadow(
-    radius = 12.dp,
-    offset = DpOffset(0.dp, 2.dp),
-    color = Color.Black.copy(alpha = 0.3f),
-)
 
 /**
  * What the pill refracts, bottom to top: the page, the bar's glass, the selection fill, and the

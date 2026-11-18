@@ -18,19 +18,23 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.GlassColors
 
 @Composable
 internal fun GlassTodayScreen(date: String, onSettings: () -> Unit, onOpenToday: () -> Unit,
     onOpenLog: () -> Unit, onImport: () -> Unit, modifier: Modifier = Modifier) {
+    val glass = FitLogTheme.dimens.glass
+    val spacing = FitLogTheme.spacing
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        LazyColumn(Modifier.widthIn(max = 640.dp).fillMaxSize().glassPageSource(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 140.dp),
-            verticalArrangement = Arrangement.spacedBy(28.dp)) {
+        LazyColumn(Modifier.widthIn(max = FitLogTheme.dimens.page.contentWidth).fillMaxSize().glassPageSource(),
+            contentPadding = PaddingValues(start = glass.pageGutter, end = glass.pageGutter, top = glass.pageGutter,
+                bottom = glass.todayBottomPadding),
+            verticalArrangement = Arrangement.spacedBy(glass.todaySectionGap)) {
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(glass.todayHeaderGap)) {
                         Text(stringResource(R.string.today_title), style = MaterialTheme.typography.headlineLargeEmphasized,
                             modifier = Modifier.semantics { heading() })
                         Text(date, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -42,10 +46,11 @@ internal fun GlassTodayScreen(date: String, onSettings: () -> Unit, onOpenToday:
                 GlassCard(Modifier.fillMaxWidth()) {
                     val primary = MaterialTheme.colorScheme.primary
                     val plateColor = MaterialTheme.colorScheme.primaryContainer
-                    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                        Canvas(Modifier.fillMaxWidth().height(112.dp).clearAndSetSemantics {}) {
-                            val center = Offset(size.width * 0.78f, size.height * 0.52f)
-                            drawCircle(Brush.radialGradient(listOf(primary.copy(alpha = 0.26f), Color.Transparent),
+                    val glow = GlassColors.todayHeroGlow(primary)
+                    Column(Modifier.padding(spacing.xl), verticalArrangement = Arrangement.spacedBy(glass.todayHeroGap)) {
+                        Canvas(Modifier.fillMaxWidth().height(glass.todayIllustrationHeight).clearAndSetSemantics {}) {
+                            val center = Offset(size.width * glass.todayGlowCenterX, size.height * glass.todayGlowCenterY)
+                            drawCircle(Brush.radialGradient(listOf(glow, Color.Transparent),
                                 center = center, radius = size.height), size.height, center)
                             val unit = size.height / 100f
                             val x = center.x; val y = center.y
@@ -68,7 +73,7 @@ internal fun GlassTodayScreen(date: String, onSettings: () -> Unit, onOpenToday:
                 }
             }
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(glass.todayLibraryGap)) {
                     Text(stringResource(R.string.today_library), style = MaterialTheme.typography.titleMediumEmphasized,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.semantics { heading() })
                     GlassLibraryRow(R.drawable.list_alt_24px, stringResource(R.string.today_browse),
@@ -83,11 +88,12 @@ internal fun GlassTodayScreen(date: String, onSettings: () -> Unit, onOpenToday:
 
 @Composable
 private fun GlassLibraryRow(icon: Int, title: String, subtitle: String, onClick: () -> Unit) {
+    val spacing = FitLogTheme.spacing
     GlassCard(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)) {
-        Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(Modifier.fillMaxWidth().padding(FitLogTheme.dimens.glass.todayLibraryRowPadding), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.l)) {
             GlassIconButton(icon, title, onClick)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

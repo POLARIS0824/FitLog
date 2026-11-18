@@ -20,7 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
+import com.example.fitlog.ui.theme.FitLogTheme
 import com.example.fitlog.R
 import com.example.fitlog.data.analysis.toAiRequestFailure
 import com.example.fitlog.domain.analysis.needsDiaryAnalysis
@@ -46,8 +46,9 @@ internal fun analysisIssueMessage(issue: AnalysisIssue): Int = issue.configurati
 @Composable
 internal fun LogAnalysisControls(state: LogUiState, actions: LogActions, onReview: () -> Unit) {
     var showSheet by remember { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val spacing = FitLogTheme.spacing
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.s)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.s), verticalArrangement = Arrangement.spacedBy(spacing.s)) {
             OutlinedButton(onClick = { showSheet = true }, enabled = state.vault != null && !state.analysisBusy &&
                 !state.refreshing && !state.summariesLoading && !state.summariesReadFailed,
                 shapes = ButtonDefaults.shapes()) {
@@ -59,7 +60,7 @@ internal fun LogAnalysisControls(state: LogUiState, actions: LogActions, onRevie
                 Text(stringResource(R.string.log_review_count, state.pendingCount))
             }
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(spacing.s)) {
             LogStatusFilter.entries.forEach { filter ->
                 FilterChip(selected = state.statusFilter == filter, onClick = { actions.filter(filter) },
                     label = { Text(stringResource(filter.label)) })
@@ -71,8 +72,9 @@ internal fun LogAnalysisControls(state: LogUiState, actions: LogActions, onRevie
 
 @Composable
 internal fun AnalysisRunFeedback(run: DiaryAnalysisRun, onCancel: () -> Unit, onFailures: () -> Unit, onAiSettings: () -> Unit) {
-    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val spacing = FitLogTheme.spacing
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(spacing.l), verticalArrangement = Arrangement.spacedBy(spacing.s)) {
             Text(stringResource(when {
                 run.active -> R.string.log_batch_running
                 run.stopped || run.issue != null -> R.string.log_batch_stopped
@@ -84,9 +86,9 @@ internal fun AnalysisRunFeedback(run: DiaryAnalysisRun, onCancel: () -> Unit, on
                 modifier = Modifier.fillMaxWidth())
             run.issue?.let { Text(stringResource(analysisIssueMessage(it)), color = MaterialTheme.colorScheme.error) }
             if (run.items.any { it.issue?.problem == AnalysisProblem.SOURCE_CHANGED })
-                Text(stringResource(R.string.log_analysis_source_changed), color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.log_analysis_source_changed), color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (run.indexWarning) Text(stringResource(R.string.log_analysis_index_warning), color = MaterialTheme.colorScheme.error)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.s)) {
                 if (run.active) TextButton(onClick = onCancel, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.ai_cancel_request)) }
                 if (run.failed > 0 || run.items.any { it.issue?.problem == AnalysisProblem.SOURCE })
                     TextButton(onClick = onFailures, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.log_view_failures)) }
@@ -104,28 +106,29 @@ private fun AnalysisRangeSheet(state: LogUiState, actions: LogActions, onDismiss
     var reanalyze by remember { mutableStateOf(false) }
     val today = LocalDate.now()
     val allMatched = matchAnalysisSources(state.sources, state.summaries, range, today, includeUnavailable = true)
-    val matched = allMatched.filter { it.status == com.example.fitlog.model.source.IndexedSource.AVAILABLE }
+    val matched = allMatched.filter { it.status == IndexedSource.AVAILABLE }
     val requests = matched.count { reanalyze || needsDiaryAnalysis(state.summaries[it.path], indexedVersion(it)) }
     val unreadable = allMatched.size - matched.size
+    val spacing = FitLogTheme.spacing
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
         enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(FitLogSheetDefaults.ContentPadding),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            verticalArrangement = Arrangement.spacedBy(spacing.m)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                 FitLogSheetTitle(stringResource(R.string.log_analyze))
                 Text(stringResource(R.string.log_analysis_scope), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Column(Modifier.selectableGroup()) {
                     LogAnalysisRange.entries.forEach { choice ->
-                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        Row(Modifier.fillMaxWidth().heightIn(min = LocalMinimumInteractiveComponentSize.current)
                             .selectable(selected = range == choice, role = Role.RadioButton,
-                                onClick = { range = choice }).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                onClick = { range = choice }).padding(vertical = spacing.s), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = range == choice, onClick = null)
-                            Text(stringResource(choice.label), Modifier.padding(start = 12.dp))
+                            Text(stringResource(choice.label), Modifier.padding(start = spacing.m))
                         }
                     }
                 }
-                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = reanalyze, role = Role.Checkbox,
+                Row(Modifier.fillMaxWidth().heightIn(min = LocalMinimumInteractiveComponentSize.current).toggleable(value = reanalyze, role = Role.Checkbox,
                     onValueChange = { reanalyze = it }), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = reanalyze, onCheckedChange = null)
                     Text(stringResource(R.string.log_reanalyze), Modifier.weight(1f))
@@ -140,7 +143,7 @@ private fun AnalysisRangeSheet(state: LogUiState, actions: LogActions, onDismiss
                 modifier = Modifier.fillMaxWidth().heightIn(min = ButtonDefaults.MinHeight)) {
                 Text(stringResource(R.string.log_analysis_start), style = MaterialTheme.typography.labelLargeEmphasized)
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(spacing.s))
         }
     }
 }

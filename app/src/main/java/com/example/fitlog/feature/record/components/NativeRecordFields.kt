@@ -14,12 +14,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.model.record.ReviewedExercise
 import com.example.fitlog.model.record.ReviewedSet
-import com.example.fitlog.ui.components.FitLogDimens
-import com.example.fitlog.ui.components.fitLogPagePadding
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.fitLogPagePadding
 
 @Composable
 internal fun NativeRecordSaveFeedback(state: NativeRecordUiState, actions: NativeRecordActions) {
@@ -35,13 +34,14 @@ internal fun NativeRecordSaveFeedback(state: NativeRecordUiState, actions: Nativ
             RecordSaveState.FAILED -> R.string.record_failed
         }
     }
-    Surface(modifier = Modifier.widthIn(max = FitLogDimens.WideContentWidth).fillMaxWidth(), color = if (failed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
+    val spacing = FitLogTheme.spacing
+    Surface(modifier = Modifier.widthIn(max = FitLogTheme.dimens.page.wideContentWidth).fillMaxWidth(), color = if (failed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
         contentColor = if (failed) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = fitLogPagePadding(), vertical = 8.dp)
+        Row(Modifier.fillMaxWidth().padding(horizontal = fitLogPagePadding(), vertical = spacing.s)
             .semantics { if (failed) liveRegion = LiveRegionMode.Polite },
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.s)) {
             if (failed || state.state == RecordSaveState.SAVED) Icon(
-                painterResource(if (failed) R.drawable.warning_24px else R.drawable.check_24px), null, Modifier.size(20.dp))
+                painterResource(if (failed) R.drawable.warning_24px else R.drawable.check_24px), null)
             Text(stringResource(label), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
             if (failed && !state.loading && !state.deleting && (state.readFailed || state.canEdit)) TextButton(onClick = {
                 if (state.message == R.string.record_delete_failed) actions.delete() else actions.retry()
@@ -56,8 +56,9 @@ internal fun NativeExerciseEntry(exercise: ReviewedExercise, enabled: Boolean,
     onCopy: (Int) -> Unit, onRemove: () -> Unit, onSet: (Int, ReviewedSet) -> Unit,
     onOptions: (Int) -> Unit, onRemoveSet: (Int) -> Unit) {
     var menu by remember { mutableStateOf(false) }
-    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val spacing = FitLogTheme.spacing
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(spacing.l), verticalArrangement = Arrangement.spacedBy(spacing.m)) {
             OutlinedTextField(exercise.rawName, onName, enabled = enabled, singleLine = true,
                 textStyle = MaterialTheme.typography.titleLargeEmphasized,
                 label = { Text(stringResource(R.string.record_exercise)) }, modifier = Modifier.fillMaxWidth())
@@ -74,7 +75,7 @@ internal fun NativeExerciseEntry(exercise: ReviewedExercise, enabled: Boolean,
                             text = { Text(stringResource(R.string.record_copy_last_set)) },
                             enabled = exercise.sets.size < 1000,
                             onClick = { menu = false; onCopy(exercise.sets.lastIndex) })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.record_remove_exercise), color = MaterialTheme.colorScheme.error) },
+                        DropdownMenuItem(text = { Text(stringResource(R.string.record_remove_exercise)) },
                             onClick = { menu = false; onRemove() })
                     }
                 }
@@ -86,7 +87,7 @@ internal fun NativeExerciseEntry(exercise: ReviewedExercise, enabled: Boolean,
                         { onCopy(index) }, { onRemoveSet(index) })
                 }
             }
-            if (exercise.sets.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (exercise.sets.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.s)) {
                 TextButton(onClick = onAddSet, enabled = enabled && exercise.sets.size < 1000, shapes = ButtonDefaults.shapes()) {
                     Text(stringResource(R.string.record_add_set))
                 }

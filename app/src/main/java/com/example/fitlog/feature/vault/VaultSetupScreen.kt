@@ -33,14 +33,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitlog.R
 import com.example.fitlog.feature.vault.navigation.VaultSetupNavKey
 import com.example.fitlog.ui.components.FitLogBackGuard
-import com.example.fitlog.ui.components.FitLogDimens
-import com.example.fitlog.ui.components.fitLogPagePadding
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.fitLogPagePadding
 
 /**
  * 页面接入层：负责系统选择器、生命周期感知的状态收集与导航衔接。
@@ -110,6 +109,8 @@ fun VaultSetupScreen(
     modifier: Modifier = Modifier,
 ) {
     val motion = MaterialTheme.motionScheme
+    val spacing = FitLogTheme.spacing
+    val enterScale = FitLogTheme.dimens.vault.setupBodyEnterScale
 
     val mode = when {
         uiState.configState == VaultConfigUiState.Loading -> SetupMode.Loading
@@ -122,9 +123,9 @@ fun VaultSetupScreen(
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
-                .widthIn(max = FitLogDimens.ContentWidth)
+                .widthIn(max = FitLogTheme.dimens.page.contentWidth)
                 .fillMaxSize()
-                .padding(horizontal = fitLogPagePadding(), vertical = 24.dp),
+                .padding(horizontal = fitLogPagePadding(), vertical = spacing.xl),
         ) {
             Column(
                 modifier = Modifier
@@ -134,13 +135,13 @@ fun VaultSetupScreen(
             ) {
                 SetupHeader()
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(spacing.xxl))
 
                 AnimatedContent(
                     targetState = mode,
                     transitionSpec = {
                         (fadeIn(motion.defaultEffectsSpec()) +
-                                scaleIn(initialScale = 0.92f, animationSpec = motion.defaultSpatialSpec())) togetherWith
+                                scaleIn(initialScale = enterScale, animationSpec = motion.defaultSpatialSpec())) togetherWith
                                 fadeOut(motion.fastEffectsSpec())
                     },
                     label = "vaultSetupBody",
@@ -172,7 +173,7 @@ fun VaultSetupScreen(
                 }
 
                 uiState.errorResId?.let { resId ->
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(spacing.l))
                     MessageBanner(
                         text = stringResource(resId),
                         showRetry = uiState.stage == VaultOperationStage.Idle &&
@@ -183,7 +184,7 @@ fun VaultSetupScreen(
             }
 
             if (mode != SetupMode.Loading) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(spacing.l))
                 SetupActions(
                     mode = mode,
                     uiState = uiState,

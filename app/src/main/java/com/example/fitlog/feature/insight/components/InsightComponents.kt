@@ -30,7 +30,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import com.example.fitlog.R
 import com.example.fitlog.domain.insight.InsightData
 import com.example.fitlog.domain.insight.InsightDiary
@@ -43,6 +43,9 @@ import com.example.fitlog.model.record.WeightUnit
 import com.example.fitlog.model.source.IndexedScan
 import com.example.fitlog.ui.components.FitLogConnectedButtonGroup
 import com.example.fitlog.ui.components.FitLogNotice
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.FitLogType
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -82,7 +85,7 @@ internal fun InsightCoverage(state: InsightUiState, showScanTime: Boolean = true
     val timestamp = index?.scan?.completedAt?.let {
         DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()))
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.s)) {
         if (showScanTime && index != null) Text(if (timestamp == null) stringResource(R.string.insight_scan_unknown)
             else stringResource(R.string.insight_scan_time, timestamp), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -93,14 +96,17 @@ internal fun InsightCoverage(state: InsightUiState, showScanTime: Boolean = true
     }
 }
 
+/**
+ * One tappable row; rows shown together pass their [index] and [count] and sit [ListItemDefaults.SegmentedGap] apart.
+ * Rows in a bottom sheet pass [FitLogContainment.sheetListItemColors].
+ */
 @Composable
-internal fun InsightRow(title: String, subtitle: String, onClick: () -> Unit, enabled: Boolean = true) {
-    Surface(onClick = onClick, enabled = enabled, shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp).heightIn(min = 48.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+internal fun InsightRow(title: String, subtitle: String, onClick: () -> Unit, enabled: Boolean = true,
+    index: Int = 0, count: Int = 1, colors: ListItemColors = FitLogContainment.pageListItemColors()) {
+    SegmentedListItem(onClick = onClick, shapes = ListItemDefaults.segmentedShapes(index, count),
+        modifier = Modifier.fillMaxWidth(), enabled = enabled, colors = colors,
+        supportingContent = { Text(subtitle) }) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
     }
 }
 
@@ -109,8 +115,16 @@ internal fun InsightHeatmap(data: InsightData, activity: Map<LocalDate, List<Ins
     val first = data.today.minusDays(364)
     val gridStart = first.minusDays(first.dayOfWeek.value.toLong() - 1)
     val weeks = ((data.today.toEpochDay() - gridStart.toEpochDay()) / 7 + 1).toInt()
-    val emptyColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    // Empty days recede like a nested tile; activity dots carry the data in primary.
+    val emptyColor = FitLogContainment.nestedColor
     val activityColor = MaterialTheme.colorScheme.primary
+    val spacing = FitLogTheme.spacing
+    val dimens = FitLogTheme.dimens.insight
+    val cellSize = dimens.heatmapCell
+    val cellGap = dimens.heatmapCellGap
+    val cellCorner = dimens.heatmapCellCorner
+    val dotBase = dimens.heatmapDotBaseRadius
+    val dotStep = dimens.heatmapDotRadiusStep
     val description = stringResource(R.string.insight_heatmap_description, activity.size)
     val scroll = rememberScrollState()
     var positioned by rememberSaveable(data.vaultId) { mutableStateOf(false) }
@@ -121,31 +135,31 @@ internal fun InsightHeatmap(data: InsightData, activity: Map<LocalDate, List<Ins
             positioned = true
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.insight_date_span, insightDate(first), insightDate(data.today)), style = MaterialTheme.typography.bodySmall)
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.s)) {
+        Text(stringResource(R.string.insight_date_span, insightDate(first), insightDate(data.today)), style = FitLogType.dataLabel)
         Box(Modifier.fillMaxWidth().horizontalScroll(scroll)) {
-            Canvas(Modifier.width((weeks * 16).dp).height(112.dp).semantics { contentDescription = description }) {
-                val cell = 16.dp.toPx()
+            Canvas(Modifier.width(cellSize * weeks).height(cellSize * 7).semantics { contentDescription = description }) {
+                val cell = cellSize.toPx()
                 repeat(weeks) { week -> repeat(7) { day ->
                     val date = gridStart.plusDays((week * 7 + day).toLong())
                     if (date in first..data.today) {
                         val count = activity[date].orEmpty().sumOf { it.sessions.size }.coerceAtMost(4)
-                        val markerSize = cell - 3.dp.toPx()
+                        val markerSize = cell - cellGap.toPx()
                         val origin = Offset(week * cell, day * cell)
-                        drawRoundRect(emptyColor, origin, Size(markerSize, markerSize), CornerRadius(2.dp.toPx()))
-                        if (count > 0) drawCircle(activityColor, (count + 2).dp.toPx(),
+                        drawRoundRect(emptyColor, origin, Size(markerSize, markerSize), CornerRadius(cellCorner.toPx()))
+                        if (count > 0) drawCircle(activityColor, (dotBase + dotStep * count).toPx(),
                             center = origin + Offset(markerSize / 2, markerSize / 2))
                     }
                 } }
             }
         }
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(spacing.m),
+            verticalArrangement = Arrangement.spacedBy(spacing.s)) {
             (0..4).forEach { count ->
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Canvas(Modifier.size(13.dp)) {
-                        drawRoundRect(emptyColor, cornerRadius = CornerRadius(2.dp.toPx()))
-                        if (count > 0) drawCircle(activityColor, (count + 2).dp.toPx())
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs), verticalAlignment = Alignment.CenterVertically) {
+                    Canvas(Modifier.size(dimens.heatmapLegendSwatch)) {
+                        drawRoundRect(emptyColor, cornerRadius = CornerRadius(cellCorner.toPx()))
+                        if (count > 0) drawCircle(activityColor, (dotBase + dotStep * count).toPx())
                     }
                     Text(stringResource(if (count == 4) R.string.insight_heatmap_four_plus else R.string.insight_heatmap_count, count),
                         style = MaterialTheme.typography.bodySmall)
@@ -165,7 +179,16 @@ internal fun InsightChart(series: InsightSeries, onOpen: (String) -> Unit) {
     val selectedIndex = points.indexOfFirst { it.date.toString() == selectedDate }.coerceAtLeast(0)
     val selected = points[selectedIndex]
     val color = MaterialTheme.colorScheme.primary
-    val axis = MaterialTheme.colorScheme.outline
+    // The baseline is decorative, so it takes the decorative stroke role.
+    val axis = MaterialTheme.colorScheme.outlineVariant
+    val spacing = FitLogTheme.spacing
+    val dimens = FitLogTheme.dimens.insight
+    val chartInset = dimens.curveChartInset
+    val axisStroke = dimens.chartGridStroke
+    val lineStroke = dimens.chartLineStroke
+    val pointRadius = dimens.chartPointRadius
+    val ringRadius = dimens.curveSelectedRingRadius
+    val ringStroke = dimens.curveSelectedRingStroke
     val minimum = points.minOf { it.value }
     val maximum = points.maxOf { it.value }
     val spread = (maximum - minimum).takeIf { it > 0 } ?: 1.0
@@ -173,37 +196,38 @@ internal fun InsightChart(series: InsightSeries, onOpen: (String) -> Unit) {
     val days = (points.last().date.toEpochDay() - start).coerceAtLeast(1)
     val description = stringResource(R.string.insight_chart_description, points.size,
         insightDate(points.first().date), insightDate(points.last().date))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(Modifier.height(160.dp).padding(vertical = 4.dp), verticalArrangement = if (minimum == maximum) Arrangement.Center else Arrangement.SpaceBetween) {
-            Text(insightNumber(maximum), style = MaterialTheme.typography.labelSmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(spacing.s)) {
+        Column(Modifier.height(dimens.curveChartHeight).padding(vertical = spacing.xs),
+            verticalArrangement = if (minimum == maximum) Arrangement.Center else Arrangement.SpaceBetween) {
+            Text(insightNumber(maximum), style = FitLogType.dataLabel)
             if (minimum != maximum) {
-                Text(insightNumber(minimum + (maximum - minimum) / 2), style = MaterialTheme.typography.labelSmall)
-                Text(insightNumber(minimum), style = MaterialTheme.typography.labelSmall)
+                Text(insightNumber(minimum + (maximum - minimum) / 2), style = FitLogType.dataLabel)
+                Text(insightNumber(minimum), style = FitLogType.dataLabel)
             }
         }
         Column(Modifier.weight(1f)) {
-            Canvas(Modifier.fillMaxWidth().height(160.dp).semantics { contentDescription = description }
+            Canvas(Modifier.fillMaxWidth().height(dimens.curveChartHeight).semantics { contentDescription = description }
                 .pointerInput(points) {
                     detectTapGestures { tap ->
-                        val inset = 12.dp.toPx()
+                        val inset = chartInset.toPx()
                         val fraction = ((tap.x - inset) / (size.width - inset * 2).coerceAtLeast(1f)).coerceIn(0f, 1f)
                         val day = start + fraction.toDouble() * days
                         selectedDate = points.minBy { abs(it.date.toEpochDay() - day) }.date.toString()
                     }
                 }) {
-                val inset = 12.dp.toPx()
+                val inset = chartInset.toPx()
                 fun position(point: InsightPoint): Offset = Offset(
                     if (points.size == 1) size.width / 2 else inset + ((point.date.toEpochDay() - start).toDouble() / days * (size.width - inset * 2)).toFloat(),
                     if (maximum == minimum) size.height / 2 else size.height - inset - ((point.value - minimum) / spread * (size.height - inset * 2)).toFloat())
-                drawLine(axis, Offset(inset, size.height - inset), Offset(size.width - inset, size.height - inset), 1.dp.toPx())
-                points.zipWithNext().forEach { (a, b) -> drawLine(color, position(a), position(b), 3.dp.toPx()) }
-                points.forEach { drawCircle(color, 4.dp.toPx(), position(it)) }
-                drawCircle(color, 9.dp.toPx(), position(selected), style = Stroke(2.dp.toPx()))
+                drawLine(axis, Offset(inset, size.height - inset), Offset(size.width - inset, size.height - inset), axisStroke.toPx())
+                points.zipWithNext().forEach { (a, b) -> drawLine(color, position(a), position(b), lineStroke.toPx()) }
+                points.forEach { drawCircle(color, pointRadius.toPx(), position(it)) }
+                drawCircle(color, ringRadius.toPx(), position(selected), style = Stroke(ringStroke.toPx()))
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(insightDate(points.first().date), style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
-                if (points.size > 1) Text(insightDate(points.last().date), style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                Text(insightDate(points.first().date), style = FitLogType.dataLabel, modifier = Modifier.weight(1f))
+                if (points.size > 1) Text(insightDate(points.last().date), style = FitLogType.dataLabel,
+                    modifier = Modifier.weight(1f), textAlign = TextAlign.End)
             }
         }
     }
@@ -213,7 +237,7 @@ internal fun InsightChart(series: InsightSeries, onOpen: (String) -> Unit) {
             Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.insight_previous_point))
         }
         Text(stringResource(R.string.insight_point_value, insightDate(selected.date), insightNumber(selected.value)),
-            style = MaterialTheme.typography.bodyMediumEmphasized,
+            style = FitLogType.dataEmphasized,
             modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
         IconButton(onClick = { selectedDate = points[selectedIndex + 1].date.toString() }, enabled = selectedIndex < points.lastIndex,
             shapes = IconButtonDefaults.shapes()) {
@@ -227,7 +251,8 @@ internal fun InsightChart(series: InsightSeries, onOpen: (String) -> Unit) {
                 else stringResource(R.string.insight_source_number, index + 1))
         }
     }
-    if (points.size == 1) Text(stringResource(R.string.insight_single_point), style = MaterialTheme.typography.bodySmall)
+    if (points.size == 1) Text(stringResource(R.string.insight_single_point), style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable

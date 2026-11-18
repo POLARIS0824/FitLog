@@ -25,13 +25,15 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.model.record.ReviewedSet
 import com.example.fitlog.model.record.WeightBasis
 import com.example.fitlog.model.record.WeightUnit
+import com.example.fitlog.ui.components.FitLogConnectedButtonGroup
 import com.example.fitlog.ui.components.FitLogSheetDefaults
 import com.example.fitlog.ui.components.FitLogSheetTitle
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.FitLogType
 import com.example.fitlog.ui.training.WeightEditValue
 import com.example.fitlog.ui.training.enteredReps
 import com.example.fitlog.ui.training.enteredWeight
@@ -52,7 +54,8 @@ internal fun NativeSetEntry(set: ReviewedSet, number: Int, enabled: Boolean,
     LaunchedEffect(set.reps) {
         if (enteredReps(repsText) != set.reps) repsText = set.reps?.toString().orEmpty()
     }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val spacing = FitLogTheme.spacing
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(setLabel, style = MaterialTheme.typography.labelLargeEmphasized, modifier = Modifier.weight(1f))
             Text(stringResource(weightBasisLabel(set.basis)), style = MaterialTheme.typography.bodySmall,
@@ -66,7 +69,7 @@ internal fun NativeSetEntry(set: ReviewedSet, number: Int, enabled: Boolean,
                         onClick = { menu = false; onOptions() })
                     DropdownMenuItem(text = { Text(stringResource(R.string.record_copy_set)) }, enabled = canCopy,
                         onClick = { menu = false; onCopy() })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.record_remove_set), color = MaterialTheme.colorScheme.error) },
+                    DropdownMenuItem(text = { Text(stringResource(R.string.record_remove_set)) },
                         onClick = { menu = false; onRemove() })
                 }
             }
@@ -78,7 +81,7 @@ internal fun NativeSetEntry(set: ReviewedSet, number: Int, enabled: Boolean,
                     if (text.isEmpty() || (text.matches(Regex("[0-9]*[.,]?[0-9]*")) && enteredWeight(text) != null)) {
                         weightText = text; onChange(set.copy(weight = enteredWeight(text)))
                     }
-                }, enabled = enabled, readOnly = bodyweight, singleLine = true,
+                }, enabled = enabled, readOnly = bodyweight, singleLine = true, textStyle = FitLogType.dataEmphasized,
                 label = { Text(stringResource(R.string.detail_weight)) },
                 suffix = if (bodyweight) null else ({ Text(weightUnitLabel(set.unit)) }),
                 placeholder = { Text(stringResource(R.string.record_weight_placeholder)) },
@@ -91,16 +94,17 @@ internal fun NativeSetEntry(set: ReviewedSet, number: Int, enabled: Boolean,
                 if (text.isEmpty() || (text.all(Char::isDigit) && enteredReps(text) != null)) {
                     repsText = text; onChange(set.copy(reps = enteredReps(text)))
                 }
-            }, enabled = enabled, singleLine = true, label = { Text(stringResource(R.string.detail_reps)) },
+            }, enabled = enabled, singleLine = true, textStyle = FitLogType.dataEmphasized,
+                label = { Text(stringResource(R.string.detail_reps)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                 keyboardActions = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Next) }),
                 modifier = modifier.semantics { contentDescription = setLabel })
         }
         val largeText = LocalDensity.current.fontScale > 1.3f
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            if (largeText || maxWidth < 280.dp) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (largeText || maxWidth < FitLogTheme.dimens.record.setFieldsRowMinWidth) Column(verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                 weight(Modifier.fillMaxWidth()); reps(Modifier.fillMaxWidth())
-            } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            } else Row(horizontalArrangement = Arrangement.spacedBy(spacing.s)) {
                 weight(Modifier.weight(1f)); reps(Modifier.weight(1f))
             }
         }
@@ -117,27 +121,23 @@ internal fun NativeSetOptionsSheet(edit: NativeSetOptions, onDismiss: () -> Unit
     var unit by remember { mutableStateOf(edit.value.unit ?: WeightUnit.UNKNOWN) }
     var basis by remember { mutableStateOf(edit.value.basis ?: WeightBasis.UNKNOWN) }
     var applyAll by remember { mutableStateOf(false) }
+    val spacing = FitLogTheme.spacing
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(FitLogSheetDefaults.ContentPadding),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            verticalArrangement = Arrangement.spacedBy(spacing.m)) {
             FitLogSheetTitle(stringResource(R.string.record_weight_options))
             if (basis != WeightBasis.BODYWEIGHT) {
                 Text(stringResource(R.string.detail_unit), style = MaterialTheme.typography.labelLarge)
-                FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(WeightUnit.KG, WeightUnit.LB, WeightUnit.UNKNOWN).forEach { choice ->
-                        FilterChip(selected = unit == choice, onClick = { unit = choice },
-                            modifier = Modifier.semantics { role = Role.RadioButton }, label = {
-                                Text(stringResource(when (choice) {
-                                    WeightUnit.KG -> R.string.detail_unit_kg_short
-                                    WeightUnit.LB -> R.string.detail_unit_lb_short
-                                    else -> R.string.detail_keep_unknown
-                                }))
-                            })
-                    }
-                }
+                FitLogConnectedButtonGroup(listOf(WeightUnit.KG, WeightUnit.LB, WeightUnit.UNKNOWN), unit,
+                    label = { choice -> stringResource(when (choice) {
+                        WeightUnit.KG -> R.string.detail_unit_kg_short
+                        WeightUnit.LB -> R.string.detail_unit_lb_short
+                        else -> R.string.detail_keep_unknown
+                    }) },
+                    onSelect = { unit = it })
             }
             Text(stringResource(R.string.detail_basis), style = MaterialTheme.typography.labelLarge)
-            FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(spacing.s)) {
                 WeightBasis.entries.forEach { choice ->
                     FilterChip(selected = basis == choice, onClick = { basis = choice },
                         modifier = Modifier.semantics { role = Role.RadioButton },
@@ -147,7 +147,7 @@ internal fun NativeSetOptionsSheet(edit: NativeSetOptions, onDismiss: () -> Unit
             Text(stringResource(if (basis == WeightBasis.BODYWEIGHT) R.string.record_bodyweight_change_help
                 else R.string.record_weight_options_help), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(Modifier.fillMaxWidth().toggleable(applyAll, role = Role.Checkbox, onValueChange = { applyAll = it }),
+            Row(Modifier.fillMaxWidth().heightIn(min = LocalMinimumInteractiveComponentSize.current).toggleable(applyAll, role = Role.Checkbox, onValueChange = { applyAll = it }),
                 verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(applyAll, onCheckedChange = null)
                 Text(stringResource(R.string.detail_basis_apply_exercise), Modifier.weight(1f))
@@ -155,7 +155,7 @@ internal fun NativeSetOptionsSheet(edit: NativeSetOptions, onDismiss: () -> Unit
             Button(onClick = { onConfirm(unit, basis, applyAll) },
                 enabled = basis == WeightBasis.BODYWEIGHT || WeightEditValue(edit.value.weight, edit.value.unit).inUnit(unit).weight?.isFinite() != false,
                 modifier = Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) {
-                Text(stringResource(R.string.record_done))
+                Text(stringResource(R.string.record_done), style = MaterialTheme.typography.labelLargeEmphasized)
             }
         }
     }

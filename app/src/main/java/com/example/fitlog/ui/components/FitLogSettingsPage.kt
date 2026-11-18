@@ -2,7 +2,6 @@ package com.example.fitlog.ui.components
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -11,16 +10,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.data.settings.UiLook
 import com.example.fitlog.ui.glass.LocalUiLook
 import com.example.fitlog.ui.glass.LookSurface
 import com.example.fitlog.ui.glass.glassPageSource
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
+import com.example.fitlog.ui.theme.fitLogPagePadding
 
 /** The app owns system insets; this frame owns the app bar and one scrolling content list. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,17 +36,19 @@ internal fun FitLogSettingsPage(
 ) {
     val behavior = rememberFitLogTopAppBarBehavior()
     val pagePadding = fitLogPagePadding()
+    val spacing = FitLogTheme.spacing
+    val contentWidth = FitLogTheme.dimens.page.contentWidth
     Column(Modifier.fillMaxSize().background(if (LocalUiLook.current == UiLook.LIQUID_GLASS)
-        androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surfaceContainerLow)
+        Color.Transparent else MaterialTheme.colorScheme.surface)
         .nestedScroll(behavior.nestedScrollConnection), horizontalAlignment = Alignment.CenterHorizontally) {
-        FitLogTopAppBar(title, behavior, maxContentWidth = FitLogDimens.ContentWidth,
+        FitLogTopAppBar(title, behavior, maxContentWidth = contentWidth,
             onBack = onBack, backEnabled = backEnabled, actions = actions)
 
-        Box(Modifier.weight(1f).widthIn(max = FitLogDimens.ContentWidth).fillMaxWidth().imePadding()) {
+        Box(Modifier.weight(1f).widthIn(max = contentWidth).fillMaxWidth().imePadding()) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().glassPageSource(),
-                contentPadding = PaddingValues(start = pagePadding, end = pagePadding, top = 16.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
+                contentPadding = PaddingValues(start = pagePadding, end = pagePadding, top = spacing.l, bottom = spacing.xxl),
+                verticalArrangement = Arrangement.spacedBy(spacing.xl),
                 content = content,
             )
             FitLogLoadingIndicator(loading, Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = pagePadding))
@@ -55,29 +58,38 @@ internal fun FitLogSettingsPage(
 
 @Composable
 internal fun SettingsSectionTitle(title: String) {
+    val spacing = FitLogTheme.spacing
     Text(title, style = MaterialTheme.typography.titleMediumEmphasized,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, bottom = 12.dp).semantics { heading() })
+        modifier = Modifier.padding(start = spacing.l, bottom = spacing.m).semantics { heading() })
 }
 
-/** Continuous groups and thin dividers intentionally follow the supplied reference image. */
+/**
+ * One contained group of related settings, one tonal step above the page. Rows inside it run edge
+ * to edge, so the group uses the list container radius rather than a card's.
+ */
 @Composable
 internal fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
-    LookSurface(shape = MaterialTheme.shapes.extraLargeIncreased,
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+    LookSurface(shape = FitLogContainment.listGroupShape,
+        color = FitLogContainment.listGroupColor,
         modifier = Modifier.fillMaxWidth()) {
         Column(content = content)
     }
 }
 
+/** A form on the settings page: a filled Material card; the Liquid Glass look keeps its glass group. */
 @Composable
 internal fun SettingsFormCard(content: @Composable ColumnScope.() -> Unit) {
-    SettingsGroup {
-        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
+    val spacing = FitLogTheme.spacing
+    val form: @Composable ColumnScope.() -> Unit = {
+        Column(Modifier.fillMaxWidth().padding(spacing.l), verticalArrangement = Arrangement.spacedBy(spacing.m),
             content = content)
     }
+    if (LocalUiLook.current == UiLook.LIQUID_GLASS) SettingsGroup(form)
+    else Card(Modifier.fillMaxWidth(), content = form)
 }
 
+/** A navigation row inside [SettingsGroup]: Material's interactive list item on the group's surface. */
 @Composable
 internal fun SettingsEntry(
     @DrawableRes icon: Int,
@@ -85,25 +97,27 @@ internal fun SettingsEntry(
     subtitle: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
-    tone: Int = 0,
     trailing: @Composable (() -> Unit)? = null,
 ) {
-    Row(Modifier.fillMaxWidth().clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-        .padding(horizontal = 20.dp, vertical = 20.dp), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        val scheme = MaterialTheme.colorScheme
-        val (container, foreground) = when (tone) {
-            1 -> scheme.secondaryContainer to scheme.onSecondaryContainer
-            2 -> scheme.tertiaryContainer to scheme.onTertiaryContainer
-            else -> scheme.primaryContainer to scheme.onPrimaryContainer
-        }
-        Box(Modifier.size(48.dp).background(container, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(painterResource(icon), null, tint = foreground, modifier = Modifier.size(24.dp))
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMediumEmphasized)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
-        }
-        trailing?.invoke()
+    val scheme = MaterialTheme.colorScheme
+    // One neutral icon container for every row: per-row accent colors carry no meaning here.
+    val (container, foreground) = scheme.surfaceContainerHighest to scheme.onSurfaceVariant
+    ListItem(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = enabled,
+        leadingContent = {
+            Box(Modifier.size(FitLogTheme.dimens.components.settingsEntryIconContainerSize).background(container, CircleShape),
+                contentAlignment = Alignment.Center) {
+                Icon(painterResource(icon), null, tint = foreground)
+            }
+        },
+        trailingContent = trailing,
+        supportingContent = { Text(subtitle, style = MaterialTheme.typography.bodyMedium) },
+        // The group owns the fill. Naming contentColor selects the interactive ListItem overload.
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent, contentColor = scheme.onSurface,
+            supportingContentColor = scheme.onSurfaceVariant),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMediumEmphasized)
     }
 }

@@ -15,7 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.example.fitlog.R
 import com.example.fitlog.model.analysis.DiaryResultFreshness
 import com.example.fitlog.model.analysis.ParseRunStatus
@@ -24,6 +23,8 @@ import com.example.fitlog.model.record.WeightUnit
 import com.example.fitlog.ui.components.FitLogLoadingIndicator
 import com.example.fitlog.ui.components.FitLogProgressFeedback
 import com.example.fitlog.ui.components.rememberDelayedLoading
+import com.example.fitlog.ui.theme.FitLogContainment
+import com.example.fitlog.ui.theme.FitLogTheme
 
 @Composable
 internal fun AnalysisStatusCard(state: DiaryDetailUiState, actions: DiaryDetailActions,
@@ -49,20 +50,20 @@ internal fun AnalysisStatusCard(state: DiaryDetailUiState, actions: DiaryDetailA
         state.confirmationReadFailed -> R.string.detail_status_unavailable
         else -> confirmationLabel(state.confirmationStatus)
     }
-    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer) {
+    val spacing = FitLogTheme.spacing
+    Card(Modifier.fillMaxWidth()) {
         Box(Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.fillMaxWidth().padding(spacing.l), verticalArrangement = Arrangement.spacedBy(spacing.s)) {
                 StatusRow(R.string.detail_status_parse, parseLabel, state.parses.latestAttempt?.status == ParseRunStatus.FAILED || state.parsesReadFailed)
                 StatusRow(R.string.detail_status_confirmation, confirmLabel, state.confirmationReadFailed)
-                FlowRow(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(spacing.s)) {
                     if (state.parsing) TextButton(onClick = actions.cancelParse, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.ai_cancel_request)) }
                     FilledTonalButton(onClick = actions.parse,
                         enabled = extractionIdle && !state.sourceLoading,
                         colors = extractionColors,
                         shapes = ButtonDefaults.shapes()) {
-                        Icon(painterResource(R.drawable.auto_awesome_24px), null)
-                        Spacer(Modifier.width(8.dp))
+                        Icon(painterResource(R.drawable.auto_awesome_24px), null, Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                         Text(stringResource(when {
                             state.sourceLoading && extractionIdle -> R.string.detail_reading_source
                             hasExtraction -> R.string.ai_reparse
@@ -72,23 +73,26 @@ internal fun AnalysisStatusCard(state: DiaryDetailUiState, actions: DiaryDetailA
                 }
             }
             FitLogProgressFeedback(showOperationLoading || showParsesLoading || showConfirmationLoading,
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp))
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = spacing.l).padding(bottom = spacing.xs))
         }
     }
 }
 
 @Composable
 private fun StatusRow(label: Int, value: Int?, error: Boolean) {
-    Surface(color = if (error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = if (error) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
-        shape = MaterialTheme.shapes.medium) {
-        Row(Modifier.fillMaxWidth().padding(if (error) 8.dp else 0.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    val row: @Composable () -> Unit = {
+        Row(Modifier.fillMaxWidth().padding(if (error) FitLogTheme.spacing.s else FitLogTheme.spacing.none),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.m)) {
             Text(stringResource(label), style = MaterialTheme.typography.labelLarge)
-            if (error) Icon(painterResource(R.drawable.warning_24px), null, Modifier.size(20.dp))
+            if (error) Icon(painterResource(R.drawable.warning_24px), null)
             Text(value?.let { stringResource(it) }.orEmpty(), style = MaterialTheme.typography.bodyMediumEmphasized, modifier = Modifier.weight(1f))
         }
     }
+    // Only a failed status gets its own tile; a normal status is plain text on the card.
+    if (error) Surface(color = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        // Nested in the card's 16dp inset: 12dp outer corners minus padding rounds to the smallest step.
+        shape = FitLogContainment.nestedShape, content = row)
+    else row()
 }
 
 @Composable
@@ -98,7 +102,8 @@ internal fun ReviewConfirmationDialog(draft: DiaryReviewDraft, saving: Boolean, 
     var partial by androidx.compose.runtime.saveable.rememberSaveable(draft.parseRunId) { mutableStateOf(draft.acceptedPartial) }
     AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, title = { Text(stringResource(R.string.detail_confirm_save)) },
         text = { Box {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = FitLogTheme.spacing.m),
+                verticalArrangement = Arrangement.spacedBy(FitLogTheme.spacing.m)) {
                 Text(stringResource(R.string.detail_confirm_explanation))
                 if (draft.sessions.all { it.exercises.isEmpty() }) Text(stringResource(R.string.detail_review_rest_day))
                 if (draft.sessions.any { session -> session.exercises.any { exercise -> exercise.sets.any { set ->

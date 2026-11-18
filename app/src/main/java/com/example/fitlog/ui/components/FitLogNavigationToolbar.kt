@@ -37,11 +37,12 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import com.example.fitlog.R
 import com.example.fitlog.app.navigation.TopLevelDestination
 import com.example.fitlog.app.navigation.topLevelDestinations
+import com.example.fitlog.ui.theme.FitLogAlpha
+import com.example.fitlog.ui.theme.FitLogTheme
 
 @Composable
 fun FitLogNavigationToolbar(
@@ -65,7 +66,7 @@ fun FitLogNavigationToolbar(
             Row(
                 modifier = Modifier,
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(FitLogTheme.dimens.navigation.itemGap),
             ) {
                 // 1. 左侧：带局部同步遮罩的胶囊导航底栏
                 NavToolbarWithScrim(
@@ -141,8 +142,8 @@ private fun NavToolbarWithScrim(
             expanded = true,
             colors = toolbarColors,
             // Match the adjacent toggle FAB's built-in shadow elevation.
-            expandedShadowElevation = 6.dp,
-            collapsedShadowElevation = 6.dp,
+            expandedShadowElevation = FitLogTheme.dimens.navigation.shadowElevation,
+            collapsedShadowElevation = FitLogTheme.dimens.navigation.shadowElevation,
         ) {
             topLevelDestinations.forEach { destination ->
                 NavTabButton(
@@ -166,7 +167,7 @@ private fun NavToolbarWithScrim(
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(CircleShape)
-                    .background(colorScheme.scrim.copy(alpha = 0.32f))
+                    .background(colorScheme.scrim.copy(alpha = FitLogAlpha.SCRIM))
                     .clickable(
                         interactionSource = null,
                         indication = null,
@@ -192,6 +193,7 @@ private fun NavTabButton(
     val colorScheme = MaterialTheme.colorScheme
     val motionScheme = MaterialTheme.motionScheme
     val haptic = LocalHapticFeedback.current
+    val navigation = FitLogTheme.dimens.navigation
 
     ToggleButton(
         checked = selected,
@@ -201,7 +203,7 @@ private fun NavTabButton(
                 onClick()
             }
         },
-        modifier = modifier.height(48.dp),
+        modifier = modifier.height(navigation.tabHeight),
         colors = ToggleButtonDefaults.colors(
             containerColor = Color.Transparent,
             contentColor = colorScheme.onSurfaceVariant,
@@ -216,7 +218,7 @@ private fun NavTabButton(
         // 重点：虽然不用官方 icon slot，
         // 但仍告诉 Material「这里有 leading icon」
         contentPadding = ToggleButtonDefaults.contentPaddingFor(
-            buttonHeight = 48.dp,
+            buttonHeight = navigation.tabHeight,
             hasStartIcon = true,
         ),
     ) {
@@ -225,7 +227,7 @@ private fun NavTabButton(
         Icon(
             painter = painterResource(iconRes),
             contentDescription = label,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(navigation.tabIconSize),
         )
 
         AnimatedVisibility(
@@ -264,6 +266,7 @@ private fun FabMenuToggleButton(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val haptic = LocalHapticFeedback.current
+    val fabIconCheckedRotation = FitLogTheme.dimens.navigation.fabIconCheckedRotation
 
     ToggleFloatingActionButton(
         modifier = modifier,
@@ -284,7 +287,7 @@ private fun FabMenuToggleButton(
             tint = colorScheme.onPrimary,
             modifier = Modifier.graphicsLayer {
                 // checkedProgress 在 0f ~ 1f 之间平滑变化，直接驱动 0° -> 45°
-                rotationZ = checkedProgress * 45f
+                rotationZ = checkedProgress * fabIconCheckedRotation
             },
         )
     }
